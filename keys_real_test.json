@@ -1,0 +1,8 @@
+{
+  "account_bitstamp": {
+    "exchange": "bitstamp",
+    "api_key"    : "a",
+    "api_secret" : "b",
+    "customer_id": "c"
+  }
+}

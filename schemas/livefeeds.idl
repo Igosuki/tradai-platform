@@ -1,0 +1,31 @@
+@namespace("livefeeds")
+protocol Simple {
+  enum TradeType {
+    BUY,
+    SELL
+  }
+
+  record LiveTrade {
+      long event_ms;
+      string pair;
+      float amount;
+      float price;
+      int tt;
+  }
+
+  record LiveOrder {
+      long event_ms;
+      float amount;
+      string pair;
+      float price;
+      int tt;
+  }
+
+  record Orderbook {
+    long event_ms;
+    string pair;
+    // [(Price, Volume)...]
+    array<array<float>> asks;
+    array<array<float>> bids;
+  }
+}
