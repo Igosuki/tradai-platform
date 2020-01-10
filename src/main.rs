@@ -6,17 +6,18 @@
 // return Result<_, Error>.
 
 extern crate actix;
-extern crate coinnect;
+extern crate coinnect_rt;
 #[macro_use]
 extern crate actix_derive;
 #[macro_use]
 extern crate lazy_static;
 extern crate uuid;
+#[macro_use] extern crate log;
 
-use crate::coinnect::bitstamp::BitstampCreds;
-use crate::coinnect::coinnect::Coinnect;
-use crate::coinnect::exchange::Exchange::*;
-use crate::coinnect::types::Pair::*;
+use crate::coinnect_rt::bitstamp::BitstampCreds;
+use crate::coinnect_rt::coinnect::Coinnect;
+use crate::coinnect_rt::exchange::Exchange::*;
+use crate::coinnect_rt::types::Pair::*;
 use actix::{io::SinkWrite, Actor, ActorContext, AsyncContext, Context, Handler, StreamHandler, Recipient, Addr};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::{Arbiter, System};
@@ -28,23 +29,26 @@ use awc::{
 };
 use bytes::Buf;
 use bytes::Bytes;
-use coinnect::helpers;
+use coinnect_rt::helpers;
 use futures::stream::{SplitSink, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::path::{PathBuf, Path};
 use std::time::Duration;
-use std::{fs, io};
+use std::{fs, io, thread};
 use crate::handlers::file_actor::{AvroFileActor, FileActorOptions};
-use coinnect::types::LiveEvent;
-use coinnect::exchange_bot::ExchangeBot;
+use coinnect_rt::types::LiveEvent;
+use coinnect_rt::exchange_bot::{DefaultWsActor, ExchangeBot};
+use coinnect_rt::bittrex::BittrexCreds;
 
 pub mod avro_gen;
 pub mod handlers;
 pub mod api;
 
 fn main() -> io::Result<()> {
+    env_logger::init();
+
     let sys = System::new("websocket-client");
 
     Arbiter::spawn(async {
@@ -61,8 +65,10 @@ fn main() -> io::Result<()> {
         recipients.push(fa.recipient());
 
         let path = PathBuf::from("keys_real.json");
-        let my_creds = BitstampCreds::new_from_file("account_bitstamp", path).unwrap();
-        let _stream : Addr<ExchangeBot> = Coinnect::new_stream(Bitstamp, my_creds, recipients).await.unwrap();
+//        let my_creds = BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap();
+//        let _bot = Coinnect::new_stream(Bitstamp, my_creds, recipients.clone()).await.unwrap();
+        let my_creds = BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap();
+        let _bot : Box<ExchangeBot> = Coinnect::new_stream(Bittrex, my_creds, recipients).await.unwrap();
     });
     sys.run().unwrap();
     Ok(())

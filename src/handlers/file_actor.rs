@@ -1,16 +1,17 @@
 use actix::{Actor, Context, Handler};
-use coinnect::bitstamp::models::Event;
-use coinnect::exchange_bot::ExchangeBot;
+use coinnect_rt::bitstamp::models::Event;
+use coinnect_rt::exchange_bot::DefaultWsActor;
 use std::path::Path;
-use coinnect::types::LiveEvent;
+use coinnect_rt::types::LiveEvent;
 use avro_rs::{Writer, Schema};
-use crate::avro_gen::{self, models::{LiveTrade as LT}};
+use crate::avro_gen::{self, models::{LiveTrade as LT, Orderbook as OB}};
 use bigdecimal::ToPrimitive;
 use std::borrow::Borrow;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::fs::File;
 use uuid::Uuid;
+use bigdecimal::BigDecimal;
 
 pub struct FileActorOptions {
     pub base_dir: String,
@@ -25,7 +26,7 @@ impl AvroFileActor {
         let session_uuid = Uuid::new_v4();
         let base_path = Path::new(options.base_dir.as_str());
         let mut file = File::create(base_path.join(format!("part-{}.avro", session_uuid))).unwrap();
-        let mut writer = Writer::new(&avro_gen::models::LIVETRADE_SCHEMA, file);
+        let mut writer = Writer::new(&avro_gen::models::ORDERBOOK_SCHEMA, file);
         Self { writer: Rc::new(RefCell::new(writer)), }
     }
 }
@@ -50,6 +51,22 @@ impl Handler<LiveEvent> for AvroFileActor {
                 event_ms: lt.event_ms,
                 amount: lt.amount,
             }),
+            LiveEvent::LiveOrderbook(lt) => {
+                let orderbook = OB {
+                    pair: serde_json::to_string(&lt.pair).unwrap(),
+                    event_ms: lt.timestamp,
+                    asks: lt.asks.into_iter().map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()]).collect(),
+                    bids: lt.bids.into_iter().map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()]).collect()
+                };
+                debug!("Avro bean {:?}", orderbook);
+                match rc.append_ser(orderbook) {
+                    Err(e) => {
+                        debug!("Error writing avro bean {:?}", e);
+                        Err(e)
+                    },
+                    _ => Ok(0)
+                }
+            },
             _ => Ok(0)
         };
         rc.flush();

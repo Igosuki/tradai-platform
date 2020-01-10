@@ -1,14 +1,14 @@
 use serde::{Serialize, Deserialize};
 use actix_web::{web, Error, HttpResponse, ResponseError};
-use coinnect::exchange::{Exchange, ExchangeApi};
+use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use std::collections::HashMap;
-use coinnect::types::{OrderType, Pair, Price, Volume};
+use coinnect_rt::types::{OrderType, Pair, Price, Volume};
 use std::option::NoneError;
 use crate::api::ApiError::ExchangeNotFound;
 use derive_more::Display;
-use coinnect::bitstamp::BitstampCreds;
-use coinnect::coinnect::Coinnect;
-use coinnect::bittrex::BittrexCreds;
+use coinnect_rt::bitstamp::BitstampCreds;
+use coinnect_rt::coinnect::Coinnect;
+use coinnect_rt::bittrex::BittrexCreds;
 use std::path::PathBuf;
 use std::borrow::BorrowMut;
 use futures::lock::Mutex;
@@ -51,7 +51,7 @@ pub struct Order {
 pub enum ApiError {
     #[display(fmt = "Exchange not found")]
     ExchangeNotFound(Exchange),
-    Coinnect(coinnect::error::Error)
+    Coinnect(coinnect_rt::error::Error)
 }
 
 impl ResponseError for ApiError {
@@ -93,9 +93,9 @@ mod tests {
         http::{header, StatusCode},
         test, App,
     };
-    use coinnect::exchange::Exchange::Bitstamp;
-    use coinnect::types::OrderType;
-    use coinnect::types::Pair::BTC_USD;
+    use coinnect_rt::exchange::Exchange::Bitstamp;
+    use coinnect_rt::types::OrderType;
+    use coinnect_rt::types::Pair::BTC_USD;
     use bigdecimal::BigDecimal;
     use actix_web::body::Body;
     use futures::lock::Mutex;
@@ -111,7 +111,6 @@ mod tests {
         let mut app = test::init_service(App::new().data(data).configure(config_app)).await;
 
         let o = crate::api::Order {exchg:Bitstamp, t: OrderType::SellLimit, pair: BTC_USD, qty: BigDecimal::from(0.000001), price: BigDecimal::from(1)};
-        println!("{:?}", serde_json::to_string(&o));
         let payload = r#"{"exchg":"Bitstamp","type":"SellLimit","pair":"BTC_USD", "qty": 0.0000001, "price": 0.01}"#.as_bytes();
 
         let req = test::TestRequest::post()

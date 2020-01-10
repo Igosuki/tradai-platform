@@ -22,7 +22,9 @@ hmac = "0.4.2"
 bigdecimal = { version = "0.0.14", features = ["serde"] }
 chrono = "0.4.0"
 url = "2.1.0"
+
 log = "0.4.8"
+env_logger = "0.7.1"
 
 futures = { version ="0.3.1", features = ["thread-pool"] }
 futures-util = "0.3.1"
@@ -37,7 +39,7 @@ actix-codec = "0.2.0"
 tokio = { version = "0.2.6", features = ["full"] }
 openssl = "0.10.26"
 
-coinnect = { path = "./coinnect" }
+coinnect_rt = { path = "./coinnect" }
 avro-rs = { git = "ssh://git@github.com/Igosuki/avro-rs.git" }
 
 uuid = { version = "0.8.1", features = ["v4"] }
