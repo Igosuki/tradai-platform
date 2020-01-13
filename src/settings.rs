@@ -6,7 +6,7 @@ use serde::{Deserializer, Deserialize};
 use byte_unit::Byte;
 use serde::de;
 use coinnect_rt::types::Pair;
-use coinnect_rt::exchange::Exchange;
+use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use std::collections::HashMap;
 
 fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
@@ -34,22 +34,12 @@ pub struct FileRotation {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct FeedSettings {
-    symbols: Vec<Pair>
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ExchangeSettings {
-    orderbook: Option<FeedSettings>,
-    trades: Option<FeedSettings>,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct Settings {
     pub file_rotation: FileRotation,
     pub data_dir: String,
     pub __config_file: String,
-    pub exchanges: HashMap<Exchange, ExchangeSettings>
+    pub exchanges: HashMap<Exchange, ExchangeSettings>,
+    pub keys: String,
 }
 
 impl Settings {

@@ -1,5 +1,10 @@
 
 exchanges:
+  Bitstamp:
+    orderbook:
+      symbols: ['BTC_USD']
+      trades:
+        symbols: ['BTC_USD']
   Bittrex:
     orderbook:
       symbols: ['BTC_USD']
@@ -11,3 +16,5 @@ file_rotation:
   max_file_time: 1800
 
 data_dir: "./data"
+
+keys: keys_real.json

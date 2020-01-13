@@ -39,6 +39,9 @@ use crate::coinnect_rt::coinnect::Coinnect;
 use crate::coinnect_rt::exchange::Exchange::*;
 
 use crate::handlers::file_actor::{AvroFileActor, FileActorOptions};
+use std::collections::HashMap;
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::bitstamp::BitstampCreds;
 
 pub mod settings;
 pub mod avro_gen;
@@ -86,10 +89,13 @@ fn main() -> io::Result<()> {
 
     let sys = System::new("websocket-client");
     let arc = Arc::clone(&settings);
-    Arbiter::spawn(async {
+    Arbiter::spawn(async move {
+        let arc1 = arc.clone();
+        let settings_v = arc1.read().unwrap();
+
         let mut recipients: Vec<Recipient<LiveEventEnveloppe>> = vec![];
-        let fa = AvroFileActor::create(move |_ctx| {
-            let settings_v = arc.read().unwrap();
+        let fa = AvroFileActor::create(|_ctx| {
+            let settings_v = &arc.read().unwrap();
             let data_dir = settings_v.data_dir.clone();
             let dir = Path::new(data_dir.as_str()).clone();
             fs::create_dir_all(&dir).unwrap();
@@ -102,11 +108,25 @@ fn main() -> io::Result<()> {
         });
         recipients.push(fa.recipient());
 
-        let path = PathBuf::from("keys_real.json");
-//        let my_creds = BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap();
-//        let _bot = Coinnect::new_stream(Bitstamp, my_creds, recipients.clone()).await.unwrap();
-        let my_creds = BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap();
-        let _bot: Box<dyn ExchangeBot> = Coinnect::new_stream(Bittrex, my_creds, recipients).await.unwrap();
+        let path = PathBuf::from(settings_v.keys.clone());
+        let mut bots : HashMap<Exchange, Box<ExchangeBot>> = HashMap::new();
+
+        let exchanges = settings_v.exchanges.clone();
+        for (xch, conf) in exchanges {
+            match xch {
+                Exchange::Bittrex => {
+                    let my_creds = BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap();
+                    let bot: Box<ExchangeBot> = Coinnect::new_stream(Bittrex, my_creds, conf,recipients.clone()).await.unwrap();
+                    bots.insert(Exchange::Bittrex, bot);
+                },
+                Exchange::Bitstamp => {
+                    let my_creds = BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap();
+                    let bot = Coinnect::new_stream(Bitstamp, my_creds, conf,recipients.clone()).await.unwrap();
+                    bots.insert(Exchange::Bitstamp, bot);
+                }
+                _ => unimplemented!()
+            }
+        }
     });
 
     sys.run().unwrap();
