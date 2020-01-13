@@ -1,0 +1,10 @@
+exchanges:
+  BITSTAMP:
+    orderbook:
+      symbols: ['BTC-USD']
+    trades: ['BTC-USD']
+  BITTREX:
+    orderbook:
+      symbols: ['BTC-USD']
+    trades: ['BTC-USD']
+    # trades: [BTC-USD, ETH-USD, ETH-BTC]
