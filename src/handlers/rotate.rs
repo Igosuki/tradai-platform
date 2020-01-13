@@ -1,7 +1,7 @@
 use std::io::{Write, Result};
 use std::fs::{File};
 use std::path::{Path, PathBuf};
-use std::fs::rename;
+
 use std::io;
 use chrono::{DateTime, Utc, Duration};
 use std::error::Error;

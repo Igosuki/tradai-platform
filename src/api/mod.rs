@@ -3,14 +3,14 @@ use actix_web::{web, Error, HttpResponse, ResponseError};
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use std::collections::HashMap;
 use coinnect_rt::types::{OrderType, Pair, Price, Volume};
-use std::option::NoneError;
+
 use crate::api::ApiError::ExchangeNotFound;
 use derive_more::Display;
 use coinnect_rt::bitstamp::BitstampCreds;
 use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::bittrex::BittrexCreds;
 use std::path::PathBuf;
-use std::borrow::BorrowMut;
+
 use futures::lock::Mutex;
 
 pub struct ExchangeConfig {
@@ -18,9 +18,9 @@ pub struct ExchangeConfig {
     exchanges: Vec<Exchange>
 }
 
-fn build_exchanges(cfg: ExchangeConfig) -> HashMap<Exchange, Box<ExchangeApi>> {
+fn build_exchanges(cfg: ExchangeConfig) -> HashMap<Exchange, Box<dyn ExchangeApi>> {
     let path = PathBuf::from(cfg.key_file.as_str());
-    let mut exchg_map : HashMap<Exchange, Box<ExchangeApi>> = HashMap::new();
+    let mut exchg_map : HashMap<Exchange, Box<dyn ExchangeApi>> = HashMap::new();
     for exchange in cfg.exchanges {
         match exchange {
             Exchange::Bitstamp => {
@@ -57,7 +57,7 @@ pub enum ApiError {
 impl ResponseError for ApiError {
     fn error_response(&self) -> HttpResponse {
         match self {
-            ExchangeNotFound(e) => HttpResponse::NotFound().finish(),
+            ExchangeNotFound(_e) => HttpResponse::NotFound().finish(),
             ApiError::Coinnect(e) => HttpResponse::InternalServerError().body(e.to_string()),
             _ => HttpResponse::InternalServerError().finish()
         }
@@ -66,12 +66,12 @@ impl ResponseError for ApiError {
 
 pub async fn add_order(
     query: web::Json<Order>,
-    exchanges: web::Data<Mutex<HashMap<Exchange, Box<ExchangeApi>>>>,
+    exchanges: web::Data<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>>,
 ) -> Result<HttpResponse, Error> {
     let order = query.0;
     let mut x = exchanges.lock().await;
-    let mut api = x.get_mut(&order.exchg).ok_or(ExchangeNotFound(order.exchg))?;
-    let resp = api.add_order(order.t, order.pair, order.qty.with_prec(8), Some(order.price.with_prec(2))).await.map_err(|e| ApiError::Coinnect(e))?;
+    let api = x.get_mut(&order.exchg).ok_or(ExchangeNotFound(order.exchg))?;
+    let _resp = api.add_order(order.t, order.pair, order.qty.with_prec(8), Some(order.price.with_prec(2))).await.map_err(|e| ApiError::Coinnect(e))?;
     Ok(HttpResponse::Ok().finish())
 }
 
@@ -88,7 +88,7 @@ pub fn config_app(cfg: &mut web::ServiceConfig) {
 #[cfg(test)]
 mod tests {
     use crate::api::config_app;
-    use actix_web::dev::Service;
+    
     use actix_web::{
         http::{header, StatusCode},
         test, App,
@@ -97,9 +97,9 @@ mod tests {
     use coinnect_rt::types::OrderType;
     use coinnect_rt::types::Pair::BTC_USD;
     use bigdecimal::BigDecimal;
-    use actix_web::body::Body;
+    
     use futures::lock::Mutex;
-    use tokio::runtime::Runtime;
+    
 
     #[actix_rt::test]
     async fn test_add_order() {
@@ -110,7 +110,7 @@ mod tests {
         let data = Mutex::new(crate::api::build_exchanges(exchanges));
         let mut app = test::init_service(App::new().data(data).configure(config_app)).await;
 
-        let o = crate::api::Order {exchg:Bitstamp, t: OrderType::SellLimit, pair: BTC_USD, qty: BigDecimal::from(0.000001), price: BigDecimal::from(1)};
+        let _o = crate::api::Order {exchg:Bitstamp, t: OrderType::SellLimit, pair: BTC_USD, qty: BigDecimal::from(0.000001), price: BigDecimal::from(1)};
         let payload = r#"{"exchg":"Bitstamp","type":"SellLimit","pair":"BTC_USD", "qty": 0.0000001, "price": 0.01}"#.as_bytes();
 
         let req = test::TestRequest::post()

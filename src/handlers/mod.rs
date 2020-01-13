@@ -1,10 +1,14 @@
-use coinnect_rt::types::{LiveEvent, Pair};
+use coinnect_rt::types::{LiveEvent};
 use std::path::PathBuf;
 use chrono::prelude::*;
 
 pub mod file_actor;
 mod rotate;
 
+/// Create a partition for this even in the form of a PathBuf
+/// each partition has a key and value formatted like hdfs does
+/// /k1=v1/k2=v2/...
+/// Dates are formatted using strftime/Ymd
 pub fn liveEventPartitioner(le: &LiveEvent) -> Option<PathBuf> {
     match le {
         LiveEvent::LiveOrderbook(ob) => {
@@ -19,7 +23,7 @@ pub fn liveEventPartitioner(le: &LiveEvent) -> Option<PathBuf> {
             let dt_par = Utc.timestamp_millis(t.event_ms).format("%Y%m%d");
             Some(PathBuf::new().join("trades").join(format!("pr={:?}", t.pair)).join(format!("dt={}", dt_par)))
         }
-        /// No partitioning for this event
+        // No partitioning for this event
         _ => None
     }
 }

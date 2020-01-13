@@ -16,7 +16,7 @@ use std::collections::HashMap;
 type AvroState = HashMap<String, u32>;
 
 fn main() -> io::Result<()> {
-    let out_dir = env::var("OUT_DIR").unwrap();
+    let _out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new("target").join("avro");
     let gen_path_dir = Path::new("src").join("avro_gen");
     let gen_path = gen_path_dir.join("models.rs");
@@ -31,7 +31,7 @@ fn main() -> io::Result<()> {
     fs::create_dir_all(&dest_path).unwrap();
     fs::create_dir_all(&gen_path_dir).unwrap();
 
-    let mut entries = fs::read_dir("./schemas")?
+    let entries = fs::read_dir("./schemas")?
         .map(|res| res.map(|e| e.path()))
         .collect::<Result<Vec<_>, io::Error>>()?;
     let mut any_changes = false;

@@ -1,20 +1,20 @@
 use actix::{Actor, Context, Handler};
-use coinnect_rt::bitstamp::models::Event;
-use coinnect_rt::exchange_bot::DefaultWsActor;
+
+
 use std::path::{Path, PathBuf};
 use coinnect_rt::types::LiveEvent;
 use avro_rs::{Writer, Schema};
 use crate::avro_gen::{self, models::{LiveTrade as LT, Orderbook as OB}};
 use bigdecimal::ToPrimitive;
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
-use std::fs::File;
+use std::cell::{RefCell};
+
 use uuid::Uuid;
-use bigdecimal::BigDecimal;
+
 use std::collections::HashMap;
-use once_cell::sync::Lazy;
+
 use std::collections::hash_map::Entry;
-use std::ops::Deref;
+
 use std::fs;
 use crate::handlers::rotate::{SizeAndExpirationPolicy, RotatingFile};
 use chrono::{Utc, Duration};
@@ -96,7 +96,7 @@ impl AvroFileActor {
                 // Schema based avro file writer
                 let schema = self.schema_for(e).ok_or(Error::NoSchemaError)?;
                 let rc = Rc::new(RefCell::new(Writer::new(&schema, file)));
-                let v = v.insert(rc.clone());
+                let _v = v.insert(rc.clone());
                 Ok(rc)
             }
             Entry::Occupied(o) => Ok(o.get().clone())
@@ -123,7 +123,7 @@ impl Actor for AvroFileActor {
 impl Handler<LiveEvent> for AvroFileActor {
     type Result = ();
 
-    fn handle(&mut self, msg: LiveEvent, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: LiveEvent, _ctx: &mut Self::Context) -> Self::Result {
         let rc = self.writer_for(&msg);
         if rc.is_err() {
             debug!("Could not acquire writer for partition {:?}", rc.err().unwrap());
@@ -157,6 +157,9 @@ impl Handler<LiveEvent> for AvroFileActor {
             }
             _ => Ok(0)
         };
-        writer.flush();
+        writer.flush().unwrap_or_else(|_| {
+            debug!("Error flushing writer");
+            0
+        });
     }
 }

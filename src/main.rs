@@ -20,39 +20,35 @@ extern crate log;
 extern crate serde_derive;
 extern crate uuid;
 
-use std::{fs, io, thread};
-use std::collections::HashMap;
-use std::env::var;
+use std::{fs, io};
+
+
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
 
 use actix::{Actor, ActorContext, Addr, AsyncContext, Context, Handler, io::SinkWrite, Recipient, StreamHandler};
-use actix_codec::{AsyncRead, AsyncWrite, Framed};
+
 use actix_rt::{Arbiter, System};
-use avro_rs::{Schema, Writer};
-use awc::{
-    BoxedSocket,
-    Client,
-    error::WsProtocolError, ws::{Codec, Frame, Message},
-};
+
+
 use byte_unit::Byte;
-use bytes::Buf;
-use bytes::Bytes;
+
+
 use chrono::Duration;
 use coinnect_rt::bittrex::BittrexCreds;
-use coinnect_rt::exchange_bot::{DefaultWsActor, ExchangeBot};
-use coinnect_rt::helpers;
+use coinnect_rt::exchange_bot::{ExchangeBot};
+
 use coinnect_rt::types::LiveEvent;
-use config::*;
-use futures::stream::{SplitSink, StreamExt};
-use notify::{DebouncedEvent, RecommendedWatcher, RecursiveMode, Watcher};
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+
+
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+
+
 
 use crate::coinnect_rt::coinnect::Coinnect;
 use crate::coinnect_rt::exchange::Exchange::*;
-use crate::coinnect_rt::types::Pair::*;
+
 use crate::handlers::file_actor::{AvroFileActor, FileActorOptions};
 
 pub mod settings;
@@ -92,7 +88,7 @@ fn main() -> io::Result<()> {
     let settings = Arc::new(RwLock::new(settings::Settings::new(env).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?));
 
     // Create a channel to receive the events.
-    let (tx, rx) = channel();
+    let (tx, _rx) = channel();
     let mut watcher: RecommendedWatcher = Watcher::new(tx, std::time::Duration::from_secs(2)).unwrap();
 
     watcher
@@ -103,7 +99,7 @@ fn main() -> io::Result<()> {
     let arc = Arc::clone(&settings);
     Arbiter::spawn(async {
         let mut recipients: Vec<Recipient<LiveEvent>> = vec![];
-        let fa = AvroFileActor::create(move |ctx| {
+        let fa = AvroFileActor::create(move |_ctx| {
             let settings_v = arc.read().unwrap();
             let data_dir = settings_v.data_dir.clone();
             let dir = Path::new(data_dir.as_str()).clone();
@@ -126,7 +122,7 @@ fn main() -> io::Result<()> {
 //        let my_creds = BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap();
 //        let _bot = Coinnect::new_stream(Bitstamp, my_creds, recipients.clone()).await.unwrap();
         let my_creds = BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap();
-        let _bot: Box<ExchangeBot> = Coinnect::new_stream(Bittrex, my_creds, recipients).await.unwrap();
+        let _bot: Box<dyn ExchangeBot> = Coinnect::new_stream(Bittrex, my_creds, recipients).await.unwrap();
     });
 
     sys.run().unwrap();
