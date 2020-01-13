@@ -2316,6 +2316,7 @@ dependencies = [
  "bytes",
  "chrono",
  "coinnect_rt",
+ "crc32fast",
  "data-encoding",
  "derive_more",
  "env_logger",
