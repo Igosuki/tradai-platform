@@ -132,13 +132,23 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
         let rc_ok = rc.unwrap();
         let mut writer = rc_ok.borrow_mut();
         match msg.1 {
-            LiveEvent::LiveTrade(lt) => writer.append_ser(LT {
-                pair: lt.pair,
-                tt: lt.tt.into(),
-                price: lt.price.to_f32().unwrap(),
-                event_ms: lt.event_ms,
-                amount: lt.amount,
-            }),
+            LiveEvent::LiveTrade(lt) => {
+                let lt = LT {
+                    pair: lt.pair,
+                    tt: lt.tt.into(),
+                    price: lt.price.to_f32().unwrap(),
+                    event_ms: lt.event_ms,
+                    amount: lt.amount,
+                };
+                debug!("Avro bean {:?}", lt);
+                match writer.append_ser(lt) {
+                    Err(e) => {
+                        debug!("Error writing avro bean {:?}", e);
+                        Err(e)
+                    }
+                    _ => Ok(0)
+                }
+            },
             LiveEvent::LiveOrderbook(lt) => {
                 let orderbook = OB {
                     pair: serde_json::to_string(&lt.pair).unwrap(),
