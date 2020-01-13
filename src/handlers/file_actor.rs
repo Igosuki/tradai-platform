@@ -74,7 +74,8 @@ impl AvroFileActor {
         let (stem, num) = previous_name.split_at(i + 1);
         let next_name = format!("{}{:04}.{}", stem, num.parse::<i32>().ok()? + 1, AVRO_EXTENSION);
         let mut next = previous.clone();
-        next.set_file_name(previous_name);
+        next.set_file_name(next_name);
+        next.set_extension(AVRO_EXTENSION);
         Some(next)
     }
 

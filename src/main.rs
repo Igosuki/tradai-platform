@@ -58,13 +58,12 @@ fn main() -> io::Result<()> {
 
         let fa = AvroFileActor::create(|ctx| {
             let dir = Path::new("./data").clone();
-            fs::remove_dir_all(dir).unwrap();
             fs::create_dir_all(&dir).unwrap();
-            let max_file_size = Byte::from_str("50.00 MB").unwrap();
+            let max_file_size = Byte::from_str("50 Mo").unwrap();
             AvroFileActor::new(&FileActorOptions {
                 base_dir: dir.to_str().unwrap().to_string(),
                 max_file_size: max_file_size.get_bytes() as u64,
-                max_file_time: Duration::seconds(5),
+                max_file_time: Duration::seconds(1800),
                 partitioner: handlers::liveEventPartitioner,
             })
         });
