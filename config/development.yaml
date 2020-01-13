@@ -1,3 +1,4 @@
+
 exchanges:
   BITSTAMP:
     orderbook:
@@ -8,3 +9,8 @@ exchanges:
       symbols: ['BTC-USD']
     trades: ['BTC-USD']
     # trades: [BTC-USD, ETH-USD, ETH-BTC]
+
+avro_output:
+
+
+data_dir: "./data"

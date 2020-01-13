@@ -68,6 +68,7 @@ impl AvroFileActor {
         }
     }
 
+    /// Finds the next incremental file name for this path
     fn next_file_part_name(previous: &PathBuf) -> Option<PathBuf> {
         let previous_name = previous.file_stem().and_then(|os_str| os_str.to_str())?;
         let i = previous_name.rfind("-")?;
@@ -79,19 +80,20 @@ impl AvroFileActor {
         Some(next)
     }
 
+    /// Returns (creating it if necessary) the current rotating file writer for the partition
     fn writer_for(&mut self, e: &LiveEvent) -> Result<Rc<RefCell<RotatingWriter>>, Error> {
         let partition = (self.partitioner)(e).ok_or(Error::NoPartitionError)?;
         match self.writers.borrow_mut().entry(partition.clone()) {
             Entry::Vacant(v) => {
                 let buf = self.base_path.join(partition);
-                /// Create base directory for partition if necessary
+                // Create base directory for partition if necessary
                 fs::create_dir_all(&buf).map_err(|e| Error::IOError(e))?;
 
-                /// Rotating file
+                // Rotating file
                 let file_path = buf.join(format!("{}-{:04}.{}", self.session_uuid, 0, AVRO_EXTENSION));
                 let file = RotatingFile::new(Box::new(file_path), self.rotation_policy.clone(), AvroFileActor::next_file_part_name).map_err(|e| Error::IOError(e))?;
 
-                /// Schema based avro file writer
+                // Schema based avro file writer
                 let schema = self.schema_for(e).ok_or(Error::NoSchemaError)?;
                 let rc = Rc::new(RefCell::new(Writer::new(&schema, file)));
                 let v = v.insert(rc.clone());
@@ -101,6 +103,7 @@ impl AvroFileActor {
         }
     }
 
+    /// Lookup the avro schema for the event type
     fn schema_for(&self, e: &LiveEvent) -> Option<&'static Schema> {
         match e {
             LiveEvent::LiveTrade(_) => Some(&*avro_gen::models::LIVETRADE_SCHEMA),
