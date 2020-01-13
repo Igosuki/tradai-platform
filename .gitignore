@@ -4,3 +4,6 @@
 data
 keys_real.json
 local.yaml
+cargo-git
+cargo-target
+cargo-registry

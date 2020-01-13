@@ -372,6 +372,19 @@ checksum = "f8aac770f1885fd7e387acedd76065302551364496e46b3dd00860b2f8359b9d"
 [[package]]
 name = "avro-rs"
 version = "0.6.6"
+source = "git+https://github.com/Igosuki/avro-rs.git#78ed78dca4942fad8a94695bec1ad6f66c1d7db8"
+dependencies = [
+ "digest 0.8.1",
+ "failure",
+ "libflate",
+ "rand 0.4.6",
+ "serde 1.0.104",
+ "serde_json",
+]
+
+[[package]]
+name = "avro-rs"
+version = "0.6.6"
 source = "git+ssh://git@github.com/Igosuki/avro-rs.git#78ed78dca4942fad8a94695bec1ad6f66c1d7db8"
 dependencies = [
  "digest 0.8.1",
@@ -627,6 +640,7 @@ dependencies = [
  "bytes",
  "chrono",
  "data-encoding",
+ "derive_more",
  "error-chain",
  "futures",
  "futures-util",
@@ -2005,9 +2019,9 @@ checksum = "cabe4fa914dec5870285fa7f71f602645da47c486e68486d2b4ceb4a343e90ac"
 [[package]]
 name = "rsgen-avro"
 version = "0.6.0"
-source = "git+ssh://git@github.com/Igosuki/rsgen-avro.git#32edda1062c3ae4048d814350945d100fa9c38bf"
+source = "git+https://github.com/Igosuki/rsgen-avro.git#32edda1062c3ae4048d814350945d100fa9c38bf"
 dependencies = [
- "avro-rs",
+ "avro-rs 0.6.6 (git+ssh://git@github.com/Igosuki/avro-rs.git)",
  "docopt",
  "failure",
  "heck",
@@ -2484,7 +2498,7 @@ dependencies = [
  "actix-rt",
  "actix-web",
  "actix_derive",
- "avro-rs",
+ "avro-rs 0.6.6 (git+https://github.com/Igosuki/avro-rs.git)",
  "awc",
  "bidir-map",
  "bigdecimal",

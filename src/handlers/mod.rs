@@ -14,15 +14,15 @@ pub fn live_event_partitioner(le: &LiveEventEnveloppe) -> Option<PathBuf> {
     match &le.1 {
         LiveEvent::LiveOrderbook(ob) => {
             let dt_par = Utc.timestamp_millis(ob.timestamp).format("%Y%m%d");
-            Some(PathBuf::new().join(exchange).join("order_books").join("order_books").join(format!("pr={:?}", ob.pair)).join(format!("dt={}", dt_par)))
+            Some(PathBuf::new().join(exchange).join("order_books").join("order_books").join(format!("pr={}", ob.pair)).join(format!("dt={}", dt_par)))
         }
         LiveEvent::LiveOrder(o) => {
             let dt_par = Utc.timestamp_millis(o.event_ms).format("%Y%m%d");
-            Some(PathBuf::new().join(exchange).join("orders").join(format!("pr={:?}", o.pair)).join(format!("dt={}", dt_par)))
+            Some(PathBuf::new().join(exchange).join("orders").join(format!("pr={}", o.pair)).join(format!("dt={}", dt_par)))
         }
         LiveEvent::LiveTrade(t) => {
             let dt_par = Utc.timestamp_millis(t.event_ms).format("%Y%m%d");
-            Some(PathBuf::new().join(exchange).join("trades").join(format!("pr={:?}", t.pair)).join(format!("dt={}", dt_par)))
+            Some(PathBuf::new().join(exchange).join("trades").join(format!("pr={}", t.pair)).join(format!("dt={}", dt_par)))
         }
         // No partitioning for this event
         _ => None
