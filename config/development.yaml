@@ -1,16 +1,13 @@
 
 exchanges:
-  BITSTAMP:
+  Bittrex:
     orderbook:
-      symbols: ['BTC-USD']
-    trades: ['BTC-USD']
-  BITTREX:
-    orderbook:
-      symbols: ['BTC-USD']
-    trades: ['BTC-USD']
-    # trades: [BTC-USD, ETH-USD, ETH-BTC]
+      symbols: ['BTC_USD']
+    trades:
+      symbols: ['BTC_USD']
 
-avro_output:
-
+file_rotation:
+  max_file_size: 50 Mb
+  max_file_time: 1800
 
 data_dir: "./data"

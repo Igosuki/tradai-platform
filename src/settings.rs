@@ -3,18 +3,30 @@ use config::{ConfigError, Config, File, Environment};
 
 use chrono::Duration;
 use serde::{Deserializer, Deserialize};
+use byte_unit::Byte;
+use serde::de;
+use coinnect_rt::types::Pair;
+use coinnect_rt::exchange::Exchange;
+use std::collections::HashMap;
 
 fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
     where Duration: Sized,
-          D: Deserializer<'de>,
-{
+          D: Deserializer<'de> {
     let val = Deserialize::deserialize(deserializer)?;
-    Ok(Duration::milliseconds(val))
+    Ok(Duration::seconds(val))
+}
+
+fn decode_file_size<'de, D>(deserializer: D) -> Result<u64, D::Error>
+    where D: Deserializer<'de> {
+    let val : String = Deserialize::deserialize(deserializer)?;
+    let size_bytes = Byte::from_str(val).map_err(|e| de::Error::custom(format!("{:?}", e)))?;
+    Ok(size_bytes.get_bytes() as u64)
 }
 
 #[derive(Debug, Deserialize)]
 pub struct FileRotation {
     /// Max file size in bytes
+    #[serde(deserialize_with = "decode_file_size")]
     pub max_file_size: u64,
     /// Max time before closing file
     #[serde(deserialize_with = "decode_duration")]
@@ -22,10 +34,22 @@ pub struct FileRotation {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct FeedSettings {
+    symbols: Vec<Pair>
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExchangeSettings {
+    orderbook: Option<FeedSettings>,
+    trades: Option<FeedSettings>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Settings {
     pub file_rotation: FileRotation,
     pub data_dir: String,
     pub __config_file: String,
+    pub exchanges: HashMap<Exchange, ExchangeSettings>
 }
 
 impl Settings {

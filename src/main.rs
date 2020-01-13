@@ -6,9 +6,7 @@
 // return Result<_, Error>.
 
 extern crate actix;
-#[macro_use]
 extern crate actix_derive;
-#[macro_use]
 extern crate byte_unit;
 extern crate coinnect_rt;
 extern crate config;
@@ -16,7 +14,6 @@ extern crate config;
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
-#[macro_use]
 extern crate serde_derive;
 extern crate uuid;
 
@@ -27,24 +24,16 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
 
-use actix::{Actor, ActorContext, Addr, AsyncContext, Context, Handler, io::SinkWrite, Recipient, StreamHandler};
+use actix::{Actor, Recipient};
 
 use actix_rt::{Arbiter, System};
 
-
-use byte_unit::Byte;
-
-
-use chrono::Duration;
 use coinnect_rt::bittrex::BittrexCreds;
 use coinnect_rt::exchange_bot::{ExchangeBot};
 
-use coinnect_rt::types::LiveEvent;
-
+use coinnect_rt::types::LiveEventEnveloppe;
 
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
-
-
 
 use crate::coinnect_rt::coinnect::Coinnect;
 use crate::coinnect_rt::exchange::Exchange::*;
@@ -98,22 +87,17 @@ fn main() -> io::Result<()> {
     let sys = System::new("websocket-client");
     let arc = Arc::clone(&settings);
     Arbiter::spawn(async {
-        let mut recipients: Vec<Recipient<LiveEvent>> = vec![];
+        let mut recipients: Vec<Recipient<LiveEventEnveloppe>> = vec![];
         let fa = AvroFileActor::create(move |_ctx| {
             let settings_v = arc.read().unwrap();
             let data_dir = settings_v.data_dir.clone();
             let dir = Path::new(data_dir.as_str()).clone();
             fs::create_dir_all(&dir).unwrap();
-            let max_file_size = Byte::from_str("50 Mb");
-            if max_file_size.is_err() {
-                debug!("Wrong max file size");
-                std::process::exit(1);
-            }
             AvroFileActor::new(&FileActorOptions {
                 base_dir: dir.to_str().unwrap().to_string(),
-                max_file_size: max_file_size.unwrap().get_bytes() as u64,
-                max_file_time: Duration::seconds(1800),
-                partitioner: handlers::liveEventPartitioner,
+                max_file_size: settings_v.file_rotation.max_file_size,
+                max_file_time: settings_v.file_rotation.max_file_time,
+                partitioner: handlers::live_event_partitioner,
             })
         });
         recipients.push(fa.recipient());

@@ -2,7 +2,7 @@ use actix::{Actor, Context, Handler};
 
 
 use std::path::{Path, PathBuf};
-use coinnect_rt::types::LiveEvent;
+use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use avro_rs::{Writer, Schema};
 use crate::avro_gen::{self, models::{LiveTrade as LT, Orderbook as OB}};
 use bigdecimal::ToPrimitive;
@@ -22,7 +22,7 @@ use chrono::{Utc, Duration};
 type RotatingWriter = Writer<'static, RotatingFile<SizeAndExpirationPolicy>>;
 
 type Partition = PathBuf;
-type Partitioner = fn(&LiveEvent) -> Option<Partition>;
+type Partitioner = fn(&LiveEventEnveloppe) -> Option<Partition>;
 
 pub struct FileActorOptions {
     pub base_dir: String,
@@ -81,7 +81,7 @@ impl AvroFileActor {
     }
 
     /// Returns (creating it if necessary) the current rotating file writer for the partition
-    fn writer_for(&mut self, e: &LiveEvent) -> Result<Rc<RefCell<RotatingWriter>>, Error> {
+    fn writer_for(&mut self, e: &LiveEventEnveloppe) -> Result<Rc<RefCell<RotatingWriter>>, Error> {
         let partition = (self.partitioner)(e).ok_or(Error::NoPartitionError)?;
         match self.writers.borrow_mut().entry(partition.clone()) {
             Entry::Vacant(v) => {
@@ -94,7 +94,7 @@ impl AvroFileActor {
                 let file = RotatingFile::new(Box::new(file_path), self.rotation_policy.clone(), AvroFileActor::next_file_part_name).map_err(|e| Error::IOError(e))?;
 
                 // Schema based avro file writer
-                let schema = self.schema_for(e).ok_or(Error::NoSchemaError)?;
+                let schema = self.schema_for(&e.1).ok_or(Error::NoSchemaError)?;
                 let rc = Rc::new(RefCell::new(Writer::new(&schema, file)));
                 let _v = v.insert(rc.clone());
                 Ok(rc)
@@ -120,10 +120,10 @@ impl Actor for AvroFileActor {
     fn started(&mut self, _: &mut Context<Self>) {}
 }
 
-impl Handler<LiveEvent> for AvroFileActor {
+impl Handler<LiveEventEnveloppe> for AvroFileActor {
     type Result = ();
 
-    fn handle(&mut self, msg: LiveEvent, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
         let rc = self.writer_for(&msg);
         if rc.is_err() {
             debug!("Could not acquire writer for partition {:?}", rc.err().unwrap());
@@ -131,7 +131,7 @@ impl Handler<LiveEvent> for AvroFileActor {
         }
         let rc_ok = rc.unwrap();
         let mut writer = rc_ok.borrow_mut();
-        match msg {
+        match msg.1 {
             LiveEvent::LiveTrade(lt) => writer.append_ser(LT {
                 pair: lt.pair,
                 tt: lt.tt.into(),
