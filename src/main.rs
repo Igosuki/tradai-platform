@@ -74,7 +74,8 @@ pub mod api;
 //                 .unwrap());
 //}
 
-fn main() -> io::Result<()> {
+#[actix_rt::main]
+async fn main() -> io::Result<()> {
     env_logger::init();
     let env = std::env::var("TRADER_ENV").unwrap_or("development".to_string());
     let settings = Arc::new(RwLock::new(settings::Settings::new(env).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?));
@@ -87,48 +88,44 @@ fn main() -> io::Result<()> {
         .watch(&settings.read().unwrap().__config_file, RecursiveMode::NonRecursive)
         .unwrap();
 
-    let sys = System::new("websocket-client");
     let arc = Arc::clone(&settings);
-    Arbiter::spawn(async move {
-        let arc1 = arc.clone();
-        let settings_v = arc1.read().unwrap();
+    let arc1 = arc.clone();
+    let settings_v = arc1.read().unwrap();
 
-        let mut recipients: Vec<Recipient<LiveEventEnveloppe>> = vec![];
-        let fa = AvroFileActor::create(|_ctx| {
-            let settings_v = &arc.read().unwrap();
-            let data_dir = settings_v.data_dir.clone();
-            let dir = Path::new(data_dir.as_str()).clone();
-            fs::create_dir_all(&dir).unwrap();
-            AvroFileActor::new(&FileActorOptions {
-                base_dir: dir.to_str().unwrap().to_string(),
-                max_file_size: settings_v.file_rotation.max_file_size,
-                max_file_time: settings_v.file_rotation.max_file_time,
-                partitioner: handlers::live_event_partitioner,
-            })
-        });
-        recipients.push(fa.recipient());
-
-        let path = PathBuf::from(settings_v.keys.clone());
-        let mut bots : HashMap<Exchange, Box<ExchangeBot>> = HashMap::new();
-
-        let exchanges = settings_v.exchanges.clone();
-        for (xch, conf) in exchanges {
-            match xch {
-                Exchange::Bittrex => {
-                    let my_creds = BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap();
-                    let bot: Box<ExchangeBot> = Coinnect::new_stream(Bittrex, my_creds, conf,recipients.clone()).await.unwrap();
-                    bots.insert(Exchange::Bittrex, bot);
-                },
-                Exchange::Bitstamp => {
-                    let my_creds = BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap();
-                    let bot = Coinnect::new_stream(Bitstamp, my_creds, conf,recipients.clone()).await.unwrap();
-                    bots.insert(Exchange::Bitstamp, bot);
-                }
-                _ => unimplemented!()
-            }
-        }
+    let mut recipients: Vec<Recipient<LiveEventEnveloppe>> = vec![];
+    let fa = AvroFileActor::create(|_ctx| {
+        let settings_v = &arc.read().unwrap();
+        let data_dir = settings_v.data_dir.clone();
+        let dir = Path::new(data_dir.as_str()).clone();
+        fs::create_dir_all(&dir).unwrap();
+        AvroFileActor::new(&FileActorOptions {
+            base_dir: dir.to_str().unwrap().to_string(),
+            max_file_size: settings_v.file_rotation.max_file_size,
+            max_file_time: settings_v.file_rotation.max_file_time,
+            partitioner: handlers::live_event_partitioner,
+        })
     });
+    recipients.push(fa.recipient());
 
-    sys.run().unwrap();
-    Ok(())
+    let path = PathBuf::from(settings_v.keys.clone());
+    let mut bots : HashMap<Exchange, Box<ExchangeBot>> = HashMap::new();
+
+    let exchanges = settings_v.exchanges.clone();
+    for (xch, conf) in exchanges {
+        match xch {
+            Exchange::Bittrex => {
+                let my_creds = BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap();
+                let bot: Box<ExchangeBot> = Coinnect::new_stream(Bittrex, my_creds, conf,recipients.clone()).await.unwrap();
+                bots.insert(Exchange::Bittrex, bot);
+            },
+            Exchange::Bitstamp => {
+                let my_creds = BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap();
+                let bot = Coinnect::new_stream(Bitstamp, my_creds, conf,recipients.clone()).await.unwrap();
+                bots.insert(Exchange::Bitstamp, bot);
+            }
+            _ => unimplemented!()
+        }
+    }
+
+    tokio::signal::ctrl_c().await
 }
