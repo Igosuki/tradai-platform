@@ -11,7 +11,8 @@ pub struct RotatingFile<L> {
     inner: File,
     path: Box<PathBuf>,
     rotation_policy: L,
-    naming_policy: fn(&PathBuf) -> Option<PathBuf>
+    naming_policy: fn(&PathBuf) -> Option<PathBuf>,
+    on_new_header: Option<Vec<u8>>
 }
 
 #[derive(Debug, Display)]
@@ -25,12 +26,13 @@ impl Error for RotatingFileError {
 impl<L> RotatingFile<L>
     where L: RotationPolicy
 {
-    pub fn new(path: Box<PathBuf>, rotation_policy: L, new_name: fn(&PathBuf) -> Option<PathBuf>) -> Result<Self> {
+    pub fn new(path: Box<PathBuf>, rotation_policy: L, new_name: fn(&PathBuf) -> Option<PathBuf>, on_new_header: Option<Vec<u8>>) -> Result<Self> {
         Ok(RotatingFile {
             inner: File::create(path.as_ref())?,
             path,
             rotation_policy,
-            naming_policy: new_name
+            naming_policy: new_name,
+            on_new_header,
         })
     }
 
@@ -41,7 +43,17 @@ impl<L> RotatingFile<L>
         let new_path = (naming_policy)(path.as_ref()).ok_or(std::io::Error::new(std::io::ErrorKind::Other, RotatingFileError))?;
         self.rotation_policy.set_last_flush(Utc::now());
         self.path = Box::new(new_path.clone());
-        self.inner = File::create(new_path)?;
+        let mut f = File::create(new_path)?;
+        match self.on_new_header.clone() {
+            Some(h) => {
+                let mut fd = f.try_clone()?;
+                fd.write(h.as_ref())?;
+                fd.flush();
+                drop(fd)
+            },
+            None => ()
+        };
+        self.inner = f;
         Ok(())
     }
 }

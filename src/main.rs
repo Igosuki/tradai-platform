@@ -16,6 +16,7 @@ extern crate lazy_static;
 extern crate log;
 extern crate serde_derive;
 extern crate uuid;
+extern crate rand;
 
 use std::{fs, io};
 

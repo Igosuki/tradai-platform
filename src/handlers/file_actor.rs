@@ -3,7 +3,7 @@ use actix::{Actor, Context, Handler};
 
 use std::path::{Path, PathBuf};
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
-use avro_rs::{Writer, Schema};
+use avro_rs::{Writer, Schema, types::{Value, ToAvro}, Codec};
 use crate::avro_gen::{self, models::{LiveTrade as LT, Orderbook as OB}};
 use bigdecimal::ToPrimitive;
 use std::rc::Rc;
@@ -18,11 +18,17 @@ use std::collections::hash_map::Entry;
 use std::fs;
 use crate::handlers::rotate::{SizeAndExpirationPolicy, RotatingFile};
 use chrono::{Utc, Duration};
+use std::fs::File;
+use avro_rs::encode::encode;
 
 type RotatingWriter = Writer<'static, RotatingFile<SizeAndExpirationPolicy>>;
 
 type Partition = PathBuf;
 type Partitioner = fn(&LiveEventEnveloppe) -> Option<Partition>;
+
+use rand::random;
+use std::io::Write;
+use derive_more::Display;
 
 pub struct FileActorOptions {
     pub base_dir: String,
@@ -34,12 +40,16 @@ pub struct FileActorOptions {
     pub partitioner: Partitioner,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
 pub enum Error {
     NoWriterError,
     NoPartitionError,
     NoSchemaError,
     IOError(std::io::Error),
+}
+
+impl std::error::Error for Error {
+
 }
 
 pub struct AvroFileActor {
@@ -89,13 +99,22 @@ impl AvroFileActor {
                 // Create base directory for partition if necessary
                 fs::create_dir_all(&buf).map_err(|e| Error::IOError(e))?;
 
+                let schema = self.schema_for(&e.1).ok_or(Error::NoSchemaError)?;
+
                 // Rotating file
                 let file_path = buf.join(format!("{}-{:04}.{}", self.session_uuid, 0, AVRO_EXTENSION));
-                let file = RotatingFile::new(Box::new(file_path), self.rotation_policy.clone(), AvroFileActor::next_file_part_name).map_err(|e| Error::IOError(e))?;
+
+                let mut marker = Vec::with_capacity(16);
+                for _ in 0..16 {
+                    marker.push(random::<u8>());
+                }
+
+                let file = RotatingFile::new(Box::new(file_path), self.rotation_policy.clone(), AvroFileActor::next_file_part_name, Some(avro_header(&schema, marker.clone())?)).map_err(|e| Error::IOError(e))?;
 
                 // Schema based avro file writer
-                let schema = self.schema_for(&e.1).ok_or(Error::NoSchemaError)?;
-                let rc = Rc::new(RefCell::new(Writer::new(&schema, file)));
+                let mut writer = Writer::new(&schema, file);
+                writer.marker = marker;
+                let rc = Rc::new(RefCell::new(writer));
                 let _v = v.insert(rc.clone());
                 Ok(rc)
             }
@@ -172,4 +191,25 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
             0
         });
     }
+}
+
+const AVRO_OBJECT_HEADER: &[u8] = &[b'O', b'b', b'j', 1u8];
+
+fn avro_header(schema: &Schema, marker: Vec<u8>) -> Result<Vec<u8>, Error> {
+    let schema_bytes = serde_json::to_string(schema).map_err(|e| Error::NoSchemaError)?.into_bytes();
+
+    let mut metadata = HashMap::with_capacity(2);
+    metadata.insert("avro.schema", Value::Bytes(schema_bytes));
+    metadata.insert("avro.codec", Codec::Null.avro());
+
+    let mut header = Vec::new();
+    header.extend_from_slice(AVRO_OBJECT_HEADER);
+    encode(
+        &metadata.avro(),
+        &Schema::Map(Box::new(Schema::Bytes)),
+        &mut header,
+    );
+    header.extend_from_slice(&marker);
+
+    Ok(header)
 }

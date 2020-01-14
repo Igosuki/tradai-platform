@@ -33,6 +33,7 @@ byte-unit = "3.0.3"
 bigdecimal = { version = "0.0.14", features = ["serde"] }
 error-chain = "0.12.1"
 config = { version = "0.9", features = ["yaml"] }
+rand = "0.7.3"
 
 # SSL
 sha2 = "0.6.0"
