@@ -38,6 +38,7 @@ config = { version = "0.9", features = ["yaml"] }
 sha2 = "0.6.0"
 hmac = "0.4.2"
 openssl = "0.10.26"
+native-tls = "0.2.3"
 
 # Logging
 log = "0.4.8"
