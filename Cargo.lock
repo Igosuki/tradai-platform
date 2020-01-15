@@ -2291,9 +2291,9 @@ dependencies = [
 
 [[package]]
 name = "signalr_rs"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7947ba49d410f5fe1acb42d65eb17a2faab4aac5fb85ae3482d8bca1c52023ad"
+checksum = "19cfa145786bf40e02b3885e7eabf406c4e58573c92018698a8194a0c205b471"
 dependencies = [
  "actix",
  "actix-codec",
