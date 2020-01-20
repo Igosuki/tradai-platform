@@ -8,41 +8,40 @@
 extern crate actix;
 extern crate actix_derive;
 extern crate byte_unit;
+#[macro_use]
+extern crate clap;
 extern crate coinnect_rt;
 extern crate config;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
+extern crate rand;
 extern crate serde_derive;
 extern crate uuid;
-extern crate rand;
 
 use std::{fs, io};
-
-
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::process;
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
+use structopt::StructOpt;
 
 use actix::{Actor, Recipient};
-
 use actix_rt::{Arbiter, System};
-
+use coinnect_rt::bitstamp::BitstampCreds;
 use coinnect_rt::bittrex::BittrexCreds;
-use coinnect_rt::exchange_bot::{ExchangeBot};
-
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::exchange_bot::ExchangeBot;
 use coinnect_rt::types::LiveEventEnveloppe;
-
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 
 use crate::coinnect_rt::coinnect::Coinnect;
 use crate::coinnect_rt::exchange::Exchange::*;
-
 use crate::handlers::file_actor::{AvroFileActor, FileActorOptions};
-use std::collections::HashMap;
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::bitstamp::BitstampCreds;
+use coinnect_rt::coinnect::Credentials;
+use coinnect_rt::binance::BinanceCreds;
 
 pub mod settings;
 pub mod avro_gen;
@@ -74,10 +73,17 @@ pub mod api;
 //                 .try_into::<HashMap<String, String>>()
 //                 .unwrap());
 //}
+#[derive(StructOpt, Debug)]
+#[structopt(name = "basic")]
+struct Opts {
+    #[structopt(short, long)]
+    debug: bool
+}
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
     env_logger::init();
+    let opts: Opts = Opts::from_args();
     let env = std::env::var("TRADER_ENV").unwrap_or("development".to_string());
     let settings = Arc::new(RwLock::new(settings::Settings::new(env).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?));
 
@@ -88,11 +94,13 @@ async fn main() -> io::Result<()> {
     watcher
         .watch(&settings.read().unwrap().__config_file, RecursiveMode::NonRecursive)
         .unwrap();
-
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
+    if opts.debug {
+        arc1.write().unwrap().sanitize();
+        process::exit(0x0100);
+    }
     let settings_v = arc1.read().unwrap();
-
     let mut recipients: Vec<Recipient<LiveEventEnveloppe>> = vec![];
     let fa = AvroFileActor::create(|_ctx| {
         let settings_v = &arc.read().unwrap();
@@ -115,17 +123,23 @@ async fn main() -> io::Result<()> {
     for (xch, conf) in exchanges {
         match xch {
             Exchange::Bittrex => {
-                let my_creds = BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap();
-                let bot: Box<ExchangeBot> = Coinnect::new_stream(Bittrex, my_creds, conf,recipients.clone()).await.unwrap();
-                bots.insert(Exchange::Bittrex, bot);
+                let my_creds = Box::new(BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap());
+                let bot = Coinnect::new_stream(xch, my_creds, conf,recipients.clone()).await.unwrap();
+                bots.insert(xch, bot);
             },
             Exchange::Bitstamp => {
-                let my_creds = BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap();
-                let bot = Coinnect::new_stream(Bitstamp, my_creds, conf,recipients.clone()).await.unwrap();
-                bots.insert(Exchange::Bitstamp, bot);
+                let my_creds = Box::new(BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap());
+                let bot = Coinnect::new_stream(xch, my_creds, conf,recipients.clone()).await.unwrap();
+                bots.insert(xch, bot);
+            },
+            Exchange::Binance => {
+                let my_creds = Box::new(BinanceCreds::new_from_file("account_binance", path.clone()).unwrap());
+                let bot = Coinnect::new_stream(xch, my_creds, conf,recipients.clone()).await.unwrap();
+                bots.insert(xch, bot);
             }
             _ => unimplemented!()
-        }
+        };
+
     }
 
     tokio::signal::ctrl_c().await

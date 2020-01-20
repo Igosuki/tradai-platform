@@ -145,7 +145,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
     fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
         let rc = self.writer_for(&msg);
         if rc.is_err() {
-            debug!("Could not acquire writer for partition {:?}", rc.err().unwrap());
+            trace!("Could not acquire writer for partition {:?}", rc.err().unwrap());
             return;
         }
         let rc_ok = rc.unwrap();
@@ -159,10 +159,10 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
                     event_ms: lt.event_ms,
                     amount: lt.amount,
                 };
-                debug!("Avro bean {:?}", lt);
+                trace!("Avro bean {:?}", lt);
                 match writer.append_ser(lt) {
                     Err(e) => {
-                        debug!("Error writing avro bean {:?}", e);
+                        trace!("Error writing avro bean {:?}", e);
                         Err(e)
                     }
                     _ => Ok(0)
@@ -175,10 +175,10 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
                     asks: lt.asks.into_iter().map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()]).collect(),
                     bids: lt.bids.into_iter().map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()]).collect(),
                 };
-                debug!("Avro bean {:?}", orderbook);
+                trace!("Avro bean {:?}", orderbook);
                 match writer.append_ser(orderbook) {
                     Err(e) => {
-                        debug!("Error writing avro bean {:?}", e);
+                        trace!("Error writing avro bean {:?}", e);
                         Err(e)
                     }
                     _ => Ok(0)
@@ -187,7 +187,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
             _ => Ok(0)
         };
         writer.flush().unwrap_or_else(|_| {
-            debug!("Error flushing writer");
+            trace!("Error flushing writer");
             0
         });
     }

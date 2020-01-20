@@ -7,7 +7,8 @@ use byte_unit::Byte;
 use serde::de;
 use coinnect_rt::types::Pair;
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use bidir_map::BidirMap;
 
 fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
     where Duration: Sized,
@@ -60,5 +61,22 @@ impl Settings {
 
         // You can deserialize (and thus freeze) the entire configuration as
         s.try_into()
+    }
+
+    pub fn sanitize(&mut self) {
+        for (xchg, xchg_settings) in self.exchanges.clone() {
+            println!("{:?} : Checking exchange config...", xchg);
+            let pairs : HashSet<Pair> = vec![xchg_settings.trades, xchg_settings.orderbook].into_iter().filter(|s| s.is_some()).map(|o| o.unwrap()).flat_map(|o| o.symbols).collect();
+            let pairs_fn : fn(&Pair) -> Option<&&str> = coinnect_rt::utils::pair_fn(xchg);
+            let invalid_pairs : Vec<Pair> = pairs.clone().into_iter().filter(|&p| {
+                pairs_fn(&p).is_none()
+            }).collect();
+            let valid_pairs : Vec<Pair> = pairs.clone().into_iter().filter(|&p| {
+                pairs_fn(&p).is_some()
+            }).collect();
+            println!("Invalid pairs : {:?}", invalid_pairs);
+            println!("Valid pairs : {:?}", valid_pairs);
+        }
+
     }
 }
