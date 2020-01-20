@@ -91,6 +91,7 @@ impl AvroFileActor {
     }
 
     /// Returns (creating it if necessary) the current rotating file writer for the partition
+    #[cfg_attr(feature = "flame_it", flame)]
     fn writer_for(&mut self, e: &LiveEventEnveloppe) -> Result<Rc<RefCell<RotatingWriter>>, Error> {
         let partition = (self.partitioner)(e).ok_or(Error::NoPartitionError)?;
         match self.writers.borrow_mut().entry(partition.clone()) {
@@ -142,6 +143,7 @@ impl Actor for AvroFileActor {
 impl Handler<LiveEventEnveloppe> for AvroFileActor {
     type Result = ();
 
+    #[cfg_attr(feature = "flame_it", flame)]
     fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
         let rc = self.writer_for(&msg);
         if rc.is_err() {
