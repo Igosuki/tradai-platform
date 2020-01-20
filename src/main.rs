@@ -19,6 +19,10 @@ extern crate log;
 extern crate rand;
 extern crate serde_derive;
 extern crate uuid;
+#[cfg(feature = "flame_it")]
+extern crate flame;
+#[cfg(feature = "flame_it")]
+#[macro_use] extern crate flamer;
 
 use std::{fs, io};
 use std::collections::HashMap;
@@ -42,6 +46,7 @@ use crate::coinnect_rt::exchange::Exchange::*;
 use crate::handlers::file_actor::{AvroFileActor, FileActorOptions};
 use coinnect_rt::coinnect::Credentials;
 use coinnect_rt::binance::BinanceCreds;
+use std::fs::File;
 
 pub mod settings;
 pub mod avro_gen;
@@ -80,8 +85,11 @@ struct Opts {
     debug: bool
 }
 
+#[cfg_attr(feature = "flame_it", flame)]
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
+    #[cfg(feature = "flame_it")]
+    flame::start("read file");
     env_logger::init();
     let opts: Opts = Opts::from_args();
     let env = std::env::var("TRADER_ENV").unwrap_or("development".to_string());
@@ -142,5 +150,11 @@ async fn main() -> io::Result<()> {
 
     }
 
-    tokio::signal::ctrl_c().await
+    tokio::signal::ctrl_c().await?;
+    #[cfg(feature = "flame_it")]
+    flame::end("read file");
+
+    // Dump the report to disk
+    #[cfg(feature = "flame_it")]
+    Ok(flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap())
 }

@@ -65,7 +65,7 @@ impl Settings {
 
     pub fn sanitize(&mut self) {
         for (xchg, xchg_settings) in self.exchanges.clone() {
-            println!("{:?} : Checking exchange config...", xchg);
+            info!("{:?} : Checking exchange config...", xchg);
             let pairs : HashSet<Pair> = vec![xchg_settings.trades, xchg_settings.orderbook].into_iter().filter(|s| s.is_some()).map(|o| o.unwrap()).flat_map(|o| o.symbols).collect();
             let pairs_fn : fn(&Pair) -> Option<&&str> = coinnect_rt::utils::pair_fn(xchg);
             let invalid_pairs : Vec<Pair> = pairs.clone().into_iter().filter(|&p| {
@@ -74,8 +74,8 @@ impl Settings {
             let valid_pairs : Vec<Pair> = pairs.clone().into_iter().filter(|&p| {
                 pairs_fn(&p).is_some()
             }).collect();
-            println!("Invalid pairs : {:?}", invalid_pairs);
-            println!("Valid pairs : {:?}", valid_pairs);
+            info!("Invalid pairs : {:?}", invalid_pairs);
+            info!("Valid pairs : {:?}", valid_pairs);
         }
 
     }

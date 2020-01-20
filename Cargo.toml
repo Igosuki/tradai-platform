@@ -65,10 +65,17 @@ actix-codec = "0.2.0"
 # Crypto
 coinnect_rt = { path = "./coinnect" }
 
+# Flame
+flame = { version = "0.2.2", optional = true }
+flamer = { version = "0.3", optional = true }
+
+[features]
+default = []
+flame_it = ["flame", "flamer"]
+
 [build-dependencies]
+
 # Codecs
 rsgen-avro = { git = "https://github.com/Igosuki/rsgen-avro.git" }
 crc32fast = "1.2.0"
 serde_json = "1.0.0"
-
-
