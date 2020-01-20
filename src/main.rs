@@ -85,11 +85,11 @@ struct Opts {
     debug: bool
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
 #[actix_rt::main]
+#[cfg_attr(feature = "flame_it", flame)]
 async fn main() -> io::Result<()> {
     #[cfg(feature = "flame_it")]
-    flame::start("read file");
+    flame::start("main bot");
     env_logger::init();
     let opts: Opts = Opts::from_args();
     let env = std::env::var("TRADER_ENV").unwrap_or("development".to_string());
@@ -152,9 +152,11 @@ async fn main() -> io::Result<()> {
 
     tokio::signal::ctrl_c().await?;
     #[cfg(feature = "flame_it")]
-    flame::end("read file");
+    flame::end("main bot");
 
     // Dump the report to disk
     #[cfg(feature = "flame_it")]
-    Ok(flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap())
+    flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
+
+    Ok(())
 }

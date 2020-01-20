@@ -52,7 +52,7 @@ env_logger = "0.7.1"
 # Futures
 futures = { version ="0.3.1", features = ["thread-pool"] }
 futures-util = "0.3.1"
-tokio = { version = "0.2.6", features = ["full"] }
+tokio = { version = "0.2.9", features = ["full"] }
 
 # Actix
 awc = "1.0.1"
