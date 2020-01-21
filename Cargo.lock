@@ -604,7 +604,9 @@ version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ede750122d9d1f87919570cb2cccee38c84fbc8c5599b25c289af40625b7030"
 dependencies = [
+ "lazy_static 1.4.0",
  "memchr",
+ "regex-automata",
 ]
 
 [[package]]
@@ -747,6 +749,7 @@ dependencies = [
  "bidir-map",
  "bigdecimal",
  "binance",
+ "bstr",
  "bytes 0.5.3",
  "chrono",
  "data-encoding",
@@ -2332,6 +2335,15 @@ dependencies = [
  "memchr",
  "regex-syntax",
  "thread_local",
+]
+
+[[package]]
+name = "regex-automata"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92b73c2a1770c255c240eaa4ee600df1704a38dc3feaa6e949e7fcd4f8dc09f9"
+dependencies = [
+ "byteorder",
 ]
 
 [[package]]
