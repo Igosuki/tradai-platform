@@ -1,4 +1,4 @@
-use actix::{Actor, Context, Handler};
+use actix::{Actor, Context, Handler, Running, SyncContext};
 
 
 use std::path::{Path, PathBuf};
@@ -135,9 +135,25 @@ impl AvroFileActor {
 }
 
 impl Actor for AvroFileActor {
-    type Context = Context<Self>;
+    type Context = SyncContext<Self>;
 
-    fn started(&mut self, _: &mut Context<Self>) {}
+    fn started(&mut self, _: &mut Self::Context) {
+        info!("starting");
+    }
+    fn stopping(&mut self, ctx: &mut Self::Context) -> Running {
+        info!("stopping");
+        Running::Stop
+    }
+    fn stopped(&mut self, ctx: &mut Self::Context) {
+        info!("File actor stopped, flushing writers...");
+        let writers = &self.writers.borrow_mut();
+        for (k, v) in writers.iter() {
+            v.borrow_mut().flush().unwrap_or_else(|_| {
+                trace!("Error flushing writer");
+                0
+            });
+        }
+    }
 }
 
 impl Handler<LiveEventEnveloppe> for AvroFileActor {
@@ -188,10 +204,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
             }
             _ => Ok(0)
         };
-        writer.flush().unwrap_or_else(|_| {
-            trace!("Error flushing writer");
-            0
-        });
+        writer.flush().unwrap();
     }
 }
 

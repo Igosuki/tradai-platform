@@ -32,7 +32,7 @@ use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
 use structopt::StructOpt;
 
-use actix::{Actor, Recipient};
+use actix::{Actor, Recipient, SyncArbiter};
 use actix_rt::{Arbiter, System};
 use coinnect_rt::bitstamp::BitstampCreds;
 use coinnect_rt::bittrex::BittrexCreds;
@@ -47,6 +47,9 @@ use crate::handlers::file_actor::{AvroFileActor, FileActorOptions};
 use coinnect_rt::coinnect::Credentials;
 use coinnect_rt::binance::BinanceCreds;
 use std::fs::File;
+use tokio::signal::unix::{signal, SignalKind};
+use futures::{select, pin_mut, FutureExt};
+use actix_rt::signal::unix::Signal;
 
 pub mod settings;
 pub mod avro_gen;
@@ -110,7 +113,7 @@ async fn main() -> io::Result<()> {
     }
     let settings_v = arc1.read().unwrap();
     let mut recipients: Vec<Recipient<LiveEventEnveloppe>> = vec![];
-    let fa = AvroFileActor::create(|_ctx| {
+    let fa = SyncArbiter::start(1, move || {
         let settings_v = &arc.read().unwrap();
         let data_dir = settings_v.data_dir.clone();
         let dir = Path::new(data_dir.as_str()).clone();
@@ -122,6 +125,7 @@ async fn main() -> io::Result<()> {
             partitioner: handlers::live_event_partitioner,
         })
     });
+    let fa2 = fa.clone();
     recipients.push(fa.recipient());
 
     let path = PathBuf::from(settings_v.keys.clone());
@@ -147,10 +151,24 @@ async fn main() -> io::Result<()> {
             }
             _ => unimplemented!()
         };
-
     }
 
-    tokio::signal::ctrl_c().await?;
+//    let mut stream : Signal = signal(SignalKind::terminate())?;
+    let mut stream : Signal = signal(SignalKind::interrupt())?;
+    let mut stream2 : Signal = signal(SignalKind::user_defined1())?;
+    let mut t1 = stream.recv().fuse();
+    let mut t2 = stream2.recv().fuse();
+    pin_mut!(t1, t2);
+    select! {
+        _ = t1 => info!("Interrupt"),
+        _ = t2 => info!("SigUSR1"),
+    };
+    drop(bots);
+    drop(recipients);
+    drop(fa2);
+    System::current().stop();
+    info!("Caught interrupt and stopped the system");
+
     #[cfg(feature = "flame_it")]
     flame::end("main bot");
 
