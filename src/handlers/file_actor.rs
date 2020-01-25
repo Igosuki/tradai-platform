@@ -163,7 +163,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
     fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
         let rc = self.writer_for(&msg);
         if rc.is_err() {
-            trace!("Could not acquire writer for partition {:?}", rc.err().unwrap());
+            debug!("Could not acquire writer for partition {:?}", rc.err().unwrap());
             return;
         }
         let rc_ok = rc.unwrap();
@@ -177,7 +177,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
                     event_ms: lt.event_ms,
                     amount: lt.amount,
                 };
-                trace!("Avro bean {:?}", lt);
+                debug!("Avro bean {:?}", lt);
                 match writer.append_ser(lt) {
                     Err(e) => {
                         trace!("Error writing avro bean {:?}", e);
@@ -193,7 +193,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
                     asks: lt.asks.into_iter().map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()]).collect(),
                     bids: lt.bids.into_iter().map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()]).collect(),
                 };
-                trace!("Avro bean {:?}", orderbook);
+                debug!("Avro bean {:?}", orderbook);
                 match writer.append_ser(orderbook) {
                     Err(e) => {
                         trace!("Error writing avro bean {:?}", e);
