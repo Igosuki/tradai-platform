@@ -88,7 +88,7 @@ pub fn config_app(cfg: &mut web::ServiceConfig) {
 #[cfg(test)]
 mod tests {
     use crate::api::config_app;
-    
+
     use actix_web::{
         http::{header, StatusCode},
         test, App,
@@ -97,14 +97,14 @@ mod tests {
     use coinnect_rt::types::OrderType;
     use coinnect_rt::types::Pair::BTC_USD;
     use bigdecimal::BigDecimal;
-    
+
     use futures::lock::Mutex;
-    
+
 
     #[actix_rt::test]
     async fn test_add_order() {
         let exchanges = crate::api::ExchangeConfig {
-            key_file: "keys_real.json".to_string(),
+            key_file: "keys_real_test.json".to_string(),
             exchanges: vec![Bitstamp]
         };
         let data = Mutex::new(crate::api::build_exchanges(exchanges));

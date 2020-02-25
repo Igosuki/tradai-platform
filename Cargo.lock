@@ -352,9 +352,9 @@ checksum = "d7b8a9123b8027467bce0099fe556c628a53c8d83df0507084c31e9ba2e39aff"
 
 [[package]]
 name = "async-std"
-version = "1.4.0"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0bf6039b315300e057d198b9d3ab92ee029e31c759b7f1afae538145e6f18a3e"
+checksum = "538ecb01eb64eecd772087e5b6f7540cbc917f047727339a472dafed2185b267"
 dependencies = [
  "async-task",
  "crossbeam-channel",
@@ -1085,6 +1085,12 @@ name = "foreign-types-shared"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
+
+[[package]]
+name = "fs_extra"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f2a4a2034423744d2cc7ca2068453168dcdb82c438419e639a26bd87839c674"
 
 [[package]]
 name = "fsevent"
@@ -2816,6 +2822,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f764005d11ee5f36500a149ace24e00e3da98b0158b3e2d53a7495660d3f4d60"
 
 [[package]]
+name = "tempdir"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15f2b5fb00ccdf689e0149d1b1b3c03fead81c2b37735d812fa8bddbbf41b6d8"
+dependencies = [
+ "rand 0.4.6",
+ "remove_dir_all",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3021,6 +3037,7 @@ dependencies = [
  "actix-rt",
  "actix-web",
  "actix_derive",
+ "async-std",
  "avro-rs 0.6.6 (git+https://github.com/Igosuki/avro-rs.git)",
  "awc",
  "bidir-map",
@@ -3038,6 +3055,7 @@ dependencies = [
  "error-chain",
  "flame",
  "flamer",
+ "fs_extra",
  "futures",
  "futures-util",
  "hmac",
@@ -3054,6 +3072,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "structopt",
+ "tempdir",
  "tokio",
  "url",
  "uuid",

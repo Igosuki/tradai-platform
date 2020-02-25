@@ -1,5 +1,5 @@
 use std::io::{Write, Result};
-use std::fs::{File};
+use std::fs::File;
 use std::path::{Path, PathBuf};
 
 use std::io;
@@ -12,16 +12,14 @@ pub struct RotatingFile<L> {
     path: Box<PathBuf>,
     rotation_policy: L,
     naming_policy: fn(&PathBuf) -> Option<PathBuf>,
-    on_new_header: Option<Vec<u8>>
+    on_new_header: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Display)]
 #[display(fmt = "Rotating file error")]
 pub struct RotatingFileError;
 
-impl Error for RotatingFileError {
-
-}
+impl Error for RotatingFileError {}
 
 impl<L> RotatingFile<L>
     where L: RotationPolicy
@@ -37,8 +35,9 @@ impl<L> RotatingFile<L>
     }
 
     fn rotate(&mut self) -> Result<()> {
+        trace!("Flushing {:?}", &self.path);
         self.inner.flush()?;
-        let &mut RotatingFile { ref path, naming_policy, ..} = self;
+        let &mut RotatingFile { ref path, naming_policy, .. } = self;
         // TODO: use a rwlock
         let new_path = (naming_policy)(path.as_ref()).ok_or(std::io::Error::new(std::io::ErrorKind::Other, RotatingFileError))?;
         self.rotation_policy.set_last_flush(Utc::now());
@@ -48,9 +47,9 @@ impl<L> RotatingFile<L>
             Some(h) => {
                 let mut fd = f.try_clone()?;
                 fd.write(h.as_ref())?;
-                fd.flush();
+                fd.flush()?;
                 drop(fd)
-            },
+            }
             None => ()
         };
         self.inner = f;
@@ -58,7 +57,7 @@ impl<L> RotatingFile<L>
     }
 }
 
-impl<L>  Write for RotatingFile<L>
+impl<L> Write for RotatingFile<L>
     where L: RotationPolicy {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         if self.rotation_policy.should_rotate(&self.path, &self.inner)? {
@@ -75,26 +74,36 @@ impl<L>  Write for RotatingFile<L>
 pub trait RotationPolicy {
     fn set_last_flush(&mut self, d: DateTime<Utc>);
 
-    fn should_rotate(&self, p: &Path, f: &File) -> io::Result<bool>;
+    fn should_rotate(&mut self, p: &Path, f: &File) -> io::Result<bool>;
 }
 
 #[derive(Clone)]
 pub struct SizeAndExpirationPolicy {
     pub max_size_b: u64,
     pub max_time_ms: Duration,
-    pub last_flush: DateTime<Utc>,
+    pub last_flush: Option<DateTime<Utc>>,
 }
 
 
 impl RotationPolicy for SizeAndExpirationPolicy {
     fn set_last_flush(&mut self, d: DateTime<Utc>) {
-        self.last_flush = d;
+        self.last_flush = Some(d);
     }
 
-    fn should_rotate(&self, _path: &Path, file: &File) -> io::Result<bool> {
-        let metadata = file.metadata()?;
-        let now = Utc::now();
-        let elapsed = now - self.last_flush;
-        Ok(self.max_size_b < metadata.len() || self.max_time_ms < elapsed)
+    fn should_rotate(&mut self, _path: &Path, file: &File) -> io::Result<bool> {
+        match self.last_flush {
+            // If last flush happened, check if the rotation policy applies
+            Some(dt) => {
+                let metadata = file.metadata()?;
+                let now = Utc::now();
+                let elapsed = now - dt;
+                Ok(self.max_size_b < metadata.len() || self.max_time_ms < elapsed)
+            },
+            // If never flushed, start counting from now
+            None => {
+                self.set_last_flush(Utc::now());
+                Ok(false)
+            }
+        }
     }
 }

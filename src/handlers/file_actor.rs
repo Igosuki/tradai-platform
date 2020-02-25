@@ -71,7 +71,7 @@ impl AvroFileActor {
             base_path,
             session_uuid: Uuid::new_v4(),
             rotation_policy: SizeAndExpirationPolicy {
-                last_flush: Utc::now(),
+                last_flush: None,
                 max_size_b: options.max_file_size,
                 max_time_ms: options.max_file_time,
             },
@@ -115,6 +115,7 @@ impl AvroFileActor {
                 // Schema based avro file writer
                 let mut writer = Writer::new(&schema, file);
                 writer.marker = marker;
+
                 let rc = Rc::new(RefCell::new(writer));
                 let _v = v.insert(rc.clone());
                 Ok(rc)
@@ -227,4 +228,63 @@ fn avro_header(schema: &Schema, marker: Vec<u8>) -> Result<Vec<u8>, Error> {
     header.extend_from_slice(&marker);
 
     Ok(header)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use tempdir;
+    use fs_extra::dir::{get_dir_content};
+    use coinnect_rt::exchange::Exchange;
+    use coinnect_rt::types::{Pair, Price};
+    use coinnect_rt::types::Orderbook;
+    use bigdecimal::BigDecimal;
+    use actix_rt::System;
+    use actix::SyncArbiter;
+    use std::thread;
+
+    fn init() {
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
+
+    fn actor(base_dir: &str) -> AvroFileActor {
+        AvroFileActor::new(&FileActorOptions {
+            max_file_size: 100_000,
+            max_file_time: Duration::seconds(1),
+            base_dir: String::from(base_dir),
+            partitioner: crate::handlers::live_event_partitioner
+        })
+    }
+
+    #[test]
+    fn test_workflow() {
+        let dir = tempdir::TempDir::new("s").unwrap();
+        let x = dir.path().clone();
+        let dir_str = String::from(x.as_os_str().to_str().unwrap());
+        let new_dir = dir_str.clone();
+        System::run(move || {
+            let addr = SyncArbiter::start(1, move || actor(new_dir.clone().as_str()));
+            let order_book_event = LiveEventEnveloppe(Exchange::Binance, LiveEvent::LiveOrderbook(Orderbook {
+                timestamp: chrono::Utc::now().timestamp(),
+                pair: Pair::BTC_USDT,
+                asks: vec![(BigDecimal::from(0.1), BigDecimal::from(0.1)), (BigDecimal::from(0.2), BigDecimal::from(0.2))],
+                bids: vec![(BigDecimal::from(0.1), BigDecimal::from(0.1)), (BigDecimal::from(0.2), BigDecimal::from(0.2))]
+            }));
+            println!("Sending...");
+            for _ in 0..100000 {
+                addr.do_send(order_book_event.clone());
+            }
+            thread::sleep(std::time::Duration::from_secs(2));
+            for _ in 0..100000 {
+                addr.do_send(order_book_event.clone());
+            }
+            thread::sleep(std::time::Duration::from_secs(2));
+            for _ in 0..100000 {
+                addr.do_send(order_book_event.clone());
+            }
+            System::current().stop();
+        }).unwrap();
+        let content = get_dir_content(x).unwrap();
+        assert_eq!(content.files.len(), 2)
+    }
 }
