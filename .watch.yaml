@@ -1,0 +1,4 @@
+- name: test
+  run: "make test"
+  change: ["src/**"]
+  run_on_init: true
