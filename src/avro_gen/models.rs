@@ -4,27 +4,25 @@ use avro_rs::schema::Schema;
 
 
 lazy_static! {
-    pub static ref LIVEORDER_SCHEMA : Schema = Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveOrder\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"amount\",\"type\":\"float\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"price\",\"type\":\"float\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
+    pub static ref ORDERBOOK_SCHEMA : Schema = Schema::parse_str("{\"type\":\"record\",\"name\":\"Orderbook\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"asks\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"array\",\"items\":\"float\"}}},{\"name\":\"bids\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"array\",\"items\":\"float\"}}}]}").unwrap();
 }
 
 #[serde(default)]
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
-pub struct LiveOrder {
+pub struct Orderbook {
     pub event_ms: i64,
-    pub amount: f32,
     pub pair: String,
-    pub price: f32,
-    pub tt: i32,
+    pub asks: Vec<Vec<f32>>,
+    pub bids: Vec<Vec<f32>>,
 }
 
-impl Default for LiveOrder {
-    fn default() -> LiveOrder {
-        LiveOrder {
+impl Default for Orderbook {
+    fn default() -> Orderbook {
+        Orderbook {
             event_ms: 0,
-            amount: 0.0,
             pair: String::default(),
-            price: 0.0,
-            tt: 0,
+            asks: vec![],
+            bids: vec![],
         }
     }
 }
@@ -66,25 +64,27 @@ pub enum TradeType {
 
 
 lazy_static! {
-    pub static ref ORDERBOOK_SCHEMA : Schema = Schema::parse_str("{\"type\":\"record\",\"name\":\"Orderbook\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"asks\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"array\",\"items\":\"float\"}}},{\"name\":\"bids\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"array\",\"items\":\"float\"}}}]}").unwrap();
+    pub static ref LIVEORDER_SCHEMA : Schema = Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveOrder\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"amount\",\"type\":\"float\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"price\",\"type\":\"float\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
 }
 
 #[serde(default)]
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
-pub struct Orderbook {
+pub struct LiveOrder {
     pub event_ms: i64,
+    pub amount: f32,
     pub pair: String,
-    pub asks: Vec<Vec<f32>>,
-    pub bids: Vec<Vec<f32>>,
+    pub price: f32,
+    pub tt: i32,
 }
 
-impl Default for Orderbook {
-    fn default() -> Orderbook {
-        Orderbook {
+impl Default for LiveOrder {
+    fn default() -> LiveOrder {
+        LiveOrder {
             event_ms: 0,
+            amount: 0.0,
             pair: String::default(),
-            asks: vec![],
-            bids: vec![],
+            price: 0.0,
+            tt: 0,
         }
     }
 }

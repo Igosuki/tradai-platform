@@ -23,6 +23,10 @@ extern crate uuid;
 extern crate flame;
 #[cfg(feature = "flame_it")]
 #[macro_use] extern crate flamer;
+#[feature(proc_macro)]
+extern crate prometheus_static_metric;
+#[macro_use]
+extern crate prometheus;
 
 use std::{fs, io};
 use std::collections::HashMap;
@@ -50,6 +54,8 @@ use std::fs::File;
 use tokio::signal::unix::{signal, SignalKind};
 use futures::{select, pin_mut, FutureExt};
 use actix_rt::signal::unix::Signal;
+use prometheus::CounterVec;
+use coinnect_rt::metrics::PrometheusPushActor;
 
 pub mod settings;
 pub mod avro_gen;
@@ -125,6 +131,8 @@ async fn main() -> io::Result<()> {
             partitioner: handlers::live_event_partitioner,
         })
     });
+    let prom_push = PrometheusPushActor::start(PrometheusPushActor::new());
+
     let fa2 = fa.clone();
     recipients.push(fa.recipient());
 

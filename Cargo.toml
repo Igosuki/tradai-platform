@@ -73,6 +73,10 @@ flamer = { version = "0.3", optional = true }
 tempdir = "0.3.7"
 fs_extra = "1.1.0"
 
+# Monitoring
+prometheus = { version = "0.8", features = ["nightly", "push", "process", "gen"] }
+prometheus-static-metric = "0.1"
+
 [features]
 default = []
 flame_it = ["flame", "flamer"]
