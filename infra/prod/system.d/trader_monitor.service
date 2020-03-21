@@ -1,0 +1,22 @@
+[Unit]
+Description=Bitcoin Trader Monitor
+After=network-online.target
+
+[Service]
+Type=simple
+
+User=root
+Group=root
+UMask=007
+
+ExecStart=/bin/sh -c "/bin/journalctl -f -u trader.service | /bin/grep disconnected | /usr/bin/xargs /bin/systemctl restart trader"
+
+Restart=on-failure
+
+WorkingDirectory=/root
+
+# Configures the time to wait before service is stopped forcefully.
+TimeoutStopSec=300
+
+[Install]
+WantedBy=multi-user.target
