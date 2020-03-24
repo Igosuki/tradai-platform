@@ -94,21 +94,6 @@ pub fn dump_profiler_file(name: Option<&String>) -> Result<(), std::io::Error>{
 }
 
 #[cfg(feature = "flame_it")]
-pub async fn start_profiler() -> Result<HttpResponse, Error> {
-    info!("Started profiling");
-    flame::start("main bot");
-    Ok(HttpResponse::Ok().finish())
-}
-
-#[cfg(feature = "flame_it")]
-pub async fn end_profiler() -> Result<HttpResponse, Error> {
-    info!("Ended profiling");
-    flame::end("main bot");
-    dump_profiler_file(None)?;
-    Ok(HttpResponse::Ok().finish())
-}
-
-#[cfg(feature = "flame_it")]
 pub async fn dump_profiler(q: web::Query<HashMap<String, String>>) -> Result<HttpResponse, Error> {
     dump_profiler_file(q.get("f"))?;
     Ok(HttpResponse::Ok().finish())
@@ -127,14 +112,6 @@ pub fn config_app(cfg: &mut web::ServiceConfig) {
     #[cfg(feature = "flame_it")]
     cfg.service(
         web::scope("/profiling")
-            .service(
-                web::resource("start")
-                    .route(web::post().to(start_profiler)),
-            )
-            .service(
-                web::resource("end")
-                    .route(web::post().to(end_profiler)),
-            )
             .service(
                 web::resource("dump")
                     .route(web::post().to(dump_profiler)),
