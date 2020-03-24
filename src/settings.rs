@@ -45,10 +45,14 @@ impl Default for Port {
 }
 
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct ApiSettings {
     #[serde(default)]
     pub port: Port
+}
+
+fn default_as_false() -> bool {
+    false
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,7 +62,9 @@ pub struct Settings {
     pub __config_file: String,
     pub exchanges: HashMap<Exchange, ExchangeSettings>,
     pub keys: String,
+    #[serde(default = "default_as_false")]
     pub profile_main: bool,
+    #[serde(default)]
     pub api: ApiSettings
 }
 

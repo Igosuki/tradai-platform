@@ -88,18 +88,21 @@ pub async fn add_order(
 pub fn dump_profiler_file(name: Option<&String>) -> Result<(), std::io::Error>{
     let string = format!("flame-graph-{}.html", chrono::Utc::now());
     let graph_file_name = name.unwrap_or(&string);
+    info!("Dumping profiler file at {}", graph_file_name);
     let graph_file = &mut File::create(graph_file_name)?;
     flame::dump_html(graph_file)
 }
 
 #[cfg(feature = "flame_it")]
 pub async fn start_profiler() -> Result<HttpResponse, Error> {
+    info!("Started profiling");
     flame::start("main bot");
     Ok(HttpResponse::Ok().finish())
 }
 
 #[cfg(feature = "flame_it")]
 pub async fn end_profiler() -> Result<HttpResponse, Error> {
+    info!("Ended profiling");
     flame::end("main bot");
     dump_profiler_file(None)?;
     Ok(HttpResponse::Ok().finish())
@@ -113,6 +116,7 @@ pub async fn dump_profiler(q: web::Query<HashMap<String, String>>) -> Result<Htt
 
 
 pub fn config_app(cfg: &mut web::ServiceConfig) {
+    cfg.service(web::resource("/").route(web::get().to(|| async { HttpResponse::Ok().finish() })));
     cfg.service(
         web::scope("/orders")
             .service(

@@ -60,11 +60,13 @@ use coinnect_rt::bittrex::BittrexCreds;
 use coinnect_rt::bitstamp::BitstampCreds;
 use clap::App;
 use actix_web::HttpServer;
+use std::ops::Deref;
 
 pub mod settings;
 pub mod avro_gen;
 pub mod handlers;
 pub mod api;
+pub mod server;
 
 //lazy_static! {
 //    static ref CONFIG_FILE: String = {
@@ -149,7 +151,6 @@ async fn main() -> io::Result<()> {
     //
     let path = PathBuf::from(settings_v.keys.clone());
     let mut bots: HashMap<Exchange, Box<ExchangeBot>> = HashMap::new();
-
     let exchanges = settings_v.exchanges.clone();
     // TODO : solve the annoying problem of credentials being a specific struct when new_stream and new are generic
     for (xch, conf) in exchanges.clone() {
@@ -171,48 +172,21 @@ async fn main() -> io::Result<()> {
         bots.insert(xch, bot);
     }
 
-    // Make and start the api
-    let app = move || {
-        let mut apis: HashMap<Exchange, Box<ExchangeApi>> = HashMap::new();
-        for (xch, conf) in exchanges.clone() {
-            let xch_api = match xch {
-                Exchange::Bittrex => {
-                    let creds = Box::new(BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap());
-                    Coinnect::new(xch, creds.clone()).unwrap()
-                }
-                Exchange::Bitstamp => {
-                    let creds = Box::new(BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap());
-                    Coinnect::new(xch, creds.clone()).unwrap()
-                }
-                Exchange::Binance => {
-                    let creds = Box::new(BinanceCreds::new_from_file("account_binance", path.clone()).unwrap());
-                    Coinnect::new(xch, creds.clone()).unwrap()
-                }
-                _ => unimplemented!()
-            };
-            apis.insert(xch, xch_api);
-        }
-        let data = Mutex::new(apis);
-        actix_web::App::new()
-            .data(data)
-            .configure(crate::api::config_app)
-    };
 
-    debug!("Starting api server...");
-    let server = HttpServer::new(app).bind(format!("localhost:{}", settings_v.api.port.0))?.run();
+    let server = server::httpserver(exchanges.clone(), path.clone());
     // Handle interrupts for graceful shutdown
-//    let mut stream : Signal = signal(SignalKind::terminate())?;
-    let mut stream: Signal = signal(SignalKind::interrupt())?;
-    let mut stream2: Signal = signal(SignalKind::user_defined1())?;
-    let mut t1 = stream.recv().fuse();
-    let mut t2 = stream2.recv().fuse();
-    pin_mut!(t1, t2);
-
-    select! {
-        _ = t1 => info!("Interrupt"),
-        _ = t2 => info!("SigUSR1"),
-    }
-    server.stop(true).await;
+    // let mut stream: Signal = signal(SignalKind::terminate())?;
+    // let mut stream: Signal = signal(SignalKind::interrupt())?;
+    // let mut stream2: Signal = signal(SignalKind::user_defined1())?;
+    // let mut t1 = stream.recv().fuse();
+    // let mut t2 = stream2.recv().fuse();
+    // pin_mut!(t1, t2);
+    //
+    // select! {
+    //     _ = t1 => info!("Interrupt"),
+    //     _ = t2 => info!("SigUSR1"),
+    // }
+    server.await;
     drop(bots);
     drop(recipients);
     drop(fa2);
