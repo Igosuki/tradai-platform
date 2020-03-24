@@ -12,6 +12,8 @@ use coinnect_rt::bittrex::BittrexCreds;
 use std::path::PathBuf;
 
 use futures::lock::Mutex;
+use std::fs::File;
+use std::ops::Try;
 
 pub struct ExchangeConfig {
     key_file: String,
@@ -25,11 +27,11 @@ fn build_exchanges(cfg: ExchangeConfig) -> HashMap<Exchange, Box<dyn ExchangeApi
         match exchange {
             Exchange::Bitstamp => {
                 let my_creds = BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap();
-                exchg_map.insert(exchange, Coinnect::new(exchange, my_creds).unwrap());
+                exchg_map.insert(exchange, Coinnect::new(exchange, Box::new(my_creds)).unwrap());
             },
             Exchange::Bittrex => {
                 let my_creds = BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap();
-                exchg_map.insert(exchange, Coinnect::new(exchange, my_creds).unwrap());
+                exchg_map.insert(exchange, Coinnect::new(exchange, Box::new(my_creds)).unwrap());
             },
             _ => ()
         }
@@ -51,7 +53,8 @@ pub struct Order {
 pub enum ApiError {
     #[display(fmt = "Exchange not found")]
     ExchangeNotFound(Exchange),
-    Coinnect(coinnect_rt::error::Error)
+    Coinnect(coinnect_rt::error::Error),
+    IoError(std::io::Error)
 }
 
 impl ResponseError for ApiError {
@@ -59,8 +62,15 @@ impl ResponseError for ApiError {
         match self {
             ExchangeNotFound(_e) => HttpResponse::NotFound().finish(),
             ApiError::Coinnect(e) => HttpResponse::InternalServerError().body(e.to_string()),
+            ApiError::IoError(e) => HttpResponse::InternalServerError().body(e.to_string()),
             _ => HttpResponse::InternalServerError().finish()
         }
+    }
+}
+
+impl From<std::io::Error> for ApiError {
+    fn from(e: std::io::Error) -> Self {
+        ApiError::IoError(e)
     }
 }
 
@@ -75,14 +85,58 @@ pub async fn add_order(
     Ok(HttpResponse::Ok().finish())
 }
 
+pub fn dump_profiler_file(name: Option<&String>) -> Result<(), std::io::Error>{
+    let string = format!("flame-graph-{}.html", chrono::Utc::now());
+    let graph_file_name = name.unwrap_or(&string);
+    let graph_file = &mut File::create(graph_file_name)?;
+    flame::dump_html(graph_file)
+}
+
+#[cfg(feature = "flame_it")]
+pub async fn start_profiler() -> Result<HttpResponse, Error> {
+    flame::start("main bot");
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[cfg(feature = "flame_it")]
+pub async fn end_profiler() -> Result<HttpResponse, Error> {
+    flame::end("main bot");
+    dump_profiler_file(None)?;
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[cfg(feature = "flame_it")]
+pub async fn dump_profiler(q: web::Query<HashMap<String, String>>) -> Result<HttpResponse, Error> {
+    dump_profiler_file(q.get("f"))?;
+    Ok(HttpResponse::Ok().finish())
+}
+
+
 pub fn config_app(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/orders")
             .service(
                 web::resource("")
                     .route(web::post().to(add_order)),
+            ),
+    );
+    #[cfg(feature = "flame_it")]
+    cfg.service(
+        web::scope("/profiling")
+            .service(
+                web::resource("start")
+                    .route(web::post().to(start_profiler)),
+            )
+            .service(
+                web::resource("end")
+                    .route(web::post().to(end_profiler)),
+            )
+            .service(
+                web::resource("dump")
+                    .route(web::post().to(dump_profiler)),
             )
     );
+
 }
 
 #[cfg(test)]

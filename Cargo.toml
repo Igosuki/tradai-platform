@@ -69,10 +69,10 @@ coinnect_rt = { path = "./coinnect" }
 # Flame
 flame = { version = "0.2.2", optional = true }
 flamer = { version = "0.3", optional = true }
+libc = "0.2"
 
 tempdir = "0.3.7"
 fs_extra = "1.1.0"
-
 # Monitoring
 prometheus = { version = "0.8", features = ["nightly", "push", "process", "gen"] }
 prometheus-static-metric = "0.1"

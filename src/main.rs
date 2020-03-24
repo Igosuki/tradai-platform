@@ -12,50 +12,54 @@ extern crate byte_unit;
 extern crate clap;
 extern crate coinnect_rt;
 extern crate config;
+#[cfg(feature = "flame_it")]
+extern crate flame;
+#[cfg(feature = "flame_it")]
+#[macro_use]
+extern crate flamer;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate prometheus;
+#[feature(proc_macro)]
+extern crate prometheus_static_metric;
 extern crate rand;
 extern crate serde_derive;
 extern crate uuid;
-#[cfg(feature = "flame_it")]
-extern crate flame;
-#[cfg(feature = "flame_it")]
-#[macro_use] extern crate flamer;
-#[feature(proc_macro)]
-extern crate prometheus_static_metric;
-#[macro_use]
-extern crate prometheus;
 
 use std::{fs, io};
+use std::borrow::Borrow;
 use std::collections::HashMap;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::process;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, Mutex};
 use std::sync::mpsc::channel;
-use structopt::StructOpt;
 
 use actix::{Actor, Recipient, SyncArbiter};
 use actix_rt::{Arbiter, System};
-use coinnect_rt::bitstamp::BitstampCreds;
-use coinnect_rt::bittrex::BittrexCreds;
-use coinnect_rt::exchange::Exchange;
+use actix_rt::signal::unix::Signal;
+use coinnect_rt::binance::BinanceCreds;
+use coinnect_rt::coinnect::{Credentials, Creds};
+use coinnect_rt::exchange::{Exchange, ExchangeApi, ExchangeSettings};
 use coinnect_rt::exchange_bot::ExchangeBot;
+use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::LiveEventEnveloppe;
+use futures::{FutureExt, pin_mut, select};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+use prometheus::CounterVec;
+use structopt::StructOpt;
+use tokio::signal::unix::{signal, SignalKind};
 
 use crate::coinnect_rt::coinnect::Coinnect;
 use crate::coinnect_rt::exchange::Exchange::*;
 use crate::handlers::file_actor::{AvroFileActor, FileActorOptions};
-use coinnect_rt::coinnect::Credentials;
-use coinnect_rt::binance::BinanceCreds;
-use std::fs::File;
-use tokio::signal::unix::{signal, SignalKind};
-use futures::{select, pin_mut, FutureExt};
-use actix_rt::signal::unix::Signal;
-use prometheus::CounterVec;
-use coinnect_rt::metrics::PrometheusPushActor;
+use coinnect_rt::bittrex::BittrexCreds;
+use coinnect_rt::bitstamp::BitstampCreds;
+use clap::App;
+use actix_web::HttpServer;
 
 pub mod settings;
 pub mod avro_gen;
@@ -97,8 +101,6 @@ struct Opts {
 #[actix_rt::main]
 #[cfg_attr(feature = "flame_it", flame)]
 async fn main() -> io::Result<()> {
-    #[cfg(feature = "flame_it")]
-    flame::start("main bot");
     env_logger::init();
     let opts: Opts = Opts::from_args();
     let env = std::env::var("TRADER_ENV").unwrap_or("development".to_string());
@@ -118,6 +120,13 @@ async fn main() -> io::Result<()> {
         process::exit(0x0100);
     }
     let settings_v = arc1.read().unwrap();
+
+    if settings_v.profile_main {
+        #[cfg(feature = "flame_it")]
+            flame::start("main bot");
+    }
+
+    // Live Events recipients
     let mut recipients: Vec<Recipient<LiveEventEnveloppe>> = vec![];
     let fa = SyncArbiter::start(1, move || {
         let settings_v = &arc.read().unwrap();
@@ -131,59 +140,92 @@ async fn main() -> io::Result<()> {
             partitioner: handlers::live_event_partitioner,
         })
     });
-    let prom_push = PrometheusPushActor::start(PrometheusPushActor::new());
-
     let fa2 = fa.clone();
     recipients.push(fa.recipient());
 
+    // Metrics
+    let prom_push = PrometheusPushActor::start(PrometheusPushActor::new());
+
+    //
     let path = PathBuf::from(settings_v.keys.clone());
-    let mut bots : HashMap<Exchange, Box<ExchangeBot>> = HashMap::new();
+    let mut bots: HashMap<Exchange, Box<ExchangeBot>> = HashMap::new();
 
     let exchanges = settings_v.exchanges.clone();
-    for (xch, conf) in exchanges {
-        match xch {
+    // TODO : solve the annoying problem of credentials being a specific struct when new_stream and new are generic
+    for (xch, conf) in exchanges.clone() {
+        let bot = match xch {
             Exchange::Bittrex => {
-                let my_creds = Box::new(BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap());
-                let bot = Coinnect::new_stream(xch, my_creds, conf,recipients.clone()).await.unwrap();
-                bots.insert(xch, bot);
-            },
+                let creds = Box::new(BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap());
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone()).await.unwrap()
+            }
             Exchange::Bitstamp => {
-                let my_creds = Box::new(BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap());
-                let bot = Coinnect::new_stream(xch, my_creds, conf,recipients.clone()).await.unwrap();
-                bots.insert(xch, bot);
-            },
+                let creds = Box::new(BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap());
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone()).await.unwrap()
+            }
             Exchange::Binance => {
-                let my_creds = Box::new(BinanceCreds::new_from_file("account_binance", path.clone()).unwrap());
-                let bot = Coinnect::new_stream(xch, my_creds, conf,recipients.clone()).await.unwrap();
-                bots.insert(xch, bot);
+                let creds = Box::new(BinanceCreds::new_from_file("account_binance", path.clone()).unwrap());
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone()).await.unwrap()
             }
             _ => unimplemented!()
         };
+        bots.insert(xch, bot);
     }
 
+    // Make and start the api
+    let app = move || {
+        let mut apis: HashMap<Exchange, Box<ExchangeApi>> = HashMap::new();
+        for (xch, conf) in exchanges.clone() {
+            let xch_api = match xch {
+                Exchange::Bittrex => {
+                    let creds = Box::new(BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap());
+                    Coinnect::new(xch, creds.clone()).unwrap()
+                }
+                Exchange::Bitstamp => {
+                    let creds = Box::new(BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap());
+                    Coinnect::new(xch, creds.clone()).unwrap()
+                }
+                Exchange::Binance => {
+                    let creds = Box::new(BinanceCreds::new_from_file("account_binance", path.clone()).unwrap());
+                    Coinnect::new(xch, creds.clone()).unwrap()
+                }
+                _ => unimplemented!()
+            };
+            apis.insert(xch, xch_api);
+        }
+        let data = Mutex::new(apis);
+        actix_web::App::new()
+            .data(data)
+            .configure(crate::api::config_app)
+    };
+
+    debug!("Starting api server...");
+    let server = HttpServer::new(app).bind(format!("localhost:{}", settings_v.api.port.0))?.run();
+    // Handle interrupts for graceful shutdown
 //    let mut stream : Signal = signal(SignalKind::terminate())?;
-    let mut stream : Signal = signal(SignalKind::interrupt())?;
-    let mut stream2 : Signal = signal(SignalKind::user_defined1())?;
+    let mut stream: Signal = signal(SignalKind::interrupt())?;
+    let mut stream2: Signal = signal(SignalKind::user_defined1())?;
     let mut t1 = stream.recv().fuse();
     let mut t2 = stream2.recv().fuse();
     pin_mut!(t1, t2);
+
     select! {
         _ = t1 => info!("Interrupt"),
         _ = t2 => info!("SigUSR1"),
-    };
+    }
+    server.stop(true).await;
     drop(bots);
     drop(recipients);
     drop(fa2);
     System::current().stop();
     info!("Caught interrupt and stopped the system");
 
-    #[cfg(feature = "flame_it")]
-    flame::end("main bot");
+    if settings_v.profile_main {
+        #[cfg(feature = "flame_it")]
+            flame::end("main bot");
 
-    // Dump the report to disk
-    #[cfg(feature = "flame_it")]
-    flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
+        #[cfg(feature = "flame_it")]
+            flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
+    }
 
     Ok(())
 }
-

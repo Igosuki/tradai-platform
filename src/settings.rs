@@ -35,12 +35,31 @@ pub struct FileRotation {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct Port(pub u16) ;
+
+/// Timeout in seconds.
+impl Default for Port {
+    fn default() -> Self {
+        Port(8080)
+    }
+}
+
+
+#[derive(Debug, Deserialize)]
+pub struct ApiSettings {
+    #[serde(default)]
+    pub port: Port
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Settings {
     pub file_rotation: FileRotation,
     pub data_dir: String,
     pub __config_file: String,
     pub exchanges: HashMap<Exchange, ExchangeSettings>,
     pub keys: String,
+    pub profile_main: bool,
+    pub api: ApiSettings
 }
 
 impl Settings {
