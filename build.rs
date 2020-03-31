@@ -75,3 +75,4 @@ fn main() -> io::Result<()> {
     serde_json::to_string(&avro_state).map(|st| avro_state_file.write_all(st.as_bytes()));
     Ok(())
 }
+
