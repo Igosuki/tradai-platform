@@ -6,7 +6,8 @@ use coinnect_rt::types::{OrderType, Pair, Price, Volume};
 use derive_more::Display;
 use futures::lock::Mutex;
 use serde::{Deserialize, Serialize};
-
+#[cfg(feature = "flame_it")]
+use std::fs::File;
 use crate::api::ApiError::ExchangeNotFound;
 
 #[derive(Debug, Serialize, Deserialize)]
