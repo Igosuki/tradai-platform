@@ -182,7 +182,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
             },
             LiveEvent::LiveOrderbook(lt) => {
                 let orderbook = OB {
-                    pair: serde_json::to_string(&lt.pair).unwrap(),
+                    pair: lt.pair.as_string(),
                     event_ms: lt.timestamp,
                     asks: lt.asks.into_iter().map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()]).collect(),
                     bids: lt.bids.into_iter().map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()]).collect(),
