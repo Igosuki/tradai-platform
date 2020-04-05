@@ -742,6 +742,7 @@ dependencies = [
  "derive_more",
  "error-chain",
  "futures",
+ "futures-await-test",
  "futures-util",
  "hmac",
  "hyper",
@@ -754,6 +755,7 @@ dependencies = [
  "pin-project",
  "prometheus",
  "prometheus-static-metric",
+ "protobuf",
  "serde 1.0.105",
  "serde_json",
  "sha2",
@@ -1138,6 +1140,27 @@ dependencies = [
  "futures-sink",
  "futures-task",
  "futures-util",
+]
+
+[[package]]
+name = "futures-await-test"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae0d3d05bce73a572ba581e4f4a7f20164c18150169c3a67f406aada3e48c7e8"
+dependencies = [
+ "futures-await-test-macro",
+ "futures-executor",
+]
+
+[[package]]
+name = "futures-await-test-macro"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f150175e6832600500334550e00e4dc563a0b32f58a9d1ad407f6473378c839"
+dependencies = [
+ "proc-macro2 1.0.9",
+ "quote 1.0.3",
+ "syn 1.0.17",
 ]
 
 [[package]]
@@ -2188,24 +2211,24 @@ dependencies = [
 
 [[package]]
 name = "protobuf"
-version = "2.10.2"
+version = "2.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37a5325d019a4d837d3abde0a836920f959e33d350f77b5f1e289e061e774942"
+checksum = "71964f34fd51cf04882d7ae3325fa0794d4cad66a03d0003f38d8ae4f63ba126"
 
 [[package]]
 name = "protobuf-codegen"
-version = "2.10.2"
+version = "2.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64dd3a6192e0c6c1b0dae8f125b7f6b201c39fc487ebda0ee717d7a87fc47dc2"
+checksum = "f122718d40a717194a9b6df594ab8f8718a31f40787a98606fcdc32fc308fdb6"
 dependencies = [
  "protobuf",
 ]
 
 [[package]]
 name = "protobuf-codegen-pure"
-version = "2.10.2"
+version = "2.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "037fa49710ee83b3be232ed53c5fce0bdb1b64c6aa6b1143a86640969c3e4b1d"
+checksum = "12c0137a4c39d5873bc67b55aaf072e0273fe361b6ff234e483a1e5d9f93aa27"
 dependencies = [
  "protobuf",
  "protobuf-codegen",
