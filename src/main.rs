@@ -8,7 +8,6 @@
 extern crate actix;
 extern crate actix_derive;
 extern crate byte_unit;
-#[macro_use]
 extern crate clap;
 extern crate coinnect_rt;
 extern crate config;
@@ -21,46 +20,38 @@ extern crate flamer;
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
-#[macro_use]
 extern crate prometheus;
-#[feature(proc_macro)]
 extern crate prometheus_static_metric;
 extern crate rand;
 extern crate serde_derive;
 extern crate uuid;
 
 use std::{fs, io};
-use std::borrow::Borrow;
 use std::collections::HashMap;
-use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::process;
-use std::sync::{Arc, RwLock, Mutex};
+use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
 
 use actix::{Actor, Recipient, SyncArbiter};
-use actix_rt::{Arbiter, System};
-use actix_rt::signal::unix::Signal;
+use actix_rt::System;
 use coinnect_rt::binance::BinanceCreds;
-use coinnect_rt::coinnect::{Credentials, Creds};
-use coinnect_rt::exchange::{Exchange, ExchangeApi, ExchangeSettings};
+use coinnect_rt::exchange::Exchange;
 use coinnect_rt::exchange_bot::ExchangeBot;
 use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::LiveEventEnveloppe;
-use futures::{FutureExt, pin_mut, select};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
-use prometheus::CounterVec;
 use structopt::StructOpt;
-use tokio::signal::unix::{signal, SignalKind};
+// use actix_rt::signal::unix::Signal;
+// use futures::{FutureExt, pin_mut, select};
+// use tokio::signal::unix::{signal, SignalKind};
 
 use crate::coinnect_rt::coinnect::Coinnect;
-use crate::coinnect_rt::exchange::Exchange::*;
 use crate::handlers::file_actor::{AvroFileActor, FileActorOptions};
 use coinnect_rt::bittrex::BittrexCreds;
 use coinnect_rt::bitstamp::BitstampCreds;
-use clap::App;
-use actix_web::HttpServer;
-use std::ops::Deref;
+#[cfg(feature = "flame_it")]
+use std::fs::File;
 
 pub mod settings;
 pub mod avro_gen;
@@ -146,11 +137,11 @@ async fn main() -> io::Result<()> {
     recipients.push(fa.recipient());
 
     // Metrics
-    let prom_push = PrometheusPushActor::start(PrometheusPushActor::new());
+    let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new());
 
     //
     let path = PathBuf::from(settings_v.keys.clone());
-    let mut bots: HashMap<Exchange, Box<ExchangeBot>> = HashMap::new();
+    let mut bots: HashMap<Exchange, Box<dyn ExchangeBot>> = HashMap::new();
     let exchanges = settings_v.exchanges.clone();
     // TODO : solve the annoying problem of credentials being a specific struct when new_stream and new are generic
     for (xch, conf) in exchanges.clone() {
@@ -186,7 +177,7 @@ async fn main() -> io::Result<()> {
     //     _ = t1 => info!("Interrupt"),
     //     _ = t2 => info!("SigUSR1"),
     // }
-    server.await;
+    let server = server.await;
     drop(bots);
     drop(recipients);
     drop(fa2);
@@ -201,5 +192,5 @@ async fn main() -> io::Result<()> {
             flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
     }
 
-    Ok(())
+    server
 }

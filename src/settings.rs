@@ -1,14 +1,12 @@
-
-use config::{ConfigError, Config, File, Environment};
-
-use chrono::Duration;
-use serde::{Deserializer, Deserialize};
-use byte_unit::Byte;
-use serde::de;
-use coinnect_rt::types::Pair;
-use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use std::collections::{HashMap, HashSet};
-use bidir_map::BidirMap;
+
+use byte_unit::Byte;
+use chrono::Duration;
+use coinnect_rt::exchange::{Exchange, ExchangeSettings};
+use coinnect_rt::types::Pair;
+use config::{Config, ConfigError, Environment, File};
+use serde::{Deserialize, Deserializer};
+use serde::de;
 
 fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
     where Duration: Sized,

@@ -6,15 +6,13 @@ use coinnect_rt::binance::BinanceCreds;
 use coinnect_rt::coinnect::Coinnect;
 use std::sync::Mutex;
 use actix_web::HttpServer;
-use actix_web::dev::Server;
 use std::path::PathBuf;
-use crate::settings::ApiSettings;
 
 pub async fn httpserver(exchanges: HashMap<Exchange, ExchangeSettings>, keys_path: PathBuf) -> std::io::Result<()> {
     // Make and start the api
     let app = move || {
-        let mut apis: HashMap<Exchange, Box<ExchangeApi>> = HashMap::new();
-        for (xch, conf) in exchanges.clone() {
+        let mut apis: HashMap<Exchange, Box<dyn ExchangeApi>> = HashMap::new();
+        for (xch, _conf) in exchanges.clone() {
             let xch_api = match xch {
                 Exchange::Bittrex => {
                     let creds = Box::new(BittrexCreds::new_from_file("account_bittrex", keys_path.clone()).unwrap());

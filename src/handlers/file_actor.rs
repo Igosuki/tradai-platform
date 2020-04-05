@@ -1,34 +1,27 @@
-use actix::{Actor, Context, Handler, Running, SyncContext};
-
-
+use std::cell::RefCell;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
-use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
-use avro_rs::{Writer, Schema, types::{Value, ToAvro}, Codec};
-use crate::avro_gen::{self, models::{LiveTrade as LT, Orderbook as OB}};
-use bigdecimal::ToPrimitive;
 use std::rc::Rc;
-use std::cell::{RefCell};
 
+use actix::{Actor, Handler, Running, SyncContext};
+use avro_rs::{Codec, Schema, types::{ToAvro, Value}, Writer};
+use avro_rs::encode::encode;
+use bigdecimal::ToPrimitive;
+use chrono::Duration;
+use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
+use derive_more::Display;
+use rand::random;
 use uuid::Uuid;
 
-use std::collections::HashMap;
-
-use std::collections::hash_map::Entry;
-
-use std::fs;
-use crate::handlers::rotate::{SizeAndExpirationPolicy, RotatingFile};
-use chrono::{Utc, Duration};
-use std::fs::File;
-use avro_rs::encode::encode;
+use crate::avro_gen::{self, models::{LiveTrade as LT, Orderbook as OB}};
+use crate::handlers::rotate::{RotatingFile, SizeAndExpirationPolicy};
 
 type RotatingWriter = Writer<'static, RotatingFile<SizeAndExpirationPolicy>>;
 
 type Partition = PathBuf;
 type Partitioner = fn(&LiveEventEnveloppe) -> Option<Partition>;
-
-use rand::random;
-use std::io::Write;
-use derive_more::Display;
 
 pub struct FileActorOptions {
     pub base_dir: String,
@@ -141,14 +134,14 @@ impl Actor for AvroFileActor {
     fn started(&mut self, _: &mut Self::Context) {
         info!("starting");
     }
-    fn stopping(&mut self, ctx: &mut Self::Context) -> Running {
+    fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
         info!("stopping");
         Running::Stop
     }
-    fn stopped(&mut self, ctx: &mut Self::Context) {
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
         info!("File actor stopped, flushing writers...");
         let writers = &self.writers.borrow_mut();
-        for (k, v) in writers.iter() {
+        for (_k, v) in writers.iter() {
             v.borrow_mut().flush().unwrap_or_else(|_| {
                 trace!("Error flushing writer");
                 0
@@ -169,7 +162,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
         }
         let rc_ok = rc.unwrap();
         let mut writer = rc_ok.borrow_mut();
-        match msg.1 {
+        let appended = match msg.1 {
             LiveEvent::LiveTrade(lt) => {
                 let lt = LT {
                     pair: lt.pair,
@@ -205,14 +198,17 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
             }
             _ => Ok(0)
         };
-        writer.flush().unwrap();
+        match appended.and_then(|_| writer.flush()) {
+            Err(e) => trace!("Failed to flush writer {:?}", e),
+            Ok(_) => ()
+        }
     }
 }
 
 const AVRO_OBJECT_HEADER: &[u8] = &[b'O', b'b', b'j', 1u8];
 
 fn avro_header(schema: &Schema, marker: Vec<u8>) -> Result<Vec<u8>, Error> {
-    let schema_bytes = serde_json::to_string(schema).map_err(|e| Error::NoSchemaError)?.into_bytes();
+    let schema_bytes = serde_json::to_string(schema).map_err(|_e| Error::NoSchemaError)?.into_bytes();
 
     let mut metadata = HashMap::with_capacity(2);
     metadata.insert("avro.schema", Value::Bytes(schema_bytes));
@@ -232,16 +228,18 @@ fn avro_header(schema: &Schema, marker: Vec<u8>) -> Result<Vec<u8>, Error> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use tempdir;
-    use fs_extra::dir::{get_dir_content};
+    use std::thread;
+
+    use actix::SyncArbiter;
+    use actix_rt::System;
+    use bigdecimal::BigDecimal;
     use coinnect_rt::exchange::Exchange;
     use coinnect_rt::types::{Pair, Price};
     use coinnect_rt::types::Orderbook;
-    use bigdecimal::BigDecimal;
-    use actix_rt::System;
-    use actix::SyncArbiter;
-    use std::thread;
+    use fs_extra::dir::get_dir_content;
+    use tempdir;
+
+    use super::*;
 
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();

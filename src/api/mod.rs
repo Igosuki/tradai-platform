@@ -1,43 +1,13 @@
-use serde::{Serialize, Deserialize};
-use actix_web::{web, Error, HttpResponse, ResponseError};
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use std::collections::HashMap;
+
+use actix_web::{Error, HttpResponse, ResponseError, web};
+use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{OrderType, Pair, Price, Volume};
+use derive_more::Display;
+use futures::lock::Mutex;
+use serde::{Deserialize, Serialize};
 
 use crate::api::ApiError::ExchangeNotFound;
-use derive_more::Display;
-use coinnect_rt::bitstamp::BitstampCreds;
-use coinnect_rt::coinnect::Coinnect;
-use coinnect_rt::bittrex::BittrexCreds;
-use std::path::PathBuf;
-
-use futures::lock::Mutex;
-use std::fs::File;
-use std::ops::Try;
-
-pub struct ExchangeConfig {
-    key_file: String,
-    exchanges: Vec<Exchange>
-}
-
-fn build_exchanges(cfg: ExchangeConfig) -> HashMap<Exchange, Box<dyn ExchangeApi>> {
-    let path = PathBuf::from(cfg.key_file.as_str());
-    let mut exchg_map : HashMap<Exchange, Box<dyn ExchangeApi>> = HashMap::new();
-    for exchange in cfg.exchanges {
-        match exchange {
-            Exchange::Bitstamp => {
-                let my_creds = BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap();
-                exchg_map.insert(exchange, Coinnect::new(exchange, Box::new(my_creds)).unwrap());
-            },
-            Exchange::Bittrex => {
-                let my_creds = BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap();
-                exchg_map.insert(exchange, Coinnect::new(exchange, Box::new(my_creds)).unwrap());
-            },
-            _ => ()
-        }
-    }
-    exchg_map
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Order {
@@ -63,7 +33,7 @@ impl ResponseError for ApiError {
             ExchangeNotFound(_e) => HttpResponse::NotFound().finish(),
             ApiError::Coinnect(e) => HttpResponse::InternalServerError().body(e.to_string()),
             ApiError::IoError(e) => HttpResponse::InternalServerError().body(e.to_string()),
-            _ => HttpResponse::InternalServerError().finish()
+            // _ => HttpResponse::InternalServerError().finish()
         }
     }
 }
@@ -85,6 +55,7 @@ pub async fn add_order(
     Ok(HttpResponse::Ok().finish())
 }
 
+#[cfg(feature = "flame_it")]
 pub fn dump_profiler_file(name: Option<&String>) -> Result<(), std::io::Error>{
     let string = format!("flame-graph-{}.html", chrono::Utc::now());
     let graph_file_name = name.unwrap_or(&string);
@@ -122,19 +93,47 @@ pub fn config_app(cfg: &mut web::ServiceConfig) {
 
 #[cfg(test)]
 mod tests {
-    use crate::api::config_app;
+    use std::collections::HashMap;
 
     use actix_web::{
-        http::{header, StatusCode},
-        test, App,
+        App,
+        http::{header, StatusCode}, test,
     };
+    use bigdecimal::BigDecimal;
+    use coinnect_rt::bitstamp::BitstampCreds;
+    use coinnect_rt::bittrex::BittrexCreds;
+    use coinnect_rt::coinnect::Coinnect;
+    use coinnect_rt::exchange::{Exchange, ExchangeApi};
     use coinnect_rt::exchange::Exchange::Bitstamp;
     use coinnect_rt::types::OrderType;
     use coinnect_rt::types::Pair::BTC_USD;
-    use bigdecimal::BigDecimal;
-
     use futures::lock::Mutex;
 
+    use crate::api::config_app;
+
+    pub struct ExchangeConfig {
+        key_file: String,
+        exchanges: Vec<Exchange>
+    }
+
+    fn build_exchanges(cfg: ExchangeConfig) -> HashMap<Exchange, Box<dyn ExchangeApi>> {
+        let path = PathBuf::from(cfg.key_file.as_str());
+        let mut exchg_map : HashMap<Exchange, Box<dyn ExchangeApi>> = HashMap::new();
+        for exchange in cfg.exchanges {
+            match exchange {
+                Exchange::Bitstamp => {
+                    let my_creds = BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap();
+                    exchg_map.insert(exchange, Coinnect::new(exchange, Box::new(my_creds)).unwrap());
+                },
+                Exchange::Bittrex => {
+                    let my_creds = BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap();
+                    exchg_map.insert(exchange, Coinnect::new(exchange, Box::new(my_creds)).unwrap());
+                },
+                _ => ()
+            }
+        }
+        exchg_map
+    }
 
     #[actix_rt::test]
     async fn test_add_order() {
