@@ -521,8 +521,7 @@ dependencies = [
 
 [[package]]
 name = "binance"
-version = "0.10.0"
-source = "git+https://github.com/Igosuki/binance-rs.git?branch=async_await#80ac4ccec9cfa673ef3afecd895c393002a44706"
+version = "0.10.2"
 dependencies = [
  "error-chain",
  "hex",
