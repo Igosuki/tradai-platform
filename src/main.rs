@@ -58,6 +58,7 @@ pub mod avro_gen;
 pub mod handlers;
 pub mod api;
 pub mod server;
+pub mod strategies;
 
 //lazy_static! {
 //    static ref CONFIG_FILE: String = {
