@@ -1,5 +1,8 @@
 use stats::stddev;
 use average::Mean;
+use itertools::Itertools;
+
+use crate::math::iter::{VarianceExt, CovarianceExt};
 
 struct MovingState {
     position_short: i8,
@@ -24,7 +27,8 @@ pub struct Strategy {
     beta_eval_window_size: i32,
     beta_eval_freq: i32,
     latest_state: MovingState,
-    pub evals_so_far: i32
+    pub evals_so_far: i32,
+    data_table: DataTable,
 }
 
 impl Strategy {
@@ -45,23 +49,24 @@ impl Strategy {
                 units_to_buy_short_spread: 0.0,
             },
             evals_so_far: 501,
+            data_table: DataTable::new()
         }
     }
 
     fn get_long_position_value(&self, traded_price_crypto2: f64, traded_price_crypto1: f64, current_price_crypto2: f64, current_price_crypto1: f64, beta_val: f64, units_to_buy: f64) -> f64 {
-        return units_to_buy * (traded_price_crypto1*beta_val * (1.0 - self.fees_rate) - traded_price_crypto2 * (1.0 + self.fees_rate) + current_price_crypto2 * (1.0 - self.fees_rate) - current_price_crypto1 * beta_val * (1.0 + self.fees_rate))
+        return units_to_buy * (traded_price_crypto1 * beta_val * (1.0 - self.fees_rate) - traded_price_crypto2 * (1.0 + self.fees_rate) + current_price_crypto2 * (1.0 - self.fees_rate) - current_price_crypto1 * beta_val * (1.0 + self.fees_rate));
     }
 
     fn get_long_position_return(&self, traded_price_crypto2: f64, traded_price_crypto1: f64, current_price_crypto2: f64, current_price_crypto1: f64, beta_val: f64, units_to_buy: f64, value_strat: f64) -> f64 {
-        return self.get_long_position_value(traded_price_crypto2, traded_price_crypto1, current_price_crypto2, current_price_crypto1, beta_val, units_to_buy) / value_strat
+        return self.get_long_position_value(traded_price_crypto2, traded_price_crypto1, current_price_crypto2, current_price_crypto1, beta_val, units_to_buy) / value_strat;
     }
 
-    fn get_short_position_value(&self, traded_price_crypto2: f64, traded_price_crypto1: f64, current_price_crypto2: f64, current_price_crypto1: f64, beta_val: f64, units_to_buy: f64) -> f64{
-        return units_to_buy * (traded_price_crypto2 * (1.0 - self.fees_rate) - traded_price_crypto1*beta_val * (1.0 + self.fees_rate) + current_price_crypto1 * beta_val * (1.0 - self.fees_rate) - current_price_crypto2 * (1.0 + self.fees_rate))
+    fn get_short_position_value(&self, traded_price_crypto2: f64, traded_price_crypto1: f64, current_price_crypto2: f64, current_price_crypto1: f64, beta_val: f64, units_to_buy: f64) -> f64 {
+        return units_to_buy * (traded_price_crypto2 * (1.0 - self.fees_rate) - traded_price_crypto1 * beta_val * (1.0 + self.fees_rate) + current_price_crypto1 * beta_val * (1.0 - self.fees_rate) - current_price_crypto2 * (1.0 + self.fees_rate));
     }
 
     fn get_short_position_return(&self, traded_price_crypto2: f64, traded_price_crypto1: f64, current_price_crypto2: f64, current_price_crypto1: f64, beta_val: f64, units_to_buy: f64, value_strat: f64) -> f64 {
-        return self.get_short_position_value(traded_price_crypto2, traded_price_crypto1, current_price_crypto2, current_price_crypto1, beta_val, units_to_buy) / value_strat
+        return self.get_short_position_value(traded_price_crypto2, traded_price_crypto1, current_price_crypto2, current_price_crypto1, beta_val, units_to_buy) / value_strat;
     }
 
     //
@@ -93,14 +98,18 @@ impl Strategy {
         // alpha_val = mean(crypto2_m) - beta_val * mean(crypto1_m)
         // alpha_val + beta_val * pair_data[i,"crypto1_m"])
     }
-
 }
 
+#[derive(Debug, Clone)]
 struct BookPosition {
-    mid: f64, // mid = (top_ask + top_bid) / 2, alias: crypto1_m
-    top_ask: f64, // crypto_a
-    top_ask_q: f64, // crypto_a_q
-    top_bid: f64, // crypto_b
+    pub mid: f64,
+    // mid = (top_ask + top_bid) / 2, alias: crypto1_m
+    top_ask: f64,
+    // crypto_a
+    top_ask_q: f64,
+    // crypto_a_q
+    top_bid: f64,
+    // crypto_b
     top_bid_q: f64, // crypto_b_q
     // log_r: f64, // crypto_log_r
     // log_r_10: f64, // crypto_log_r
@@ -112,22 +121,44 @@ impl BookPosition {
     }
 }
 
-const DATE_FORMAT: &'static str = "%Y-%m-%d %H:%M:%S";
-
+#[derive(Debug, Clone)]
 struct DataRow {
     time: i64,
-    left: BookPosition, // crypto_1
-    right: BookPosition // crypto_2
+    pub left: Option<BookPosition>,
+    // crypto_1
+    pub right: Option<BookPosition>, // crypto_2
 }
 
+#[derive(Debug)]
 struct DataTable {
     rows: Vec<DataRow>,
 }
 
 impl DataTable {
-    fn log_r_std_10(&mut self) {
-        // self.stddev(self.rows.into_iter().map(|r| r.left.mid.log(2.0)));
-        // stddev(self.rows.into_iter().map(|r| r.right.mid.log(2.0)));
+    fn new() -> Self {
+        DataTable {
+            rows: Vec::new()
+        }
+    }
+
+    pub fn push(&mut self, row: DataRow) {
+        self.rows.push(row);
+    }
+
+    pub fn beta_val(&self) -> f64 {
+        let iter = self.rows.clone().into_iter();
+        let mut some1 = iter.map(|r| r.left).while_some();
+        let variance: f64 = some1.by_ref().map(|l| l.mid).variance();
+        debug!("variance {:?}", variance);
+        let x = self.rows.clone().into_iter();
+        let covariance: f64 = x
+            .map(|r| (r.left.map(|o| o.mid), r.right.map(|o| o.mid)))
+            .take_while(|p| p.0.is_some() && p.1.is_some())
+            .map(|p| (p.0.unwrap(), p.1.unwrap())).covariance::<(f64, f64), f64>();
+        debug!("covariance {:?}", covariance);
+        let beta_val = covariance / variance;
+        debug!("beta_val {:?}", beta_val);
+        beta_val
     }
 }
 
@@ -136,43 +167,20 @@ impl DataTable {
 mod test {
     use stats::stddev;
     use std::fs::File;
-    use crate::strategies::naive_pair_trading::{DataTable, DataRow, DATE_FORMAT, BookPosition};
+    use crate::strategies::naive_pair_trading::{DataTable, DataRow, BookPosition};
     use std::io::Result;
     use serde::{Serialize, Deserialize};
     use chrono::{DateTime, Utc};
     use chrono::serde::ts_seconds;
+    use std::rc::Rc;
+    use std::borrow::BorrowMut;
+    use std::cell::RefCell;
     use itertools::Itertools;
-
-    mod my_date_format {
-        use chrono::{DateTime, Utc, TimeZone};
-        use serde::{self, Deserialize, Serializer, Deserializer};
-        use crate::strategies::naive_pair_trading::DATE_FORMAT;
-
-        pub fn serialize<S>(
-            date: &DateTime<Utc>,
-            serializer: S,
-        ) -> Result<S::Ok, S::Error>
-            where
-                S: Serializer,
-        {
-            let s = format!("{}", date.format(DATE_FORMAT));
-            serializer.serialize_str(&s)
-        }
-
-        pub fn deserialize<'de, D>(
-            deserializer: D,
-        ) -> Result<DateTime<Utc>, D::Error>
-            where
-                D: Deserializer<'de>,
-        {
-            let s = String::deserialize(deserializer)?;
-            Utc.datetime_from_str(&s, DATE_FORMAT).map_err(serde::de::Error::custom)
-        }
-    }
+    use crate::serdes::date_time_format;
 
     #[derive(Debug, Serialize, Deserialize)]
     struct CsvRecord {
-        #[serde(with = "my_date_format")]
+        #[serde(with = "date_time_format")]
         hourofday: DateTime<Utc>,
         a1: f64,
         aq1: f64,
@@ -193,7 +201,13 @@ mod test {
         b4: f64,
         bq4: f64,
         b5: f64,
-        bq5: f64
+        bq5: f64,
+    }
+
+    impl CsvRecord {
+        fn time(&self) -> i64 {
+            self.hourofday.timestamp()
+        }
     }
 
     fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
@@ -204,9 +218,19 @@ mod test {
         };
         let vec: Vec<CsvRecord> = rdr.deserialize().map(|r| {
             let record: Result<CsvRecord> = r.map_err(|e| e.into());
-            record
-        }).filter(|r| r.is_ok()).map(|r| r.unwrap()).collect();
+            record.ok()
+        }).while_some().collect(); // just skip invalid rows
         Ok(vec)
+    }
+
+    fn to_pos(r: CsvRecord) -> BookPosition {
+        BookPosition {
+            top_ask: r.a1,
+            top_ask_q: r.aq1,
+            top_bid: r.b1,
+            top_bid_q: r.bq1,
+            mid: (r.a1 + r.b1) / 2.0,
+        }
     }
 
     #[test]
@@ -221,29 +245,85 @@ mod test {
         let mut dt = DataTable {
             rows: Vec::new()
         };
-        // dt.rows.push(DataRow {
-        //     time: DateTime::parse_from_str(&record.hourofday, DATE_FORMAT).unwrap().timestamp(),
-        //     left: BookPosition {
-        //
-        //     }
-        // })
+        let eval_window_size = 500;
+        // Read downsampled streams
         let dt1 = read_csv("/Users/geps/dev/bitcoin/bitcoins/data/Binance/order_books/pr=ETH_USDT/dt=2020-03-25.csv").unwrap();
-        let dt1_iter: Vec<CsvRecord> = dt1.into_iter().group_by(|r| r.hourofday.timestamp()).into_iter().take(10).map(|(k, mut v)| {
+        let dt1_iter: Vec<CsvRecord> = dt1.into_iter().group_by(|r| r.hourofday.timestamp()).into_iter().take(eval_window_size).map(|(k, mut v)| {
             v.next().unwrap()
         }).collect();
         let dt2 = read_csv("/Users/geps/dev/bitcoin/bitcoins/data/Binance/order_books/pr=BTC_USDT/dt=2020-03-25.csv").unwrap();
-        let dt2_iter: Vec<CsvRecord> = dt2.into_iter().group_by(|r| r.hourofday.timestamp()).into_iter().take(10).map(|(k, mut v)| {
+        let dt2_iter: Vec<CsvRecord> = dt2.into_iter().group_by(|r| r.hourofday.timestamp()).into_iter().take(eval_window_size).map(|(k, mut v)| {
             v.next().unwrap()
         }).collect();
         // align data
-        let mut left_p = dt1_iter.into_iter().peekable();
-        let mut right_p = dt2_iter.into_iter().peekable();
+        interleave_crypto_signals(&mut dt, dt1_iter, dt2_iter);
+        assert!(dt.beta_val() > 0.0);
+    }
+
+    fn interleave_crypto_signals(dt: &mut DataTable, dt1_iter: Vec<CsvRecord>, dt2_iter: Vec<CsvRecord>) {
+        let mut peekable = dt1_iter.into_iter().peekable();
+        let left_p = peekable.by_ref();
+        let mut peekable1 = dt2_iter.into_iter().peekable();
+        let right_p = peekable1.by_ref();
         loop {
             let left = left_p.peek();
             let right = right_p.peek();
-            println!("{:?}, {:?}", left, right);
-            break;
-            // let records: Vec<CsvRecord> = dt1_iter.peeking_take_while(|r| right.is_none() || r.hourofday <= right.unwrap().hourofday).into();
+            match (left, right) {
+                (None, None) => break, //end of stream
+                (Some(l), None) => {
+                    //nothing left in right stream
+                    left_p.for_each(|r| dt.push(DataRow {
+                        time: r.time(),
+                        left: Some(to_pos(r)),
+                        right: None,
+                    }))
+                }
+                (None, Some(r)) => {
+                    //nothing left in right stream
+                    right_p.for_each(|r| dt.push(DataRow {
+                        time: r.time(),
+                        left: Some(to_pos(r)),
+                        right: None,
+                    }))
+                }
+                (Some(l), Some(r)) => {
+                    let left_time = l.time();
+                    let right_time = r.time();
+                    // streams are aligned, take and continue
+                    if left_time == right_time {
+                        dt.push(DataRow {
+                            time: left_time,
+                            left: Some(to_pos(left_p.next().unwrap())),
+                            right: Some(to_pos(right_p.next().unwrap())),
+                        });
+                        continue;
+                    }
+                    // right is late
+                    else if left_time > right_time {
+                        {
+                            right_p.take_while(|r| r.time() < left_time).for_each(|r|
+                                dt.push(DataRow {
+                                    time: r.time(),
+                                    left: None,
+                                    right: Some(to_pos(r)),
+                                })
+                            );
+                        }
+                    }
+                    // left is late
+                    else if left_time < right_time {
+                        {
+                            left_p.take_while(|r| left_time < right_time).for_each(|r|
+                                dt.push(DataRow {
+                                    time: r.time(),
+                                    left: Some(to_pos(r)),
+                                    right: None,
+                                })
+                            );
+                        }
+                    }
+                }
+            }
         }
     }
 }

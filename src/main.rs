@@ -61,6 +61,7 @@ pub mod api;
 pub mod server;
 pub mod strategies;
 pub mod math;
+pub mod serdes;
 
 //lazy_static! {
 //    static ref CONFIG_FILE: String = {
