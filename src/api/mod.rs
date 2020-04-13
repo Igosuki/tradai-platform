@@ -95,6 +95,7 @@ pub fn config_app(cfg: &mut web::ServiceConfig) {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::path::{Path, PathBuf};
 
     use actix_web::{
         App,
@@ -138,11 +139,11 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_add_order() {
-        let exchanges = crate::api::ExchangeConfig {
+        let exchanges = ExchangeConfig {
             key_file: "keys_real_test.json".to_string(),
             exchanges: vec![Bitstamp]
         };
-        let data = Mutex::new(crate::api::build_exchanges(exchanges));
+        let data = Mutex::new(build_exchanges(exchanges));
         let mut app = test::init_service(App::new().data(data).configure(config_app)).await;
 
         let _o = crate::api::Order {exchg:Bitstamp, t: OrderType::SellLimit, pair: BTC_USD, qty: BigDecimal::from(0.000001), price: BigDecimal::from(1)};

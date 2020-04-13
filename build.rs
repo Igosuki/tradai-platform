@@ -16,6 +16,7 @@ use std::collections::HashMap;
 type AvroState = HashMap<String, u32>;
 
 fn main() -> io::Result<()> {
+    println!("cargo:rerun-if-env-changed=AVRO_GEN");
     let _out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new("target").join("avro");
     let gen_path_dir = Path::new("src").join("avro_gen");
@@ -72,7 +73,7 @@ fn main() -> io::Result<()> {
         let g = Generator::new().unwrap();
         g.gen(&source, &mut file).unwrap();
     }
-    serde_json::to_string(&avro_state).map(|st| avro_state_file.write_all(st.as_bytes()));
+    serde_json::to_string(&avro_state).map(|st| avro_state_file.write_all(st.as_bytes()))?;
     Ok(())
 }
 

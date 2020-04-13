@@ -38,6 +38,7 @@ bigdecimal = { version = "0.0.14", features = ["serde"] }
 error-chain = "0.12.1"
 config = { version = "0.9", features = ["yaml"] }
 rand = "0.7.3"
+itertools = "0.9"
 
 # SSL
 sha2 = "0.6.0"
@@ -64,7 +65,8 @@ actix = "0.9.0"
 actix-codec = "0.2.0"
 
 # Crypto
-coinnect_rt = { path = "./coinnect" }
+coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
+#coinnect_rt = { path = "./coinnect" }
 
 # Flame
 flame = { version = "0.2.2", optional = true }
@@ -80,6 +82,11 @@ prometheus-static-metric = "0.1"
 # Math
 num-traits = "0.2.11"
 streaming-stats = "0.2.3"
+average = "0.10.4"
+nalgebra = "0.21.0"
+
+# Codec
+csv = "1.1.3"
 
 [features]
 default = []
