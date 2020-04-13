@@ -2,19 +2,27 @@ use stats::stddev;
 use average::Mean;
 use itertools::Itertools;
 
-use crate::math::iter::{VarianceExt, CovarianceExt};
+use crate::math::iter::{VarianceExt, CovarianceExt, MeanExt};
 
 struct MovingState {
     position_short: i8,
     position_long: i8,
-    value_strat: i32,
+    value_strat: f64,
     units_to_buy_long_spread: f64,
     units_to_buy_short_spread: f64,
+    evaluations_since_last: i32,
+    beta_val: f64,
+    preditected_right: f64,
+    res: f64,
 }
 
 impl MovingState {
-    fn is_none(&self) -> bool {
+    fn no_position_taken(&self) -> bool {
         self.position_short == 0 && self.position_long == 0
+    }
+
+    fn inc_evaluations_since_last(&mut self) {
+        self.evaluations_since_last += 1;
     }
 }
 
@@ -26,8 +34,7 @@ pub struct Strategy {
     stop_loss: f64,
     beta_eval_window_size: i32,
     beta_eval_freq: i32,
-    latest_state: MovingState,
-    pub evals_so_far: i32,
+    state: MovingState,
     data_table: DataTable,
 }
 
@@ -41,14 +48,17 @@ impl Strategy {
             stop_loss: -0.2,
             beta_eval_window_size: 500,
             beta_eval_freq: 5000,
-            latest_state: MovingState {
+            state: MovingState {
                 position_short: 0,
                 position_long: 0,
-                value_strat: 100,
+                value_strat: 100.0,
                 units_to_buy_long_spread: 0.0,
                 units_to_buy_short_spread: 0.0,
+                evaluations_since_last: 500,
+                beta_val: 0.0,
+                preditected_right: 0.0,
+                res: 0.0,
             },
-            evals_so_far: 501,
             data_table: DataTable::new()
         }
     }
@@ -69,34 +79,39 @@ impl Strategy {
         return self.get_short_position_value(traded_price_crypto2, traded_price_crypto1, current_price_crypto2, current_price_crypto1, beta_val, units_to_buy) / value_strat;
     }
 
-    //
-    // model_value = lm(crypto2_m ~ crypto1_m, data = pair_data[1:beta_eval_window_size]) # lm(crypto2_m ~ crypto1_m + 0
-    // beta_val = as.numeric(model_value$coef[2])
-    // units_to_buy_long_spread = value_strat / (pair_data[i,'crypto2_a', with = F] * (1 + fees_rate))
-    // units_to_buy_short_spread = value_strat / (pair_data[i, 'crypto1_a'] * beta_val * (1 + fees_rate))
-
     fn should_eval(&self) -> bool {
-        self.evals_so_far % self.beta_eval_freq == 0
+        self.state.evaluations_since_last % self.beta_eval_freq == 0
     }
 
-    fn process_row(&mut self, row: DataRow) {
-        self.evals_so_far += 1;
-        if self.latest_state.is_none() {
+    fn eval_latest(&mut self) {
+        let lro =  self.data_table.last_row();
+        if lro.is_none() {
+            return
+        }
+        let lr = lro.unwrap();
+        self.state.inc_evaluations_since_last();
+        if self.state.no_position_taken() {
             if self.should_eval() {
-                //"beta_val = covariance(crypto2_m, crypto1_m)/variance(crypto1_m)"
-                // model_value = lm(crypto2_m ~ crypto1_m, data = pair_data[(i-beta_eval_window_size):(i-1)])
-                // beta_val = as.numeric(model_value$coef[2])
+                self.state.beta_val = self.data_table.beta();
             }
-            // units_to_buy_long_spread = value_strat / (pair_data[i,'crypto2_a', with = F] * (1 + fees_rate))
-            // units_to_buy_short_spread = value_strat / (pair_data[i, 'crypto1_a'] * beta_val * (1 + fees_rate))
+            self.state.units_to_buy_long_spread = self.state.value_strat / lr.right.top_ask * (1.0 + self.fees_rate);
+            self.state.units_to_buy_short_spread = self.state.value_strat / lr.left.top_ask * self.state.beta_val * (1.0 + self.fees_rate);
+        }
+        self.state.preditected_right = self.data_table.predict(&lr.left);
+        if self.state.beta_val >= 0.0 {
+            self.state.res = (&lr.right.mid - self.state.preditected_right) / &lr.right.mid;
+        }
+        else{
+            self.state.res = 0.0;
+        }
+        if (self.state.res > self.res_threshold_short) && (self.state.position_short == 0)  && (self.state.position_long == 0) {
+
         }
     }
 
-    fn predict(&self) {
-        // predict(model_value, pair_data[i,"crypto1_m"])
-        // deviendra
-        // alpha_val = mean(crypto2_m) - beta_val * mean(crypto1_m)
-        // alpha_val + beta_val * pair_data[i,"crypto1_m"])
+    fn process_row(&mut self, row: DataRow) {
+        self.eval_latest();
+        self.data_table.push(row);
     }
 }
 
@@ -124,9 +139,8 @@ impl BookPosition {
 #[derive(Debug, Clone)]
 struct DataRow {
     time: i64,
-    pub left: Option<BookPosition>,
-    // crypto_1
-    pub right: Option<BookPosition>, // crypto_2
+    pub left: BookPosition, // crypto_1
+    pub right: BookPosition, // crypto_2
 }
 
 #[derive(Debug)]
@@ -145,20 +159,44 @@ impl DataTable {
         self.rows.push(row);
     }
 
-    pub fn beta_val(&self) -> f64 {
+    pub fn beta(&self) -> f64 {
         let iter = self.rows.clone().into_iter();
-        let mut some1 = iter.map(|r| r.left).while_some();
+        let mut some1 = iter.map(|r| r.left);
         let variance: f64 = some1.by_ref().map(|l| l.mid).variance();
         debug!("variance {:?}", variance);
         let x = self.rows.clone().into_iter();
         let covariance: f64 = x
-            .map(|r| (r.left.map(|o| o.mid), r.right.map(|o| o.mid)))
-            .take_while(|p| p.0.is_some() && p.1.is_some())
-            .map(|p| (p.0.unwrap(), p.1.unwrap())).covariance::<(f64, f64), f64>();
+            .map(|r| (r.left.mid, r.right.mid))
+            // originally if left and mid may not be present
+            // .take_while(|p| p.0.is_some() && p.1.is_some())
+            // .map(|p| (p.0.unwrap(), p.1.unwrap()))
+            .covariance::<(f64, f64), f64>();
         debug!("covariance {:?}", covariance);
         let beta_val = covariance / variance;
         debug!("beta_val {:?}", beta_val);
         beta_val
+    }
+
+    pub fn alpha(&self, beta_val: f64) -> f64 {
+        let (iter_left, iter_right) = self.rows.clone().into_iter().tee();
+        let mean_left: f64 = iter_left.map(|l| l.left.mid).mean();
+        debug!("mean left {:?}", mean_left);
+        let mean_right: f64 = iter_right.map(|l| l.right.mid).mean();
+        debug!("mean right {:?}", mean_right);
+        mean_right - beta_val * mean_left
+    }
+
+    fn predict(&self, bp: &BookPosition) -> f64 {
+        // predict(model_value, pair_data[i,"crypto1_m"]) ->
+        // alpha_val + beta_val * pair_data[i,"crypto1_m"])
+        // alpha_val = mean(crypto2_m) - beta_val * mean(crypto1_m)
+        let beta_val: f64 = self.beta();
+        let alpha_val: f64 = self.alpha(beta_val);
+        alpha_val + beta_val * bp.mid
+    }
+
+    fn last_row(&self) -> Option<&DataRow> {
+        self.rows.last()
     }
 }
 
@@ -234,30 +272,26 @@ mod test {
     }
 
     #[test]
-    fn default_scenario_test_loop() {
-        // pseudo code
-        // for i in ((beta_eval_window_size + 1) .. pair_data.size)
-        //
-    }
-
-    #[test]
-    fn variance() {
+    fn beta_val() {
         let mut dt = DataTable {
             rows: Vec::new()
         };
         let eval_window_size = 500;
         // Read downsampled streams
-        let dt1 = read_csv("/Users/geps/dev/bitcoin/bitcoins/data/Binance/order_books/pr=ETH_USDT/dt=2020-03-25.csv").unwrap();
+        let dt1_iter = load_records("/Users/geps/dev/bitcoin/bitcoins/data/Binance/order_books/pr=ETH_USDT/dt=2020-03-25.csv", eval_window_size);
+        let dt2_iter = load_records("/Users/geps/dev/bitcoin/bitcoins/data/Binance/order_books/pr=BTC_USDT/dt=2020-03-25.csv", eval_window_size);
+        // align data
+        interleave_crypto_signals(&mut dt, dt1_iter, dt2_iter);
+        let x = dt.beta();
+        assert!(x > 0.0, x);
+    }
+
+    fn load_records(path: &str, eval_window_size: usize) -> Vec<CsvRecord> {
+        let dt1 = read_csv(path).unwrap();
         let dt1_iter: Vec<CsvRecord> = dt1.into_iter().group_by(|r| r.hourofday.timestamp()).into_iter().take(eval_window_size).map(|(k, mut v)| {
             v.next().unwrap()
         }).collect();
-        let dt2 = read_csv("/Users/geps/dev/bitcoin/bitcoins/data/Binance/order_books/pr=BTC_USDT/dt=2020-03-25.csv").unwrap();
-        let dt2_iter: Vec<CsvRecord> = dt2.into_iter().group_by(|r| r.hourofday.timestamp()).into_iter().take(eval_window_size).map(|(k, mut v)| {
-            v.next().unwrap()
-        }).collect();
-        // align data
-        interleave_crypto_signals(&mut dt, dt1_iter, dt2_iter);
-        assert!(dt.beta_val() > 0.0);
+        dt1_iter
     }
 
     fn interleave_crypto_signals(dt: &mut DataTable, dt1_iter: Vec<CsvRecord>, dt2_iter: Vec<CsvRecord>) {
@@ -265,65 +299,12 @@ mod test {
         let left_p = peekable.by_ref();
         let mut peekable1 = dt2_iter.into_iter().peekable();
         let right_p = peekable1.by_ref();
-        loop {
-            let left = left_p.peek();
-            let right = right_p.peek();
-            match (left, right) {
-                (None, None) => break, //end of stream
-                (Some(l), None) => {
-                    //nothing left in right stream
-                    left_p.for_each(|r| dt.push(DataRow {
-                        time: r.time(),
-                        left: Some(to_pos(r)),
-                        right: None,
-                    }))
-                }
-                (None, Some(r)) => {
-                    //nothing left in right stream
-                    right_p.for_each(|r| dt.push(DataRow {
-                        time: r.time(),
-                        left: Some(to_pos(r)),
-                        right: None,
-                    }))
-                }
-                (Some(l), Some(r)) => {
-                    let left_time = l.time();
-                    let right_time = r.time();
-                    // streams are aligned, take and continue
-                    if left_time == right_time {
-                        dt.push(DataRow {
-                            time: left_time,
-                            left: Some(to_pos(left_p.next().unwrap())),
-                            right: Some(to_pos(right_p.next().unwrap())),
-                        });
-                        continue;
-                    }
-                    // right is late
-                    else if left_time > right_time {
-                        {
-                            right_p.take_while(|r| r.time() < left_time).for_each(|r|
-                                dt.push(DataRow {
-                                    time: r.time(),
-                                    left: None,
-                                    right: Some(to_pos(r)),
-                                })
-                            );
-                        }
-                    }
-                    // left is late
-                    else if left_time < right_time {
-                        {
-                            left_p.take_while(|r| left_time < right_time).for_each(|r|
-                                dt.push(DataRow {
-                                    time: r.time(),
-                                    left: Some(to_pos(r)),
-                                    right: None,
-                                })
-                            );
-                        }
-                    }
-                }
-            }
-        }
+        left_p.zip(right_p).for_each(|(l, r)| {
+            dt.push(DataRow {
+                time: l.time(),
+                left: to_pos(l),
+                right: to_pos(r),
+            });
+        });
     }
 }
