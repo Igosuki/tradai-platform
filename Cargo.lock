@@ -522,6 +522,7 @@ dependencies = [
 [[package]]
 name = "binance"
 version = "0.10.2"
+source = "git+https://github.com/Igosuki/binance-rs-async.git#480f08532061090174a680e04d1cf8c92d0dd915"
 dependencies = [
  "error-chain",
  "hex",
@@ -2824,6 +2825,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
+name = "streaming-stats"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0d670ce4e348a2081843569e0f79b21c99c91bb9028b3b3ecb0f050306de547"
+dependencies = [
+ "num-traits 0.2.11",
+]
+
+[[package]]
 name = "strsim"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3165,6 +3175,7 @@ dependencies = [
  "log",
  "native-tls",
  "notify",
+ "num-traits 0.2.11",
  "once_cell",
  "openssl",
  "prometheus",
@@ -3175,6 +3186,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "sha2",
+ "streaming-stats",
  "structopt",
  "tempdir",
  "tokio",

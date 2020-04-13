@@ -77,6 +77,10 @@ fs_extra = "1.1.0"
 prometheus = { version = "0.8", features = ["nightly", "push", "process", "gen"] }
 prometheus-static-metric = "0.1"
 
+# Math
+num-traits = "0.2.11"
+streaming-stats = "0.2.3"
+
 [features]
 default = []
 flame_it = ["flame", "flamer"]
