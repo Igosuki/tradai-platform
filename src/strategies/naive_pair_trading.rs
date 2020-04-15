@@ -152,7 +152,7 @@ impl Strategy {
             beta_eval_window_size: 500,
             beta_eval_freq: 5000,
             state: MovingState::new(),
-            data_table: DataTable::new(),
+            data_table: DataTable::new(500),
         }
     }
 
@@ -307,11 +307,24 @@ struct DataRow {
 #[derive(Debug)]
 struct DataTable {
     rows: Vec<DataRow>,
+    window_size: usize,
 }
 
 impl DataTable {
-    fn new() -> Self {
-        DataTable { rows: Vec::new() }
+    fn new(window_size: usize) -> Self {
+        DataTable {
+            rows: Vec::new(),
+            window_size,
+        }
+    }
+
+    fn current_window(&self) -> &[DataRow] {
+        let len = self.rows.len();
+        if len <= self.window_size {
+            &self.rows[..]
+        } else {
+            &self.rows[(len - self.window_size)..(len - 1)]
+        }
     }
 
     pub fn push(&mut self, row: &DataRow) {
@@ -319,7 +332,7 @@ impl DataTable {
     }
 
     pub fn beta(&self) -> f64 {
-        let (for_variance, for_covariance) = self.rows.iter().tee();
+        let (for_variance, for_covariance) = self.current_window().iter().tee();
         let mut left = for_variance.map(|r| r.left.mid);
         let variance: f64 = left.variance();
         debug!("variance {:?}", variance);
@@ -336,7 +349,7 @@ impl DataTable {
     }
 
     pub fn alpha(&self, beta_val: f64) -> f64 {
-        let (iter_left, iter_right) = self.rows.iter().tee();
+        let (iter_left, iter_right) = self.current_window().iter().tee();
         let mean_left: f64 = iter_left.map(|l| l.left.mid).mean();
         debug!("mean left {:?}", mean_left);
         let mean_right: f64 = iter_right.map(|l| l.right.mid).mean();
@@ -441,7 +454,6 @@ mod test {
     fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
         let f = File::open(path)?;
         let mut rdr = csv::Reader::from_reader(f);
-        let mut dt = DataTable { rows: Vec::new() };
         let vec: Vec<CsvRecord> = rdr
             .deserialize()
             .map(|r| {
@@ -552,7 +564,10 @@ mod test {
 
     #[test]
     fn beta_val() {
-        let mut dt = DataTable { rows: Vec::new() };
+        let mut dt = DataTable {
+            rows: Vec::new(),
+            window_size: 500,
+        };
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 03, 25);
         let dt1 = Utc.ymd(2020, 03, 25);
@@ -586,7 +601,11 @@ mod test {
         let logs = left_records
             .into_iter()
             .zip(right_records.into_iter())
-            .map(|(l, r)| {
+            .enumerate()
+            .map(|(i, (l, r))| {
+                if (i % 1000 == 0) {
+                    println!("{} iterations...", i);
+                }
                 let row_time = l.time();
                 let row = DataRow {
                     time: row_time,
