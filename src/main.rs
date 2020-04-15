@@ -27,12 +27,12 @@ extern crate rand;
 extern crate serde_derive;
 extern crate uuid;
 
-use std::{fs, io};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process;
-use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
+use std::sync::{Arc, RwLock};
+use std::{fs, io};
 
 use actix::{Actor, Recipient, SyncArbiter};
 use actix_rt::System;
@@ -49,19 +49,20 @@ use structopt::StructOpt;
 
 use crate::coinnect_rt::coinnect::Coinnect;
 use crate::handlers::file_actor::{AvroFileActor, FileActorOptions};
-use coinnect_rt::bittrex::BittrexCreds;
 use coinnect_rt::bitstamp::BitstampCreds;
+use coinnect_rt::bittrex::BittrexCreds;
 #[cfg(feature = "flame_it")]
 use std::fs::File;
 
-pub mod settings;
+pub mod api;
 pub mod avro_gen;
 pub mod handlers;
-pub mod api;
-pub mod server;
-pub mod strategies;
 pub mod math;
 pub mod serdes;
+pub mod server;
+pub mod settings;
+pub mod strategies;
+pub mod util;
 
 //lazy_static! {
 //    static ref CONFIG_FILE: String = {
@@ -92,7 +93,7 @@ pub mod serdes;
 #[structopt(name = "basic")]
 struct Opts {
     #[structopt(short, long)]
-    debug: bool
+    debug: bool,
 }
 
 #[actix_rt::main]
@@ -101,14 +102,21 @@ async fn main() -> io::Result<()> {
     env_logger::init();
     let opts: Opts = Opts::from_args();
     let env = std::env::var("TRADER_ENV").unwrap_or("development".to_string());
-    let settings = Arc::new(RwLock::new(settings::Settings::new(env).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?));
+    let settings =
+        Arc::new(RwLock::new(settings::Settings::new(env).map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, e)
+        })?));
 
     // Create a channel to receive the events.
     let (tx, _rx) = channel();
-    let mut watcher: RecommendedWatcher = Watcher::new(tx, std::time::Duration::from_secs(2)).unwrap();
+    let mut watcher: RecommendedWatcher =
+        Watcher::new(tx, std::time::Duration::from_secs(2)).unwrap();
 
     watcher
-        .watch(&settings.read().unwrap().__config_file, RecursiveMode::NonRecursive)
+        .watch(
+            &settings.read().unwrap().__config_file,
+            RecursiveMode::NonRecursive,
+        )
         .unwrap();
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
@@ -120,7 +128,7 @@ async fn main() -> io::Result<()> {
 
     if settings_v.profile_main {
         #[cfg(feature = "flame_it")]
-            flame::start("main bot");
+        flame::start("main bot");
     }
 
     // Live Events recipients
@@ -151,22 +159,31 @@ async fn main() -> io::Result<()> {
     for (xch, conf) in exchanges.clone() {
         let bot = match xch {
             Exchange::Bittrex => {
-                let creds = Box::new(BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap());
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone()).await.unwrap()
+                let creds =
+                    Box::new(BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap());
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone())
+                    .await
+                    .unwrap()
             }
             Exchange::Bitstamp => {
-                let creds = Box::new(BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap());
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone()).await.unwrap()
+                let creds = Box::new(
+                    BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap(),
+                );
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone())
+                    .await
+                    .unwrap()
             }
             Exchange::Binance => {
-                let creds = Box::new(BinanceCreds::new_from_file("account_binance", path.clone()).unwrap());
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone()).await.unwrap()
+                let creds =
+                    Box::new(BinanceCreds::new_from_file("account_binance", path.clone()).unwrap());
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone())
+                    .await
+                    .unwrap()
             }
-            _ => unimplemented!()
+            _ => unimplemented!(),
         };
         bots.insert(xch, bot);
     }
-
 
     let server = server::httpserver(exchanges.clone(), path.clone());
     // Handle interrupts for graceful shutdown
@@ -190,10 +207,10 @@ async fn main() -> io::Result<()> {
 
     if settings_v.profile_main {
         #[cfg(feature = "flame_it")]
-            flame::end("main bot");
+        flame::end("main bot");
 
         #[cfg(feature = "flame_it")]
-            flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
+        flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
     }
 
     server

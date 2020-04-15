@@ -39,6 +39,7 @@ error-chain = "0.12.1"
 config = { version = "0.9", features = ["yaml"] }
 rand = "0.7.3"
 itertools = "0.9"
+ordered-float = "1.0"
 
 # SSL
 sha2 = "0.6.0"
@@ -91,6 +92,14 @@ csv = "1.1.3"
 [features]
 default = []
 flame_it = ["flame", "flamer"]
+#desktop_vis = ["cairo-rs", "gtk"]
+
+[dev-dependencies]
+plotlib = "0.5.1"
+plotters = { version = "0.2.12", features = ["svg", "image_encoder"] }
+# Running these requires the following : gtk+3 harfbuzz gdk-pixbuf atk pango cairo
+# cairo-rs = { version = "0.8.1" }
+# gtk = { version = "0.8.1" }
 
 [build-dependencies]
 

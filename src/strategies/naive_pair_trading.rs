@@ -19,6 +19,7 @@ struct MovingState {
     traded_price_right: f64,
     traded_price_left: f64,
     short_position_return: f64,
+    long_position_return: f64,
     close_position: f64,
     pnl: f64,
 }
@@ -40,6 +41,7 @@ impl MovingState {
             traded_price_right: 0.0,
             traded_price_left: 0.0,
             short_position_return: 0.0,
+            long_position_return: 0.0,
             close_position: 0.0,
             pnl: 0.0,
         }
@@ -90,13 +92,15 @@ impl MovingState {
     }
 
     fn set_long_position_return(
-        &self,
+        &mut self,
         fees_rate: f64,
         current_price_right: f64,
         current_price_left: f64,
     ) -> f64 {
-        return self.get_long_position_value(fees_rate, current_price_right, current_price_left)
+        let x = self.get_long_position_value(fees_rate, current_price_right, current_price_left)
             / self.value_strat;
+        self.long_position_return = x;
+        x
     }
 
     fn get_short_position_value(
@@ -156,12 +160,7 @@ impl Strategy {
         self.state.evaluations_since_last % self.beta_eval_freq == 0
     }
 
-    fn eval_latest(&mut self) {
-        let lro = self.data_table.last_row();
-        if lro.is_none() {
-            return;
-        }
-        let lr = lro.unwrap();
+    fn eval_latest(&mut self, lr: &DataRow) {
         self.state.inc_evaluations_since_last();
         if self.state.no_short_no_long() {
             if self.should_eval() {
@@ -270,8 +269,8 @@ impl Strategy {
         }
     }
 
-    fn process_row(&mut self, row: DataRow) {
-        self.eval_latest();
+    fn process_row(&mut self, row: &DataRow) {
+        self.eval_latest(row);
         self.data_table.push(row);
     }
 }
@@ -300,7 +299,8 @@ impl BookPosition {
 #[derive(Debug, Clone)]
 struct DataRow {
     time: i64,
-    pub left: BookPosition,  // crypto_1
+    pub left: BookPosition,
+    // crypto_1
     pub right: BookPosition, // crypto_2
 }
 
@@ -314,17 +314,16 @@ impl DataTable {
         DataTable { rows: Vec::new() }
     }
 
-    pub fn push(&mut self, row: DataRow) {
-        self.rows.push(row);
+    pub fn push(&mut self, row: &DataRow) {
+        self.rows.push(row.clone());
     }
 
     pub fn beta(&self) -> f64 {
-        let iter = self.rows.clone().into_iter();
-        let mut some1 = iter.map(|r| r.left);
-        let variance: f64 = some1.by_ref().map(|l| l.mid).variance();
+        let (for_variance, for_covariance) = self.rows.iter().tee();
+        let mut left = for_variance.map(|r| r.left.mid);
+        let variance: f64 = left.variance();
         debug!("variance {:?}", variance);
-        let x = self.rows.clone().into_iter();
-        let covariance: f64 = x
+        let covariance: f64 = for_covariance
             .map(|r| (r.left.mid, r.right.mid))
             // originally if left and mid may not be present
             // .take_while(|p| p.0.is_some() && p.1.is_some())
@@ -337,7 +336,7 @@ impl DataTable {
     }
 
     pub fn alpha(&self, beta_val: f64) -> f64 {
-        let (iter_left, iter_right) = self.rows.clone().into_iter().tee();
+        let (iter_left, iter_right) = self.rows.iter().tee();
         let mean_left: f64 = iter_left.map(|l| l.left.mid).mean();
         debug!("mean left {:?}", mean_left);
         let mean_right: f64 = iter_right.map(|l| l.right.mid).mean();
@@ -361,11 +360,10 @@ impl DataTable {
 
 #[cfg(test)]
 mod test {
-    use crate::serdes::date_time_format;
-    use crate::strategies::naive_pair_trading::{BookPosition, DataRow, DataTable};
     use chrono::serde::ts_seconds;
-    use chrono::{DateTime, Utc};
+    use chrono::{Date, DateTime, Duration, TimeZone, Utc};
     use itertools::Itertools;
+    use plotters::prelude::*;
     use serde::{Deserialize, Serialize};
     use stats::stddev;
     use std::borrow::BorrowMut;
@@ -373,6 +371,40 @@ mod test {
     use std::fs::File;
     use std::io::Result;
     use std::rc::Rc;
+
+    use crate::serdes::date_time_format;
+    use crate::strategies::naive_pair_trading::{
+        BookPosition, DataRow, DataTable, MovingState, Strategy,
+    };
+    use crate::util::date::DateRange;
+    use ordered_float::OrderedFloat;
+    use plotters::drawing::BitMapBackend;
+    use std::error::Error;
+    use std::ops::Range;
+    use std::path::Path;
+
+    #[derive(Debug, Serialize, Deserialize)]
+    struct StrategyLog {
+        time: DateTime<Utc>,
+        right_mid: f64,
+        left_mid: f64,
+        predicted_right_price: f64,
+        long_position_return: f64,
+        short_position_return: f64,
+    }
+
+    impl StrategyLog {
+        fn from_state(time: DateTime<Utc>, state: &MovingState, last_row: &DataRow) -> StrategyLog {
+            StrategyLog {
+                time,
+                right_mid: last_row.right.mid,
+                left_mid: last_row.left.mid,
+                predicted_right_price: state.preditected_right,
+                long_position_return: state.long_position_return,
+                short_position_return: state.short_position_return,
+            }
+        }
+    }
 
     #[derive(Debug, Serialize, Deserialize)]
     struct CsvRecord {
@@ -431,46 +463,157 @@ mod test {
         }
     }
 
-    #[test]
-    fn beta_val() {
-        let mut dt = DataTable { rows: Vec::new() };
-        let eval_window_size = 500;
-        // Read downsampled streams
-        let dt1_iter = load_records("/Users/geps/dev/bitcoin/bitcoins/data/Binance/order_books/pr=ETH_USDT/dt=2020-03-25.csv", eval_window_size);
-        let dt2_iter = load_records("/Users/geps/dev/bitcoin/bitcoins/data/Binance/order_books/pr=BTC_USDT/dt=2020-03-25.csv", eval_window_size);
-        // align data
-        interleave_crypto_signals(&mut dt, dt1_iter, dt2_iter);
-        let x = dt.beta();
-        assert!(x > 0.0, x);
-    }
-
-    fn load_records(path: &str, eval_window_size: usize) -> Vec<CsvRecord> {
+    fn load_records(path: &str) -> Vec<CsvRecord> {
         let dt1 = read_csv(path).unwrap();
         let dt1_iter: Vec<CsvRecord> = dt1
             .into_iter()
             .group_by(|r| r.hourofday.timestamp())
             .into_iter()
-            .take(eval_window_size)
             .map(|(k, mut v)| v.next().unwrap())
             .collect();
         dt1_iter
     }
 
-    fn interleave_crypto_signals(
-        dt: &mut DataTable,
-        dt1_iter: Vec<CsvRecord>,
-        dt2_iter: Vec<CsvRecord>,
-    ) {
-        let mut peekable = dt1_iter.into_iter().peekable();
-        let left_p = peekable.by_ref();
-        let mut peekable1 = dt2_iter.into_iter().peekable();
-        let right_p = peekable1.by_ref();
-        left_p.zip(right_p).for_each(|(l, r)| {
-            dt.push(DataRow {
-                time: l.time(),
-                left: to_pos(l),
-                right: to_pos(r),
+    fn load_csv_dataset(dr: &DateRange) -> (Vec<CsvRecord>, Vec<CsvRecord>) {
+        let bp = std::env::var_os("BITCOINS_REPO")
+            .and_then(|oss| oss.into_string().ok())
+            .unwrap_or("../data".to_string());
+        let exchange_name = "Binance";
+        let channel = "order_books";
+        let left_pair = "ETH_USDT";
+        let right_pair = "BTC_USDT";
+
+        let base_path = Path::new(&bp)
+            .join("data")
+            .join(exchange_name)
+            .join(channel);
+        let get_records = move |p: String| {
+            dr.clone()
+                .flat_map(|dt| {
+                    let date = dt.clone();
+                    load_records(
+                        base_path
+                            .join(format!("pr={}", p.clone()))
+                            .join(format!("dt={}.csv", date.format("%Y-%m-%d")))
+                            .to_str()
+                            .unwrap(),
+                    )
+                })
+                .collect()
+        };
+        return (
+            get_records(left_pair.to_string()),
+            get_records(right_pair.to_string()),
+        );
+    }
+
+    fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<(), Box<dyn Error>> {
+        let now = Utc::now();
+        let string = format!("naive_pair_trading_plot_{}.png", now);
+        let root = BitMapBackend::new(&string, (1024, 768)).into_drawing_area();
+        root.fill(&WHITE)?;
+
+        // plot(x_time_posixlt, crypto_right_mid, type = 's', xaxt = "n", xlab = "time", ylab = "value",
+        // lim = c(min(pair_data[(beta_eval_window_size+1): nrow(pair_data),"predicted_crypto2"]), max(pair_data$predicted_crypto2)))
+        // lines(x_time_posixlt, pair_data$predicted_crypto2[beta_eval_window_size+1: nrow(pair_data)], type = 's', xaxt = "n", xlab = "time", col= "blue")
+        // axis.POSIXct(1, x_time_posixlt, format="%m-%d %H:%M", at = x_time_posixlt, las=2, cex.axis = .5, srt = 45, xpd=TRUE)
+
+        let lower = data.first().unwrap().time.date();
+        let upper = data.last().unwrap().time.date();
+        let x_range = lower..upper;
+
+        let (mins, maxs) = data
+            .iter()
+            .skip(500)
+            .map(|sl| OrderedFloat(sl.predicted_right_price))
+            .tee();
+        let y_range = mins.min().unwrap().0..maxs.max().unwrap().0;
+
+        let mut chart = ChartBuilder::on(&root)
+            .x_label_area_size(40)
+            .y_label_area_size(40)
+            .caption("value", ("sans-serif", 50.0).into_font())
+            .build_ranged(x_range, y_range)?;
+
+        chart.configure_mesh().line_style_2(&WHITE).draw()?;
+
+        chart.draw_series(LineSeries::new(
+            data.iter().map(|x| (x.time.date(), x.right_mid)),
+            &BLACK,
+        ))?;
+        chart.draw_series(LineSeries::new(
+            data.iter()
+                .map(|x| (x.time.date(), x.predicted_right_price)),
+            &BLUE,
+        ))?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn beta_val() {
+        let mut dt = DataTable { rows: Vec::new() };
+        // Read downsampled streams
+        let dt0 = Utc.ymd(2020, 03, 25);
+        let dt1 = Utc.ymd(2020, 03, 25);
+        let (left_records, right_records) = load_csv_dataset(&DateRange(dt0, dt1));
+        // align data
+        left_records
+            .into_iter()
+            .zip(right_records.into_iter())
+            .take(500)
+            .for_each(|(l, r)| {
+                dt.push(&DataRow {
+                    time: l.time(),
+                    left: to_pos(l),
+                    right: to_pos(r),
+                })
             });
-        });
+        let x = dt.beta();
+        println!("beta {}", x);
+        assert!(x > 0.0, x);
+    }
+
+    #[test]
+    fn continuous_scenario() {
+        let mut strat = Strategy::new();
+        // Read downsampled streams
+        let dt0 = Utc.ymd(2020, 03, 25);
+        let dt1 = Utc.ymd(2020, 04, 08);
+        let (left_records, right_records) = load_csv_dataset(&DateRange(dt0, dt1));
+        println!("Dataset loaded in memory...");
+        // align data
+        let logs = left_records
+            .into_iter()
+            .zip(right_records.into_iter())
+            .map(|(l, r)| {
+                let row_time = l.time();
+                let row = DataRow {
+                    time: row_time,
+                    left: to_pos(l),
+                    right: to_pos(r),
+                };
+                strat.process_row(&row);
+                StrategyLog::from_state(Utc.timestamp(row_time, 0), &strat.state, &row)
+            })
+            .collect();
+        draw_line_plot(logs);
+        assert!(true, false);
     }
 }
+
+// par(mfrow=c(3,1))
+// plot(x_time_posixlt, crypto_right_mid, type = 's', xaxt = "n", xlab = "time", ylab = "value", lim = c(min(pair_data[(beta_eval_window_size+1): nrow(pair_data),"predicted_crypto2"]), max(pair_data$predicted_crypto2)))
+// lines(x_time_posixlt, pair_data$predicted_crypto2[beta_eval_window_size+1: nrow(pair_data)], type = 's', xaxt = "n", xlab = "time", col= "blue")
+// axis.POSIXct(1, x_time_posixlt, format="%m-%d %H:%M", at = x_time_posixlt, las=2, cex.axis = .5, srt = 45, xpd=TRUE)
+// plot(x_time_posixlt, y_(long_position_return + short_position_return), type = 's', xaxt = "n", xlab = "time", ylab = "Position return")
+// plot(x_time_posixlt, y_res_column, type = 's', xaxt = "n", xlab = "time", col= "red")
+
+// dev.new()
+// par(mfrow=c(3,1))
+// par(mar = c(10,4,4,2) + 0.1)
+// plot(as.POSIXlt(pnl_ts$time), pnl_ts$PnL, type = 's', xaxt = "n", xlab = "time", ylab = "PnL")
+// axis.POSIXct(1, as.POSIXlt(pnl_ts$time), format="%m-%d %H:%M", at = as.POSIXlt(pnl_ts$time), las=2, cex.axis = .5, srt = 45, xpd=TRUE)
+// plot(as.POSIXlt(pair_data[nominal_position>0, time]), pair_data[nominal_position>0, nominal_position], type = 's', xaxt = "n", xlab = "time", ylab = "Nominal position")
+// axis.POSIXct(1, as.POSIXlt(pnl_ts$time), format="%m-%d %H:%M", at = as.POSIXlt(pnl_ts$time), las=2, cex.axis = .5, srt = 45, xpd=TRUE)
+// plot(x_time_posixlt, pair_data$beta_lr[beta_eval_window_size+1: nrow(pair_data)], type = 's', xaxt = "n", xlab = "time", ylab = "Beta")
