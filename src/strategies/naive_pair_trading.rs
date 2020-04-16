@@ -374,7 +374,7 @@ impl Strategy {
     }
 
     fn set_short_spread(&mut self, traded_price: f64) {
-        self.state.units_to_buy_long_spread =
+        self.state.units_to_buy_short_spread =
             self.state.value_strat / (traded_price * self.state.beta_val * (1.0 + self.fees_rate));
     }
 
@@ -748,7 +748,7 @@ mod test {
 
         let area_rows = root.split_evenly((more_lines.len(), 1));
 
-        let skipped_data = data.iter().skip(500);
+        let skipped_data = data.iter().skip(501);
         for (i, line_specs) in more_lines.iter().enumerate() {
             let mins = skipped_data.clone().map(|sl| {
                 line_specs
