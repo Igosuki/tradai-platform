@@ -5,19 +5,23 @@ use chrono::Duration;
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::types::Pair;
 use config::{Config, ConfigError, Environment, File};
-use serde::{Deserialize, Deserializer};
 use serde::de;
+use serde::{Deserialize, Deserializer};
 
 fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
-    where Duration: Sized,
-          D: Deserializer<'de> {
+where
+    Duration: Sized,
+    D: Deserializer<'de>,
+{
     let val = Deserialize::deserialize(deserializer)?;
     Ok(Duration::seconds(val))
 }
 
 fn decode_file_size<'de, D>(deserializer: D) -> Result<u64, D::Error>
-    where D: Deserializer<'de> {
-    let val : String = Deserialize::deserialize(deserializer)?;
+where
+    D: Deserializer<'de>,
+{
+    let val: String = Deserialize::deserialize(deserializer)?;
     let size_bytes = Byte::from_str(val).map_err(|e| de::Error::custom(format!("{:?}", e)))?;
     Ok(size_bytes.get_bytes() as u64)
 }
@@ -33,7 +37,7 @@ pub struct FileRotation {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Port(pub u16) ;
+pub struct Port(pub u16);
 
 /// Timeout in seconds.
 impl Default for Port {
@@ -42,11 +46,10 @@ impl Default for Port {
     }
 }
 
-
 #[derive(Debug, Deserialize, Default)]
 pub struct ApiSettings {
     #[serde(default)]
-    pub port: Port
+    pub port: Port,
 }
 
 fn default_as_false() -> bool {
@@ -63,7 +66,7 @@ pub struct Settings {
     #[serde(default = "default_as_false")]
     pub profile_main: bool,
     #[serde(default)]
-    pub api: ApiSettings
+    pub api: ApiSettings,
 }
 
 impl Settings {
@@ -89,17 +92,25 @@ impl Settings {
     pub fn sanitize(&mut self) {
         for (xchg, xchg_settings) in self.exchanges.clone() {
             info!("{:?} : Checking exchange config...", xchg);
-            let pairs : HashSet<Pair> = vec![xchg_settings.trades, xchg_settings.orderbook].into_iter().filter(|s| s.is_some()).map(|o| o.unwrap()).flat_map(|o| o.symbols).collect();
-            let pairs_fn : fn(&Pair) -> Option<&&str> = coinnect_rt::utils::pair_fn(xchg);
-            let invalid_pairs : Vec<Pair> = pairs.clone().into_iter().filter(|&p| {
-                pairs_fn(&p).is_none()
-            }).collect();
-            let valid_pairs : Vec<Pair> = pairs.clone().into_iter().filter(|&p| {
-                pairs_fn(&p).is_some()
-            }).collect();
+            let pairs: HashSet<Pair> = vec![xchg_settings.trades, xchg_settings.orderbook]
+                .into_iter()
+                .filter(|s| s.is_some())
+                .map(|o| o.unwrap())
+                .flat_map(|o| o.symbols)
+                .collect();
+            let pairs_fn: fn(&Pair) -> Option<&&str> = coinnect_rt::utils::pair_fn(xchg);
+            let invalid_pairs: Vec<Pair> = pairs
+                .clone()
+                .into_iter()
+                .filter(|&p| pairs_fn(&p).is_none())
+                .collect();
+            let valid_pairs: Vec<Pair> = pairs
+                .clone()
+                .into_iter()
+                .filter(|&p| pairs_fn(&p).is_some())
+                .collect();
             info!("Invalid pairs : {:?}", invalid_pairs);
             info!("Valid pairs : {:?}", valid_pairs);
         }
-
     }
 }

@@ -6,8 +6,11 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use actix::{Actor, Handler, Running, SyncContext};
-use avro_rs::{Codec, Schema, types::{ToAvro, Value}, Writer};
 use avro_rs::encode::encode;
+use avro_rs::{
+    types::{ToAvro, Value},
+    Codec, Schema, Writer,
+};
 use bigdecimal::ToPrimitive;
 use chrono::Duration;
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
@@ -15,7 +18,10 @@ use derive_more::Display;
 use rand::random;
 use uuid::Uuid;
 
-use crate::avro_gen::{self, models::{LiveTrade as LT, Orderbook as OB}};
+use crate::avro_gen::{
+    self,
+    models::{LiveTrade as LT, Orderbook as OB},
+};
 use crate::handlers::rotate::{RotatingFile, SizeAndExpirationPolicy};
 
 type RotatingWriter = Writer<'static, RotatingFile<SizeAndExpirationPolicy>>;
@@ -41,9 +47,7 @@ pub enum Error {
     IOError(std::io::Error),
 }
 
-impl std::error::Error for Error {
-
-}
+impl std::error::Error for Error {}
 
 pub struct AvroFileActor {
     base_path: PathBuf,
@@ -53,7 +57,7 @@ pub struct AvroFileActor {
     session_uuid: Uuid,
 }
 
-const AVRO_EXTENSION : &str = "avro";
+const AVRO_EXTENSION: &str = "avro";
 
 impl AvroFileActor {
     pub fn new(options: &FileActorOptions) -> Self {
@@ -76,7 +80,12 @@ impl AvroFileActor {
         let previous_name = previous.file_stem().and_then(|os_str| os_str.to_str())?;
         let i = previous_name.rfind("-")?;
         let (stem, num) = previous_name.split_at(i + 1);
-        let next_name = format!("{}{:04}.{}", stem, num.parse::<i32>().ok()? + 1, AVRO_EXTENSION);
+        let next_name = format!(
+            "{}{:04}.{}",
+            stem,
+            num.parse::<i32>().ok()? + 1,
+            AVRO_EXTENSION
+        );
         let mut next = previous.clone();
         next.set_file_name(next_name);
         next.set_extension(AVRO_EXTENSION);
@@ -96,14 +105,21 @@ impl AvroFileActor {
                 let schema = self.schema_for(&e.1).ok_or(Error::NoSchemaError)?;
 
                 // Rotating file
-                let file_path = buf.join(format!("{}-{:04}.{}", self.session_uuid, 0, AVRO_EXTENSION));
+                let file_path =
+                    buf.join(format!("{}-{:04}.{}", self.session_uuid, 0, AVRO_EXTENSION));
 
                 let mut marker = Vec::with_capacity(16);
                 for _ in 0..16 {
                     marker.push(random::<u8>());
                 }
 
-                let file = RotatingFile::new(Box::new(file_path), self.rotation_policy.clone(), AvroFileActor::next_file_part_name, Some(avro_header(&schema, marker.clone())?)).map_err(|e| Error::IOError(e))?;
+                let file = RotatingFile::new(
+                    Box::new(file_path),
+                    self.rotation_policy.clone(),
+                    AvroFileActor::next_file_part_name,
+                    Some(avro_header(&schema, marker.clone())?),
+                )
+                .map_err(|e| Error::IOError(e))?;
 
                 // Schema based avro file writer
                 let mut writer = Writer::new(&schema, file);
@@ -113,7 +129,7 @@ impl AvroFileActor {
                 let _v = v.insert(rc.clone());
                 Ok(rc)
             }
-            Entry::Occupied(o) => Ok(o.get().clone())
+            Entry::Occupied(o) => Ok(o.get().clone()),
         }
     }
 
@@ -123,7 +139,7 @@ impl AvroFileActor {
             LiveEvent::LiveTrade(_) => Some(&*avro_gen::models::LIVETRADE_SCHEMA),
             LiveEvent::LiveOrder(_) => Some(&*avro_gen::models::LIVEORDER_SCHEMA),
             LiveEvent::LiveOrderbook(_) => Some(&*avro_gen::models::ORDERBOOK_SCHEMA),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -157,7 +173,10 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
     fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
         let rc = self.writer_for(&msg);
         if rc.is_err() {
-            debug!("Could not acquire writer for partition {:?}", rc.err().unwrap());
+            debug!(
+                "Could not acquire writer for partition {:?}",
+                rc.err().unwrap()
+            );
             return;
         }
         let rc_ok = rc.unwrap();
@@ -177,15 +196,23 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
                         trace!("Error writing avro bean {:?}", e);
                         Err(e)
                     }
-                    _ => Ok(0)
+                    _ => Ok(0),
                 }
-            },
+            }
             LiveEvent::LiveOrderbook(lt) => {
                 let orderbook = OB {
                     pair: lt.pair.as_string(),
                     event_ms: lt.timestamp,
-                    asks: lt.asks.into_iter().map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()]).collect(),
-                    bids: lt.bids.into_iter().map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()]).collect(),
+                    asks: lt
+                        .asks
+                        .iter()
+                        .map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()])
+                        .collect(),
+                    bids: lt
+                        .bids
+                        .iter()
+                        .map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()])
+                        .collect(),
                 };
                 debug!("Avro bean {:?}", orderbook);
                 match writer.append_ser(orderbook) {
@@ -193,14 +220,14 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
                         trace!("Error writing avro bean {:?}", e);
                         Err(e)
                     }
-                    _ => Ok(0)
+                    _ => Ok(0),
                 }
             }
-            _ => Ok(0)
+            _ => Ok(0),
         };
         match appended.and_then(|_| writer.flush()) {
             Err(e) => trace!("Failed to flush writer {:?}", e),
-            Ok(_) => ()
+            Ok(_) => (),
         }
     }
 }
@@ -208,7 +235,9 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
 const AVRO_OBJECT_HEADER: &[u8] = &[b'O', b'b', b'j', 1u8];
 
 fn avro_header(schema: &Schema, marker: Vec<u8>) -> Result<Vec<u8>, Error> {
-    let schema_bytes = serde_json::to_string(schema).map_err(|_e| Error::NoSchemaError)?.into_bytes();
+    let schema_bytes = serde_json::to_string(schema)
+        .map_err(|_e| Error::NoSchemaError)?
+        .into_bytes();
 
     let mut metadata = HashMap::with_capacity(2);
     metadata.insert("avro.schema", Value::Bytes(schema_bytes));
@@ -234,8 +263,8 @@ mod test {
     use actix_rt::System;
     use bigdecimal::BigDecimal;
     use coinnect_rt::exchange::Exchange;
-    use coinnect_rt::types::{Pair, Price};
     use coinnect_rt::types::Orderbook;
+    use coinnect_rt::types::{Pair, Price};
     use fs_extra::dir::get_dir_content;
     use tempdir;
 
@@ -250,7 +279,7 @@ mod test {
             max_file_size: 100_000,
             max_file_time: Duration::seconds(1),
             base_dir: String::from(base_dir),
-            partitioner: crate::handlers::live_event_partitioner
+            partitioner: crate::handlers::live_event_partitioner,
         })
     }
 
@@ -262,12 +291,21 @@ mod test {
         let new_dir = dir_str.clone();
         System::run(move || {
             let addr = SyncArbiter::start(1, move || actor(new_dir.clone().as_str()));
-            let order_book_event = LiveEventEnveloppe(Exchange::Binance, LiveEvent::LiveOrderbook(Orderbook {
-                timestamp: chrono::Utc::now().timestamp(),
-                pair: Pair::BTC_USDT,
-                asks: vec![(BigDecimal::from(0.1), BigDecimal::from(0.1)), (BigDecimal::from(0.2), BigDecimal::from(0.2))],
-                bids: vec![(BigDecimal::from(0.1), BigDecimal::from(0.1)), (BigDecimal::from(0.2), BigDecimal::from(0.2))]
-            }));
+            let order_book_event = LiveEventEnveloppe(
+                Exchange::Binance,
+                LiveEvent::LiveOrderbook(Orderbook {
+                    timestamp: chrono::Utc::now().timestamp(),
+                    pair: Pair::BTC_USDT,
+                    asks: vec![
+                        (BigDecimal::from(0.1), BigDecimal::from(0.1)),
+                        (BigDecimal::from(0.2), BigDecimal::from(0.2)),
+                    ],
+                    bids: vec![
+                        (BigDecimal::from(0.1), BigDecimal::from(0.1)),
+                        (BigDecimal::from(0.2), BigDecimal::from(0.2)),
+                    ],
+                }),
+            );
             println!("Sending...");
             for _ in 0..100000 {
                 addr.do_send(order_book_event.clone());
@@ -281,7 +319,8 @@ mod test {
                 addr.do_send(order_book_event.clone());
             }
             System::current().stop();
-        }).unwrap();
+        })
+        .unwrap();
         let content = get_dir_content(x).unwrap();
         assert_eq!(content.files.len(), 2)
     }

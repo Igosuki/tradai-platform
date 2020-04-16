@@ -5,6 +5,7 @@ use stats::stddev;
 use crate::math::iter::{CovarianceExt, MeanExt, VarianceExt};
 use chrono::{DateTime, Utc};
 use serde::export::Formatter;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
@@ -33,6 +34,7 @@ impl Display for Operation {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct MovingState {
     position_short: i8,
     position_long: i8,
@@ -582,30 +584,16 @@ mod test {
         time: DateTime<Utc>,
         right_mid: f64,
         left_mid: f64,
-        predicted_right_price: f64,
-        long_position_return: f64,
-        short_position_return: f64,
-        res: f64,
-        nominal_pos: f64,
-        beta: f64,
-        pnl: f64,
-        value_strat: f64,
+        state: MovingState,
     }
 
     impl StrategyLog {
-        fn from_state(time: DateTime<Utc>, state: &MovingState, last_row: &DataRow) -> StrategyLog {
+        fn from_state(time: DateTime<Utc>, state: MovingState, last_row: &DataRow) -> StrategyLog {
             StrategyLog {
                 time,
                 right_mid: last_row.right.mid,
                 left_mid: last_row.left.mid,
-                predicted_right_price: state.predicted_right,
-                long_position_return: state.long_position_return,
-                short_position_return: state.short_position_return,
-                res: state.res,
-                nominal_pos: state.nominal_position,
-                beta: state.beta_lr,
-                pnl: state.pnl,
-                value_strat: state.value_strat,
+                state,
             }
         }
     }
@@ -716,21 +704,30 @@ mod test {
             "naive_pair_trading_plot_{}.svg",
             now.format("%Y%m%d%H:%M:%S")
         );
-        let root = SVGBackend::new(&string, (1724, 2048)).into_drawing_area();
+
+        let more_lines: Vec<(&str, fn(&StrategyLog) -> f64)> = vec![
+            ("res", |x| x.state.res),
+            ("traded_price_left", |x| x.state.traded_price_left),
+            ("traded_price_right", |x| x.state.traded_price_right),
+            ("alpha_val", |x| x.state.alpha_val),
+        ];
+        let num_plots = 5 as usize;
+        let height: u32 = 342 * (num_plots + more_lines.len()) as u32;
+        let root = SVGBackend::new(&string, (1724, height)).into_drawing_area();
         root.fill(&WHITE)?;
 
         let lower = data.first().unwrap().time;
         let upper = data.last().unwrap().time;
         let x_range = lower..upper;
 
-        let area_rows = root.split_evenly((6, 1));
+        let area_rows = root.split_evenly((num_plots + more_lines.len(), 1));
 
         let skipped_data = data.iter().skip(500);
 
         {
             let (mins, maxs) = skipped_data
                 .clone()
-                .map(|sl| OrderedFloat(sl.predicted_right_price))
+                .map(|sl| OrderedFloat(sl.state.predicted_right))
                 .tee();
             let y_range = mins.filter(|p| p.0 > 0.0).min().unwrap().0..maxs.max().unwrap().0;
 
@@ -748,7 +745,7 @@ mod test {
             chart.draw_series(LineSeries::new(
                 skipped_data
                     .clone()
-                    .map(|x| (x.time, x.predicted_right_price)),
+                    .map(|x| (x.time, x.state.predicted_right)),
                 &BLUE,
             ))?;
         }
@@ -761,41 +758,31 @@ mod test {
                 .build_ranged(x_range.clone(), y_range)?;
             chart.configure_mesh().line_style_2(&WHITE).draw()?;
             chart.draw_series(LineSeries::new(
-                skipped_data
-                    .clone()
-                    .map(|x| (x.time, x.short_position_return + x.long_position_return)),
+                skipped_data.clone().map(|x| {
+                    (
+                        x.time,
+                        x.state.short_position_return + x.state.long_position_return,
+                    )
+                }),
                 &BLACK,
             ))?;
         }
         {
-            let y_range = -1.0..1.0;
-            let mut chart = ChartBuilder::on(&area_rows[2])
-                .x_label_area_size(60)
-                .y_label_area_size(60)
-                .caption("res", ("sans-serif", 50.0).into_font())
-                .build_ranged(x_range.clone(), y_range)?;
-            chart.configure_mesh().line_style_2(&WHITE).draw()?;
-            chart.draw_series(LineSeries::new(
-                skipped_data.clone().map(|x| (x.time, x.res)),
-                &RED,
-            ))?;
-        }
-        {
             let y_range = 0.0..200.0;
-            let mut chart = ChartBuilder::on(&area_rows[3])
+            let mut chart = ChartBuilder::on(&area_rows[2])
                 .x_label_area_size(60)
                 .y_label_area_size(60)
                 .caption("PnL", ("sans-serif", 50.0).into_font())
                 .build_ranged(x_range.clone(), y_range)?;
             chart.configure_mesh().line_style_2(&WHITE).draw()?;
             chart.draw_series(LineSeries::new(
-                skipped_data.clone().map(|x| (x.time, x.pnl)),
+                skipped_data.clone().map(|x| (x.time, x.state.pnl)),
                 &BLACK,
             ))?;
         }
         {
             let y_range = 0.0..100.0;
-            let mut chart = ChartBuilder::on(&area_rows[4])
+            let mut chart = ChartBuilder::on(&area_rows[3])
                 .x_label_area_size(60)
                 .y_label_area_size(60)
                 .caption("Nominal Position", ("sans-serif", 50.0).into_font())
@@ -804,14 +791,14 @@ mod test {
             chart.draw_series(LineSeries::new(
                 skipped_data
                     .clone()
-                    .filter(|d| d.nominal_pos > 0.0)
-                    .map(|x| (x.time, x.nominal_pos)),
+                    .filter(|d| d.state.nominal_position > 0.0)
+                    .map(|x| (x.time, x.state.nominal_position)),
                 &BLACK,
             ))?;
         }
         {
             let y_range = 0.0..100.0;
-            let mut chart = ChartBuilder::on(&area_rows[5])
+            let mut chart = ChartBuilder::on(&area_rows[4])
                 .x_label_area_size(60)
                 .y_label_area_size(60)
                 .caption("Beta", ("sans-serif", 50.0).into_font())
@@ -820,10 +807,31 @@ mod test {
             chart.draw_series(LineSeries::new(
                 skipped_data
                     .clone()
-                    .filter(|d| d.nominal_pos > 0.0)
-                    .map(|x| (x.time, x.beta)),
+                    .filter(|x| x.state.beta_lr > 0.0)
+                    .map(|x| (x.time, x.state.beta_lr)),
                 &BLACK,
             ))?;
+        }
+
+        let mut start_area_rows_at = num_plots;
+        for line_spec in more_lines {
+            let (mins, maxs) = skipped_data
+                .clone()
+                .map(|sl| OrderedFloat(line_spec.1(sl)))
+                .tee();
+            let y_range = mins.min().unwrap().0..maxs.max().unwrap().0;
+
+            let mut chart = ChartBuilder::on(&area_rows[start_area_rows_at])
+                .x_label_area_size(60)
+                .y_label_area_size(60)
+                .caption(line_spec.0, ("sans-serif", 50.0).into_font())
+                .build_ranged(x_range.clone(), y_range)?;
+            chart.configure_mesh().line_style_2(&WHITE).draw()?;
+            chart.draw_series(LineSeries::new(
+                skipped_data.clone().map(|x| (x.time, line_spec.1(x))),
+                &BLACK,
+            ))?;
+            start_area_rows_at += 1;
         }
 
         Ok(string.clone())
@@ -892,7 +900,7 @@ mod test {
                         right: to_pos(r),
                     };
                     strat.process_row(&row);
-                    StrategyLog::from_state(row_time, &strat.state, &row)
+                    StrategyLog::from_state(row_time, strat.state.clone(), &row)
                 };
                 elapsed += now.elapsed().as_nanos();
                 log
