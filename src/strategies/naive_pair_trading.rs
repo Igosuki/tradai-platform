@@ -157,7 +157,7 @@ impl MovingState {
         current_price_left: f64,
     ) -> f64 {
         let x = self.get_long_position_value(fees_rate, current_price_right, current_price_left)
-            / self.value_strat;
+            / self.pnl;
         self.long_position_return = x;
         x
     }
@@ -182,7 +182,7 @@ impl MovingState {
         current_price_left: f64,
     ) -> f64 {
         let x = self.get_short_position_value(fees_rate, current_price_right, current_price_left)
-            / self.value_strat;
+            / self.pnl;
         self.short_position_return = x;
         return x;
     }
@@ -447,7 +447,9 @@ impl Strategy {
     fn process_row(&mut self, row: &DataRow) {
         if self.data_table.rows.len() > self.beta_eval_window_size as usize {
             self.eval_latest(row);
-        } else if self.data_table.rows.len() == self.beta_eval_window_size as usize {
+        }
+        self.data_table.push(row);
+        if self.data_table.rows.len() == self.beta_eval_window_size as usize {
             self.state.beta_val = self.data_table.beta();
             self.state.alpha_val = self.data_table.alpha(self.state.beta_val);
             self.state.units_to_buy_long_spread =
@@ -455,7 +457,6 @@ impl Strategy {
             self.state.units_to_buy_short_spread = self.state.value_strat
                 / (row.left.top_ask * self.state.beta_val * (1.0 + self.fees_rate));
         }
-        self.data_table.push(row);
     }
 }
 
@@ -530,7 +531,7 @@ impl DataTable {
             .covariance::<(f64, f64), f64>();
         trace!("covariance {:?}", covariance);
         let beta_val = covariance / variance;
-        trace!("beta_val {:?}", beta_val);
+        debug!("beta_val {:?}", beta_val);
         beta_val
     }
 
