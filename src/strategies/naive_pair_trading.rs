@@ -725,7 +725,7 @@ mod test {
                 .clone()
                 .map(|sl| OrderedFloat(sl.predicted_right_price))
                 .tee();
-            let y_range = mins.min().unwrap().0..maxs.max().unwrap().0;
+            let y_range = mins.filter(|p| p.0 > 0.0).min().unwrap().0..maxs.max().unwrap().0;
 
             let mut chart = ChartBuilder::on(&area_rows[0])
                 .x_label_area_size(60)
