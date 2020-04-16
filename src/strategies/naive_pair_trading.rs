@@ -2,7 +2,7 @@ use average::Mean;
 use itertools::Itertools;
 use stats::stddev;
 
-use crate::math::iter::{CovarianceExt, MeanExt, VarianceExt};
+use crate::math::iter::{CovarianceExt, MeanExt, Variance, VarianceExt};
 use chrono::{DateTime, Utc};
 use serde::export::Formatter;
 use serde::{Deserialize, Serialize};
@@ -109,7 +109,7 @@ impl MovingState {
         debug!("--------------------------------")
     }
 
-    fn no_short_no_long(&self) -> bool {
+    fn no_position_taken(&self) -> bool {
         self.position_short == 0 && self.position_long == 0
     }
 
@@ -135,6 +135,14 @@ impl MovingState {
 
     fn unset_position_long(&mut self) {
         self.position_long = 0;
+    }
+
+    fn set_pnl(&mut self) {
+        self.pnl = self.value_strat;
+    }
+
+    fn set_beta_lr(&mut self) {
+        self.beta_lr = self.beta_val;
     }
 
     fn get_long_position_value(
@@ -313,7 +321,7 @@ impl Strategy {
             fees_rate: 0.001,
             res_threshold_long: -0.04,
             res_threshold_short: 0.04,
-            stop_loss: -0.2,
+            stop_loss: -0.1,
             evaluations_since_last: 0,
             beta_eval_window_size: 500,
             beta_eval_freq: 5000,
@@ -339,33 +347,55 @@ impl Strategy {
     }
 
     fn should_eval(&self) -> bool {
-        (self.evaluations_since_last % self.beta_eval_freq) == 0
+        let x = (self.evaluations_since_last % self.beta_eval_freq) == 0;
+        if x {
+            println!(
+                "eval_time : {} % {} == 0",
+                self.evaluations_since_last, self.beta_eval_freq
+            );
+        }
+        x
+    }
+
+    fn update_model(&mut self) {
+        let beta = self.data_table.beta();
+        self.state.beta_val = beta;
+        self.state.alpha_val = self.data_table.alpha(beta);
+    }
+
+    fn predict(&self, bp: &BookPosition) -> f64 {
+        self.data_table
+            .predict(self.state.alpha_val, self.state.beta_val, bp)
+    }
+
+    fn set_long_spread(&mut self, traded_price: f64) {
+        self.state.units_to_buy_long_spread =
+            self.state.value_strat / (traded_price * (1.0 + self.fees_rate));
+    }
+
+    fn set_short_spread(&mut self, traded_price: f64) {
+        self.state.units_to_buy_long_spread =
+            self.state.value_strat / (traded_price * self.state.beta_val * (1.0 + self.fees_rate));
     }
 
     fn eval_latest(&mut self, lr: &DataRow) {
-        self.inc_evaluations_since_last();
-        if self.state.no_short_no_long() {
+        if self.state.no_position_taken() {
             if self.should_eval() {
-                self.state.beta_val = self.data_table.beta();
-                self.state.alpha_val = self.data_table.alpha(self.state.beta_val);
+                self.update_model();
             }
-            self.state.units_to_buy_long_spread =
-                self.state.value_strat / (lr.right.top_ask * (1.0 + self.fees_rate));
-            self.state.units_to_buy_short_spread = self.state.value_strat
-                / (lr.left.top_ask * self.state.beta_val * (1.0 + self.fees_rate));
+            self.set_long_spread(lr.right.top_ask);
+            self.set_short_spread(lr.left.top_ask);
         }
 
-        self.state.beta_lr = self.state.beta_val;
-        self.state.predicted_right =
-            self.data_table
-                .predict(self.state.alpha_val, self.state.beta_val, &lr.left);
+        self.state.set_beta_lr();
+        self.state.predicted_right = self.predict(&lr.left);
 
         if self.state.beta_lr >= 0.0 {
             self.state.res = (lr.right.mid - self.state.predicted_right) / lr.right.mid;
         } else {
             self.state.res = 0.0;
         }
-        if (self.state.res > self.res_threshold_short) && self.state.no_short_no_long() {
+        if (self.state.res > self.res_threshold_short) && self.state.no_position_taken() {
             self.state.open_position(
                 Position::SHORT,
                 lr.right.top_bid,
@@ -398,13 +428,13 @@ impl Strategy {
                     self.right_pair,
                     self.left_pair,
                 );
-                self.state.pnl = self.state.value_strat;
+                self.state.set_pnl();
                 self.state.beta_val = self.data_table.beta();
                 self.state.alpha_val = self.data_table.alpha(self.state.beta_val);
             }
         }
 
-        if self.state.res <= self.res_threshold_long && self.state.no_short_no_long() {
+        if self.state.res <= self.res_threshold_long && self.state.no_position_taken() {
             self.state.open_position(
                 Position::LONG,
                 lr.right.top_ask,
@@ -450,13 +480,12 @@ impl Strategy {
         }
         self.data_table.push(row);
         if self.data_table.rows.len() == self.beta_eval_window_size as usize {
-            self.state.beta_val = self.data_table.beta();
-            self.state.alpha_val = self.data_table.alpha(self.state.beta_val);
-            self.state.units_to_buy_long_spread =
-                self.state.value_strat / (row.right.top_ask * (1.0 + self.fees_rate));
-            self.state.units_to_buy_short_spread = self.state.value_strat
-                / (row.left.top_ask * self.state.beta_val * (1.0 + self.fees_rate));
+            self.update_model();
+            self.set_long_spread(row.right.top_ask);
+            self.set_short_spread(row.left.top_ask);
+            self.state.set_pnl();
         }
+        self.inc_evaluations_since_last();
     }
 }
 
@@ -508,9 +537,7 @@ impl DataTable {
         if len <= self.window_size {
             &self.rows[..]
         } else {
-            let x = &self.rows[(len - self.window_size - 1)..(len - 1)];
-            println!("{:?} {:?}", &x[0], &x[x.len() - 1]);
-            x
+            &self.rows[(len - self.window_size)..(len - 1)]
         }
     }
 
@@ -519,27 +546,23 @@ impl DataTable {
     }
 
     pub fn beta(&self) -> f64 {
-        let (for_variance, for_covariance) = self.current_window().iter().tee();
-        let mut left = for_variance.map(|r| r.left.mid);
-        let variance: f64 = left.variance();
+        let (var, covar) = self.rows.iter().rev().take(self.window_size).tee();
+        let variance: f64 = var.map(|r| r.left.mid).variance();
         trace!("variance {:?}", variance);
-        let covariance: f64 = for_covariance
+        let covariance: f64 = covar
             .map(|r| (r.left.mid, r.right.mid))
-            // originally if left and mid may not be present
-            // .take_while(|p| p.0.is_some() && p.1.is_some())
-            // .map(|p| (p.0.unwrap(), p.1.unwrap()))
             .covariance::<(f64, f64), f64>();
         trace!("covariance {:?}", covariance);
         let beta_val = covariance / variance;
-        debug!("beta_val {:?}", beta_val);
+        trace!("beta_val {:?}", beta_val);
         beta_val
     }
 
     pub fn alpha(&self, beta_val: f64) -> f64 {
-        let (iter_left, iter_right) = self.current_window().iter().tee();
-        let mean_left: f64 = iter_left.map(|l| l.left.mid).mean();
+        let (left, right) = self.rows.iter().rev().take(self.window_size).tee();
+        let mean_left: f64 = left.map(|l| l.left.mid).mean();
         trace!("mean left {:?}", mean_left);
-        let mean_right: f64 = iter_right.map(|l| l.right.mid).mean();
+        let mean_right: f64 = right.map(|l| l.right.mid).mean();
         trace!("mean right {:?}", mean_right);
         mean_right - beta_val * mean_left
     }
@@ -645,7 +668,7 @@ mod test {
         Ok(vec)
     }
 
-    fn to_pos(r: CsvRecord) -> BookPosition {
+    fn to_pos(r: &CsvRecord) -> BookPosition {
         BookPosition {
             top_ask: r.a1,
             top_ask_q: r.aq1,
@@ -657,13 +680,7 @@ mod test {
 
     fn load_records(path: &str) -> Vec<CsvRecord> {
         let dt1 = read_csv(path).unwrap();
-        let dt1_iter: Vec<CsvRecord> = dt1
-            .into_iter()
-            .group_by(|r| r.hourofday.timestamp())
-            .into_iter()
-            .map(|(k, mut v)| v.next().unwrap())
-            .collect();
-        dt1_iter
+        dt1
     }
 
     fn load_csv_dataset(dr: &DateRange) -> (Vec<CsvRecord>, Vec<CsvRecord>) {
@@ -705,15 +722,23 @@ mod test {
             "naive_pair_trading_plot_{}.svg",
             now.format("%Y%m%d%H:%M:%S")
         );
-
-        let more_lines: Vec<(&str, fn(&StrategyLog) -> f64)> = vec![
-            ("res", |x| x.state.res),
-            ("traded_price_left", |x| x.state.traded_price_left),
-            ("traded_price_right", |x| x.state.traded_price_right),
-            ("alpha_val", |x| x.state.alpha_val),
+        let color_wheel = vec![&BLACK, &BLUE, &RED];
+        let more_lines: Vec<(&str, Vec<fn(&StrategyLog) -> f64>)> = vec![
+            ("value", vec![|x| x.right_mid, |x| x.state.predicted_right]),
+            (
+                "return",
+                vec![|x| x.state.short_position_return + x.state.long_position_return],
+            ),
+            ("PnL", vec![|x| x.state.pnl]),
+            ("Nominal Position", vec![|x| x.state.nominal_position]),
+            ("Beta", vec![|x| x.state.beta_lr]),
+            ("res", vec![|x| x.state.res]),
+            ("traded_price_left", vec![|x| x.state.traded_price_left]),
+            ("traded_price_right", vec![|x| x.state.traded_price_right]),
+            ("alpha_val", vec![|x| x.state.alpha_val]),
+            ("value_strat", vec![|x| x.state.value_strat]),
         ];
-        let num_plots = 5 as usize;
-        let height: u32 = 342 * (num_plots + more_lines.len()) as u32;
+        let height: u32 = 342 * more_lines.len() as u32;
         let root = SVGBackend::new(&string, (1724, height)).into_drawing_area();
         root.fill(&WHITE)?;
 
@@ -721,118 +746,40 @@ mod test {
         let upper = data.last().unwrap().time;
         let x_range = lower..upper;
 
-        let area_rows = root.split_evenly((num_plots + more_lines.len(), 1));
+        let area_rows = root.split_evenly((more_lines.len(), 1));
 
         let skipped_data = data.iter().skip(500);
-
-        {
-            let (mins, maxs) = skipped_data
-                .clone()
-                .map(|sl| OrderedFloat(sl.state.predicted_right))
-                .tee();
-            let y_range = mins.filter(|p| p.0 > 0.0).min().unwrap().0..maxs.max().unwrap().0;
-
-            let mut chart = ChartBuilder::on(&area_rows[0])
-                .x_label_area_size(60)
-                .y_label_area_size(60)
-                .caption("value", ("sans-serif", 50.0).into_font())
-                .build_ranged(x_range.clone(), y_range)?;
-            chart.configure_mesh().line_style_2(&WHITE).draw()?;
-
-            chart.draw_series(LineSeries::new(
-                data.iter().map(|x| (x.time, x.right_mid)),
-                &BLACK,
-            ))?;
-            chart.draw_series(LineSeries::new(
-                skipped_data
-                    .clone()
-                    .map(|x| (x.time, x.state.predicted_right)),
-                &BLUE,
-            ))?;
-        }
-        {
-            let y_range = -1.0..1.0;
-            let mut chart = ChartBuilder::on(&area_rows[1])
-                .x_label_area_size(60)
-                .y_label_area_size(60)
-                .caption("return", ("sans-serif", 50.0).into_font())
-                .build_ranged(x_range.clone(), y_range)?;
-            chart.configure_mesh().line_style_2(&WHITE).draw()?;
-            chart.draw_series(LineSeries::new(
-                skipped_data.clone().map(|x| {
-                    (
-                        x.time,
-                        x.state.short_position_return + x.state.long_position_return,
-                    )
-                }),
-                &BLACK,
-            ))?;
-        }
-        {
-            let y_range = 0.0..200.0;
-            let mut chart = ChartBuilder::on(&area_rows[2])
-                .x_label_area_size(60)
-                .y_label_area_size(60)
-                .caption("PnL", ("sans-serif", 50.0).into_font())
-                .build_ranged(x_range.clone(), y_range)?;
-            chart.configure_mesh().line_style_2(&WHITE).draw()?;
-            chart.draw_series(LineSeries::new(
-                skipped_data.clone().map(|x| (x.time, x.state.pnl)),
-                &BLACK,
-            ))?;
-        }
-        {
-            let y_range = 0.0..100.0;
-            let mut chart = ChartBuilder::on(&area_rows[3])
-                .x_label_area_size(60)
-                .y_label_area_size(60)
-                .caption("Nominal Position", ("sans-serif", 50.0).into_font())
-                .build_ranged(x_range.clone(), y_range)?;
-            chart.configure_mesh().line_style_2(&WHITE).draw()?;
-            chart.draw_series(LineSeries::new(
-                skipped_data
-                    .clone()
-                    .filter(|d| d.state.nominal_position > 0.0)
-                    .map(|x| (x.time, x.state.nominal_position)),
-                &BLACK,
-            ))?;
-        }
-        {
-            let y_range = 0.0..100.0;
-            let mut chart = ChartBuilder::on(&area_rows[4])
-                .x_label_area_size(60)
-                .y_label_area_size(60)
-                .caption("Beta", ("sans-serif", 50.0).into_font())
-                .build_ranged(x_range.clone(), y_range)?;
-            chart.configure_mesh().line_style_2(&WHITE).draw()?;
-            chart.draw_series(LineSeries::new(
-                skipped_data
-                    .clone()
-                    .filter(|x| x.state.beta_lr > 0.0)
-                    .map(|x| (x.time, x.state.beta_lr)),
-                &BLACK,
-            ))?;
-        }
-
-        let mut start_area_rows_at = num_plots;
-        for line_spec in more_lines {
-            let (mins, maxs) = skipped_data
-                .clone()
-                .map(|sl| OrderedFloat(line_spec.1(sl)))
-                .tee();
+        for (i, line_specs) in more_lines.iter().enumerate() {
+            let mins = skipped_data.clone().map(|sl| {
+                line_specs
+                    .1
+                    .iter()
+                    .map(|line_spec| OrderedFloat(line_spec(sl)))
+                    .min()
+                    .unwrap()
+            });
+            let maxs = skipped_data.clone().map(|sl| {
+                line_specs
+                    .1
+                    .iter()
+                    .map(|line_spec| OrderedFloat(line_spec(sl)))
+                    .max()
+                    .unwrap()
+            });
             let y_range = mins.min().unwrap().0..maxs.max().unwrap().0;
 
-            let mut chart = ChartBuilder::on(&area_rows[start_area_rows_at])
+            let mut chart = ChartBuilder::on(&area_rows[i])
                 .x_label_area_size(60)
                 .y_label_area_size(60)
-                .caption(line_spec.0, ("sans-serif", 50.0).into_font())
+                .caption(line_specs.0, ("sans-serif", 50.0).into_font())
                 .build_ranged(x_range.clone(), y_range)?;
             chart.configure_mesh().line_style_2(&WHITE).draw()?;
-            chart.draw_series(LineSeries::new(
-                skipped_data.clone().map(|x| (x.time, line_spec.1(x))),
-                &BLACK,
-            ))?;
-            start_area_rows_at += 1;
+            for (j, line_spec) in line_specs.1.iter().enumerate() {
+                chart.draw_series(LineSeries::new(
+                    skipped_data.clone().map(|x| (x.time, line_spec(x))),
+                    color_wheel[j],
+                ))?;
+            }
         }
 
         Ok(string.clone())
@@ -851,8 +798,8 @@ mod test {
             load_csv_dataset(&DateRange(dt0, dt1, DurationRangeType::Days, 1));
         // align data
         left_records
-            .into_iter()
-            .zip(right_records.into_iter())
+            .iter()
+            .zip(right_records.iter())
             .take(500)
             .for_each(|(l, r)| {
                 dt.push(&DataRow {
@@ -882,16 +829,24 @@ mod test {
         // align data
         let mut elapsed = 0 as u128;
         let mut iterations = 0 as u128;
-        let logs: Vec<StrategyLog> = left_records
-            .into_iter()
-            .zip(right_records.into_iter())
+        let (zip, other) = left_records.iter().zip(right_records.iter()).tee();
+        let (left, right) = other.tee();
+        let left_sum: f64 = left.map(|r| (r.0.a1 + r.0.b1) / 2.0).sum();
+        let right_sum: f64 = right.map(|r| (r.1.a1 + r.1.b1) / 2.0).sum();
+        println!("crypto1_m {}", left_sum);
+        println!("crypto2_m {}", right_sum);
+        let logs: Vec<StrategyLog> = zip
             .enumerate()
             .map(|(i, (l, r))| {
                 iterations += 1;
                 let now = Instant::now();
 
                 if (i % 1000 == 0) {
-                    println!("{} iterations...", i);
+                    println!(
+                        "{} iterations..., table of size {}",
+                        i,
+                        strat.data_table.rows.len()
+                    );
                 }
                 let log = {
                     let row_time = l.hourofday;
@@ -908,16 +863,8 @@ mod test {
             })
             .collect();
         println!("Each iteration took {} on avg", elapsed / iterations);
-        let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
-        serde_json::to_writer(logs_f, &logs);
-        draw_line_plot(logs);
-        assert!(true, false);
-    }
-
-    #[test]
-    fn plot_continuous_scenario() {
-        let logs_f = std::fs::File::open("strategy_logs.json").unwrap();
-        let logs: Vec<StrategyLog> = serde_json::from_reader(logs_f).unwrap();
+        // let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
+        // serde_json::to_writer(logs_f, &logs);
         let drew = draw_line_plot(logs);
         if let Ok(file) = drew {
             let copied = std::fs::copy(&file, "naive_pair_trading_plot_latest.svg");
