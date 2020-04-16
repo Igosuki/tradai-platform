@@ -39,8 +39,8 @@ struct MovingState {
     value_strat: f64,
     units_to_buy_long_spread: f64,
     units_to_buy_short_spread: f64,
-    evaluations_since_last: i32,
     beta_val: f64,
+    alpha_val: f64,
     beta_lr: f64,
     predicted_right: f64,
     res: f64,
@@ -62,8 +62,8 @@ impl MovingState {
             value_strat: 100.0,
             units_to_buy_long_spread: 0.0,
             units_to_buy_short_spread: 0.0,
-            evaluations_since_last: 500,
             beta_val: 0.0,
+            alpha_val: 0.0,
             beta_lr: 0.0,
             predicted_right: 0.0,
             res: 0.0,
@@ -117,10 +117,6 @@ impl MovingState {
 
     fn is_short(&self) -> bool {
         self.position_short == 1
-    }
-
-    fn inc_evaluations_since_last(&mut self) {
-        self.evaluations_since_last += 1;
     }
 
     fn set_position_short(&mut self) {
@@ -299,6 +295,7 @@ pub struct Strategy {
     res_threshold_long: f64,
     res_threshold_short: f64,
     stop_loss: f64,
+    evaluations_since_last: i32,
     beta_eval_window_size: i32,
     beta_eval_freq: i32,
     state: MovingState,
@@ -315,6 +312,7 @@ impl Strategy {
             res_threshold_long: -0.04,
             res_threshold_short: 0.04,
             stop_loss: -0.2,
+            evaluations_since_last: 0,
             beta_eval_window_size: 500,
             beta_eval_freq: 5000,
             state: MovingState::new(),
@@ -322,6 +320,10 @@ impl Strategy {
             right_pair: "BTC_USDT",
             left_pair: "ETH_USDT",
         }
+    }
+
+    fn inc_evaluations_since_last(&mut self) {
+        self.evaluations_since_last += 1;
     }
 
     fn log_stop_loss(&self, pos: Position) {
@@ -335,14 +337,15 @@ impl Strategy {
     }
 
     fn should_eval(&self) -> bool {
-        self.state.evaluations_since_last % self.beta_eval_freq == 0
+        (self.evaluations_since_last % self.beta_eval_freq) == 0
     }
 
     fn eval_latest(&mut self, lr: &DataRow) {
-        self.state.inc_evaluations_since_last();
+        self.inc_evaluations_since_last();
         if self.state.no_short_no_long() {
             if self.should_eval() {
                 self.state.beta_val = self.data_table.beta();
+                self.state.alpha_val = self.data_table.alpha(self.state.beta_val);
             }
             self.state.units_to_buy_long_spread =
                 self.state.value_strat / (lr.right.top_ask * (1.0 + self.fees_rate));
@@ -351,14 +354,15 @@ impl Strategy {
         }
 
         self.state.beta_lr = self.state.beta_val;
+        self.state.predicted_right =
+            self.data_table
+                .predict(self.state.alpha_val, self.state.beta_val, &lr.left);
 
-        self.state.predicted_right = self.data_table.predict(self.state.beta_val, &lr.left);
         if self.state.beta_lr >= 0.0 {
             self.state.res = (lr.right.mid - self.state.predicted_right) / lr.right.mid;
         } else {
             self.state.res = 0.0;
         }
-
         if (self.state.res > self.res_threshold_short) && self.state.no_short_no_long() {
             self.state.open_position(
                 Position::SHORT,
@@ -377,7 +381,6 @@ impl Strategy {
                 lr.right.top_ask,
                 lr.left.top_bid,
             );
-
             if (self.state.res <= self.res_threshold_short && self.state.res < 0.0)
                 || short_position_return < self.stop_loss
             {
@@ -395,6 +398,7 @@ impl Strategy {
                 );
                 self.state.pnl = self.state.value_strat;
                 self.state.beta_val = self.data_table.beta();
+                self.state.alpha_val = self.data_table.alpha(self.state.beta_val);
             }
         }
 
@@ -433,6 +437,7 @@ impl Strategy {
                 );
                 self.state.pnl = self.state.value_strat;
                 self.state.beta_val = self.data_table.beta();
+                self.state.alpha_val = self.data_table.alpha(self.state.beta_val);
             }
         }
     }
@@ -442,6 +447,7 @@ impl Strategy {
             self.eval_latest(row);
         } else if self.data_table.rows.len() == self.beta_eval_window_size as usize {
             self.state.beta_val = self.data_table.beta();
+            self.state.alpha_val = self.data_table.alpha(self.state.beta_val);
             self.state.units_to_buy_long_spread =
                 self.state.value_strat / (row.right.top_ask * (1.0 + self.fees_rate));
             self.state.units_to_buy_short_spread = self.state.value_strat
@@ -499,7 +505,9 @@ impl DataTable {
         if len <= self.window_size {
             &self.rows[..]
         } else {
-            &self.rows[(len - self.window_size - 1)..]
+            let x = &self.rows[(len - self.window_size - 1)..(len - 1)];
+            println!("{:?} {:?}", &x[0], &x[x.len() - 1]);
+            x
         }
     }
 
@@ -533,8 +541,7 @@ impl DataTable {
         mean_right - beta_val * mean_left
     }
 
-    fn predict(&self, beta_val: f64, bp: &BookPosition) -> f64 {
-        let alpha_val: f64 = self.alpha(beta_val);
+    fn predict(&self, alpha_val: f64, beta_val: f64, bp: &BookPosition) -> f64 {
         let p = alpha_val + beta_val * bp.mid;
         trace!("predict {:?}", p);
         p
