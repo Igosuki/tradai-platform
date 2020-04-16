@@ -4,16 +4,33 @@ use stats::stddev;
 
 use crate::math::iter::{CovarianceExt, MeanExt, VarianceExt};
 use chrono::{DateTime, Utc};
+use serde::export::Formatter;
+use std::fmt::Display;
 
 const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
-fn zero_if_nan(x: f64) -> f64 {
-    x
-    // if x.is_nan() {
-    //     0.0
-    // } else {
-    //     x
-    // }
+enum Position {
+    SHORT,
+    LONG,
+}
+
+enum Operation {
+    OPEN,
+    CLOSE,
+    BUY,
+    SELL,
+}
+
+impl Display for Operation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Operation::OPEN => "Open",
+            Operation::CLOSE => "Close",
+            Operation::BUY => "Buy",
+            Operation::SELL => "Sell",
+        });
+        Ok(())
+    }
 }
 
 struct MovingState {
@@ -113,7 +130,7 @@ impl MovingState {
     ) -> f64 {
         let x = self.get_long_position_value(fees_rate, current_price_right, current_price_left)
             / self.value_strat;
-        self.long_position_return = zero_if_nan(x);
+        self.long_position_return = x;
         x
     }
 
@@ -138,7 +155,7 @@ impl MovingState {
     ) -> f64 {
         let x = self.get_short_position_value(fees_rate, current_price_right, current_price_left)
             / self.value_strat;
-        self.short_position_return = zero_if_nan(x);
+        self.short_position_return = x;
         return x;
     }
 }
@@ -178,52 +195,91 @@ impl Strategy {
         self.state.evaluations_since_last % self.beta_eval_freq == 0
     }
 
+    fn log_pos(&self, op: Operation, pos: Position, time: DateTime<Utc>) {
+        debug!(
+            "{} {} position at {}",
+            op,
+            match pos {
+                Position::SHORT => "short",
+                Position::LONG => "long",
+            },
+            time.format(TS_FORMAT)
+        );
+    }
+
+    fn log_trade(&self, op: Operation, spread: f64, pair: &str, value: f64, qty: f64) {
+        debug!("{} {:.2} {} at {} for {:.2}", op, spread, pair, value, qty);
+    }
+
+    fn log_info(&self, pos: Position) {
+        debug!(
+            "Additional info : units {:.2} beta val {:.2} value strat {:.2}",
+            match pos {
+                Position::SHORT => self.state.units_to_buy_short_spread,
+                Position::LONG => self.state.units_to_buy_long_spread,
+            },
+            self.state.beta_val,
+            self.state.value_strat
+        );
+        debug!("--------------------------------")
+    }
+
+    fn log_stop_loss(&self, pos: Position) {
+        debug!(
+            "---- Stop-loss executed ({} position) ----",
+            match pos {
+                Position::SHORT => "short",
+                Position::LONG => "long",
+            }
+        )
+    }
+
     fn eval_latest(&mut self, lr: &DataRow) {
         self.state.inc_evaluations_since_last();
         if self.state.no_short_no_long() {
             if self.should_eval() {
-                self.state.beta_val = zero_if_nan(self.data_table.beta());
+                self.state.beta_val = self.data_table.beta();
             }
             self.state.units_to_buy_long_spread =
-                self.state.value_strat / lr.right.top_ask * (1.0 + self.fees_rate);
-            self.state.units_to_buy_short_spread = self.state.value_strat / lr.left.top_ask
-                * self.state.beta_val
-                * (1.0 + self.fees_rate);
+                self.state.value_strat / (lr.right.top_ask * (1.0 + self.fees_rate));
+            self.state.units_to_buy_short_spread = self.state.value_strat
+                / (lr.left.top_ask * self.state.beta_val * (1.0 + self.fees_rate));
         }
         self.state.beta_lr = self.state.beta_val;
-        self.state.predicted_right =
-            zero_if_nan(self.data_table.predict(self.state.beta_val, &lr.left));
+        self.state.predicted_right = self.data_table.predict(self.state.beta_val, &lr.left);
         if self.state.beta_lr >= 0.0 {
-            self.state.res =
-                zero_if_nan((lr.right.mid - self.state.predicted_right) / lr.right.mid);
+            self.state.res = (lr.right.mid - self.state.predicted_right) / lr.right.mid;
         } else {
             self.state.res = 0.0;
         }
         if (self.state.res > self.res_threshold_short) && self.state.no_short_no_long() {
             self.state.set_position_short();
             self.state.open_position = 1e5;
-            self.state.nominal_position = zero_if_nan(self.state.beta_val);
+            self.state.nominal_position = self.state.beta_val;
             self.state.traded_price_right = lr.right.top_bid;
             self.state.traded_price_left = lr.left.top_ask;
             self.state.value_strat += self.state.units_to_buy_short_spread
                 * (self.state.traded_price_right * (1.0 - self.fees_rate)
                     - self.state.traded_price_left * self.state.beta_val * (1.0 + self.fees_rate));
-            debug!("Open short position at {}", lr.time.format(TS_FORMAT));
-            debug!(
-                "sell {:.2} {} at {} for {:.2}",
+            self.log_pos(Operation::OPEN, Position::SHORT, lr.time);
+            self.log_trade(
+                Operation::SELL,
                 self.state.units_to_buy_short_spread,
                 self.right_pair,
                 lr.right.top_bid,
-                self.state.units_to_buy_short_spread * lr.right.top_bid * (1.0 - self.fees_rate)
+                self.state.units_to_buy_short_spread * lr.right.top_bid * (1.0 - self.fees_rate),
             );
-            debug!(
-                "buy {:.2} {} at {} for {:.2}",
+            self.log_trade(
+                Operation::BUY,
                 self.state.units_to_buy_short_spread * self.state.beta_val,
                 self.left_pair,
                 lr.left.top_ask,
-                self.state.units_to_buy_short_spread * lr.left.top_ask * (1.0 + self.fees_rate)
+                self.state.beta_val
+                    * self.state.units_to_buy_short_spread
+                    * lr.left.top_ask
+                    * (1.0 + self.fees_rate),
             );
-            debug!("--------------------------------")
+            self.log_info(Position::SHORT);
         }
 
         if self.state.is_short() {
@@ -236,70 +292,64 @@ impl Strategy {
                 || short_position_return < self.stop_loss
             {
                 if short_position_return < self.stop_loss {
-                    debug!("---- Stop-loss executed (short position) ----")
+                    log_stop_loss(Position::SHORT);
                 }
                 self.state.unset_position_short();
                 self.state.close_position = 1e5;
                 self.state.value_strat += self.state.units_to_buy_short_spread
-                    * lr.left.top_bid
-                    * self.state.beta_val
-                    * (1.0 - self.fees_rate)
-                    - lr.right.top_ask * (1.0 + self.fees_rate);
-                debug!("Close short position at {}", lr.time.format(TS_FORMAT));
-                debug!(
-                    "buy {:.2} {} at {} for {:.2}",
+                    * (lr.left.top_bid * self.state.beta_val * (1.0 - self.fees_rate)
+                        - lr.right.top_ask * (1.0 + self.fees_rate));
+                self.log_pos(Operation::CLOSE, Position::SHORT, lr.time);
+                self.log_trade(
+                    Operation::BUY,
                     self.state.units_to_buy_short_spread,
                     self.right_pair,
                     lr.right.top_ask,
                     self.state.units_to_buy_short_spread
                         * lr.right.top_ask
-                        * (1.0 + self.fees_rate)
+                        * (1.0 + self.fees_rate),
                 );
-                debug!(
-                    "sell {:.2} {} at {} for {:.2}",
+                self.log_trade(
+                    Operation::SELL,
                     self.state.units_to_buy_short_spread * self.state.beta_val,
                     self.left_pair,
                     lr.left.top_bid,
                     self.state.units_to_buy_short_spread
                         * self.state.beta_val
                         * lr.left.top_bid
-                        * (1.0 - self.fees_rate)
+                        * (1.0 - self.fees_rate),
                 );
-                debug!("strategy value : {}", self.state.value_strat);
-                self.state.pnl = zero_if_nan(self.state.value_strat);
-                debug!("--------------------------------");
-                debug!("--------------------------------");
-                self.state.beta_val = zero_if_nan(self.data_table.beta());
+                self.log_info(Position::SHORT);
+                self.state.pnl = self.state.value_strat;
+                self.state.beta_val = self.data_table.beta();
             }
         }
 
         if self.state.res <= self.res_threshold_long && self.state.no_short_no_long() {
             self.state.set_position_long();
             self.state.open_position = 1e5;
-            self.state.nominal_position = zero_if_nan(self.state.beta_val);
+            self.state.nominal_position = self.state.beta_val;
             self.state.traded_price_right = lr.right.top_ask;
             self.state.traded_price_left = lr.left.top_bid;
             self.state.value_strat += self.state.units_to_buy_long_spread
-                * self.state.traded_price_left
-                * self.state.beta_val
-                * (1.0 - self.fees_rate)
-                - self.state.traded_price_right * (1.0 + self.fees_rate);
-            debug!("Open long position at {} ", lr.time.format(TS_FORMAT));
-            debug!(
-                "buy {:.2} {} at {} for {:.2}",
+                * (self.state.traded_price_left * self.state.beta_val * (1.0 - self.fees_rate)
+                    - self.state.traded_price_right * (1.0 + self.fees_rate));
+            self.log_pos(Operation::OPEN, Position::LONG, lr.time);
+            self.log_trade(
+                Operation::BUY,
                 self.state.units_to_buy_long_spread,
                 self.right_pair,
                 lr.right.top_ask,
-                self.state.units_to_buy_long_spread * lr.right.top_ask * (1.0 + self.fees_rate)
+                self.state.units_to_buy_long_spread * lr.right.top_ask * (1.0 + self.fees_rate),
             );
-            debug!(
-                "sell {:.2} {} at {} for {:.2}",
+            self.log_trade(
+                Operation::SELL,
                 self.state.units_to_buy_long_spread * self.state.beta_val,
                 self.left_pair,
                 lr.left.top_bid,
-                self.state.units_to_buy_long_spread * lr.left.top_bid * (1.0 - self.fees_rate)
+                self.state.units_to_buy_long_spread * lr.left.top_bid * (1.0 - self.fees_rate),
             );
-            debug!("--------------------------------")
+            self.log_info(Position::LONG);
         }
 
         if self.state.is_long() {
@@ -312,36 +362,34 @@ impl Strategy {
                 || long_position_return < self.stop_loss
             {
                 if long_position_return < self.stop_loss {
-                    debug!("---- Stop-loss executed (long position) ----")
+                    log_stop_loss(Position::LONG);
                 }
                 self.state.unset_position_long();
                 self.state.close_position = 1e5;
-                self.state.value_strat +=
-                    self.state.units_to_buy_long_spread * lr.right.top_bid * (1.0 - self.fees_rate)
-                        - lr.left.top_ask * self.state.beta_val * (1.0 + self.fees_rate);
-                debug!("Close long position at {}", lr.time.format(TS_FORMAT));
-                debug!(
-                    "sell {:.2} {} at {} for {:.2}",
+                self.state.value_strat += self.state.units_to_buy_long_spread
+                    * (lr.right.top_bid * (1.0 - self.fees_rate)
+                        - lr.left.top_ask * self.state.beta_val * (1.0 + self.fees_rate));
+                self.log_pos(Operation::CLOSE, Position::LONG, lr.time);
+                self.log_trade(
+                    Operation::SELL,
                     self.state.units_to_buy_long_spread,
                     self.right_pair,
                     lr.right.top_bid,
-                    self.state.units_to_buy_long_spread * lr.right.top_bid * (1.0 - self.fees_rate)
+                    self.state.units_to_buy_long_spread * lr.right.top_bid * (1.0 - self.fees_rate),
                 );
-                debug!(
-                    "buy {:.2} {} at {} for {:.2}",
+                self.log_trade(
+                    Operation::BUY,
                     self.state.units_to_buy_long_spread * self.state.beta_val,
                     self.left_pair,
                     lr.left.top_ask,
                     self.state.units_to_buy_long_spread
                         * self.state.beta_val
                         * lr.left.top_ask
-                        * (1.0 + self.fees_rate)
+                        * (1.0 + self.fees_rate),
                 );
-                debug!("strategy value : {}", self.state.value_strat);
-                self.state.pnl = zero_if_nan(self.state.value_strat);
-                debug!("--------------------------------");
-                debug!("--------------------------------");
-                self.state.beta_val = zero_if_nan(self.data_table.beta());
+                self.log_info(Position::LONG);
+                self.state.pnl = self.state.value_strat;
+                self.state.beta_val = self.data_table.beta();
             }
         }
     }
@@ -351,6 +399,10 @@ impl Strategy {
             self.eval_latest(row);
         } else if self.data_table.rows.len() == self.beta_eval_window_size as usize {
             self.state.beta_val = self.data_table.beta();
+            self.state.units_to_buy_long_spread =
+                self.state.value_strat / (row.right.top_ask * (1.0 + self.fees_rate));
+            self.state.units_to_buy_short_spread = self.state.value_strat
+                / (row.left.top_ask * self.state.beta_val * (1.0 + self.fees_rate));
         }
         self.data_table.push(row);
     }
@@ -487,6 +539,7 @@ mod test {
         nominal_pos: f64,
         beta: f64,
         pnl: f64,
+        value_strat: f64,
     }
 
     impl StrategyLog {
@@ -502,6 +555,7 @@ mod test {
                 nominal_pos: state.nominal_position,
                 beta: state.beta_lr,
                 pnl: state.pnl,
+                value_strat: state.value_strat,
             }
         }
     }
