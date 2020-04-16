@@ -867,7 +867,7 @@ mod test {
         // serde_json::to_writer(logs_f, &logs);
         let drew = draw_line_plot(logs);
         if let Ok(file) = drew {
-            let copied = std::fs::copy(&file, "naive_pair_trading_plot_latest.svg");
+            let copied = std::fs::copy(&file, "graphs/naive_pair_trading_plot_latest.svg");
             assert!(copied.is_ok(), format!("{:?}", copied));
         } else {
             assert!(false, format!("{:?}", drew));
