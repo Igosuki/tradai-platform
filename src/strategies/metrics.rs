@@ -1,6 +1,6 @@
-use super::state::MovingState;
-use super::state::Operation;
-use super::state::PositionKind;
+use super::naive_pair_trading::MovingState;
+use super::naive_pair_trading::Operation;
+use super::naive_pair_trading::PositionKind;
 use prometheus::{GaugeVec, Opts, Registry};
 use std::collections::HashMap;
 
@@ -28,7 +28,7 @@ impl StrategyMetrics {
     pub(super) fn log_position(&self, pos: PositionKind, op: Operation, state: MovingState) {
         self.gauges.get("position").map(|g| {
             g.with_label_values(&[&format!("{}", pos), &format!("{}", op)])
-                .set(state.predicted_right())
+                .set(state.predicted_right)
         });
     }
 }

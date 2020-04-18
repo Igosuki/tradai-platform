@@ -56,6 +56,7 @@ use std::fs::File;
 
 pub mod api;
 pub mod avro_gen;
+pub mod db;
 pub mod handlers;
 pub mod math;
 pub mod serdes;

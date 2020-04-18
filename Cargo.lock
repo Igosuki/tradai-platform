@@ -584,6 +584,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bincode"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5753e2a71534719bf3f4e57006c3a4f0d2c672a4b676eec84161f763eca87dbf"
+dependencies = [
+ "byteorder",
+ "serde 1.0.105",
+]
+
+[[package]]
 name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1962,6 +1972,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae91b68aebc4ddb91978b11a1b02ddd8602a05ec19002801c5666000e05e0f83"
 
 [[package]]
+name = "lmdb-rkv"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "447a296f7aca299cfbb50f4e4f3d49451549af655fb7215d7f8c0c3d64bad42b"
+dependencies = [
+ "bitflags",
+ "byteorder",
+ "libc",
+ "lmdb-rkv-sys",
+]
+
+[[package]]
+name = "lmdb-rkv-sys"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b27470ac25167b3afdfb6af8fcd3bc1be67de50ffbdaf4073378cfded6ae24a5"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3055,6 +3088,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "rkv"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30a3dbc1f4971372545ed4175f23ef206c81e5874cd574d153646e7ee78f6793"
+dependencies = [
+ "arrayref",
+ "bincode",
+ "bitflags",
+ "byteorder",
+ "failure",
+ "lazy_static 1.4.0",
+ "lmdb-rkv",
+ "ordered-float",
+ "serde 1.0.105",
+ "serde_derive",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "rle-decode-fast"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3767,6 +3820,7 @@ dependencies = [
  "prometheus",
  "prometheus-static-metric",
  "rand 0.7.3",
+ "rkv",
  "rsgen-avro",
  "serde 1.0.105",
  "serde_derive",
@@ -3775,6 +3829,7 @@ dependencies = [
  "streaming-stats",
  "structopt",
  "tempdir",
+ "tempfile",
  "thiserror",
  "tokio",
  "url",

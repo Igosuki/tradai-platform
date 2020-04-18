@@ -1,21 +1,44 @@
-use itertools::Itertools;
-
-use crate::math::iter::{CovarianceExt, MeanExt, VarianceExt};
-use crate::strategies::StrategySink;
 use chrono::{DateTime, Utc};
 use coinnect_rt::types::LiveEvent;
+use itertools::Itertools;
 use serde::export::Formatter;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+use std::sync::Arc;
+
+use crate::db::Db;
+use crate::math::iter::{CovarianceExt, MeanExt, VarianceExt};
+use crate::strategies::metrics::StrategyMetrics;
+use crate::strategies::StrategySink;
 
 const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
-enum Position {
+#[derive(Deserialize, Serialize)]
+pub(super) struct Position {
+    pub kind: PositionKind,
+    pub right_price: f64,
+    pub left_price: f64,
+    pub time: DateTime<Utc>,
+    pub right_pair: String,
+    pub left_pair: String,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(super) enum PositionKind {
     SHORT,
     LONG,
 }
 
-enum Operation {
+impl Display for PositionKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            PositionKind::SHORT => "short",
+            PositionKind::LONG => "long",
+        })
+    }
+}
+
+pub enum Operation {
     OPEN,
     CLOSE,
     BUY,
@@ -34,7 +57,7 @@ impl Display for Operation {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct MovingState {
+pub struct MovingState {
     position_short: i8,
     position_long: i8,
     value_strat: f64,
@@ -43,7 +66,7 @@ struct MovingState {
     beta_val: f64,
     alpha_val: f64,
     beta_lr: f64,
-    predicted_right: f64,
+    pub predicted_right: f64,
     res: f64,
     open_position: f64,
     nominal_position: f64,
@@ -79,13 +102,13 @@ impl MovingState {
         }
     }
 
-    fn log_pos(&self, op: Operation, pos: &Position, time: DateTime<Utc>) {
+    fn log_pos(&self, op: &Operation, pos: &PositionKind, time: DateTime<Utc>) {
         debug!(
             "{} {} position at {}",
             op,
             match pos {
-                Position::SHORT => "short",
-                Position::LONG => "long",
+                PositionKind::SHORT => "short",
+                PositionKind::LONG => "long",
             },
             time.format(TS_FORMAT)
         );
@@ -95,12 +118,12 @@ impl MovingState {
         debug!("{} {:.2} {} at {} for {:.2}", op, spread, pair, value, qty);
     }
 
-    fn log_info(&self, pos: &Position) {
+    fn log_info(&self, pos: &PositionKind) {
         debug!(
             "Additional info : units {:.2} beta val {:.2} value strat {}",
             match pos {
-                Position::SHORT => self.units_to_buy_short_spread,
-                Position::LONG => self.units_to_buy_long_spread,
+                PositionKind::SHORT => self.units_to_buy_short_spread,
+                PositionKind::LONG => self.units_to_buy_long_spread,
             },
             self.beta_val,
             self.value_strat
@@ -128,12 +151,12 @@ impl MovingState {
         self.position_short = 0;
     }
 
-    fn set_position_long(&mut self) {
-        self.position_long = 1;
-    }
-
     fn unset_position_long(&mut self) {
         self.position_long = 0;
+    }
+
+    fn set_position_long(&mut self) {
+        self.position_long = 1;
     }
 
     fn set_pnl(&mut self) {
@@ -194,107 +217,84 @@ impl MovingState {
         return x;
     }
 
-    fn open_position(
-        &mut self,
-        pos: Position,
-        right_price: f64,
-        left_price: f64,
-        fees: f64,
-        time: DateTime<Utc>,
-        right_pair: &str,
-        left_pair: &str,
+    fn log_position(
+        &self,
+        pos: &Position,
+        op: &Operation,
+        spread: f64,
+        right_coef: f64,
+        left_coef: f64,
     ) {
-        match pos {
-            Position::SHORT => self.set_position_short(),
-            Position::LONG => self.set_position_long(),
+        self.log_pos(op, &pos.kind, pos.time);
+        let (left_op, right_op) = match (&pos.kind, &op) {
+            (PositionKind::SHORT, Operation::OPEN) => (Operation::BUY, Operation::SELL),
+            (PositionKind::LONG, Operation::OPEN) => (Operation::SELL, Operation::BUY),
+            (PositionKind::SHORT, Operation::CLOSE) => (Operation::SELL, Operation::BUY),
+            (PositionKind::LONG, Operation::CLOSE) => (Operation::BUY, Operation::SELL),
+            _ => unimplemented!(),
+        };
+        self.log_trade(
+            right_op,
+            spread,
+            &pos.right_pair,
+            pos.right_price,
+            spread * pos.right_price * right_coef.abs(),
+        );
+        self.log_trade(
+            left_op,
+            spread * self.beta_val,
+            &pos.left_pair,
+            pos.left_price,
+            spread * pos.left_price * left_coef.abs(),
+        );
+        self.log_info(&pos.kind);
+    }
+
+    fn open(&mut self, pos: Position, fees: f64) {
+        match pos.kind {
+            PositionKind::SHORT => self.set_position_short(),
+            PositionKind::LONG => self.set_position_long(),
         };
         self.open_position = 1e5;
         self.nominal_position = self.beta_val;
-        self.traded_price_right = right_price;
-        self.traded_price_left = left_price;
-        let (spread, right_coef, left_coef) = match pos {
-            Position::SHORT => (
+        self.traded_price_right = pos.right_price;
+        self.traded_price_left = pos.left_price;
+        let (spread, right_coef, left_coef) = match pos.kind {
+            PositionKind::SHORT => (
                 self.units_to_buy_short_spread,
                 1.0 - fees,
                 -(self.beta_val * (1.0 + fees)),
             ),
-            Position::LONG => (
+            PositionKind::LONG => (
                 self.units_to_buy_long_spread,
                 -(1.0 + fees),
                 self.beta_val * (1.0 - fees),
             ),
         };
-        self.value_strat += spread * (right_price * right_coef + left_price * left_coef);
-        self.log_pos(Operation::OPEN, &pos, time);
-        let (left_op, right_op) = match &pos {
-            Position::SHORT => (Operation::BUY, Operation::SELL),
-            Position::LONG => (Operation::SELL, Operation::BUY),
-        };
-        self.log_trade(
-            right_op,
-            spread,
-            right_pair,
-            right_price,
-            spread * right_price * right_coef.abs(),
-        );
-        self.log_trade(
-            left_op,
-            spread * self.beta_val,
-            left_pair,
-            left_price,
-            spread * left_price * left_coef.abs(),
-        );
-        self.log_info(&pos);
+        self.value_strat += spread * (pos.right_price * right_coef + pos.left_price * left_coef);
+        self.log_position(&pos, &Operation::OPEN, spread, right_coef, left_coef);
     }
 
-    fn close_position(
-        &mut self,
-        pos: Position,
-        right_price: f64,
-        left_price: f64,
-        fees: f64,
-        time: DateTime<Utc>,
-        right_pair: &str,
-        left_pair: &str,
-    ) {
-        match pos {
-            Position::SHORT => self.unset_position_short(),
-            Position::LONG => self.unset_position_long(),
+    fn close(&mut self, pos: Position, fees: f64) {
+        match pos.kind {
+            PositionKind::SHORT => self.unset_position_short(),
+            PositionKind::LONG => self.unset_position_long(),
         };
         self.close_position = 1e5;
-        let (spread, right_coef, left_coef) = match pos {
-            Position::SHORT => (
+        let (spread, right_coef, left_coef) = match pos.kind {
+            PositionKind::SHORT => (
                 self.units_to_buy_short_spread,
                 -(1.0 + fees),
                 self.beta_val * (1.0 - fees),
             ),
-            Position::LONG => (
+            PositionKind::LONG => (
                 self.units_to_buy_long_spread,
                 1.0 - fees,
                 -(self.beta_val * (1.0 + fees)),
             ),
         };
-        self.value_strat += spread * (right_price * right_coef + left_price * left_coef);
-        self.log_pos(Operation::CLOSE, &pos, time);
-        let (left_op, right_op) = match pos {
-            Position::SHORT => (Operation::SELL, Operation::BUY),
-            Position::LONG => (Operation::BUY, Operation::SELL),
-        };
-        self.log_trade(
-            right_op,
-            spread,
-            right_pair,
-            right_price,
-            spread * right_price * right_coef.abs(),
-        );
-        self.log_trade(
-            left_op,
-            spread * self.beta_val,
-            left_pair,
-            left_price,
-            spread * left_price * left_coef.abs(),
-        );
-        self.log_info(&pos);
+        self.value_strat += spread * (pos.right_price * right_coef + pos.left_price * left_coef);
+        self.log_position(&pos, &Operation::CLOSE, spread, right_coef, left_coef);
     }
 }
 
@@ -310,10 +310,14 @@ pub struct Strategy {
     data_table: DataTable,
     pub right_pair: &'static str,
     pub left_pair: &'static str,
+    #[allow(dead_code)]
+    metrics: Arc<StrategyMetrics>,
+    db: Db,
 }
 
 impl Strategy {
-    fn new() -> Self {
+    fn new(left_pair: &'static str, right_pair: &'static str) -> Self {
+        let db_name = format!("{}_{}", left_pair, right_pair);
         Self {
             fees_rate: 0.001,
             res_threshold_long: -0.04,
@@ -324,8 +328,14 @@ impl Strategy {
             beta_eval_freq: 5000,
             state: MovingState::new(100.0),
             data_table: DataTable::new(500),
-            right_pair: "BTC_USDT",
-            left_pair: "ETH_USDT",
+            right_pair,
+            left_pair,
+            metrics: Arc::new(StrategyMetrics::for_strat(
+                prometheus::default_registry(),
+                left_pair,
+                right_pair,
+            )),
+            db: Db::new("data/naive_pair_trading", db_name),
         }
     }
 
@@ -333,12 +343,12 @@ impl Strategy {
         self.evaluations_since_last += 1;
     }
 
-    fn log_stop_loss(&self, pos: Position) {
+    fn log_stop_loss(&self, pos: PositionKind) {
         debug!(
             "---- Stop-loss executed ({} position) ----",
             match pos {
-                Position::SHORT => "short",
-                Position::LONG => "long",
+                PositionKind::SHORT => "short",
+                PositionKind::LONG => "long",
             }
         )
     }
@@ -375,6 +385,28 @@ impl Strategy {
             self.state.value_strat / (traded_price * self.state.beta_val * (1.0 + self.fees_rate));
     }
 
+    fn short_position(&self, lr: &DataRow) -> Position {
+        Position {
+            kind: PositionKind::SHORT,
+            right_price: lr.right.bid,
+            left_price: lr.left.ask,
+            time: lr.time,
+            right_pair: self.right_pair.to_string(),
+            left_pair: self.left_pair.to_string(),
+        }
+    }
+
+    fn long_position(&self, lr: &DataRow) -> Position {
+        Position {
+            kind: PositionKind::LONG,
+            right_price: lr.right.ask,
+            left_price: lr.left.bid,
+            time: lr.time,
+            right_pair: self.right_pair.to_string(),
+            left_pair: self.left_pair.to_string(),
+        }
+    }
+
     fn eval_latest(&mut self, lr: &DataRow) {
         if self.state.no_position_taken() {
             if self.should_eval() {
@@ -393,15 +425,8 @@ impl Strategy {
             self.state.res = 0.0;
         }
         if (self.state.res > self.res_threshold_short) && self.state.no_position_taken() {
-            self.state.open_position(
-                Position::SHORT,
-                lr.right.bid,
-                lr.left.ask,
-                self.fees_rate,
-                lr.time,
-                self.right_pair,
-                self.left_pair,
-            );
+            self.short_position(lr);
+            self.state.open(self.short_position(lr), self.fees_rate);
         }
 
         if self.state.is_short() {
@@ -412,17 +437,9 @@ impl Strategy {
                 || short_position_return < self.stop_loss
             {
                 if short_position_return < self.stop_loss {
-                    self.log_stop_loss(Position::SHORT);
+                    self.log_stop_loss(PositionKind::SHORT);
                 }
-                self.state.close_position(
-                    Position::SHORT,
-                    lr.right.ask,
-                    lr.left.bid,
-                    self.fees_rate,
-                    lr.time,
-                    self.right_pair,
-                    self.left_pair,
-                );
+                self.state.close(self.short_position(lr), self.fees_rate);
                 self.state.set_pnl();
                 self.state.beta_val = self.data_table.beta();
                 self.state.alpha_val = self.data_table.alpha(self.state.beta_val);
@@ -430,15 +447,7 @@ impl Strategy {
         }
 
         if self.state.res <= self.res_threshold_long && self.state.no_position_taken() {
-            self.state.open_position(
-                Position::LONG,
-                lr.right.ask,
-                lr.left.bid,
-                self.fees_rate,
-                lr.time,
-                self.right_pair,
-                self.left_pair,
-            );
+            self.state.open(self.long_position(lr), self.fees_rate);
         }
 
         if self.state.is_long() {
@@ -449,17 +458,9 @@ impl Strategy {
                 || long_position_return < self.stop_loss
             {
                 if long_position_return < self.stop_loss {
-                    self.log_stop_loss(Position::LONG);
+                    self.log_stop_loss(PositionKind::LONG);
                 }
-                self.state.close_position(
-                    Position::LONG,
-                    lr.right.bid,
-                    lr.left.ask,
-                    self.fees_rate,
-                    lr.time,
-                    self.right_pair,
-                    self.left_pair,
-                );
+                self.state.close(self.long_position(lr), self.fees_rate);
                 self.state.pnl = self.state.value_strat;
                 self.state.beta_val = self.data_table.beta();
                 self.state.alpha_val = self.data_table.alpha(self.state.beta_val);
@@ -597,7 +598,12 @@ mod test {
     use crate::util::date::{DateRange, DurationRangeType};
     use ordered_float::OrderedFloat;
     use std::error::Error;
+    use std::fs::File;
     use std::path::Path;
+    use std::time::Instant;
+
+    const LEFT_PAIR: &'static str = "ETH_USDT";
+    const RIGHT_PAIR: &'static str = "BTC_USDT";
 
     #[derive(Debug, Serialize, Deserialize)]
     struct StrategyLog {
@@ -673,8 +679,6 @@ mod test {
             .unwrap_or("../data".to_string());
         let exchange_name = "Binance";
         let channel = "order_books";
-        let left_pair = "ETH_USDT";
-        let right_pair = "BTC_USDT";
 
         let base_path = Path::new(&bp)
             .join("data")
@@ -695,15 +699,15 @@ mod test {
                 .collect()
         };
         return (
-            get_records(left_pair.to_string()),
-            get_records(right_pair.to_string()),
+            get_records(LEFT_PAIR.to_string()),
+            get_records(RIGHT_PAIR.to_string()),
         );
     }
 
     fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn Error>> {
         let now = Utc::now();
         let string = format!(
-            "naive_pair_trading_plot_{}.svg",
+            "graphs/naive_pair_trading_plot_{}.svg",
             now.format("%Y%m%d%H:%M:%S")
         );
         let color_wheel = vec![&BLACK, &BLUE, &RED];
@@ -797,13 +801,10 @@ mod test {
         assert!(x > 0.0, x);
     }
 
-    use std::fs::File;
-    use std::time::Instant;
-
     #[test]
     fn continuous_scenario() {
         env_logger::init();
-        let mut strat = Strategy::new();
+        let mut strat = Strategy::new(LEFT_PAIR, RIGHT_PAIR);
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 03, 25);
         let dt1 = Utc.ymd(2020, 04, 08);

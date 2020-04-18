@@ -6,6 +6,8 @@ use derive_more::Display;
 use std::sync::Arc;
 use uuid::Uuid;
 
+pub mod metrics;
+
 pub struct StrategyActorOptions<S: StrategySink> {
     strategy: S,
 }
