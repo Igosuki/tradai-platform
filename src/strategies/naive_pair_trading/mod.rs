@@ -829,7 +829,7 @@ mod test {
                 let now = Instant::now();
 
                 if i % 1000 == 0 {
-                    println!(
+                    trace!(
                         "{} iterations..., table of size {}",
                         i,
                         strat.data_table.rows.len()
