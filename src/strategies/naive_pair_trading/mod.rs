@@ -201,6 +201,7 @@ impl Strategy {
             self.eval_latest(row);
             self.log_state();
         }
+        self.metrics.log_row(&row);
         self.data_table.push(row);
         if self.data_table.rows.len() == self.beta_eval_window_size as usize {
             self.update_model();
@@ -210,7 +211,9 @@ impl Strategy {
         }
     }
 
-    fn log_state(&self) {}
+    fn log_state(&self) {
+        self.metrics.log_state(&self.state);
+    }
 
     fn log_position(&self, pos: &Position) {
         self.db.with_db(|env, store| {
