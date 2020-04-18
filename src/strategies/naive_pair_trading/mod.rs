@@ -6,10 +6,12 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::sync::Arc;
 
+pub mod metrics;
+
 use crate::db::Db;
 use crate::math::iter::{CovarianceExt, MeanExt, VarianceExt};
-use crate::strategies::metrics::StrategyMetrics;
 use crate::strategies::StrategySink;
+use metrics::StrategyMetrics;
 
 const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 

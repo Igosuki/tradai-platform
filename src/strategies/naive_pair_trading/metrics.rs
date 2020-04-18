@@ -1,6 +1,6 @@
-use super::naive_pair_trading::MovingState;
-use super::naive_pair_trading::Operation;
-use super::naive_pair_trading::PositionKind;
+use super::MovingState;
+use super::Operation;
+use super::PositionKind;
 use prometheus::{GaugeVec, Opts, Registry};
 use std::collections::HashMap;
 

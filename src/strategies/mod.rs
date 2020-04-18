@@ -1,12 +1,10 @@
-pub mod naive_pair_trading;
-
 use actix::{Actor, Handler, Running, SyncContext};
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use derive_more::Display;
 use std::sync::Arc;
 use uuid::Uuid;
 
-pub mod metrics;
+pub mod naive_pair_trading;
 
 pub struct StrategyActorOptions<S: StrategySink> {
     strategy: S,
