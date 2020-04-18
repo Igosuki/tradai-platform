@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use coinnect_rt::types::LiveEvent;
+use coinnect_rt::types::{BigDecimalConv, LiveEvent, Orderbook};
 use itertools::Itertools;
 use serde::export::Formatter;
 use serde::{Deserialize, Serialize};
@@ -27,15 +27,18 @@ pub struct Strategy {
     beta_eval_freq: i32,
     state: MovingState,
     data_table: DataTable,
-    pub right_pair: &'static str,
-    pub left_pair: &'static str,
+    pub right_pair: String,
+    pub left_pair: String,
     #[allow(dead_code)]
     metrics: Arc<StrategyMetrics>,
     db: Db,
+    last_log_time: DateTime<Utc>,
+    last_left: Option<BookPosition>,
+    last_right: Option<BookPosition>,
 }
 
 impl Strategy {
-    fn new(left_pair: &'static str, right_pair: &'static str) -> Self {
+    pub fn new(left_pair: &str, right_pair: &str) -> Self {
         let db_name = format!("{}_{}", left_pair, right_pair);
         Self {
             fees_rate: 0.001,
@@ -47,14 +50,17 @@ impl Strategy {
             beta_eval_freq: 5000,
             state: MovingState::new(100.0),
             data_table: DataTable::new(500),
-            right_pair,
-            left_pair,
+            right_pair: right_pair.to_string(),
+            left_pair: left_pair.to_string(),
+            last_log_time: Utc::now(),
             metrics: Arc::new(StrategyMetrics::for_strat(
                 prometheus::default_registry(),
                 left_pair,
                 right_pair,
             )),
             db: Db::new("data/naive_pair_trading", db_name),
+            last_left: None,
+            last_right: None,
         }
     }
 
@@ -262,7 +268,9 @@ impl Strategy {
     }
 }
 
+use std::ops::Add;
 use thiserror::Error;
+
 #[derive(Error, Debug)]
 pub enum DataStoreError {
     #[error("rkv error")]
@@ -274,8 +282,33 @@ pub enum DataStoreError {
 }
 
 impl StrategySink for Strategy {
-    fn add_event(&self, _: LiveEvent) -> std::io::Result<()> {
-        unimplemented!()
+    fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()> {
+        match le {
+            LiveEvent::LiveOrderbook(ob) => {
+                let string = ob.pair.as_string();
+                if string == self.left_pair {
+                    self.last_left = BookPosition::from_book(ob);
+                } else if string == self.right_pair {
+                    self.last_right = BookPosition::from_book(ob);
+                }
+            }
+            _ => {}
+        };
+        let now = Utc::now();
+        if now.gt(&self.last_log_time.add(chrono::Duration::seconds(1))) {
+            match (self.last_left.clone(), self.last_right.clone()) {
+                (Some(l), Some(r)) => {
+                    let x = DataRow {
+                        left: l,
+                        right: r,
+                        time: now,
+                    };
+                    self.process_row(&x);
+                }
+                _ => {}
+            }
+        }
+        Ok(())
     }
 }
 
@@ -305,6 +338,21 @@ impl BookPosition {
 
     fn mid(ask: f64, bid: f64) -> f64 {
         (ask + bid) / 2.0
+    }
+
+    fn from_book(t: Orderbook) -> Option<BookPosition> {
+        let first_ask = t
+            .asks
+            .first()
+            .map(|a| (a.0.as_f64().unwrap(), a.1.as_f64().unwrap()));
+        let first_bid = t
+            .bids
+            .first()
+            .map(|a| (a.0.as_f64().unwrap(), a.1.as_f64().unwrap()));
+        match (first_ask, first_bid) {
+            (Some(ask), Some(bid)) => return Some(BookPosition::new(ask.0, ask.1, bid.0, bid.1)),
+            _ => return None,
+        }
     }
 }
 

@@ -56,14 +56,14 @@ fn default_as_false() -> bool {
     false
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct NaiveStrategy {
     pub left: Pair,
     pub right: Pair,
     pub exchange: Exchange,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type")]
 pub enum Strategy {
     Naive(NaiveStrategy),

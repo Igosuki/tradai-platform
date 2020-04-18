@@ -1,13 +1,12 @@
 use actix::{Actor, Handler, Running, SyncContext};
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use derive_more::Display;
-use std::sync::Arc;
 use uuid::Uuid;
 
 pub mod naive_pair_trading;
 
-pub struct StrategyActorOptions<S: StrategySink> {
-    strategy: S,
+pub struct StrategyActorOptions {
+    pub strategy: Box<StrategySink>,
 }
 
 #[derive(Debug, Display)]
@@ -17,21 +16,21 @@ pub enum Error {
 
 impl std::error::Error for Error {}
 
-pub struct StrategyActor<S: StrategySink> {
+pub struct StrategyActor {
     _session_uuid: Uuid,
-    inner: Arc<S>,
+    inner: Box<StrategySink>,
 }
 
-impl<S: StrategySink> StrategyActor<S> {
-    pub fn new(options: StrategyActorOptions<S>) -> Self {
+impl StrategyActor {
+    pub fn new(options: StrategyActorOptions) -> Self {
         Self {
             _session_uuid: Uuid::new_v4(),
-            inner: Arc::new(options.strategy),
+            inner: options.strategy,
         }
     }
 }
 
-impl<S: 'static + StrategySink + Unpin> Actor for StrategyActor<S> {
+impl Actor for StrategyActor {
     type Context = SyncContext<Self>;
 
     fn started(&mut self, _: &mut Self::Context) {
@@ -46,7 +45,7 @@ impl<S: 'static + StrategySink + Unpin> Actor for StrategyActor<S> {
     }
 }
 
-impl<S: 'static + StrategySink + Unpin> Handler<LiveEventEnveloppe> for StrategyActor<S> {
+impl Handler<LiveEventEnveloppe> for StrategyActor {
     type Result = ();
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -56,7 +55,18 @@ impl<S: 'static + StrategySink + Unpin> Handler<LiveEventEnveloppe> for Strategy
 }
 
 pub trait StrategySink {
-    fn add_event(&self, le: LiveEvent) -> std::io::Result<()>;
+    fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()>;
+}
+
+pub fn from_settings(s: &crate::settings::Strategy) -> Box<StrategySink> {
+    let s = match s {
+        crate::settings::Strategy::Naive(n) => {
+            let left = n.left.as_string();
+            let right = n.right.as_string();
+            crate::strategies::naive_pair_trading::Strategy::new(&left, &right)
+        }
+    };
+    Box::new(s)
 }
 
 #[cfg(test)]
@@ -77,13 +87,13 @@ mod test {
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
-    fn actor<S: StrategySink>(strategy: S) -> StrategyActor<S> {
+    fn actor(strategy: Box<StrategySink>) -> StrategyActor {
         StrategyActor::new(StrategyActorOptions { strategy })
     }
 
     struct DummyStrat;
     impl StrategySink for DummyStrat {
-        fn add_event(&self, _: LiveEvent) -> std::io::Result<()> {
+        fn add_event(&mut self, _: LiveEvent) -> std::io::Result<()> {
             Ok(())
         }
     }
@@ -91,7 +101,7 @@ mod test {
     #[test]
     fn test_workflow() {
         System::run(move || {
-            let addr = SyncArbiter::start(1, move || actor(DummyStrat));
+            let addr = SyncArbiter::start(1, move || actor(Box::new(DummyStrat)));
             let order_book_event = LiveEventEnveloppe(
                 Exchange::Binance,
                 LiveEvent::LiveOrderbook(Orderbook {

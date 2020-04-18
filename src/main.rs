@@ -49,6 +49,7 @@ use structopt::StructOpt;
 use crate::coinnect_rt::coinnect::Coinnect;
 use crate::handlers::file_actor::{AvroFileActor, FileActorOptions};
 use crate::settings::Settings;
+use crate::strategies::{StrategyActor, StrategyActorOptions, StrategySink};
 use coinnect_rt::bitstamp::BitstampCreds;
 use coinnect_rt::bittrex::BittrexCreds;
 #[cfg(feature = "flame_it")]
@@ -133,9 +134,18 @@ async fn main() -> io::Result<()> {
     }
 
     // Live Events recipients
-    let fa = file_actor(settings).recipient();
-    let recipients: Vec<Recipient<LiveEventEnveloppe>> = vec![fa];
-
+    let mut recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
+    let fa = file_actor(settings.clone()).recipient();
+    recipients.push(fa);
+    let arc = Arc::clone(&settings);
+    let arc1 = arc.clone();
+    let strat_actors: Vec<Recipient<LiveEventEnveloppe>> = strategy_actors(arc1)
+        .into_iter()
+        .map(|a| a.recipient())
+        .collect();
+    for actor in strat_actors {
+        recipients.push(actor);
+    }
     // Metrics
     let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new());
 
@@ -187,6 +197,26 @@ fn file_actor(settings: Arc<RwLock<Settings>>) -> Addr<AvroFileActor> {
             partitioner: handlers::live_event_partitioner,
         })
     })
+}
+
+fn strategy_actors(settings: Arc<RwLock<Settings>>) -> Vec<Addr<StrategyActor>> {
+    let arc = Arc::clone(&settings);
+    let arc1 = arc.clone();
+    let settings_v = arc1.read().unwrap();
+    arc1.clone()
+        .read()
+        .unwrap()
+        .strategies
+        .clone()
+        .into_iter()
+        .map(move |strategy| {
+            SyncArbiter::start(1, move || {
+                StrategyActor::new(StrategyActorOptions {
+                    strategy: strategies::from_settings(&strategy),
+                })
+            })
+        })
+        .collect()
 }
 
 async fn exchange_bots(
