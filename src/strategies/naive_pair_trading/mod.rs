@@ -140,7 +140,7 @@ impl Strategy {
 
         if self.state.beta_lr() >= 0.0 {
             self.state
-                .set_res(lr.right.mid - self.state.predicted_right() / lr.right.mid);
+                .set_res((lr.right.mid - self.state.predicted_right()) / lr.right.mid);
         } else {
             self.state.set_res(0.0);
         }
