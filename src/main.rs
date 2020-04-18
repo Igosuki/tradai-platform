@@ -133,7 +133,7 @@ async fn main() -> io::Result<()> {
 
     // Live Events recipients
     let fa = file_actor(settings).recipient();
-    let mut recipients: Vec<Recipient<LiveEventEnveloppe>> = vec![fa];
+    let recipients: Vec<Recipient<LiveEventEnveloppe>> = vec![fa];
 
     // Metrics
     let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new());

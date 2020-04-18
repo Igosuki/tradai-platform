@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use crate::math::iter::{CovarianceExt, MeanExt, Variance, VarianceExt};
+use crate::math::iter::{CovarianceExt, MeanExt, VarianceExt};
 use crate::strategies::StrategySink;
 use chrono::{DateTime, Utc};
 use coinnect_rt::types::LiveEvent;
@@ -29,8 +29,7 @@ impl Display for Operation {
             Operation::CLOSE => "Close",
             Operation::BUY => "Buy",
             Operation::SELL => "Sell",
-        });
-        Ok(())
+        })
     }
 }
 
@@ -57,11 +56,11 @@ struct MovingState {
 }
 
 impl MovingState {
-    fn new() -> MovingState {
+    fn new(initial_value: f64) -> MovingState {
         MovingState {
             position_short: 0,
             position_long: 0,
-            value_strat: 100.0,
+            value_strat: initial_value,
             units_to_buy_long_spread: 0.0,
             units_to_buy_short_spread: 0.0,
             beta_val: 0.0,
@@ -300,7 +299,6 @@ impl MovingState {
 }
 
 pub struct Strategy {
-    initial_value_strat: i32,
     fees_rate: f64,
     res_threshold_long: f64,
     res_threshold_short: f64,
@@ -315,9 +313,8 @@ pub struct Strategy {
 }
 
 impl Strategy {
-    fn new() -> Strategy {
-        Strategy {
-            initial_value_strat: 100,
+    fn new() -> Self {
+        Self {
             fees_rate: 0.001,
             res_threshold_long: -0.04,
             res_threshold_short: 0.04,
@@ -325,7 +322,7 @@ impl Strategy {
             evaluations_since_last: 0,
             beta_eval_window_size: 500,
             beta_eval_freq: 5000,
-            state: MovingState::new(),
+            state: MovingState::new(100.0),
             data_table: DataTable::new(500),
             right_pair: "BTC_USDT",
             left_pair: "ETH_USDT",
@@ -383,8 +380,8 @@ impl Strategy {
             if self.should_eval() {
                 self.update_model();
             }
-            self.set_long_spread(lr.right.top_ask);
-            self.set_short_spread(lr.left.top_ask);
+            self.set_long_spread(lr.right.ask);
+            self.set_short_spread(lr.left.ask);
         }
 
         self.state.set_beta_lr();
@@ -398,8 +395,8 @@ impl Strategy {
         if (self.state.res > self.res_threshold_short) && self.state.no_position_taken() {
             self.state.open_position(
                 Position::SHORT,
-                lr.right.top_bid,
-                lr.left.top_ask,
+                lr.right.bid,
+                lr.left.ask,
                 self.fees_rate,
                 lr.time,
                 self.right_pair,
@@ -408,11 +405,9 @@ impl Strategy {
         }
 
         if self.state.is_short() {
-            let short_position_return = self.state.set_short_position_return(
-                self.fees_rate,
-                lr.right.top_ask,
-                lr.left.top_bid,
-            );
+            let short_position_return =
+                self.state
+                    .set_short_position_return(self.fees_rate, lr.right.ask, lr.left.bid);
             if (self.state.res <= self.res_threshold_short && self.state.res < 0.0)
                 || short_position_return < self.stop_loss
             {
@@ -421,8 +416,8 @@ impl Strategy {
                 }
                 self.state.close_position(
                     Position::SHORT,
-                    lr.right.top_ask,
-                    lr.left.top_bid,
+                    lr.right.ask,
+                    lr.left.bid,
                     self.fees_rate,
                     lr.time,
                     self.right_pair,
@@ -437,8 +432,8 @@ impl Strategy {
         if self.state.res <= self.res_threshold_long && self.state.no_position_taken() {
             self.state.open_position(
                 Position::LONG,
-                lr.right.top_ask,
-                lr.left.top_bid,
+                lr.right.ask,
+                lr.left.bid,
                 self.fees_rate,
                 lr.time,
                 self.right_pair,
@@ -447,11 +442,9 @@ impl Strategy {
         }
 
         if self.state.is_long() {
-            let long_position_return = self.state.set_long_position_return(
-                self.fees_rate,
-                lr.right.top_bid,
-                lr.left.top_ask,
-            );
+            let long_position_return =
+                self.state
+                    .set_long_position_return(self.fees_rate, lr.right.bid, lr.left.ask);
             if (self.state.res >= self.res_threshold_long && self.state.res > 0.0)
                 || long_position_return < self.stop_loss
             {
@@ -460,8 +453,8 @@ impl Strategy {
                 }
                 self.state.close_position(
                     Position::LONG,
-                    lr.right.top_bid,
-                    lr.left.top_ask,
+                    lr.right.bid,
+                    lr.left.ask,
                     self.fees_rate,
                     lr.time,
                     self.right_pair,
@@ -482,8 +475,8 @@ impl Strategy {
         self.data_table.push(row);
         if self.data_table.rows.len() == self.beta_eval_window_size as usize {
             self.update_model();
-            self.set_long_spread(row.right.top_ask);
-            self.set_short_spread(row.left.top_ask);
+            self.set_long_spread(row.right.ask);
+            self.set_short_spread(row.left.ask);
             self.state.set_pnl();
         }
     }
@@ -499,20 +492,28 @@ impl StrategySink for Strategy {
 struct BookPosition {
     pub mid: f64,
     // mid = (top_ask + top_bid) / 2, alias: crypto1_m
-    top_ask: f64,
+    ask: f64,
     // crypto_a
-    top_ask_q: f64,
+    ask_q: f64,
     // crypto_a_q
-    top_bid: f64,
+    bid: f64,
     // crypto_b
-    top_bid_q: f64, // crypto_b_q
-                    // log_r: f64, // crypto_log_r
-                    // log_r_10: f64, // crypto_log_r
+    bid_q: f64, // crypto_b_q
 }
 
 impl BookPosition {
-    fn mid(&self) -> f64 {
-        (self.top_ask + self.top_bid) / 2.0
+    fn new(ask: f64, ask_q: f64, bid: f64, bid_q: f64) -> Self {
+        Self {
+            ask,
+            ask_q,
+            bid,
+            bid_q,
+            mid: Self::mid(ask, bid),
+        }
+    }
+
+    fn mid(ask: f64, bid: f64) -> f64 {
+        (ask + bid) / 2.0
     }
 }
 
@@ -538,6 +539,7 @@ impl DataTable {
         }
     }
 
+    #[allow(dead_code)]
     fn current_window(&self) -> &[DataRow] {
         let len = self.rows.len();
         if len <= self.window_size {
@@ -578,10 +580,6 @@ impl DataTable {
         trace!("predict {:?}", p);
         p
     }
-
-    fn last_row(&self) -> Option<&DataRow> {
-        self.rows.last()
-    }
 }
 
 #[cfg(test)]
@@ -598,9 +596,7 @@ mod test {
     };
     use crate::util::date::{DateRange, DurationRangeType};
     use ordered_float::OrderedFloat;
-    use plotters::drawing::BitMapBackend;
     use std::error::Error;
-    use std::ops::Range;
     use std::path::Path;
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -648,12 +644,6 @@ mod test {
         bq5: f64,
     }
 
-    impl CsvRecord {
-        fn time(&self) -> i64 {
-            self.hourofday.timestamp()
-        }
-    }
-
     fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
         let f = File::open(path)?;
         let mut rdr = csv::Reader::from_reader(f);
@@ -669,13 +659,7 @@ mod test {
     }
 
     fn to_pos(r: &CsvRecord) -> BookPosition {
-        BookPosition {
-            top_ask: r.a1,
-            top_ask_q: r.aq1,
-            top_bid: r.b1,
-            top_bid_q: r.bq1,
-            mid: (r.a1 + r.b1) / 2.0,
-        }
+        BookPosition::new(r.a1, r.aq1, r.b1, r.bq1)
     }
 
     fn load_records(path: &str) -> Vec<CsvRecord> {
@@ -813,7 +797,6 @@ mod test {
         assert!(x > 0.0, x);
     }
 
-    use plotters::coord::Shift;
     use std::fs::File;
     use std::time::Instant;
 
@@ -842,7 +825,7 @@ mod test {
                 iterations += 1;
                 let now = Instant::now();
 
-                if (i % 1000 == 0) {
+                if i % 1000 == 0 {
                     println!(
                         "{} iterations..., table of size {}",
                         i,

@@ -1,23 +1,8 @@
 pub mod naive_pair_trading;
 
-use std::cell::RefCell;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::rc::Rc;
-
 use actix::{Actor, Handler, Running, SyncContext};
-use avro_rs::encode::encode;
-use avro_rs::{
-    types::{ToAvro, Value},
-    Codec, Schema, Writer,
-};
-use bigdecimal::ToPrimitive;
-use chrono::Duration;
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use derive_more::Display;
-use rand::random;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -33,14 +18,14 @@ pub enum Error {
 impl std::error::Error for Error {}
 
 pub struct StrategyActor<S: StrategySink> {
-    session_uuid: Uuid,
+    _session_uuid: Uuid,
     inner: Arc<S>,
 }
 
 impl<S: StrategySink> StrategyActor<S> {
     pub fn new(options: StrategyActorOptions<S>) -> Self {
         Self {
-            session_uuid: Uuid::new_v4(),
+            _session_uuid: Uuid::new_v4(),
             inner: Arc::new(options.strategy),
         }
     }
@@ -66,7 +51,7 @@ impl<S: 'static + StrategySink + Unpin> Handler<LiveEventEnveloppe> for Strategy
 
     #[cfg_attr(feature = "flame_it", flame)]
     fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
-        self.inner.add_event(msg.1);
+        self.inner.add_event(msg.1).unwrap();
     }
 }
 
@@ -83,12 +68,11 @@ mod test {
     use bigdecimal::BigDecimal;
     use coinnect_rt::exchange::Exchange;
     use coinnect_rt::types::Orderbook;
-    use coinnect_rt::types::{Pair, Price};
-    use fs_extra::dir::get_dir_content;
-    use tempdir;
+    use coinnect_rt::types::Pair;
 
     use super::*;
 
+    #[allow(dead_code)]
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();
     }
@@ -99,7 +83,7 @@ mod test {
 
     struct DummyStrat;
     impl StrategySink for DummyStrat {
-        fn add_event(&self, le: LiveEvent) -> std::io::Result<()> {
+        fn add_event(&self, _: LiveEvent) -> std::io::Result<()> {
             Ok(())
         }
     }

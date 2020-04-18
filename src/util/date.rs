@@ -1,4 +1,4 @@
-use chrono::{Date, Duration, TimeZone, Utc};
+use chrono::{Date, Duration, Utc};
 use std::mem;
 
 #[derive(Clone)]

@@ -67,7 +67,7 @@ pub trait Variance<A = Self> {
 }
 
 impl Variance for f64 {
-    fn variance<I>(mut iter: I) -> Self
+    fn variance<I>(iter: I) -> Self
     where
         I: Iterator<Item = f64>,
     {
@@ -117,7 +117,7 @@ pub trait Covariance<B, A = Self> {
 
 impl Covariance<f64, (f64, f64)> for (f64, f64) {
     // sum((x[i] - mean(x)) * (y[i] - mean(y) )) / n ?
-    fn covariance<I>(mut iter: I) -> f64
+    fn covariance<I>(iter: I) -> f64
     where
         I: Iterator<Item = (f64, f64)>,
     {
