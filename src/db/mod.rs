@@ -16,7 +16,10 @@ impl Db {
         Self { root: path, name }
     }
 
-    pub fn with_db(&self, process: fn(RwLockReadGuard<Rkv>, SingleStore) -> ()) {
+    pub fn with_db<F, B>(&self, process: F) -> B
+    where
+        F: Fn(RwLockReadGuard<Rkv>, SingleStore) -> B,
+    {
         // First determine the path to the environment, which is represented
         // on disk as a directory containing two files:
         //
@@ -41,7 +44,7 @@ impl Db {
         // Then you can use the environment handle to get a handle to a datastore:
         let x: &str = &self.name;
         let store = env.open_single(x, StoreOptions::create()).unwrap();
-        process(env, store);
+        process(env, store)
     }
 }
 

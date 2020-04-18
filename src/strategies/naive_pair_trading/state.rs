@@ -4,7 +4,7 @@ use std::fmt::{Display, Formatter};
 
 const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub(super) struct Position {
     pub kind: PositionKind,
     pub right_price: f64,
@@ -14,7 +14,7 @@ pub(super) struct Position {
     pub left_pair: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub(super) enum PositionKind {
     SHORT,
     LONG,

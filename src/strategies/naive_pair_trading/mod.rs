@@ -14,6 +14,8 @@ use crate::math::iter::{CovarianceExt, MeanExt, VarianceExt};
 use crate::strategies::naive_pair_trading::state::{MovingState, Position, PositionKind};
 use crate::strategies::StrategySink;
 use metrics::StrategyMetrics;
+use rkv::Value;
+use uuid::Uuid;
 
 pub struct Strategy {
     fees_rate: f64,
@@ -73,9 +75,10 @@ impl Strategy {
     fn should_eval(&self) -> bool {
         let x = (self.evaluations_since_last % self.beta_eval_freq) == 0;
         if x {
-            println!(
+            trace!(
                 "eval_time : {} % {} == 0",
-                self.evaluations_since_last, self.beta_eval_freq
+                self.evaluations_since_last,
+                self.beta_eval_freq
             );
         }
         x
@@ -146,6 +149,7 @@ impl Strategy {
         }
         if (self.state.res() > self.res_threshold_short) && self.state.no_position_taken() {
             let position = self.short_position(lr.right.bid, lr.left.ask, lr.time);
+            self.log_position(&position);
             self.state.open(position, self.fees_rate);
         }
 
@@ -160,6 +164,7 @@ impl Strategy {
                     self.log_stop_loss(PositionKind::SHORT);
                 }
                 let position = self.short_position(lr.right.ask, lr.left.bid, lr.time);
+                self.log_position(&position);
                 self.state.close(position, self.fees_rate);
                 self.state.set_pnl();
                 self.update_model();
@@ -182,6 +187,7 @@ impl Strategy {
                     self.log_stop_loss(PositionKind::LONG);
                 }
                 let position = self.long_position(lr.right.bid, lr.left.ask, lr.time);
+                self.log_position(&position);
                 self.state.close(position, self.fees_rate);
                 self.state.set_pnl();
                 self.update_model();
@@ -205,6 +211,63 @@ impl Strategy {
     }
 
     fn log_state(&self) {}
+
+    fn log_position(&self, pos: &Position) {
+        self.db.with_db(|env, store| {
+            let result = serde_json::to_string(pos).unwrap();
+            let mut writer = env.write().unwrap();
+
+            let key = format!("order:{}", Uuid::new_v4());
+            store.put(&mut writer, &key, &Value::Json(&result)).unwrap();
+            writer.commit().unwrap();
+        });
+    }
+
+    fn get_positions(&self) -> Vec<Position> {
+        self.db.with_db(|env, store| {
+            let reader = env.read().expect("reader");
+            let iter = store.iter_from(&reader, "order").unwrap();
+            let x: Vec<Position> = iter
+                .flat_map(|r| {
+                    r.map_err(|e| DataStoreError::StoreError(e))
+                        .and_then(|v| match v.1 {
+                            Some(rkv::value::Value::Json(json_str)) => {
+                                serde_json::from_str::<Position>(json_str)
+                                    .map_err(|e| DataStoreError::JsonError(e))
+                            }
+                            _ => Err(DataStoreError::ExpectedJson),
+                        })
+                })
+                .collect();
+            x
+        })
+    }
+
+    fn get_position(&self, uuid: &str) -> Option<Position> {
+        self.db.with_db(|env, store| {
+            let reader = env.read().expect("reader");
+            store
+                .get(&reader, format!("order:{}", uuid))
+                .unwrap()
+                .and_then(|v| match v {
+                    rkv::value::Value::Json(json_str) => {
+                        serde_json::from_str::<Position>(json_str).ok()
+                    }
+                    _ => None,
+                })
+        })
+    }
+}
+
+use thiserror::Error;
+#[derive(Error, Debug)]
+pub enum DataStoreError {
+    #[error("rkv error")]
+    StoreError(rkv::error::StoreError),
+    #[error("expected a json value")]
+    ExpectedJson,
+    #[error("json error")]
+    JsonError(#[from] serde_json::error::Error),
 }
 
 impl StrategySink for Strategy {
@@ -574,6 +637,11 @@ mod test {
             })
             .collect();
         println!("Each iteration took {} on avg", elapsed / iterations);
+        println!("{:?}", strat.get_positions());
+        println!(
+            "{:?}",
+            strat.get_position("887a0873-4576-474e-bfb9-c6439c033f43")
+        );
         // let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
         // serde_json::to_writer(logs_f, &logs);
         let drew = draw_line_plot(logs);
