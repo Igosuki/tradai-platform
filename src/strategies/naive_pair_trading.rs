@@ -98,7 +98,7 @@ impl MovingState {
 
     fn log_info(&self, pos: &Position) {
         debug!(
-            "Additional info : units {:.2} beta val {:.2} value strat {:.2}",
+            "Additional info : units {:.2} beta val {:.2} value strat {}",
             match pos {
                 Position::SHORT => self.units_to_buy_short_spread,
                 Position::LONG => self.units_to_buy_long_spread,
@@ -475,6 +475,7 @@ impl Strategy {
     }
 
     fn process_row(&mut self, row: &DataRow) {
+        self.inc_evaluations_since_last();
         if self.data_table.rows.len() > self.beta_eval_window_size as usize {
             self.eval_latest(row);
         }
@@ -485,7 +486,6 @@ impl Strategy {
             self.set_short_spread(row.left.top_ask);
             self.state.set_pnl();
         }
-        self.inc_evaluations_since_last();
     }
 }
 
