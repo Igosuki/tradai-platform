@@ -6,7 +6,7 @@ exchanges:
       symbols: ['BTC_USDT', 'ETH_USDT']
 
 strategies:
-  - type: naive
+  - type: Naive
     left: 'ETH_USDT'
     right: 'BTC_USDT'
     exchange: Binance

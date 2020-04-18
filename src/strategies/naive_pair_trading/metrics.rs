@@ -14,48 +14,52 @@ impl StrategyMetrics {
     pub fn for_strat(registry: &Registry, left_pair: &str, right_pair: &str) -> StrategyMetrics {
         let mut gauges: HashMap<String, GaugeVec> = HashMap::new();
 
-        let pos_labels = &["pos", "op"];
-        let pos_gauge_names = vec!["position"];
-        for gauge_name in pos_gauge_names {
-            let gauge_vec_opts = Opts::new(gauge_name, &format!("gauge for {}", gauge_name))
-                .const_label("left_pair", left_pair)
-                .const_label("right_pair", right_pair);
-            let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
-            gauges.insert(gauge_name.to_string(), gauge_vec.clone());
-            registry.register(Box::new(gauge_vec.clone())).unwrap();
+        {
+            let pos_labels = &["pos", "op"];
+            let pos_gauge_names = vec!["position"];
+            for gauge_name in pos_gauge_names {
+                let gauge_vec_opts = Opts::new(gauge_name, &format!("gauge for {}", gauge_name))
+                    .const_label("left_pair", left_pair)
+                    .const_label("right_pair", right_pair);
+                let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
+                gauges.insert(gauge_name.to_string(), gauge_vec.clone());
+                registry.register(Box::new(gauge_vec.clone())).unwrap();
+            }
         }
-
-        let pos_labels = &[];
-        let pos_gauge_names = vec!["left_mid", "right_mid"];
-        for gauge_name in pos_gauge_names {
-            let gauge_vec_opts = Opts::new(gauge_name, &format!("gauge for {}", gauge_name))
-                .const_label("left_pair", left_pair)
-                .const_label("right_pair", right_pair);
-            let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
-            gauges.insert(gauge_name.to_string(), gauge_vec.clone());
-            registry.register(Box::new(gauge_vec.clone())).unwrap();
+        {
+            let pos_labels = &[];
+            let right_mid_names = vec!["left_mid", "right_mid"];
+            for gauge_name in right_mid_names {
+                let gauge_vec_opts = Opts::new(gauge_name, &format!("gauge for {}", gauge_name))
+                    .const_label("left_pair", left_pair)
+                    .const_label("right_pair", right_pair);
+                let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
+                gauges.insert(gauge_name.to_string(), gauge_vec.clone());
+                registry.register(Box::new(gauge_vec.clone())).unwrap();
+            }
         }
-
         let state_gauges: Vec<(String, fn(&MovingState) -> f64)> = vec![
             ("return".to_string(), |x| {
                 x.short_position_return() + x.long_position_return()
             }),
+            ("predicted_right".to_string(), |x| x.predicted_right()),
             ("relative_spread".to_string(), |x| x.res()),
             ("pnl".to_string(), |x| x.pnl()),
             ("nominal_position".to_string(), |x| x.nominal_position()),
             ("beta".to_string(), |x| x.beta_lr()),
         ];
-        let pos_labels = &[];
-        for (gauge_name, _) in state_gauges.clone() {
-            let string = format!("state gauge for {}", gauge_name.clone());
-            let gauge_vec_opts = Opts::new(&gauge_name, &string)
-                .const_label("left_pair", left_pair)
-                .const_label("right_pair", right_pair);
-            let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
-            gauges.insert(gauge_name.clone(), gauge_vec.clone());
-            registry.register(Box::new(gauge_vec.clone())).unwrap();
+        {
+            let pos_labels = &[];
+            for (gauge_name, _) in state_gauges.clone() {
+                let string = format!("state gauge for {}", gauge_name.clone());
+                let gauge_vec_opts = Opts::new(&gauge_name, &string)
+                    .const_label("left_pair", left_pair)
+                    .const_label("right_pair", right_pair);
+                let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
+                gauges.insert(gauge_name.clone(), gauge_vec.clone());
+                registry.register(Box::new(gauge_vec.clone())).unwrap();
+            }
         }
-
         StrategyMetrics {
             gauges,
             state_gauges: state_gauges.clone(),

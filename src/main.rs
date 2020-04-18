@@ -40,16 +40,15 @@ use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::exchange_bot::ExchangeBot;
 use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::LiveEventEnveloppe;
+use futures::{pin_mut, select, FutureExt};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use structopt::StructOpt;
-// use actix_rt::signal::unix::Signal;
-// use futures::{FutureExt, pin_mut, select};
-// use tokio::signal::unix::{signal, SignalKind};
 
 use crate::coinnect_rt::coinnect::Coinnect;
 use crate::handlers::file_actor::{AvroFileActor, FileActorOptions};
 use crate::settings::Settings;
 use crate::strategies::{StrategyActor, StrategyActorOptions, StrategySink};
+use actix_rt::signal::unix::{signal, Signal, SignalKind};
 use coinnect_rt::bitstamp::BitstampCreds;
 use coinnect_rt::bittrex::BittrexCreds;
 #[cfg(feature = "flame_it")]
@@ -152,23 +151,24 @@ async fn main() -> io::Result<()> {
     let keys_path = PathBuf::from(settings_v.keys.clone());
 
     let exchanges = settings_v.exchanges.clone();
-    let bots = exchange_bots(exchanges.clone(), keys_path.clone(), recipients);
 
-    let server = server::httpserver(exchanges.clone(), keys_path.clone());
+    let bots = exchange_bots(exchanges.clone(), keys_path.clone(), recipients).await;
+
+    // let server = server::httpserver(exchanges.clone(), keys_path.clone());
 
     // Handle interrupts for graceful shutdown
-    // let mut stream: Signal = signal(SignalKind::terminate())?;
-    // let mut stream: Signal = signal(SignalKind::interrupt())?;
-    // let mut stream2: Signal = signal(SignalKind::user_defined1())?;
-    // let mut t1 = stream.recv().fuse();
-    // let mut t2 = stream2.recv().fuse();
-    // pin_mut!(t1, t2);
-    //
-    // select! {
-    //     _ = t1 => info!("Interrupt"),
-    //     _ = t2 => info!("SigUSR1"),
-    // }
-    let server = server.await;
+    let mut stream: Signal = signal(SignalKind::terminate())?;
+    let mut stream: Signal = signal(SignalKind::interrupt())?;
+    let mut stream2: Signal = signal(SignalKind::user_defined1())?;
+    let mut t1 = stream.recv().fuse();
+    let mut t2 = stream2.recv().fuse();
+    pin_mut!(t1, t2);
+
+    select! {
+        _ = t1 => info!("Interrupt"),
+        _ = t2 => info!("SigUSR1"),
+    }
+    // let server = server.await;
     drop(bots);
     System::current().stop();
     info!("Caught interrupt and stopped the system");
@@ -180,12 +180,13 @@ async fn main() -> io::Result<()> {
         #[cfg(feature = "flame_it")]
         flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
     }
+    Ok(())
 
-    server
+    // server
 }
 
 fn file_actor(settings: Arc<RwLock<Settings>>) -> Addr<AvroFileActor> {
-    SyncArbiter::start(1, move || {
+    SyncArbiter::start(2, move || {
         let settings_v = &settings.read().unwrap();
         let data_dir = settings_v.data_dir.clone();
         let dir = Path::new(data_dir.as_str()).clone();
@@ -200,12 +201,11 @@ fn file_actor(settings: Arc<RwLock<Settings>>) -> Addr<AvroFileActor> {
 }
 
 fn strategy_actors(settings: Arc<RwLock<Settings>>) -> Vec<Addr<StrategyActor>> {
+    println!("creating strat actors");
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
     let settings_v = arc1.read().unwrap();
-    arc1.clone()
-        .read()
-        .unwrap()
+    settings_v
         .strategies
         .clone()
         .into_iter()

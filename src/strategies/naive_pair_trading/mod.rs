@@ -40,6 +40,8 @@ pub struct Strategy {
 impl Strategy {
     pub fn new(left_pair: &str, right_pair: &str) -> Self {
         let db_name = format!("{}_{}", left_pair, right_pair);
+        let metrics =
+            StrategyMetrics::for_strat(prometheus::default_registry(), left_pair, right_pair);
         Self {
             fees_rate: 0.001,
             res_threshold_long: -0.04,
@@ -53,11 +55,7 @@ impl Strategy {
             right_pair: right_pair.to_string(),
             left_pair: left_pair.to_string(),
             last_log_time: Utc::now(),
-            metrics: Arc::new(StrategyMetrics::for_strat(
-                prometheus::default_registry(),
-                left_pair,
-                right_pair,
-            )),
+            metrics: Arc::new(metrics),
             db: Db::new("data/naive_pair_trading", db_name),
             last_left: None,
             last_right: None,

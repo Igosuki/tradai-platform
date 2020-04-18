@@ -798,7 +798,6 @@ dependencies = [
 [[package]]
 name = "coinnect_rt"
 version = "0.5.12"
-source = "git+ssh://git@github.com/Igosuki/coinnect_rt.git#c16ba227652eb89313667d66b5409c3e92fe640a"
 dependencies = [
  "actix",
  "actix-codec",
