@@ -169,7 +169,6 @@ impl Actor for AvroFileActor {
 impl Handler<LiveEventEnveloppe> for AvroFileActor {
     type Result = ();
 
-    #[cfg_attr(feature = "flame_it", flame)]
     fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
         let rc = self.writer_for(&msg);
         if rc.is_err() {
@@ -264,12 +263,13 @@ mod test {
     use bigdecimal::BigDecimal;
     use coinnect_rt::exchange::Exchange;
     use coinnect_rt::types::Orderbook;
-    use coinnect_rt::types::{Pair, Price};
+    use coinnect_rt::types::Pair;
     use fs_extra::dir::get_dir_content;
     use tempdir;
 
     use super::*;
 
+    #[allow(dead_code)]
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();
     }

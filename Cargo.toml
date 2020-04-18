@@ -29,6 +29,10 @@ avro-rs = { git = "https://github.com/Igosuki/avro-rs.git" }
 # Data structures
 bidir-map = "1.0.0"
 
+# Error
+thiserror = "1.0.14"
+anyhow = "1.0.28"
+
 # Std Utils
 chrono = { version = "0.4.10", features = ["serde"] }
 url = "2.1.0"
@@ -40,6 +44,8 @@ config = { version = "0.9", features = ["yaml"] }
 rand = "0.7.3"
 itertools = "0.9"
 ordered-float = "1.0"
+tempdir = "0.3.7"
+fs_extra = "1.1.0"
 
 # SSL
 sha2 = "0.6.0"
@@ -71,11 +77,9 @@ coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
 
 # Flame
 flame = { version = "0.2.2", optional = true }
-flamer = { version = "0.3", optional = true }
+flamer = { version = "0.4", optional = true }
 libc = "0.2"
 
-tempdir = "0.3.7"
-fs_extra = "1.1.0"
 # Monitoring
 prometheus = { version = "0.8", features = ["nightly", "push", "process", "gen"] }
 prometheus-static-metric = "0.1"

@@ -57,6 +57,19 @@ fn default_as_false() -> bool {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct NaiveStrategy {
+    pub left: Pair,
+    pub right: Pair,
+    pub exchange: Exchange,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+pub enum Strategy {
+    Naive(NaiveStrategy),
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Settings {
     pub file_rotation: FileRotation,
     pub data_dir: String,
@@ -67,6 +80,8 @@ pub struct Settings {
     pub profile_main: bool,
     #[serde(default)]
     pub api: ApiSettings,
+    #[serde(default)]
+    pub strategies: Vec<Strategy>,
 }
 
 impl Settings {
@@ -113,4 +128,10 @@ impl Settings {
             info!("Valid pairs : {:?}", valid_pairs);
         }
     }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_deserialize() {}
 }

@@ -1,5 +1,4 @@
 #![feature(try_trait)]
-#![feature(let_chains)]
 // This example shows how to use the generic API provided by Coinnect.
 // This method is useful if you have to iterate throught multiple accounts of
 // different exchanges and perform the same operation (such as get the current account's balance)
@@ -34,10 +33,10 @@ use std::sync::mpsc::channel;
 use std::sync::{Arc, RwLock};
 use std::{fs, io};
 
-use actix::{Actor, Recipient, SyncArbiter};
+use actix::{Actor, Addr, Recipient, SyncArbiter};
 use actix_rt::System;
 use coinnect_rt::binance::BinanceCreds;
-use coinnect_rt::exchange::Exchange;
+use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::exchange_bot::ExchangeBot;
 use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::LiveEventEnveloppe;
@@ -49,6 +48,7 @@ use structopt::StructOpt;
 
 use crate::coinnect_rt::coinnect::Coinnect;
 use crate::handlers::file_actor::{AvroFileActor, FileActorOptions};
+use crate::settings::Settings;
 use coinnect_rt::bitstamp::BitstampCreds;
 use coinnect_rt::bittrex::BittrexCreds;
 #[cfg(feature = "flame_it")]
@@ -132,60 +132,19 @@ async fn main() -> io::Result<()> {
     }
 
     // Live Events recipients
-    let mut recipients: Vec<Recipient<LiveEventEnveloppe>> = vec![];
-    let fa = SyncArbiter::start(1, move || {
-        let settings_v = &arc.read().unwrap();
-        let data_dir = settings_v.data_dir.clone();
-        let dir = Path::new(data_dir.as_str()).clone();
-        fs::create_dir_all(&dir).unwrap();
-        AvroFileActor::new(&FileActorOptions {
-            base_dir: dir.to_str().unwrap().to_string(),
-            max_file_size: settings_v.file_rotation.max_file_size,
-            max_file_time: settings_v.file_rotation.max_file_time,
-            partitioner: handlers::live_event_partitioner,
-        })
-    });
-    let fa2 = fa.clone();
-    recipients.push(fa.recipient());
+    let fa = file_actor(settings).recipient();
+    let mut recipients: Vec<Recipient<LiveEventEnveloppe>> = vec![fa];
 
     // Metrics
     let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new());
 
-    //
-    let path = PathBuf::from(settings_v.keys.clone());
-    let mut bots: HashMap<Exchange, Box<dyn ExchangeBot>> = HashMap::new();
-    let exchanges = settings_v.exchanges.clone();
-    // TODO : solve the annoying problem of credentials being a specific struct when new_stream and new are generic
-    for (xch, conf) in exchanges.clone() {
-        let bot = match xch {
-            Exchange::Bittrex => {
-                let creds =
-                    Box::new(BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap());
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone())
-                    .await
-                    .unwrap()
-            }
-            Exchange::Bitstamp => {
-                let creds = Box::new(
-                    BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap(),
-                );
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone())
-                    .await
-                    .unwrap()
-            }
-            Exchange::Binance => {
-                let creds =
-                    Box::new(BinanceCreds::new_from_file("account_binance", path.clone()).unwrap());
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone())
-                    .await
-                    .unwrap()
-            }
-            _ => unimplemented!(),
-        };
-        bots.insert(xch, bot);
-    }
+    let keys_path = PathBuf::from(settings_v.keys.clone());
 
-    let server = server::httpserver(exchanges.clone(), path.clone());
+    let exchanges = settings_v.exchanges.clone();
+    let bots = exchange_bots(exchanges.clone(), keys_path.clone(), recipients);
+
+    let server = server::httpserver(exchanges.clone(), keys_path.clone());
+
     // Handle interrupts for graceful shutdown
     // let mut stream: Signal = signal(SignalKind::terminate())?;
     // let mut stream: Signal = signal(SignalKind::interrupt())?;
@@ -200,8 +159,6 @@ async fn main() -> io::Result<()> {
     // }
     let server = server.await;
     drop(bots);
-    drop(recipients);
-    drop(fa2);
     System::current().stop();
     info!("Caught interrupt and stopped the system");
 
@@ -214,4 +171,59 @@ async fn main() -> io::Result<()> {
     }
 
     server
+}
+
+fn file_actor(settings: Arc<RwLock<Settings>>) -> Addr<AvroFileActor> {
+    SyncArbiter::start(1, move || {
+        let settings_v = &settings.read().unwrap();
+        let data_dir = settings_v.data_dir.clone();
+        let dir = Path::new(data_dir.as_str()).clone();
+        fs::create_dir_all(&dir).unwrap();
+        AvroFileActor::new(&FileActorOptions {
+            base_dir: dir.to_str().unwrap().to_string(),
+            max_file_size: settings_v.file_rotation.max_file_size,
+            max_file_time: settings_v.file_rotation.max_file_time,
+            partitioner: handlers::live_event_partitioner,
+        })
+    })
+}
+
+async fn exchange_bots(
+    exchanges_settings: HashMap<Exchange, ExchangeSettings>,
+    keys_path: PathBuf,
+    recipients: Vec<Recipient<LiveEventEnveloppe>>,
+) -> HashMap<Exchange, Box<dyn ExchangeBot>> {
+    let mut bots: HashMap<Exchange, Box<dyn ExchangeBot>> = HashMap::new();
+    // TODO : solve the annoying problem of credentials being a specific struct when new_stream and new are generic
+    for (xch, conf) in exchanges_settings {
+        let bot = match xch {
+            Exchange::Bittrex => {
+                let creds = Box::new(
+                    BittrexCreds::new_from_file("account_bittrex", keys_path.clone()).unwrap(),
+                );
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone())
+                    .await
+                    .unwrap()
+            }
+            Exchange::Bitstamp => {
+                let creds = Box::new(
+                    BitstampCreds::new_from_file("account_bitstamp", keys_path.clone()).unwrap(),
+                );
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone())
+                    .await
+                    .unwrap()
+            }
+            Exchange::Binance => {
+                let creds = Box::new(
+                    BinanceCreds::new_from_file("account_binance", keys_path.clone()).unwrap(),
+                );
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone())
+                    .await
+                    .unwrap()
+            }
+            _ => unimplemented!(),
+        };
+        bots.insert(xch, bot);
+    }
+    bots
 }

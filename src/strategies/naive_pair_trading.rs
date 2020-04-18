@@ -1,9 +1,9 @@
-use average::Mean;
 use itertools::Itertools;
-use stats::stddev;
 
 use crate::math::iter::{CovarianceExt, MeanExt, Variance, VarianceExt};
+use crate::strategies::StrategySink;
 use chrono::{DateTime, Utc};
+use coinnect_rt::types::LiveEvent;
 use serde::export::Formatter;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -489,6 +489,12 @@ impl Strategy {
     }
 }
 
+impl StrategySink for Strategy {
+    fn add_event(&self, _: LiveEvent) -> std::io::Result<()> {
+        unimplemented!()
+    }
+}
+
 #[derive(Debug, Clone)]
 struct BookPosition {
     pub mid: f64,
@@ -580,17 +586,11 @@ impl DataTable {
 
 #[cfg(test)]
 mod test {
-    use chrono::serde::ts_seconds;
-    use chrono::{Date, DateTime, Duration, TimeZone, Utc};
+    use chrono::{DateTime, TimeZone, Utc};
     use itertools::Itertools;
     use plotters::prelude::*;
     use serde::{Deserialize, Serialize};
-    use stats::stddev;
-    use std::borrow::BorrowMut;
-    use std::cell::RefCell;
-    use std::fs::File;
     use std::io::Result;
-    use std::rc::Rc;
 
     use crate::serdes::date_time_format;
     use crate::strategies::naive_pair_trading::{
@@ -814,6 +814,7 @@ mod test {
     }
 
     use plotters::coord::Shift;
+    use std::fs::File;
     use std::time::Instant;
 
     #[test]
