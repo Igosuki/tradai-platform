@@ -387,23 +387,23 @@ impl Strategy {
             self.state.value_strat / (traded_price * self.state.beta_val * (1.0 + self.fees_rate));
     }
 
-    fn short_position(&self, lr: &DataRow) -> Position {
+    fn short_position(&self, right_price: f64, left_price: f64, time: DateTime<Utc>) -> Position {
         Position {
             kind: PositionKind::SHORT,
-            right_price: lr.right.bid,
-            left_price: lr.left.ask,
-            time: lr.time,
+            right_price,
+            left_price,
+            time,
             right_pair: self.right_pair.to_string(),
             left_pair: self.left_pair.to_string(),
         }
     }
 
-    fn long_position(&self, lr: &DataRow) -> Position {
+    fn long_position(&self, right_price: f64, left_price: f64, time: DateTime<Utc>) -> Position {
         Position {
             kind: PositionKind::LONG,
-            right_price: lr.right.ask,
-            left_price: lr.left.bid,
-            time: lr.time,
+            right_price,
+            left_price,
+            time,
             right_pair: self.right_pair.to_string(),
             left_pair: self.left_pair.to_string(),
         }
@@ -427,8 +427,8 @@ impl Strategy {
             self.state.res = 0.0;
         }
         if (self.state.res > self.res_threshold_short) && self.state.no_position_taken() {
-            self.short_position(lr);
-            self.state.open(self.short_position(lr), self.fees_rate);
+            let position = self.short_position(lr.right.bid, lr.left.ask, lr.time);
+            self.state.open(position, self.fees_rate);
         }
 
         if self.state.is_short() {
@@ -441,7 +441,8 @@ impl Strategy {
                 if short_position_return < self.stop_loss {
                     self.log_stop_loss(PositionKind::SHORT);
                 }
-                self.state.close(self.short_position(lr), self.fees_rate);
+                let position = self.short_position(lr.right.ask, lr.left.bid, lr.time);
+                self.state.close(position, self.fees_rate);
                 self.state.set_pnl();
                 self.state.beta_val = self.data_table.beta();
                 self.state.alpha_val = self.data_table.alpha(self.state.beta_val);
@@ -449,7 +450,8 @@ impl Strategy {
         }
 
         if self.state.res <= self.res_threshold_long && self.state.no_position_taken() {
-            self.state.open(self.long_position(lr), self.fees_rate);
+            let position = self.long_position(lr.right.ask, lr.left.bid, lr.time);
+            self.state.open(position, self.fees_rate);
         }
 
         if self.state.is_long() {
@@ -462,7 +464,8 @@ impl Strategy {
                 if long_position_return < self.stop_loss {
                     self.log_stop_loss(PositionKind::LONG);
                 }
-                self.state.close(self.long_position(lr), self.fees_rate);
+                let position = self.long_position(lr.right.bid, lr.left.ask, lr.time);
+                self.state.close(position, self.fees_rate);
                 self.state.pnl = self.state.value_strat;
                 self.state.beta_val = self.data_table.beta();
                 self.state.alpha_val = self.data_table.alpha(self.state.beta_val);
