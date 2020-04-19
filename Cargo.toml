@@ -74,8 +74,8 @@ actix = "0.9.0"
 actix-codec = "0.2.0"
 
 # Crypto
-#coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
-coinnect_rt = { path = "./coinnect" }
+coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
+#coinnect_rt = { path = "./coinnect" }
 
 # Flame
 flame = { version = "0.2.2", optional = true }
@@ -106,9 +106,9 @@ flame_it = ["flame", "flamer"]
 [dev-dependencies]
 plotlib = "0.5.1"
 plotters = { version = "0.2.12", features = ["svg", "image_encoder"] }
-# Running these requires the following : gtk+3 harfbuzz gdk-pixbuf atk pango cairo
-# cairo-rs = { version = "0.8.1" }
-# gtk = { version = "0.8.1" }
+rusoto_core = "0.43.0"
+rusoto_s3 = "0.43.0"
+rusoto_credential = "0.43.0"
 
 [build-dependencies]
 

@@ -1,8 +1,7 @@
-use rkv::{Manager, Rkv, SingleStore, StoreOptions, Value};
+use rkv::{Manager, Rkv, SingleStore, StoreOptions};
 use std::fs;
 use std::path::Path;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
-use tempfile::Builder;
+use std::sync::RwLockReadGuard;
 
 pub struct Db {
     name: String,
@@ -51,11 +50,8 @@ impl Db {
 #[cfg(test)]
 mod test {
     use crate::db::Db;
-    use rkv::{Manager, Rkv, SingleStore, StoreOptions, Value};
-    use std::fs;
-    use std::path::Path;
-    use std::sync::{Arc, RwLock, RwLockReadGuard};
-    use tempfile::Builder;
+    use rkv::{Rkv, SingleStore, Value};
+    use std::sync::RwLockReadGuard;
 
     fn make_db(env: RwLockReadGuard<Rkv>, store: SingleStore) {
         {

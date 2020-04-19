@@ -8,7 +8,7 @@ use uuid::Uuid;
 pub mod naive_pair_trading;
 
 pub struct StrategyActorOptions {
-    pub strategy: Box<StrategySink>,
+    pub strategy: Box<dyn StrategySink>,
 }
 
 #[derive(Debug, Display)]
@@ -20,7 +20,7 @@ impl std::error::Error for Error {}
 
 pub struct StrategyActor {
     _session_uuid: Uuid,
-    inner: Box<StrategySink>,
+    inner: Box<dyn StrategySink>,
 }
 
 impl StrategyActor {
@@ -60,7 +60,7 @@ pub trait StrategySink {
     fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()>;
 }
 
-pub fn from_settings(s: &crate::settings::Strategy) -> Box<StrategySink> {
+pub fn from_settings(s: &crate::settings::Strategy) -> Box<dyn StrategySink> {
     let s = match s {
         crate::settings::Strategy::Naive(n) => {
             let left = n.left.as_string();
@@ -94,7 +94,7 @@ mod test {
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
-    fn actor(strategy: Box<StrategySink>) -> StrategyActor {
+    fn actor(strategy: Box<dyn StrategySink>) -> StrategyActor {
         StrategyActor::new(StrategyActorOptions { strategy })
     }
 

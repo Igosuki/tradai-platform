@@ -47,7 +47,7 @@ use structopt::StructOpt;
 use crate::coinnect_rt::coinnect::Coinnect;
 use crate::handlers::file_actor::{AvroFileActor, FileActorOptions};
 use crate::settings::Settings;
-use crate::strategies::{StrategyActor, StrategyActorOptions, StrategySink};
+use crate::strategies::{StrategyActor, StrategyActorOptions};
 use actix_rt::signal::unix::{signal, Signal, SignalKind};
 use coinnect_rt::bitstamp::BitstampCreds;
 use coinnect_rt::bittrex::BittrexCreds;
@@ -157,11 +157,11 @@ async fn main() -> io::Result<()> {
     // let server = server::httpserver(exchanges.clone(), keys_path.clone());
 
     // Handle interrupts for graceful shutdown
-    let mut stream: Signal = signal(SignalKind::terminate())?;
+    let _stream: Signal = signal(SignalKind::terminate())?;
     let mut stream: Signal = signal(SignalKind::interrupt())?;
     let mut stream2: Signal = signal(SignalKind::user_defined1())?;
-    let mut t1 = stream.recv().fuse();
-    let mut t2 = stream2.recv().fuse();
+    let t1 = stream.recv().fuse();
+    let t2 = stream2.recv().fuse();
     pin_mut!(t1, t2);
 
     select! {

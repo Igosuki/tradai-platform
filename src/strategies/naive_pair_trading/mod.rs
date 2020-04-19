@@ -1,9 +1,6 @@
 use chrono::{DateTime, Duration, Utc};
 use coinnect_rt::types::{BigDecimalConv, LiveEvent, Orderbook};
 use itertools::Itertools;
-use serde::export::Formatter;
-use serde::{Deserialize, Serialize};
-use std::fmt::Display;
 use std::sync::Arc;
 
 pub mod metrics;
@@ -25,6 +22,7 @@ pub struct Strategy {
     evaluations_since_last: i32,
     beta_eval_window_size: i32,
     beta_eval_freq: i32,
+    #[allow(dead_code)]
     beta_sample_freq: Duration,
     state: MovingState,
     data_table: DataTable,
@@ -184,6 +182,7 @@ impl Strategy {
 
         if self.state.res() <= self.res_threshold_long && self.state.no_position_taken() {
             let position = self.long_position(lr.right.ask, lr.left.bid, lr.time);
+            self.log_position(&position);
             self.state.open(position, self.fees_rate);
         }
 
@@ -257,6 +256,7 @@ impl Strategy {
         })
     }
 
+    #[allow(dead_code)]
     fn get_position(&self, uuid: &str) -> Option<Position> {
         self.db.with_db(|env, store| {
             let reader = env.read().expect("reader");
@@ -451,8 +451,12 @@ mod test {
     use ordered_float::OrderedFloat;
     use std::error::Error;
     use std::fs::File;
+    use std::ops::Deref;
     use std::path::Path;
+    use std::process::Command;
+    use std::sync::Arc;
     use std::time::Instant;
+    use tokio::runtime::Runtime;
 
     const LEFT_PAIR: &'static str = "ETH_USDT";
     const RIGHT_PAIR: &'static str = "BTC_USDT";
@@ -528,7 +532,7 @@ mod test {
     fn load_csv_dataset(dr: &DateRange) -> (Vec<CsvRecord>, Vec<CsvRecord>) {
         let bp = std::env::var_os("BITCOINS_REPO")
             .and_then(|oss| oss.into_string().ok())
-            .unwrap_or("../data".to_string());
+            .unwrap_or("..".to_string());
         let exchange_name = "Binance";
         let channel = "order_books";
 
@@ -536,6 +540,35 @@ mod test {
             .join("data")
             .join(exchange_name)
             .join(channel);
+        let bpc = Arc::new(bp.clone());
+        let mut rt = Runtime::new().unwrap();
+        let mut dl_test_data = |pair: &'static str| {
+            rt.block_on(async {
+                let out_file_name = format!("{}.zip", pair);
+                let file = tempfile::tempdir().unwrap();
+                let out_file = file.into_path().join(out_file_name);
+                let s3_key = &format!("test_data/{}/{}/{}.zip", exchange_name, channel, pair);
+                crate::util::s3::test::download_file(&s3_key.clone(), out_file.clone())
+                    .await
+                    .unwrap();
+                let bp = bpc.deref();
+
+                Command::new("unzip")
+                    .arg(&out_file)
+                    .arg("-d")
+                    .arg(bp)
+                    .output()
+                    .expect("failed to unzip file");
+            });
+        };
+        for s in vec![LEFT_PAIR, RIGHT_PAIR] {
+            if !base_path.exists() || !base_path.join(&format!("pr={}", s)).exists() {
+                //download dataset from spaces
+                std::fs::create_dir_all(&base_path);
+                dl_test_data(s);
+            }
+        }
+
         let get_records = move |p: String| {
             dr.clone()
                 .flat_map(|dt| {
@@ -638,6 +671,7 @@ mod test {
         let mut dt = DataTable {
             rows: Vec::new(),
             window_size: 500,
+            max_size: 2000,
         };
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 03, 25);
@@ -708,11 +742,14 @@ mod test {
             })
             .collect();
         println!("Each iteration took {} on avg", elapsed / iterations);
-        println!("{:?}", strat.get_positions());
-        println!(
-            "{:?}",
-            strat.get_position("887a0873-4576-474e-bfb9-c6439c033f43")
+
+        let mut positions = strat.get_positions();
+        positions.sort_by(|p1, p2| p1.time.cmp(&p2.time));
+        assert_eq!(
+            Some(161.270004272461),
+            positions.last().map(|p| p.left_price)
         );
+
         // let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
         // serde_json::to_writer(logs_f, &logs);
         let drew = draw_line_plot(logs);
