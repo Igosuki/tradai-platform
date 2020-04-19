@@ -8,6 +8,12 @@ BIN_PATH ?= $(TARGET_PATH)/$(BIN_NAME)
 ## Testing
 FUNZZY_BIN ?= `which funzzy`
 
+PWD ?= `pwd`
+
+HOME ?= `echo $HOME`
+
+RELEASE_CMD := docker run --rm -it --user rust $(MUSL_FLAGS) -v ~/.ssh/ssh-auth.sock:/run/host-services/ssh-auth.sock -e SSH_AUTH_SOCK="/run/host-services/ssh-auth.sock" -v "$(HOME)/.cargo/git":/home/rust/.cargo/git -v "$(PWD)/cargo-registry":/home/rust/.cargo/registry -v "$(PWD)/cargo-target":/home/rust/src/target -v "$(PWD)":/home/rust/src rust-musl-nightly-ssh:latest
+
 .PHONY: build
 build:
 	@$(CARGO_BIN) build
@@ -31,3 +37,7 @@ bench:
 .PHONY: profile
 profile:
 	@$(CARGO_BIN) flamegraph --dev --bin=trader --features flame_it
+
+release:
+	$(RELEASE_CMD) cargo build --release
+	./bin/release.sh
