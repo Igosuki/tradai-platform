@@ -1,6 +1,8 @@
 use actix::{Actor, Handler, Running, SyncContext};
+use chrono::Duration;
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use derive_more::Display;
+use parse_duration::parse;
 use uuid::Uuid;
 
 pub mod naive_pair_trading;
@@ -63,7 +65,12 @@ pub fn from_settings(s: &crate::settings::Strategy) -> Box<StrategySink> {
         crate::settings::Strategy::Naive(n) => {
             let left = n.left.as_string();
             let right = n.right.as_string();
-            crate::strategies::naive_pair_trading::Strategy::new(&left, &right)
+            crate::strategies::naive_pair_trading::Strategy::new(
+                &left,
+                &right,
+                n.beta_eval_freq,
+                Duration::from_std(parse(&n.beta_sample_freq).unwrap()).unwrap(),
+            )
         }
     };
     Box::new(s)

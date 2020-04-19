@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use coinnect_rt::types::{BigDecimalConv, LiveEvent, Orderbook};
 use itertools::Itertools;
 use serde::export::Formatter;
@@ -25,6 +25,7 @@ pub struct Strategy {
     evaluations_since_last: i32,
     beta_eval_window_size: i32,
     beta_eval_freq: i32,
+    beta_sample_freq: Duration,
     state: MovingState,
     data_table: DataTable,
     pub right_pair: String,
@@ -32,13 +33,18 @@ pub struct Strategy {
     #[allow(dead_code)]
     metrics: Arc<StrategyMetrics>,
     db: Db,
-    last_log_time: DateTime<Utc>,
+    last_row_process_time: DateTime<Utc>,
     last_left: Option<BookPosition>,
     last_right: Option<BookPosition>,
 }
 
 impl Strategy {
-    pub fn new(left_pair: &str, right_pair: &str) -> Self {
+    pub fn new(
+        left_pair: &str,
+        right_pair: &str,
+        beta_eval_freq: i32,
+        beta_sample_freq: Duration,
+    ) -> Self {
         let db_name = format!("{}_{}", left_pair, right_pair);
         let metrics =
             StrategyMetrics::for_strat(prometheus::default_registry(), left_pair, right_pair);
@@ -49,16 +55,17 @@ impl Strategy {
             stop_loss: -0.1,
             evaluations_since_last: 0,
             beta_eval_window_size: 500,
-            beta_eval_freq: 5000,
+            beta_eval_freq,
             state: MovingState::new(100.0),
             data_table: DataTable::new(500),
             right_pair: right_pair.to_string(),
             left_pair: left_pair.to_string(),
-            last_log_time: Utc::now(),
+            last_row_process_time: Utc::now(),
             metrics: Arc::new(metrics),
             db: Db::new("data/naive_pair_trading", db_name),
             last_left: None,
             last_right: None,
+            beta_sample_freq,
         }
     }
 
@@ -293,7 +300,10 @@ impl StrategySink for Strategy {
             _ => {}
         };
         let now = Utc::now();
-        if now.gt(&self.last_log_time.add(chrono::Duration::seconds(1))) {
+        if now.gt(&self
+            .last_row_process_time
+            .add(chrono::Duration::milliseconds(200)))
+        {
             match (self.last_left.clone(), self.last_right.clone()) {
                 (Some(l), Some(r)) => {
                     let x = DataRow {
@@ -301,6 +311,7 @@ impl StrategySink for Strategy {
                         right: r,
                         time: now,
                     };
+                    self.last_row_process_time = now;
                     self.process_row(&x);
                 }
                 _ => {}
@@ -366,6 +377,7 @@ struct DataRow {
 struct DataTable {
     rows: Vec<DataRow>,
     window_size: usize,
+    max_size: usize,
 }
 
 impl DataTable {
@@ -373,6 +385,7 @@ impl DataTable {
         DataTable {
             rows: Vec::new(),
             window_size,
+            max_size: window_size * 8, // Keep window_size * 8 elements
         }
     }
 
@@ -388,6 +401,10 @@ impl DataTable {
 
     pub fn push(&mut self, row: &DataRow) {
         self.rows.push(row.clone());
+        // Truncate the table by window_size once max_size is reached
+        if self.rows.len() > self.max_size {
+            self.rows.drain(0..self.window_size);
+        }
     }
 
     pub fn beta(&self) -> f64 {
@@ -421,7 +438,7 @@ impl DataTable {
 
 #[cfg(test)]
 mod test {
-    use chrono::{DateTime, TimeZone, Utc};
+    use chrono::{DateTime, Duration, TimeZone, Utc};
     use itertools::Itertools;
     use plotters::prelude::*;
     use serde::{Deserialize, Serialize};
@@ -611,8 +628,13 @@ mod test {
         Ok(string.clone())
     }
 
+    fn init() {
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
+
     #[test]
     fn beta_val() {
+        init();
         let mut dt = DataTable {
             rows: Vec::new(),
             window_size: 500,
@@ -641,8 +663,8 @@ mod test {
 
     #[test]
     fn continuous_scenario() {
-        env_logger::init();
-        let mut strat = Strategy::new(LEFT_PAIR, RIGHT_PAIR);
+        init();
+        let mut strat = Strategy::new(LEFT_PAIR, RIGHT_PAIR, 5000, Duration::minutes(1));
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 03, 25);
         let dt1 = Utc.ymd(2020, 04, 08);

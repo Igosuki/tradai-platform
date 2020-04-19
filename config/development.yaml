@@ -10,6 +10,8 @@ strategies:
     left: 'ETH_USDT'
     right: 'BTC_USDT'
     exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
 
 file_rotation:
   max_file_size: 1 Mb

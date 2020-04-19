@@ -61,6 +61,8 @@ pub struct NaiveStrategy {
     pub left: Pair,
     pub right: Pair,
     pub exchange: Exchange,
+    pub beta_eval_freq: i32,
+    pub beta_sample_freq: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
