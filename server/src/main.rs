@@ -1,69 +1,46 @@
 #![feature(try_trait)]
-// This example shows how to use the generic API provided by Coinnect.
-// This method is useful if you have to iterate throught multiple accounts of
-// different exchanges and perform the same operation (such as get the current account's balance)
-// You can also use the Coinnect generic API if you want a better error handling since all methods
-// return Result<_, Error>.
 
-extern crate actix;
-extern crate actix_derive;
-extern crate byte_unit;
 extern crate clap;
 extern crate coinnect_rt;
-extern crate config;
 #[cfg(feature = "flame_it")]
 extern crate flame;
 #[cfg(feature = "flame_it")]
 #[macro_use]
 extern crate flamer;
-#[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
-extern crate prometheus;
-extern crate prometheus_static_metric;
-extern crate rand;
-extern crate serde_derive;
-extern crate uuid;
+extern crate trader;
 
+use actix_rt::System;
 use std::collections::HashMap;
+#[cfg(feature = "flame_it")]
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, RwLock};
 use std::{fs, io};
 
+use futures::{pin_mut, select, FutureExt};
+
 use actix::{Actor, Addr, Recipient, SyncArbiter};
-use actix_rt::System;
+use actix_rt::signal::unix::{signal, Signal, SignalKind};
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+use structopt::StructOpt;
+
 use coinnect_rt::binance::BinanceCreds;
+use coinnect_rt::bitstamp::BitstampCreds;
+use coinnect_rt::bittrex::BittrexCreds;
+use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::exchange_bot::ExchangeBot;
 use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::LiveEventEnveloppe;
-use futures::{pin_mut, select, FutureExt};
-use notify::{RecommendedWatcher, RecursiveMode, Watcher};
-use structopt::StructOpt;
-
-use crate::coinnect_rt::coinnect::Coinnect;
-use crate::handlers::file_actor::{AvroFileActor, FileActorOptions};
-use crate::settings::Settings;
-use crate::strategies::{StrategyActor, StrategyActorOptions};
-use actix_rt::signal::unix::{signal, Signal, SignalKind};
-use coinnect_rt::bitstamp::BitstampCreds;
-use coinnect_rt::bittrex::BittrexCreds;
-#[cfg(feature = "flame_it")]
-use std::fs::File;
-
-pub mod api;
-pub mod avro_gen;
-pub mod db;
-pub mod handlers;
-pub mod math;
-pub mod serdes;
-pub mod server;
-pub mod settings;
-pub mod strategies;
-pub mod util;
+use trader::handlers;
+use trader::handlers::file_actor::{AvroFileActor, FileActorOptions};
+use trader::settings::{self, Settings};
+use trader::strategies::{self, StrategyActor, StrategyActorOptions};
 
 //lazy_static! {
 //    static ref CONFIG_FILE: String = {

@@ -1,0 +1,33 @@
+#![feature(try_trait)]
+
+extern crate actix;
+extern crate actix_derive;
+extern crate byte_unit;
+extern crate clap;
+extern crate coinnect_rt;
+extern crate config;
+#[cfg(feature = "flame_it")]
+extern crate flame;
+#[cfg(feature = "flame_it")]
+#[macro_use]
+extern crate flamer;
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate log;
+extern crate prometheus;
+extern crate prometheus_static_metric;
+extern crate rand;
+extern crate serde_derive;
+extern crate uuid;
+
+pub mod api;
+pub mod avro_gen;
+pub mod db;
+pub mod handlers;
+pub mod math;
+pub mod serdes;
+pub mod server;
+pub mod settings;
+pub mod strategies;
+pub mod util;

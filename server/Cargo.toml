@@ -6,6 +6,14 @@ edition = "2018"
 
 build = "build.rs"
 
+[lib]
+name = "trader"
+path = "src/lib.rs"
+
+[[bin]]
+name = "trader"
+path = "src/main.rs"
+
 [dependencies]
 
 # Rust lang extensions
