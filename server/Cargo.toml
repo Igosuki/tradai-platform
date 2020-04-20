@@ -1,0 +1,118 @@
+[package]
+name = "trader"
+version = "0.1.0"
+authors = ["Guillaume Balaine <igosuki@gmail.com>"]
+edition = "2018"
+
+build = "build.rs"
+
+[dependencies]
+
+# Rust lang extensions
+lazy_static = "1.4.0"
+once_cell = "1.2.0"
+notify = "4.0.15"
+
+# CLI
+clap = "2.33.0"
+structopt = "0.3.8"
+
+# Codecs
+serde_json = "1.0.0"
+serde = "1.0.104"
+serde_derive = "1.0.104"
+derive_more = "0.99.2"
+data-encoding = "2.0.0-rc.1"
+bytes = "0.5.3"
+avro-rs = { git = "https://github.com/Igosuki/avro-rs.git" }
+
+# Data structures
+bidir-map = "1.0.0"
+
+# Error
+thiserror = "1.0.14"
+anyhow = "1.0.28"
+
+# Std Utils
+chrono = { version = "0.4.10", features = ["serde"] }
+url = "2.1.0"
+uuid = { version = "0.8.1", features = ["v4"] }
+byte-unit = "3.0.3"
+bigdecimal = { version = "0.0.14", features = ["serde"] }
+error-chain = "0.12.1"
+config = { version = "0.9", features = ["yaml"] }
+rand = "0.7.3"
+itertools = "0.9"
+ordered-float = "1.0"
+tempdir = "0.3.7"
+tempfile = "3.1.0"
+fs_extra = "1.1.0"
+parse_duration = "2.1.0"
+
+# SSL
+sha2 = "0.6.0"
+hmac = "0.4.2"
+openssl = "0.10.26"
+native-tls = "0.2.3"
+
+# Logging
+log = "0.4.8"
+env_logger = "0.7.1"
+
+# Futures
+async-std = "1.5.0"
+futures = { version ="0.3.1", features = ["thread-pool"] }
+futures-util = "0.3.1"
+tokio = { version = "0.2.9", features = ["full"] }
+
+# Actix
+awc = "1.0.1"
+actix-web = { version ="2.0.0", features = ["openssl"] }
+actix-rt = "1.0.0"
+actix_derive = "0.5.0"
+actix = "0.9.0"
+actix-codec = "0.2.0"
+
+# Crypto
+coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
+#coinnect_rt = { path = "./coinnect" }
+
+# Flame
+flame = { version = "0.2.2", optional = true }
+flamer = { version = "0.4", optional = true }
+libc = "0.2"
+
+# Monitoring
+prometheus = { version = "0.8", features = ["nightly", "push", "process", "gen"] }
+prometheus-static-metric = "0.1"
+
+# Math
+num-traits = "0.2.11"
+#streaming-stats = "0.2.3"
+#average = "0.10.4"
+#nalgebra = "0.21.0"
+
+# Codec
+csv = "1.1.3"
+
+# DB
+rkv = "0.10.4"
+
+[features]
+default = []
+flame_it = ["flame", "flamer"]
+#desktop_vis = ["cairo-rs", "gtk"]
+
+[dev-dependencies]
+plotlib = "0.5.1"
+plotters = { version = "0.2.12", features = ["svg", "image_encoder"] }
+rusoto_core = "0.43.0"
+rusoto_s3 = "0.43.0"
+rusoto_credential = "0.43.0"
+
+[build-dependencies]
+
+# Codecs
+rsgen-avro = { git = "https://github.com/Igosuki/rsgen-avro.git" }
+crc32fast = "1.2.0"
+serde_json = "1.0.0"

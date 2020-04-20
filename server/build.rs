@@ -18,11 +18,11 @@ type AvroState = HashMap<String, u32>;
 fn main() -> io::Result<()> {
     println!("cargo:rerun-if-env-changed=AVRO_GEN");
     let _out_dir = env::var("OUT_DIR").unwrap();
-    let dest_path = Path::new("target").join("avro");
+    let dest_path = Path::new("../target").join("avro");
     let gen_path_dir = Path::new("src").join("avro_gen");
     let gen_path = gen_path_dir.join("models.rs");
 
-    let avro_state_file_p = Path::new("target").join(".avro-processed.json");
+    let avro_state_file_p = Path::new("../target").join(".avro-processed.json");
     let mut avro_state_file = File::with_options()
         .create(true)
         .write(true)
