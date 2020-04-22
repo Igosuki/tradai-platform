@@ -1,7 +1,23 @@
-use rkv::{Manager, Rkv, SingleStore, StoreOptions};
+#[macro_use]
+extern crate serde_derive;
+
+use rkv::{Manager, Rkv, SingleStore, StoreOptions, Value};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::fs;
 use std::path::Path;
 use std::sync::RwLockReadGuard;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum DataStoreError {
+    #[error("rkv error")]
+    StoreError(rkv::error::StoreError),
+    #[error("expected a json value")]
+    ExpectedJson,
+    #[error("json error")]
+    JsonError(#[from] serde_json::error::Error),
+}
 
 pub struct Db {
     name: String,
@@ -45,12 +61,53 @@ impl Db {
         let store = env.open_single(x, StoreOptions::create()).unwrap();
         process(env, store)
     }
+
+    pub fn read_json_vec<T: DeserializeOwned>(&self, key: &str) -> Vec<T> {
+        self.with_db(|env, store| {
+            let reader = env.read().expect("reader");
+            let iter = store.iter_from(&reader, key).unwrap();
+            let x: Vec<T> = iter
+                .flat_map(|r| {
+                    r.map_err(|e| DataStoreError::StoreError(e))
+                        .and_then(|v| match v.1 {
+                            Some(rkv::value::Value::Json(json_str)) => {
+                                serde_json::from_str::<T>(json_str)
+                                    .map_err(|e| DataStoreError::JsonError(e))
+                            }
+                            _ => Err(DataStoreError::ExpectedJson),
+                        })
+                })
+                .collect();
+            x
+        })
+    }
+
+    pub fn read_json<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
+        self.with_db(|env, store| {
+            let reader = env.read().expect("reader");
+            store.get(&reader, key).unwrap().and_then(|v| match v {
+                rkv::value::Value::Json(json_str) => serde_json::from_str::<T>(json_str).ok(),
+                _ => None,
+            })
+        })
+    }
+
+    pub fn put_json<T: Serialize>(&self, key: &str, v: T) {
+        self.with_db(|env, store| {
+            let result = serde_json::to_string(&v).unwrap();
+            let mut writer = env.write().unwrap();
+
+            store.put(&mut writer, &key, &Value::Json(&result)).unwrap();
+            writer.commit().unwrap();
+        });
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::db::Db;
+    use crate::Db;
     use rkv::{Rkv, SingleStore, Value};
+    use serde::Deserialize;
     use std::sync::RwLockReadGuard;
 
     fn make_db(env: RwLockReadGuard<Rkv>, store: SingleStore) {
@@ -222,8 +279,39 @@ mod test {
     }
 
     #[test]
-    fn db() {
+    fn db(path: &str) {
         let db = Db::new("data/simple-db", "mydb".to_string());
         db.with_db(make_db);
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Foobar {
+        foo: String,
+        number: i32,
+    }
+
+    fn insert_json(env: RwLockReadGuard<Rkv>, store: SingleStore) {
+        let mut writer = env.write().unwrap();
+        store
+            .put(
+                &mut writer,
+                "json",
+                &Value::Json(r#"{"foo":"bar", "number": 1}"#),
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn db_json_fetch() {
+        let db = Db::new("data/simple-db", "mydb".to_string());
+        db.with_db(insert_json);
+        let vec: Vec<Foobar> = db.read_json_vec("json");
+        assert_eq!(
+            vec,
+            [Foobar {
+                foo: "bar".to_string(),
+                number: 1,
+            }]
+        )
     }
 }

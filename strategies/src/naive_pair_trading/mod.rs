@@ -3,15 +3,18 @@ use coinnect_rt::types::{BigDecimalConv, LiveEvent, Orderbook};
 use itertools::Itertools;
 use std::sync::Arc;
 
+pub mod input;
 pub mod metrics;
 pub mod state;
 
-use crate::db::Db;
-use crate::math::iter::{CovarianceExt, MeanExt, VarianceExt};
-use crate::strategies::naive_pair_trading::state::{MovingState, Position, PositionKind};
-use crate::strategies::StrategySink;
+use std::ops::Add;
+use thiserror::Error;
+
+use crate::StrategySink;
+use db::Db;
+use math::iter::{CovarianceExt, MeanExt, VarianceExt};
 use metrics::StrategyMetrics;
-use rkv::Value;
+use state::{MovingState, Position, PositionKind};
 use uuid::Uuid;
 
 pub struct Strategy {
@@ -226,64 +229,17 @@ impl Strategy {
     }
 
     fn log_position(&self, pos: &Position) {
-        self.db.with_db(|env, store| {
-            let result = serde_json::to_string(pos).unwrap();
-            let mut writer = env.write().unwrap();
-
-            let key = format!("order:{}", Uuid::new_v4());
-            store.put(&mut writer, &key, &Value::Json(&result)).unwrap();
-            writer.commit().unwrap();
-        });
+        self.db.put_json(&format!("orders:{}", Uuid::new_v4()), pos)
     }
 
     fn get_positions(&self) -> Vec<Position> {
-        self.db.with_db(|env, store| {
-            let reader = env.read().expect("reader");
-            let iter = store.iter_from(&reader, "order").unwrap();
-            let x: Vec<Position> = iter
-                .flat_map(|r| {
-                    r.map_err(|e| DataStoreError::StoreError(e))
-                        .and_then(|v| match v.1 {
-                            Some(rkv::value::Value::Json(json_str)) => {
-                                serde_json::from_str::<Position>(json_str)
-                                    .map_err(|e| DataStoreError::JsonError(e))
-                            }
-                            _ => Err(DataStoreError::ExpectedJson),
-                        })
-                })
-                .collect();
-            x
-        })
+        self.db.read_json_vec("orders")
     }
 
     #[allow(dead_code)]
     fn get_position(&self, uuid: &str) -> Option<Position> {
-        self.db.with_db(|env, store| {
-            let reader = env.read().expect("reader");
-            store
-                .get(&reader, format!("order:{}", uuid))
-                .unwrap()
-                .and_then(|v| match v {
-                    rkv::value::Value::Json(json_str) => {
-                        serde_json::from_str::<Position>(json_str).ok()
-                    }
-                    _ => None,
-                })
-        })
+        self.db.read_json(&format!("orders:{}", uuid))
     }
-}
-
-use std::ops::Add;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum DataStoreError {
-    #[error("rkv error")]
-    StoreError(rkv::error::StoreError),
-    #[error("expected a json value")]
-    ExpectedJson,
-    #[error("json error")]
-    JsonError(#[from] serde_json::error::Error),
 }
 
 impl StrategySink for Strategy {
@@ -444,10 +400,9 @@ mod test {
     use serde::{Deserialize, Serialize};
     use std::io::Result;
 
-    use crate::serdes::date_time_format;
-    use crate::strategies::naive_pair_trading::state::MovingState;
-    use crate::strategies::naive_pair_trading::{BookPosition, DataRow, DataTable, Strategy};
-    use crate::util::date::{DateRange, DurationRangeType};
+    use super::input::{read_csv, CsvRecord};
+    use super::state::MovingState;
+    use super::{BookPosition, DataRow, DataTable, Strategy};
     use ordered_float::OrderedFloat;
     use std::error::Error;
     use std::fs::File;
@@ -457,6 +412,8 @@ mod test {
     use std::sync::Arc;
     use std::time::Instant;
     use tokio::runtime::Runtime;
+    use util::date::{DateRange, DurationRangeType};
+    use util::serdes::date_time_format;
 
     const LEFT_PAIR: &'static str = "ETH_USDT";
     const RIGHT_PAIR: &'static str = "BTC_USDT";
@@ -478,46 +435,6 @@ mod test {
                 state,
             }
         }
-    }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    struct CsvRecord {
-        #[serde(with = "date_time_format")]
-        hourofday: DateTime<Utc>,
-        a1: f64,
-        aq1: f64,
-        a2: f64,
-        aq2: f64,
-        a3: f64,
-        aq3: f64,
-        a4: f64,
-        aq4: f64,
-        a5: f64,
-        aq5: f64,
-        b1: f64,
-        bq1: f64,
-        b2: f64,
-        bq2: f64,
-        b3: f64,
-        bq3: f64,
-        b4: f64,
-        bq4: f64,
-        b5: f64,
-        bq5: f64,
-    }
-
-    fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
-        let f = File::open(path)?;
-        let mut rdr = csv::Reader::from_reader(f);
-        let vec: Vec<CsvRecord> = rdr
-            .deserialize()
-            .map(|r| {
-                let record: Result<CsvRecord> = r.map_err(|e| e.into());
-                record.ok()
-            })
-            .while_some()
-            .collect(); // just skip invalid rows
-        Ok(vec)
     }
 
     fn to_pos(r: &CsvRecord) -> BookPosition {
@@ -548,7 +465,7 @@ mod test {
                 let file = tempfile::tempdir().unwrap();
                 let out_file = file.into_path().join(out_file_name);
                 let s3_key = &format!("test_data/{}/{}/{}.zip", exchange_name, channel, pair);
-                crate::util::s3::test::download_file(&s3_key.clone(), out_file.clone())
+                util::s3::download_file(&s3_key.clone(), out_file.clone())
                     .await
                     .unwrap();
                 let bp = bpc.deref();
@@ -752,6 +669,7 @@ mod test {
 
         // let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
         // serde_json::to_writer(logs_f, &logs);
+        std::fs::create_dir_all("graphs");
         let drew = draw_line_plot(logs);
         if let Ok(file) = drew {
             let copied = std::fs::copy(&file, "graphs/naive_pair_trading_plot_latest.svg");

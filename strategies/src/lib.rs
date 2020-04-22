@@ -1,11 +1,33 @@
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
+extern crate log;
+
 use actix::{Actor, Handler, Running, SyncContext};
 use chrono::Duration;
-use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe, Pair};
 use derive_more::Display;
 use parse_duration::parse;
+use serde::Deserialize;
 use uuid::Uuid;
 
 pub mod naive_pair_trading;
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct NaiveStrategy {
+    pub left: Pair,
+    pub right: Pair,
+    pub exchange: Exchange,
+    pub beta_eval_freq: i32,
+    pub beta_sample_freq: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(tag = "type")]
+pub enum Strategy {
+    Naive(NaiveStrategy),
+}
 
 pub struct StrategyActorOptions {
     pub strategy: Box<dyn StrategySink>,
@@ -60,12 +82,12 @@ pub trait StrategySink {
     fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()>;
 }
 
-pub fn from_settings(s: &crate::settings::Strategy) -> Box<dyn StrategySink> {
+pub fn from_settings(s: &Strategy) -> Box<dyn StrategySink> {
     let s = match s {
-        crate::settings::Strategy::Naive(n) => {
+        Strategy::Naive(n) => {
             let left = n.left.as_string();
             let right = n.right.as_string();
-            crate::strategies::naive_pair_trading::Strategy::new(
+            crate::naive_pair_trading::Strategy::new(
                 &left,
                 &right,
                 n.beta_eval_freq,

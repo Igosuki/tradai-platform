@@ -1,0 +1,67 @@
+[package]
+name = "strategies"
+version = "0.1.0"
+authors = ["Guillaume Balaine <igosuki@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "strategies"
+path = "src/lib.rs"
+
+[[bin]]
+name = "model_loader"
+path = "src/main.rs"
+required-features = ["binary"]
+
+[features]
+binary = ["clap"]
+
+[dependencies]
+# actix
+actix = "0.9.0"
+actix-rt = "1.1"
+
+# std
+itertools = "0.9"
+chrono = { version = "0.4.10", features = ["serde"] }
+parse_duration = "2.1.0"
+log = "0.4"
+env_logger = "0.7"
+uuid = { version = "0.8.1", features = ["v4"] }
+bigdecimal = "0.0.14"
+ordered-float = "1.0"
+
+# Error
+thiserror = "1.0.14"
+anyhow = "1.0.28"
+
+# codec
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+derive_more = "0.99.2"
+csv = "1.1.3"
+
+# Crypto
+coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
+#coinnect_rt = { path = "./coinnect" }
+
+# metrics
+prometheus = { version = "0.8", features = ["nightly", "push", "process", "gen"] }
+
+# Internal
+math = { path = "../math" }
+db = { path = "../db" }
+util = { path = "../util" }
+# bin
+clap = { version = "2.33", optional = true }
+
+[dev-dependencies]
+util = { path = "../util", features = ["s3"] }
+tokio = { version = "0.2.9", features = ["full"] }
+plotlib = "0.5.1"
+plotters = { version = "0.2.12", features = ["svg", "image_encoder"] }
+tempdir = "0.3.7"
+tempfile = "3.1.0"

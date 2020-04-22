@@ -40,7 +40,7 @@ use coinnect_rt::types::LiveEventEnveloppe;
 use trader::logging;
 use trader::logging::file_actor::{AvroFileActor, FileActorOptions};
 use trader::settings::{self, Settings};
-use trader::strategies::{self, StrategyActor, StrategyActorOptions};
+use strategies::{self, StrategyActor, StrategyActorOptions};
 
 //lazy_static! {
 //    static ref CONFIG_FILE: String = {

@@ -18,11 +18,11 @@ use derive_more::Display;
 use rand::random;
 use uuid::Uuid;
 
-use crate::avro_gen::{
+use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
+use models::avro_gen::{
     self,
     models::{LiveTrade as LT, Orderbook as OB},
 };
-use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
 
 type RotatingWriter = Writer<'static, RotatingFile<SizeAndExpirationPolicy>>;
 

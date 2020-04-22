@@ -4,4 +4,9 @@ members = [
     "server",
     "coinnect",
     "binance-rs",
+    "math",
+    "db",
+    "strategies",
+    "util",
+    "models"
 ]

@@ -7,6 +7,7 @@ use coinnect_rt::types::Pair;
 use config::{Config, ConfigError, Environment, File};
 use serde::de;
 use serde::{Deserialize, Deserializer};
+use strategies::Strategy;
 
 fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
 where
@@ -54,21 +55,6 @@ pub struct ApiSettings {
 
 fn default_as_false() -> bool {
     false
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct NaiveStrategy {
-    pub left: Pair,
-    pub right: Pair,
-    pub exchange: Exchange,
-    pub beta_eval_freq: i32,
-    pub beta_sample_freq: String,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "type")]
-pub enum Strategy {
-    Naive(NaiveStrategy),
 }
 
 #[derive(Debug, Deserialize)]

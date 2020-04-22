@@ -22,12 +22,6 @@ extern crate serde_derive;
 extern crate uuid;
 
 pub mod api;
-pub mod avro_gen;
-pub mod db;
 pub mod logging;
-pub mod math;
-pub mod serdes;
 pub mod server;
 pub mod settings;
-pub mod strategies;
-pub mod util;

@@ -4,8 +4,6 @@ version = "0.1.0"
 authors = ["Guillaume Balaine <igosuki@gmail.com>"]
 edition = "2018"
 
-build = "build.rs"
-
 [lib]
 name = "trader"
 path = "src/lib.rs"
@@ -16,6 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 
+models = { path = "../models" }
 # Rust lang extensions
 lazy_static = "1.4.0"
 once_cell = "1.2.0"
@@ -51,9 +50,6 @@ error-chain = "0.12.1"
 config = { version = "0.9", features = ["yaml"] }
 rand = "0.7.3"
 itertools = "0.9"
-ordered-float = "1.0"
-tempdir = "0.3.7"
-tempfile = "3.1.0"
 fs_extra = "1.1.0"
 parse_duration = "2.1.0"
 
@@ -94,33 +90,14 @@ libc = "0.2"
 prometheus = { version = "0.8", features = ["nightly", "push", "process", "gen"] }
 prometheus-static-metric = "0.1"
 
-# Math
-num-traits = "0.2.11"
-#streaming-stats = "0.2.3"
-#average = "0.10.4"
-#nalgebra = "0.21.0"
-
-# Codec
-csv = "1.1.3"
-
 # DB
 rkv = "0.10.4"
+db = { path = "../db" }
+
+# Strategies
+strategies = { path = "../strategies"}
 
 [features]
 default = []
 flame_it = ["flame", "flamer"]
 #desktop_vis = ["cairo-rs", "gtk"]
-
-[dev-dependencies]
-plotlib = "0.5.1"
-plotters = { version = "0.2.12", features = ["svg", "image_encoder"] }
-rusoto_core = "0.43.0"
-rusoto_s3 = "0.43.0"
-rusoto_credential = "0.43.0"
-
-[build-dependencies]
-
-# Codecs
-rsgen-avro = { git = "https://github.com/Igosuki/rsgen-avro.git" }
-crc32fast = "1.2.0"
-serde_json = "1.0.0"
