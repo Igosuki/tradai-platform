@@ -1,11 +1,9 @@
 #[macro_use]
 extern crate clap;
 
-use avro_rs::{from_value, Reader};
 use chrono::Timelike;
 use chrono::{Duration, TimeZone, Utc};
 use clap::{App, Arg};
-use models::Orderbook;
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::fs::File;
@@ -13,6 +11,7 @@ use std::ops::Sub;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::Instant;
+use util::date::{DateRange, DurationRangeType};
 
 fn main() {
     let matches = App::new("Trader Naive Model Loader")
@@ -57,44 +56,23 @@ fn main() {
     let window_size = 500;
     let now = Utc::now();
 
-    let mut dates = vec![now];
     let midnight = now.date().and_hms(0, 0, 0);
     let lower_date_bound = now.sub(sample_freq * window_size);
-    println!("{} {} {}", now, midnight, lower_date_bound);
-    if lower_date_bound < midnight {
-        dates.push(lower_date_bound.date().and_hms(0, 0, 0));
-    }
-    let left_paths: Vec<PathBuf> = dates
-        .iter()
-        .map(|d| {
-            model_loader::input::partition_path(
-                &exchange,
-                d.timestamp_millis(),
-                channel,
-                &left_pair,
-            )
-            .unwrap()
-        })
-        .map(|p| base_path.join(p))
-        .collect();
-    let right_paths: Vec<PathBuf> = dates
-        .iter()
-        .map(|d| {
-            model_loader::input::partition_path(
-                &exchange,
-                d.timestamp_millis(),
-                channel,
-                &right_pair,
-            )
-            .unwrap()
-        })
-        .map(|p| base_path.join(p))
-        .collect();
+    let end = if lower_date_bound < midnight {
+        lower_date_bound.date().and_hms(0, 0, 0)
+    } else {
+        midnight
+    };
+
+    let base_path = Path::new(&data_dir).join(exchange).join(channel);
+
     Utc.timestamp(0, 0);
-    println!("{:?} {:?}", left_paths, right_paths);
     let now = Instant::now();
-    let mut sum = 0 as u64;
-    for path in vec![left_paths, right_paths].iter().flatten() {}
-    println!("Counted {} records", sum);
+    strategies::naive_pair_trading::input::load_records_from_csv(
+        &DateRange(midnight.date(), end.date(), DurationRangeType::Days, 1),
+        &base_path,
+        &left_pair,
+        &right_pair,
+    );
     println!("Execution took {} seconds", now.elapsed().as_secs());
 }
