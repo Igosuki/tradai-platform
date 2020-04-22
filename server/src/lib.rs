@@ -24,7 +24,7 @@ extern crate uuid;
 pub mod api;
 pub mod avro_gen;
 pub mod db;
-pub mod handlers;
+pub mod logging;
 pub mod math;
 pub mod serdes;
 pub mod server;

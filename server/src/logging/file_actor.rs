@@ -22,7 +22,7 @@ use crate::avro_gen::{
     self,
     models::{LiveTrade as LT, Orderbook as OB},
 };
-use crate::handlers::rotate::{RotatingFile, SizeAndExpirationPolicy};
+use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
 
 type RotatingWriter = Writer<'static, RotatingFile<SizeAndExpirationPolicy>>;
 
@@ -279,7 +279,7 @@ mod test {
             max_file_size: 100_000,
             max_file_time: Duration::seconds(1),
             base_dir: String::from(base_dir),
-            partitioner: crate::handlers::live_event_partitioner,
+            partitioner: crate::logging::live_event_partitioner,
         })
     }
 

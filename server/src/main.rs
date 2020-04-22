@@ -37,8 +37,8 @@ use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::exchange_bot::ExchangeBot;
 use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::LiveEventEnveloppe;
-use trader::handlers;
-use trader::handlers::file_actor::{AvroFileActor, FileActorOptions};
+use trader::logging;
+use trader::logging::file_actor::{AvroFileActor, FileActorOptions};
 use trader::settings::{self, Settings};
 use trader::strategies::{self, StrategyActor, StrategyActorOptions};
 
@@ -172,7 +172,7 @@ fn file_actor(settings: Arc<RwLock<Settings>>) -> Addr<AvroFileActor> {
             base_dir: dir.to_str().unwrap().to_string(),
             max_file_size: settings_v.file_rotation.max_file_size,
             max_file_time: settings_v.file_rotation.max_file_time,
-            partitioner: handlers::live_event_partitioner,
+            partitioner: logging::live_event_partitioner,
         })
     })
 }
