@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Result;
 use std::path::PathBuf;
+use util::date::DateRange;
 use util::serdes::date_time_format;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -56,4 +57,35 @@ pub fn partition_path(exchange: &str, ts: i64, channel: &str, pair: &str) -> Opt
             .join(format!("pr={}", pair))
             .join(format!("dt={}", dt_par)),
     )
+}
+
+pub fn load_records_from_csv(
+    dr: &DateRange,
+    base_path: &PathBuf,
+    left_pair: &str,
+    right_pair: &str,
+) -> (Vec<CsvRecord>, Vec<CsvRecord>) {
+    let get_records = move |p: String| {
+        dr.clone()
+            .flat_map(|dt| {
+                let date = dt.clone();
+                load_records(
+                    base_path
+                        .join(format!("pr={}", p.clone()))
+                        .join(format!("dt={}.csv", date.format("%Y-%m-%d")))
+                        .to_str()
+                        .unwrap(),
+                )
+            })
+            .collect()
+    };
+    return (
+        get_records(left_pair.to_string()),
+        get_records(right_pair.to_string()),
+    );
+}
+
+fn load_records(path: &str) -> Vec<CsvRecord> {
+    let dt1 = read_csv(path).unwrap();
+    dt1
 }

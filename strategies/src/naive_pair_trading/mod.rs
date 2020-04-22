@@ -441,11 +441,6 @@ mod test {
         BookPosition::new(r.a1, r.aq1, r.b1, r.bq1)
     }
 
-    fn load_records(path: &str) -> Vec<CsvRecord> {
-        let dt1 = read_csv(path).unwrap();
-        dt1
-    }
-
     fn load_csv_dataset(dr: &DateRange) -> (Vec<CsvRecord>, Vec<CsvRecord>) {
         let bp = std::env::var_os("BITCOINS_REPO")
             .and_then(|oss| oss.into_string().ok())
@@ -485,25 +480,7 @@ mod test {
                 dl_test_data(s);
             }
         }
-
-        let get_records = move |p: String| {
-            dr.clone()
-                .flat_map(|dt| {
-                    let date = dt.clone();
-                    load_records(
-                        base_path
-                            .join(format!("pr={}", p.clone()))
-                            .join(format!("dt={}.csv", date.format("%Y-%m-%d")))
-                            .to_str()
-                            .unwrap(),
-                    )
-                })
-                .collect()
-        };
-        return (
-            get_records(LEFT_PAIR.to_string()),
-            get_records(RIGHT_PAIR.to_string()),
-        );
+        super::input::load_records_from_csv(dr, &base_path, LEFT_PAIR, RIGHT_PAIR)
     }
 
     fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn Error>> {
