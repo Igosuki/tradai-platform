@@ -1,18 +1,17 @@
-use chrono::{DateTime, Duration, Utc};
-use coinnect_rt::types::{BigDecimalConv, LiveEvent, Orderbook};
-use itertools::Itertools;
+use chrono::{DateTime, Duration, TimeZone, Utc};
 use std::sync::Arc;
 
+pub mod data_table;
 pub mod input;
 pub mod metrics;
 pub mod state;
 
 use std::ops::Add;
-use thiserror::Error;
 
+use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
 use crate::StrategySink;
+use coinnect_rt::types::LiveEvent;
 use db::Db;
-use math::iter::{CovarianceExt, MeanExt, VarianceExt};
 use metrics::StrategyMetrics;
 use state::{MovingState, Position, PositionKind};
 use uuid::Uuid;
@@ -22,7 +21,7 @@ pub struct Strategy {
     res_threshold_long: f64,
     res_threshold_short: f64,
     stop_loss: f64,
-    evaluations_since_last: i32,
+    samples_since_last: i32,
     beta_eval_window_size: i32,
     beta_eval_freq: i32,
     #[allow(dead_code)]
@@ -35,6 +34,7 @@ pub struct Strategy {
     metrics: Arc<StrategyMetrics>,
     db: Db,
     last_row_process_time: DateTime<Utc>,
+    last_sample_time: DateTime<Utc>,
     last_left: Option<BookPosition>,
     last_right: Option<BookPosition>,
 }
@@ -57,7 +57,7 @@ impl Strategy {
             res_threshold_long: -0.04,
             res_threshold_short: 0.04,
             stop_loss: -0.1,
-            evaluations_since_last: 0,
+            samples_since_last: 0,
             beta_eval_window_size: window_size,
             beta_eval_freq,
             state: MovingState::new(100.0),
@@ -69,7 +69,8 @@ impl Strategy {
             ),
             right_pair: right_pair.to_string(),
             left_pair: left_pair.to_string(),
-            last_row_process_time: Utc::now(),
+            last_row_process_time: Utc.timestamp_millis(0),
+            last_sample_time: Utc.timestamp_millis(0),
             metrics: Arc::new(metrics),
             db: Db::new(&strat_db_path, db_name),
             last_left: None,
@@ -91,8 +92,8 @@ impl Strategy {
         )
     }
 
-    fn inc_evaluations_since_last(&mut self) {
-        self.evaluations_since_last += 1;
+    fn inc_samples_since_last(&mut self) {
+        self.samples_since_last += 1;
     }
 
     fn log_stop_loss(&self, pos: PositionKind) {
@@ -106,21 +107,28 @@ impl Strategy {
     }
 
     fn should_eval(&self) -> bool {
-        let x = (self.evaluations_since_last % self.beta_eval_freq) == 0;
+        let x = (self.samples_since_last % self.beta_eval_freq) == 0;
         if x {
             trace!(
                 "eval_time : {} % {} == 0",
-                self.evaluations_since_last,
+                self.samples_since_last,
                 self.beta_eval_freq
             );
         }
         x
     }
 
-    fn update_model(&mut self) {
-        let beta = self.data_table.beta();
-        self.state.set_beta(beta);
-        self.state.set_alpha(self.data_table.alpha(beta));
+    fn set_model_from_table(&mut self) {
+        let lmb = self.data_table.model();
+        lmb.map(|lm| {
+            self.state.set_beta(lm.beta);
+            self.state.set_alpha(lm.alpha);
+        });
+    }
+
+    fn eval_linear_model(&mut self) {
+        self.data_table.update_model();
+        self.set_model_from_table();
     }
 
     fn predict(&self, bp: &BookPosition) -> f64 {
@@ -165,7 +173,7 @@ impl Strategy {
     fn eval_latest(&mut self, lr: &DataRow) {
         if self.state.no_position_taken() {
             if self.should_eval() {
-                self.update_model();
+                self.eval_linear_model();
             }
             self.set_long_spread(lr.right.ask);
             self.set_short_spread(lr.left.ask);
@@ -200,7 +208,7 @@ impl Strategy {
                 self.log_position(&position);
                 self.state.close(position, self.fees_rate);
                 self.state.set_pnl();
-                self.update_model();
+                self.eval_linear_model();
             }
         }
 
@@ -224,21 +232,43 @@ impl Strategy {
                 self.log_position(&position);
                 self.state.close(position, self.fees_rate);
                 self.state.set_pnl();
-                self.update_model();
+                self.eval_linear_model();
             }
         }
     }
 
+    fn can_eval(&self) -> bool {
+        self.data_table.has_model()
+    }
+
     fn process_row(&mut self, row: &DataRow) {
-        self.inc_evaluations_since_last();
-        if self.data_table.rows.len() > self.beta_eval_window_size as usize {
+        if self.data_table.try_loading_model() {
+            self.set_model_from_table();
+            self.set_long_spread(row.right.ask);
+            self.set_short_spread(row.left.ask);
+            self.state.set_pnl();
+        }
+        let time = self.last_sample_time.add(chrono::Duration::minutes(1));
+        let should_sample = row.time.gt(&time) || row.time == time;
+        if should_sample {
+            self.inc_samples_since_last();
+        }
+        // A model is available
+        if self.can_eval() {
             self.eval_latest(row);
             self.log_state();
         }
         self.metrics.log_row(&row);
-        self.data_table.push(row);
-        if self.data_table.rows.len() == self.beta_eval_window_size as usize {
-            self.update_model();
+        if should_sample {
+            self.data_table.push(row);
+            self.last_sample_time = row.time;
+        }
+
+        // No model and there are enough samples
+        if !self.data_table.has_model()
+            && self.data_table.len() == self.beta_eval_window_size as usize
+        {
+            self.eval_linear_model();
             self.set_long_spread(row.right.ask);
             self.set_short_spread(row.left.ask);
             self.state.set_pnl();
@@ -288,160 +318,13 @@ impl StrategySink for Strategy {
                         right: r,
                         time: now,
                     };
-                    self.last_row_process_time = now;
                     self.process_row(&x);
+                    self.last_row_process_time = now;
                 }
                 _ => {}
             }
         }
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct BookPosition {
-    pub mid: f64,
-    // mid = (top_ask + top_bid) / 2, alias: crypto1_m
-    ask: f64,
-    // crypto_a
-    ask_q: f64,
-    // crypto_a_q
-    bid: f64,
-    // crypto_b
-    bid_q: f64, // crypto_b_q
-}
-
-impl BookPosition {
-    fn new(ask: f64, ask_q: f64, bid: f64, bid_q: f64) -> Self {
-        Self {
-            ask,
-            ask_q,
-            bid,
-            bid_q,
-            mid: Self::mid(ask, bid),
-        }
-    }
-
-    fn mid(ask: f64, bid: f64) -> f64 {
-        (ask + bid) / 2.0
-    }
-
-    fn from_book(t: Orderbook) -> Option<BookPosition> {
-        let first_ask = t
-            .asks
-            .first()
-            .map(|a| (a.0.as_f64().unwrap(), a.1.as_f64().unwrap()));
-        let first_bid = t
-            .bids
-            .first()
-            .map(|a| (a.0.as_f64().unwrap(), a.1.as_f64().unwrap()));
-        match (first_ask, first_bid) {
-            (Some(ask), Some(bid)) => return Some(BookPosition::new(ask.0, ask.1, bid.0, bid.1)),
-            _ => return None,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct DataRow {
-    pub time: DateTime<Utc>,
-    pub left: BookPosition,
-    // crypto_1
-    pub right: BookPosition, // crypto_2
-}
-
-#[derive(Debug)]
-pub struct DataTable {
-    rows: Vec<DataRow>,
-    window_size: usize,
-    max_size: usize,
-    db: Db,
-    id: String,
-}
-
-impl Default for DataTable {
-    fn default() -> Self {
-        DataTable {
-            db: Db::new("default", "default".to_string()),
-            id: "default".to_string(),
-            window_size: 500,
-            max_size: 2000,
-            rows: Vec::new(),
-        }
-    }
-}
-
-impl DataTable {
-    pub fn new(id: &str, db_path: &str, window_size: usize) -> Self {
-        DataTable {
-            id: id.to_string(),
-            rows: Vec::new(),
-            window_size,
-            max_size: window_size * 8, // Keep window_size * 8 elements
-            db: Db::new(
-                &format!("{}/naive_pair_trading_model", db_path),
-                id.to_string(),
-            ),
-        }
-    }
-
-    pub fn save_model(&self) {
-        let beta = self.beta();
-        let alpha = self.alpha(beta);
-        let now = Utc::now();
-        // self.db.put("beta", beta);
-        // self.db.put("alpha", alpha);
-        // self.db.put("at", now);
-    }
-
-    pub fn size(&self) -> usize {
-        self.rows.len()
-    }
-
-    #[allow(dead_code)]
-    fn current_window(&self) -> &[DataRow] {
-        let len = self.rows.len();
-        if len <= self.window_size {
-            &self.rows[..]
-        } else {
-            &self.rows[(len - self.window_size)..(len - 1)]
-        }
-    }
-
-    pub fn push(&mut self, row: &DataRow) {
-        self.rows.push(row.clone());
-        // Truncate the table by window_size once max_size is reached
-        if self.rows.len() > self.max_size {
-            self.rows.drain(0..self.window_size);
-        }
-    }
-
-    pub fn beta(&self) -> f64 {
-        let (var, covar) = self.rows.iter().rev().take(self.window_size).tee();
-        let variance: f64 = var.map(|r| r.left.mid).variance();
-        trace!("variance {:?}", variance);
-        let covariance: f64 = covar
-            .map(|r| (r.left.mid, r.right.mid))
-            .covariance::<(f64, f64), f64>();
-        trace!("covariance {:?}", covariance);
-        let beta_val = covariance / variance;
-        trace!("beta_val {:?}", beta_val);
-        beta_val
-    }
-
-    pub fn alpha(&self, beta_val: f64) -> f64 {
-        let (left, right) = self.rows.iter().rev().take(self.window_size).tee();
-        let mean_left: f64 = left.map(|l| l.left.mid).mean();
-        trace!("mean left {:?}", mean_left);
-        let mean_right: f64 = right.map(|l| l.right.mid).mean();
-        trace!("mean right {:?}", mean_right);
-        mean_right - beta_val * mean_left
-    }
-
-    fn predict(&self, alpha_val: f64, beta_val: f64, bp: &BookPosition) -> f64 {
-        let p = alpha_val + beta_val * bp.mid;
-        trace!("predict {:?}", p);
-        p
     }
 }
 
@@ -465,6 +348,7 @@ mod test {
     use std::process::Command;
     use std::sync::Arc;
     use std::time::Instant;
+    use tempfile::Builder;
     use tokio::runtime::Runtime;
     use util::date::{DateRange, DurationRangeType};
     use util::serdes::date_time_format;
@@ -530,7 +414,7 @@ mod test {
                 dl_test_data(s);
             }
         }
-        super::input::load_records_from_csv(dr, &base_path, LEFT_PAIR, RIGHT_PAIR)
+        super::input::load_records_from_csv(dr, &base_path, LEFT_PAIR, RIGHT_PAIR, "*csv")
     }
 
     fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn Error>> {
@@ -625,7 +509,7 @@ mod test {
             .take(500)
             .for_each(|(l, r)| {
                 dt.push(&DataRow {
-                    time: l.hourofday,
+                    time: l.event_ms,
                     left: to_pos(l),
                     right: to_pos(r),
                 })
@@ -638,13 +522,14 @@ mod test {
     #[test]
     fn continuous_scenario() {
         init();
+        let root = Builder::new().prefix("test_data").tempdir().unwrap();
         let mut strat = Strategy::new(
             LEFT_PAIR,
             RIGHT_PAIR,
             5000,
             Duration::minutes(1),
             500,
-            "test_data",
+            root.into_path().to_str().unwrap(),
         );
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 03, 25);
@@ -671,11 +556,11 @@ mod test {
                     trace!(
                         "{} iterations..., table of size {}",
                         i,
-                        strat.data_table.rows.len()
+                        strat.data_table.len()
                     );
                 }
                 let log = {
-                    let row_time = l.hourofday;
+                    let row_time = l.event_ms;
                     let row = DataRow {
                         time: row_time,
                         left: to_pos(l),

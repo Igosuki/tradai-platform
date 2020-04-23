@@ -1,4 +1,4 @@
-use crate::naive_pair_trading::BookPosition;
+use crate::naive_pair_trading::data_table::BookPosition;
 use chrono::prelude::*;
 use chrono::{DateTime, Utc};
 use glob::glob;
@@ -6,14 +6,15 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Result;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use util::date::DateRange;
 use util::serdes::date_time_format;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CsvRecord {
     #[serde(with = "date_time_format")]
-    pub hourofday: DateTime<Utc>,
+    #[serde(alias = "hourofday")]
+    pub event_ms: DateTime<Utc>,
     pub a1: f64,
     pub aq1: f64,
     pub a2: f64,
@@ -43,12 +44,7 @@ pub fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
         .deserialize()
         .map(|r| {
             let record: Result<CsvRecord> = r.map_err(|e| e.into());
-            match &record {
-                Ok(_) => {}
-                Err(e) => println!("{:?}", e),
-            }
-            let record_opt = record.ok();
-            record_opt
+            record.ok()
         })
         .while_some()
         .collect(); // just skip invalid rows
@@ -71,6 +67,7 @@ pub fn load_records_from_csv(
     base_path: &PathBuf,
     left_pair: &str,
     right_pair: &str,
+    glob_str: &str,
 ) -> (Vec<CsvRecord>, Vec<CsvRecord>) {
     let get_records = move |p: String| {
         dr.clone()
@@ -79,8 +76,8 @@ pub fn load_records_from_csv(
                 let buf = base_path
                     .join(format!("pr={}", p.clone()))
                     .join(format!("dt={}", date.format("%Y-%m-%d")));
-                println!("{:?}", buf);
-                let files = glob(&format!("{}/**/*csv", buf.to_str().unwrap())).unwrap();
+                trace!("Loading csv records from : {:?}", buf);
+                let files = glob(&format!("{}{}", buf.to_str().unwrap(), glob_str)).unwrap();
                 files.flat_map(|p| load_records(p.unwrap().to_str().unwrap()))
             })
             .collect()

@@ -56,6 +56,7 @@ prometheus = { version = "0.8", features = ["nightly", "push", "process", "gen"]
 math = { path = "../math" }
 db = { path = "../db" }
 util = { path = "../util" }
+
 # bin
 clap = { version = "2.33", optional = true }
 

@@ -183,7 +183,7 @@ fn strategy_actors(settings: Arc<RwLock<Settings>>) -> Vec<Addr<StrategyActor>> 
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
     let settings_v = arc1.read().unwrap();
-    let string = Arc::new(arc.read().unwrap().storage_path.clone());
+    let string = Arc::new(arc.read().unwrap().db_storage_path.clone());
     settings_v
         .strategies
         .clone()

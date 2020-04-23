@@ -1,7 +1,7 @@
 use super::state::MovingState;
 use super::state::Operation;
 use super::state::PositionKind;
-use crate::naive_pair_trading::DataRow;
+use crate::naive_pair_trading::data_table::DataRow;
 use prometheus::{GaugeVec, Opts, Registry};
 use std::collections::HashMap;
 

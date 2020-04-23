@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate serde_derive;
-
 use rkv::{Manager, Rkv, SingleStore, StoreOptions, Value};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
