@@ -45,29 +45,50 @@ impl Strategy {
         right_pair: &str,
         beta_eval_freq: i32,
         beta_sample_freq: Duration,
+        window_size: i32,
+        db_path: &str,
     ) -> Self {
         let db_name = format!("{}_{}", left_pair, right_pair);
         let metrics =
             StrategyMetrics::for_strat(prometheus::default_registry(), left_pair, right_pair);
+        let strat_db_path = format!("{}/naive_pair_trading", db_path);
         Self {
             fees_rate: 0.001,
             res_threshold_long: -0.04,
             res_threshold_short: 0.04,
             stop_loss: -0.1,
             evaluations_since_last: 0,
-            beta_eval_window_size: 500,
+            beta_eval_window_size: window_size,
             beta_eval_freq,
             state: MovingState::new(100.0),
-            data_table: DataTable::new(500),
+            data_table: Self::make_lm_table(
+                left_pair,
+                right_pair,
+                &strat_db_path,
+                window_size as usize,
+            ),
             right_pair: right_pair.to_string(),
             left_pair: left_pair.to_string(),
             last_row_process_time: Utc::now(),
             metrics: Arc::new(metrics),
-            db: Db::new("data/naive_pair_trading", db_name),
+            db: Db::new(&strat_db_path, db_name),
             last_left: None,
             last_right: None,
             beta_sample_freq,
         }
+    }
+
+    pub fn make_lm_table(
+        left_pair: &str,
+        right_pair: &str,
+        db_path: &str,
+        window_size: usize,
+    ) -> DataTable {
+        DataTable::new(
+            &format!("{}_{}", left_pair, right_pair),
+            db_path,
+            window_size,
+        )
     }
 
     fn inc_evaluations_since_last(&mut self) {
@@ -278,7 +299,7 @@ impl StrategySink for Strategy {
 }
 
 #[derive(Debug, Clone)]
-struct BookPosition {
+pub struct BookPosition {
     pub mid: f64,
     // mid = (top_ask + top_bid) / 2, alias: crypto1_m
     ask: f64,
@@ -322,27 +343,59 @@ impl BookPosition {
 }
 
 #[derive(Debug, Clone)]
-struct DataRow {
-    time: DateTime<Utc>,
+pub struct DataRow {
+    pub time: DateTime<Utc>,
     pub left: BookPosition,
     // crypto_1
     pub right: BookPosition, // crypto_2
 }
 
 #[derive(Debug)]
-struct DataTable {
+pub struct DataTable {
     rows: Vec<DataRow>,
     window_size: usize,
     max_size: usize,
+    db: Db,
+    id: String,
+}
+
+impl Default for DataTable {
+    fn default() -> Self {
+        DataTable {
+            db: Db::new("default", "default".to_string()),
+            id: "default".to_string(),
+            window_size: 500,
+            max_size: 2000,
+            rows: Vec::new(),
+        }
+    }
 }
 
 impl DataTable {
-    fn new(window_size: usize) -> Self {
+    pub fn new(id: &str, db_path: &str, window_size: usize) -> Self {
         DataTable {
+            id: id.to_string(),
             rows: Vec::new(),
             window_size,
             max_size: window_size * 8, // Keep window_size * 8 elements
+            db: Db::new(
+                &format!("{}/naive_pair_trading_model", db_path),
+                id.to_string(),
+            ),
         }
+    }
+
+    pub fn save_model(&self) {
+        let beta = self.beta();
+        let alpha = self.alpha(beta);
+        let now = Utc::now();
+        // self.db.put("beta", beta);
+        // self.db.put("alpha", alpha);
+        // self.db.put("at", now);
+    }
+
+    pub fn size(&self) -> usize {
+        self.rows.len()
     }
 
     #[allow(dead_code)]
@@ -403,6 +456,7 @@ mod test {
     use super::input::{read_csv, CsvRecord};
     use super::state::MovingState;
     use super::{BookPosition, DataRow, DataTable, Strategy};
+    use crate::naive_pair_trading::input::to_pos;
     use ordered_float::OrderedFloat;
     use std::error::Error;
     use std::fs::File;
@@ -435,10 +489,6 @@ mod test {
                 state,
             }
         }
-    }
-
-    fn to_pos(r: &CsvRecord) -> BookPosition {
-        BookPosition::new(r.a1, r.aq1, r.b1, r.bq1)
     }
 
     fn load_csv_dataset(dr: &DateRange) -> (Vec<CsvRecord>, Vec<CsvRecord>) {
@@ -562,11 +612,7 @@ mod test {
     #[test]
     fn beta_val() {
         init();
-        let mut dt = DataTable {
-            rows: Vec::new(),
-            window_size: 500,
-            max_size: 2000,
-        };
+        let mut dt = DataTable::default();
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 03, 25);
         let dt1 = Utc.ymd(2020, 03, 25);
@@ -592,7 +638,14 @@ mod test {
     #[test]
     fn continuous_scenario() {
         init();
-        let mut strat = Strategy::new(LEFT_PAIR, RIGHT_PAIR, 5000, Duration::minutes(1));
+        let mut strat = Strategy::new(
+            LEFT_PAIR,
+            RIGHT_PAIR,
+            5000,
+            Duration::minutes(1),
+            500,
+            "test_data",
+        );
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 03, 25);
         let dt1 = Utc.ymd(2020, 04, 08);

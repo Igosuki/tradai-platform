@@ -37,10 +37,10 @@ use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::exchange_bot::ExchangeBot;
 use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::LiveEventEnveloppe;
+use strategies::{self, StrategyActor, StrategyActorOptions};
 use trader::logging;
 use trader::logging::file_actor::{AvroFileActor, FileActorOptions};
 use trader::settings::{self, Settings};
-use strategies::{self, StrategyActor, StrategyActorOptions};
 
 //lazy_static! {
 //    static ref CONFIG_FILE: String = {
@@ -74,6 +74,7 @@ struct Opts {
     debug: bool,
 }
 
+// TODO : clean up the ugly code for settings access
 #[actix_rt::main]
 #[cfg_attr(feature = "flame_it", flame)]
 async fn main() -> io::Result<()> {
@@ -123,7 +124,7 @@ async fn main() -> io::Result<()> {
         recipients.push(actor);
     }
     // Metrics
-    let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new());
+    let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(&settings_v.prom_push_gw));
 
     let keys_path = PathBuf::from(settings_v.keys.clone());
 
@@ -182,14 +183,16 @@ fn strategy_actors(settings: Arc<RwLock<Settings>>) -> Vec<Addr<StrategyActor>> 
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
     let settings_v = arc1.read().unwrap();
+    let string = Arc::new(arc.read().unwrap().storage_path.clone());
     settings_v
         .strategies
         .clone()
         .into_iter()
         .map(move |strategy| {
+            let arc2 = string.clone();
             SyncArbiter::start(1, move || {
                 StrategyActor::new(StrategyActorOptions {
-                    strategy: strategies::from_settings(&strategy),
+                    strategy: strategies::from_settings(arc2.clone().as_ref(), &strategy),
                 })
             })
         })

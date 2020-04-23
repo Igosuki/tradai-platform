@@ -52,6 +52,7 @@ rand = "0.7.3"
 itertools = "0.9"
 fs_extra = "1.1.0"
 parse_duration = "2.1.0"
+tempdir = "0.3.7"
 
 # SSL
 sha2 = "0.6.0"
@@ -79,7 +80,7 @@ actix-codec = "0.2.0"
 
 # Crypto
 coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
-#coinnect_rt = { path = "./coinnect" }
+#coinnect_rt = { path = "../coinnect" }
 
 # Flame
 flame = { version = "0.2.2", optional = true }

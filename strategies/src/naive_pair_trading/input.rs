@@ -1,10 +1,12 @@
+use crate::naive_pair_trading::BookPosition;
 use chrono::prelude::*;
 use chrono::{DateTime, Utc};
+use glob::glob;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use util::date::DateRange;
 use util::serdes::date_time_format;
 
@@ -41,7 +43,12 @@ pub fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
         .deserialize()
         .map(|r| {
             let record: Result<CsvRecord> = r.map_err(|e| e.into());
-            record.ok()
+            match &record {
+                Ok(_) => {}
+                Err(e) => println!("{:?}", e),
+            }
+            let record_opt = record.ok();
+            record_opt
         })
         .while_some()
         .collect(); // just skip invalid rows
@@ -69,13 +76,12 @@ pub fn load_records_from_csv(
         dr.clone()
             .flat_map(|dt| {
                 let date = dt.clone();
-                load_records(
-                    base_path
-                        .join(format!("pr={}", p.clone()))
-                        .join(format!("dt={}.csv", date.format("%Y-%m-%d")))
-                        .to_str()
-                        .unwrap(),
-                )
+                let buf = base_path
+                    .join(format!("pr={}", p.clone()))
+                    .join(format!("dt={}", date.format("%Y-%m-%d")));
+                println!("{:?}", buf);
+                let files = glob(&format!("{}/**/*csv", buf.to_str().unwrap())).unwrap();
+                files.flat_map(|p| load_records(p.unwrap().to_str().unwrap()))
             })
             .collect()
     };
@@ -88,4 +94,8 @@ pub fn load_records_from_csv(
 fn load_records(path: &str) -> Vec<CsvRecord> {
     let dt1 = read_csv(path).unwrap();
     dt1
+}
+
+pub fn to_pos(r: &CsvRecord) -> BookPosition {
+    BookPosition::new(r.a1, r.aq1, r.b1, r.bq1)
 }

@@ -20,3 +20,7 @@ file_rotation:
 data_dir: './data'
 
 keys: keys_real.json
+
+storage_path: './data'
+
+prom_push_gw: 127.0.0.1:9091

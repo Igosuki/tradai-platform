@@ -19,16 +19,20 @@ pub enum DataStoreError {
     JsonError(#[from] serde_json::error::Error),
 }
 
+#[derive(Debug)]
 pub struct Db {
     name: String,
-    root: &'static Path,
+    root: Box<Path>,
 }
 
 impl Db {
-    pub fn new(root: &'static str, name: String) -> Self {
+    pub fn new(root: &str, name: String) -> Self {
         fs::create_dir_all(root).unwrap();
         let path = Path::new(root);
-        Self { root: path, name }
+        Self {
+            root: Box::from(path),
+            name,
+        }
     }
 
     pub fn with_db<F, B>(&self, process: F) -> B
@@ -52,7 +56,7 @@ impl Db {
         let created_arc = Manager::singleton()
             .write()
             .unwrap()
-            .get_or_create(self.root, Rkv::new)
+            .get_or_create(self.root.as_ref(), Rkv::new)
             .unwrap();
         let env = created_arc.read().unwrap();
 
@@ -98,6 +102,18 @@ impl Db {
             let mut writer = env.write().unwrap();
 
             store.put(&mut writer, &key, &Value::Json(&result)).unwrap();
+            writer.commit().unwrap();
+        });
+    }
+
+    pub fn put<'a, T: 'a>(&self, key: &str, v: &'a T)
+    where
+        Value<'a>: From<&'a T>,
+    {
+        self.with_db(|env, store| {
+            let mut writer = env.write().unwrap();
+            let value: Value = v.into();
+            store.put(&mut writer, &key, &v.into()).unwrap();
             writer.commit().unwrap();
         });
     }
@@ -278,7 +294,6 @@ mod test {
         }
     }
 
-    #[test]
     fn db(path: &str) {
         let db = Db::new("data/simple-db", "mydb".to_string());
         db.with_db(make_db);

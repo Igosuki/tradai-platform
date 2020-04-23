@@ -70,6 +70,8 @@ pub struct Settings {
     pub api: ApiSettings,
     #[serde(default)]
     pub strategies: Vec<Strategy>,
+    pub storage_path: String,
+    pub prom_push_gw: String,
 }
 
 impl Settings {

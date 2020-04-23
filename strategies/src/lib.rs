@@ -21,6 +21,7 @@ pub struct NaiveStrategy {
     pub exchange: Exchange,
     pub beta_eval_freq: i32,
     pub beta_sample_freq: String,
+    pub window_size: i32,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -82,7 +83,7 @@ pub trait StrategySink {
     fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()>;
 }
 
-pub fn from_settings(s: &Strategy) -> Box<dyn StrategySink> {
+pub fn from_settings(db_path: &str, s: &Strategy) -> Box<dyn StrategySink> {
     let s = match s {
         Strategy::Naive(n) => {
             let left = n.left.as_string();
@@ -92,6 +93,8 @@ pub fn from_settings(s: &Strategy) -> Box<dyn StrategySink> {
                 &right,
                 n.beta_eval_freq,
                 Duration::from_std(parse(&n.beta_sample_freq).unwrap()).unwrap(),
+                n.window_size,
+                db_path,
             )
         }
     };
