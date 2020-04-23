@@ -98,9 +98,7 @@ fn main() {
     let mut left_only: i32 = 0;
     let mut both: i32 = 0;
     let by_date = |i: &&CsvRecord, j: &&CsvRecord| i.event_ms.cmp(&j.event_ms);
-    let left_records_sorted: Vec<&CsvRecord> = left_records.iter().sorted_by(by_date).collect();
-    let right_records_sorted: Vec<&CsvRecord> = right_records.iter().sorted_by(by_date).collect();
-    let zip = left_records
+    let zip: Vec<(&CsvRecord, &CsvRecord)> = left_records
         .iter()
         .sorted_by(by_date)
         .merge_join_by(right_records.iter().sorted_by(by_date), by_date)
@@ -117,8 +115,11 @@ fn main() {
                 both += 1;
                 Some((l, r))
             }
-        });
-    zip.while_some().for_each(|(l, r)| {
+        })
+        .while_some()
+        .collect();
+    println!("{:?} \n {:?}", &zip.first(), &zip.last());
+    zip.iter().rev().take(window_size).for_each(|(l, r)| {
         let row_time = l.event_ms;
         if l.event_ms != r.event_ms {
             panic!(format!(
