@@ -93,7 +93,7 @@ impl Default for DataTable {
 impl DataTable {
     pub fn new(id: &str, db_path: &str, window_size: usize) -> Self {
         let db = Db::new(
-            &format!("{}/naive_pair_trading_model", db_path),
+            &format!("{}/naive_pair_trading_model_{}", db_path, id),
             id.to_string(),
         );
         DataTable {
