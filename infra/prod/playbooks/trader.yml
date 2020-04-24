@@ -1,0 +1,37 @@
+---
+- hosts: traders
+  remote_user: root
+  tasks:
+    # Systemd
+    - name: install trader systemd unit file
+      template: src=system.d/trader.service.j2 dest=/etc/systemd/system/trader.service
+
+    # Rclone
+    - name: Install rclone
+      shell: curl https://rclone.org/install.sh | sudo bash
+      args:
+        chdir: /root/
+    - name: install cloner systemd timer file
+      template: src=rclone/rclone.conf.j2 dest=/root/.config/rclone.conf
+    - name: install cloner systemd unit file
+      template: src=system.d/cloner.service.j2 dest=/etc/systemd/system/cloner.service
+    - name: install cloner systemd timer file
+      template: src=system.d/cloner.timer.j2 dest=/etc/systemd/system/cloner.timer
+
+roles:
+  # Prometheus
+  - {role: prometheus}
+
+#    - name: Install Prometheus
+#      shell: curl -SL https://github.com/prometheus/prometheus/releases/download/v2.17.2/prometheus-2.17.2.linux-amd64.tar.gz -o prometheus.tgz
+#      chdir: /root/
+#    - name: node exporter systemd unit file
+#      template: src=system.d/node_exporter.service.j2 dest=/etc/systemd/system/node_exporter.service
+#    - name: push gateway systemd unit file
+#      template: src=system.d/push_gateway.service.j2 dest=/etc/systemd/system/push_gateway.service
+#    - name: prometheus systemd unit file
+#      template: src=system.d/prometheus.service.j2 dest=/etc/systemd/system/prometheus.service
+
+
+#    - name: start myservice
+#      systemd: state=started name=myservice daemon_reload=yes

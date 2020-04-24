@@ -1,17 +1,15 @@
 [Unit]
-Description=Bitcoin Trader Monitor
+Description=Rclone invocator
 After=network-online.target
 
 [Service]
-Type=simple
+Type=oneshot
 
 User=root
 Group=root
 UMask=007
 
-ExecStart=/bin/sh -c "/bin/journalctl -f -u trader.service | /bin/grep disconnected | /usr/bin/xargs /bin/systemctl restart trader"
-
-Restart=on-failure
+ExecStart=rclone move --min-age=1h /root/data/ spaces:btcfeed/data
 
 WorkingDirectory=/root
 
