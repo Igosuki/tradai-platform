@@ -34,13 +34,19 @@ resource "digitalocean_firewall" "monitoring" {
   inbound_rule {
     protocol         = "tcp"
     port_range       = "22"
-    source_addresses = ["::/0"]
+    source_addresses = ["0.0.0.0/0", "::/0"]
   }
 
   inbound_rule {
     protocol         = "tcp"
     port_range       = "9090"
-    source_addresses = ["::/0"]
+    source_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "3000"
+    source_addresses = ["0.0.0.0/0", "::/0"]
   }
 
   outbound_rule {
@@ -52,12 +58,12 @@ resource "digitalocean_firewall" "monitoring" {
 resource "digitalocean_firewall" "trader" {
   name = "trader-monitoring"
 
-  droplet_ids = [digitalocean_droplet.monitoring.id]
+  droplet_ids = [digitalocean_droplet.trader.id]
 
   inbound_rule {
     protocol         = "tcp"
     port_range       = "22"
-    source_addresses = ["::/0"]
+    source_addresses = ["0.0.0.0/0", "::/0"]
   }
 
   inbound_rule {
