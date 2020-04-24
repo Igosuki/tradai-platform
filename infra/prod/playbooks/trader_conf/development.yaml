@@ -9,7 +9,7 @@ exchanges:
       symbols: ['BTC_USDT', 'BCH_USDT', 'ETH_USDT', 'ETC_USDT', 'XRP_USDT', 'EOS_USDT', 'BNB_USDT', 'LTC_USDT', 'DASH_USDT', 'BAB_USD', 'ETC_USD', 'BTC_USD', 'ETH_USD', 'BSV_USD', 'USDT_USD', 'XRP_USD', 'LTC_USD', 'EOS_USD', 'ETH_BTC', 'BCH_BTC', 'ETC_BTC', 'XRP_BTC', 'BSV_BTC', 'XTP_BTC', 'XRP_BTC', 'ADA_BTC', 'TUSD_BTC', 'STEEM_BTC', 'LTC_BTC', 'ZEC_BTC', 'BTC_EUR', 'ETH_EUR']
     trades:
       symbols: ['BTC_USDT', 'BCH_USDT', 'ETH_USDT', 'ETC_USDT', 'XRP_USDT', 'EOS_USDT', 'BNB_USDT', 'LTC_USDT', 'DASH_USDT', 'BAB_USD', 'ETC_USD', 'BTC_USD', 'ETH_USD', 'BSV_USD', 'USDT_USD', 'XRP_USD', 'LTC_USD', 'EOS_USD', 'ETH_BTC', 'BCH_BTC', 'ETC_BTC', 'XRP_BTC', 'BSV_BTC', 'XTP_BTC', 'XRP_BTC', 'ADA_BTC', 'TUSD_BTC', 'STEEM_BTC', 'LTC_BTC', 'ZEC_BTC', 'BTC_EUR', 'ETH_EUR']
-
+  
 file_rotation:
   max_file_size: 50 Mb
   max_file_time: 1800
@@ -17,3 +17,7 @@ file_rotation:
 data_dir: './data'
 
 keys: keys_real.json
+
+db_storage_path: './database'
+
+prom_push_gw: 127.0.0.1:9091
