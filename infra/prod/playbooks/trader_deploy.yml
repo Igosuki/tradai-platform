@@ -1,0 +1,34 @@
+---
+- hosts: btc2
+  name: Install the trading system
+  remote_user: root
+  pre_tasks:
+    - name: Configuration
+      copy:
+        src: ./trader_conf
+        dest: /root/config
+        owner: root
+        group: root
+        mode: '0644'
+    - name: Configuration
+        copy:
+          src: ../../cargo-target/x86_64-unknown-linux-musl/release/trader
+          dest: /root/trader.staged
+          owner: root
+          group: root
+          mode: '+x'
+  tasks:
+    - name: backup trader
+      shell: cp trader trader.bak.$(date)
+      args:
+        chdir: /root/
+    - name: stop trader
+      systemd: state=stopped name=trader
+    - name: enable the new trader
+        shell: cp trader.staged trader
+        args:
+          chdir: /root/
+    - name: start trader
+      systemd: state=started name=trader daemon_reload=yes
+    - name: start cloner timer
+      systemd: state=started name=cloner.timer daemon_reload=yes

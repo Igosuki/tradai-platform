@@ -1,0 +1,51 @@
+---
+- hosts: monitoring
+  name: Install the monitoring system
+  remote_user: root
+  tasks:
+    - name: Install python
+      raw: "apt update && apt install -y python"
+  #    - name: Install Prometheus
+  #      shell: curl -SL https://github.com/prometheus/prometheus/releases/download/v2.17.2/prometheus-2.17.2.linux-amd64.tar.gz -o prometheus.tgz
+  #      chdir: /root/
+  #    - name: node exporter systemd unit file
+  #      template: src=system.d/node_exporter.service.j2 dest=/etc/systemd/system/node_exporter.service
+  #    - name: push gateway systemd unit file
+  #      template: src=system.d/push_gateway.service.j2 dest=/etc/systemd/system/push_gateway.service
+  #    - name: prometheus systemd unit file
+  #      template: src=system.d/prometheus.service.j2 dest=/etc/systemd/system/prometheus.service
+  roles:
+    - cloudalchemy.prometheus
+    - cloudalchemy.node-exporter
+    - cloudalchemy.prometheus
+    - cloudalchemy.grafana
+#    - cloudalchemy.alertmanager
+  vars:
+    grafana_security:
+      admin_password: GC3TnqC6WJRf65zza25
+      admin_user: tradermonitoring
+    grafana_users:
+      allow_sign_up: false
+    prometheus_web_external_url: "http://{{ ansible_host }}:9090"
+    prometheus_global:
+      scrape_interval:     15s # By default, scrape targets every 15 seconds.
+      evaluation_interval: 15s # By default, scrape targets every 15 seconds.
+    prometheus_external_labels:
+      monitor: 'trader'
+    prometheus_scrape_jobs:
+      - job_name: 'pushgateway'
+        static_configs:
+          - targets:
+              - "{{hostvars.btc2.ansible_host}}:9091"
+        honor_labels: true
+      - job_name: 'node-exporter'
+        scrape_interval: 5s
+        static_configs:
+          - targets:
+            - "{{hostvars.btc2.ansible_host}}:9100"
+            - localhost:9100
+      - job_name: 'prometheus'
+        scrape_interval: 5s
+        static_configs:
+          - targets:
+            - localhost:9090
