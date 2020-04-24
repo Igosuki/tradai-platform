@@ -51,7 +51,10 @@ impl Strategy {
         let db_name = format!("{}_{}", left_pair, right_pair);
         let metrics =
             StrategyMetrics::for_strat(prometheus::default_registry(), left_pair, right_pair);
-        let strat_db_path = format!("{}/naive_pair_trading", db_path);
+        let strat_db_path = format!(
+            "{}/naive_pair_trading_{}_{}",
+            db_path, left_pair, right_pair
+        );
         Self {
             fees_rate: 0.001,
             res_threshold_long: -0.04,

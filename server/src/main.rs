@@ -127,7 +127,7 @@ async fn main() -> io::Result<()> {
         recipients.push(actor);
     }
     // Metrics
-    // let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(&settings_v.prom_push_gw));
+    let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(&settings_v.prom_push_gw));
 
     let keys_path = PathBuf::from(settings_v.keys.clone());
 
