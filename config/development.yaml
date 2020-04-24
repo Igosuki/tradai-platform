@@ -4,6 +4,8 @@ exchanges:
   binance:
     orderbook:
       symbols: ['BTC_USDT', 'ETH_USDT']
+    trades:
+      symbols: ['BTC_USDT', 'ETH_USDT']
 
 strategies:
   - type: Naive
@@ -13,6 +15,7 @@ strategies:
     beta_eval_freq: 5000
     beta_sample_freq: 1min
     window_size: 500
+
 
 file_rotation:
   max_file_size: 1 Mb
