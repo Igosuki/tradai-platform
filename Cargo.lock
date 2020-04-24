@@ -806,7 +806,7 @@ dependencies = [
 [[package]]
 name = "coinnect_rt"
 version = "0.5.12"
-source = "git+ssh://git@github.com/Igosuki/coinnect_rt.git#56e6c6ab3bc02a0dc2e540e5e62ffe67f7aafc6e"
+source = "git+ssh://git@github.com/Igosuki/coinnect_rt.git#ee026bebf61cb7e2d8e6c7eaa8d1585d3624501c"
 dependencies = [
  "actix",
  "actix-codec",
@@ -1915,9 +1915,9 @@ dependencies = [
 
 [[package]]
 name = "instant"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c346c299e3fe8ef94dc10c2c0253d858a69aac1245157a3bf4125915d528caf"
+checksum = "f7152d2aed88aa566e7a342250f21ba2222c1ae230ad577499dbfa3c18475b80"
 
 [[package]]
 name = "iovec"
