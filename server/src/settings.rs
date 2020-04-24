@@ -104,16 +104,10 @@ impl Settings {
                 .flat_map(|o| o.symbols)
                 .collect();
             let pairs_fn: fn(&Pair) -> Option<&&str> = coinnect_rt::utils::pair_fn(xchg);
-            let invalid_pairs: Vec<Pair> = pairs
+            let (invalid_pairs, valid_pairs): (_, Vec<Pair>) = pairs
                 .clone()
                 .into_iter()
-                .filter(|&p| pairs_fn(&p).is_none())
-                .collect();
-            let valid_pairs: Vec<Pair> = pairs
-                .clone()
-                .into_iter()
-                .filter(|&p| pairs_fn(&p).is_some())
-                .collect();
+                .partition(|p| pairs_fn(p).is_none());
             info!("Invalid pairs : {:?}", invalid_pairs);
             info!("Valid pairs : {:?}", valid_pairs);
         }

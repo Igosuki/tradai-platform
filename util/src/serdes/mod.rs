@@ -3,7 +3,6 @@ pub mod date_time_format {
     use chrono::{DateTime, TimeZone, Utc};
     use rust_decimal::Decimal;
     use serde::{self, Deserialize, Deserializer, Serializer};
-    use std::str::FromStr;
 
     const DATE_FORMAT: &'static str = "%Y-%m-%d %H:%M:%S";
 

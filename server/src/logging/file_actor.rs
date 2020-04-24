@@ -200,7 +200,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
             }
             LiveEvent::LiveOrderbook(lt) => {
                 let orderbook = OB {
-                    pair: lt.pair.as_string(),
+                    pair: lt.pair.to_string(),
                     event_ms: lt.timestamp,
                     asks: lt
                         .asks
