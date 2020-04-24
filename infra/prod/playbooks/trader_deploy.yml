@@ -26,7 +26,7 @@
         mode: '+x'
   tasks:
     - name: backup trader
-      shell: cp trader trader.bak.$(date)
+      shell: cp trader "trader.bak.$(date +%F)"
       args:
         chdir: /root/
       ignore_errors: yes
