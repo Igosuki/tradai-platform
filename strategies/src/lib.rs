@@ -86,8 +86,8 @@ pub trait StrategySink {
 pub fn from_settings(db_path: &str, s: &Strategy) -> Box<dyn StrategySink> {
     let s = match s {
         Strategy::Naive(n) => {
-            let left = n.left.as_string();
-            let right = n.right.as_string();
+            let left = n.left.clone();
+            let right = n.right.clone();
             crate::naive_pair_trading::Strategy::new(
                 &left,
                 &right,

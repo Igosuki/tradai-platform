@@ -13,7 +13,7 @@ pub fn live_event_partitioner(le: &LiveEventEnveloppe) -> Option<PathBuf> {
     let exchange = format!("{:?}", le.0);
     match &le.1 {
         LiveEvent::LiveOrderbook(ob) => {
-            partition_path(&exchange, ob.timestamp, "order_books", &ob.pair.as_string())
+            partition_path(&exchange, ob.timestamp, "order_books", &ob.pair.clone())
         }
         LiveEvent::LiveOrder(o) => partition_path(&exchange, o.event_ms, "orders", &o.pair),
         LiveEvent::LiveTrade(t) => partition_path(&exchange, t.event_ms, "trades", &t.pair),

@@ -39,6 +39,6 @@
     - name: start trader
       systemd: state=restarted name=trader.service daemon_reload=yes
     - name: start cloner service
-      systemd: enabled=true name=cloner.service
+      shell: systemctl enable cloner.service
     - name: start cloner timer
       systemd: state=started name=cloner.timer daemon_reload=yes

@@ -1,5 +1,8 @@
 #![feature(try_trait)]
 
+#[macro_use]
+extern crate actix_rt;
+
 extern crate clap;
 extern crate coinnect_rt;
 #[cfg(feature = "flame_it")]
@@ -38,9 +41,9 @@ use coinnect_rt::exchange_bot::ExchangeBot;
 use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::LiveEventEnveloppe;
 use strategies::{self, StrategyActor, StrategyActorOptions};
-use trader::logging;
 use trader::logging::file_actor::{AvroFileActor, FileActorOptions};
 use trader::settings::{self, Settings};
+use trader::{logging, server};
 
 //lazy_static! {
 //    static ref CONFIG_FILE: String = {
@@ -124,7 +127,7 @@ async fn main() -> io::Result<()> {
         recipients.push(actor);
     }
     // Metrics
-    let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(&settings_v.prom_push_gw));
+    // let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(&settings_v.prom_push_gw));
 
     let keys_path = PathBuf::from(settings_v.keys.clone());
 
@@ -132,21 +135,11 @@ async fn main() -> io::Result<()> {
 
     let bots = exchange_bots(exchanges.clone(), keys_path.clone(), recipients).await;
 
-    // let server = server::httpserver(exchanges.clone(), keys_path.clone());
+    let server = server::httpserver(exchanges.clone(), keys_path.clone());
 
-    // Handle interrupts for graceful shutdown
-    let _stream: Signal = signal(SignalKind::terminate())?;
-    let mut stream: Signal = signal(SignalKind::interrupt())?;
-    let mut stream2: Signal = signal(SignalKind::user_defined1())?;
-    let t1 = stream.recv().fuse();
-    let t2 = stream2.recv().fuse();
-    pin_mut!(t1, t2);
-
-    select! {
-        _ = t1 => info!("Interrupt"),
-        _ = t2 => info!("SigUSR1"),
-    }
-    // let server = server.await;
+    // // Handle interrupts for graceful shutdown
+    // await_termination().await?;
+    server.await?;
     drop(bots);
     System::current().stop();
     info!("Caught interrupt and stopped the system");
@@ -159,8 +152,6 @@ async fn main() -> io::Result<()> {
         flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
     }
     Ok(())
-
-    // server
 }
 
 fn file_actor(settings: Arc<RwLock<Settings>>) -> Addr<AvroFileActor> {
@@ -237,4 +228,19 @@ async fn exchange_bots(
         bots.insert(xch, bot);
     }
     bots
+}
+
+async fn await_termination() -> std::io::Result<()> {
+    let _stream: Signal = signal(SignalKind::terminate())?;
+    let mut stream: Signal = signal(SignalKind::interrupt())?;
+    let mut stream2: Signal = signal(SignalKind::user_defined1())?;
+    let t1 = stream.recv().fuse();
+    let t2 = stream2.recv().fuse();
+    pin_mut!(t1, t2);
+
+    select! {
+        _ = t1 => info!("Interrupt"),
+        _ = t2 => info!("SigUSR1"),
+    }
+    Ok(())
 }

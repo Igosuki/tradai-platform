@@ -109,7 +109,7 @@ impl Db {
     {
         self.with_db(|env, store| {
             let mut writer = env.write().unwrap();
-            let value: Value = v.into();
+            let _value: Value = v.into();
             store.put(&mut writer, &key, &v.into()).unwrap();
             writer.commit().unwrap();
         });

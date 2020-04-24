@@ -297,7 +297,7 @@ impl StrategySink for Strategy {
     fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()> {
         match le {
             LiveEvent::LiveOrderbook(ob) => {
-                let string = ob.pair.as_string();
+                let string = ob.pair.clone();
                 if string == self.left_pair {
                     self.last_left = BookPosition::from_book(ob);
                 } else if string == self.right_pair {
