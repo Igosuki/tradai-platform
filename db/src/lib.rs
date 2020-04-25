@@ -93,12 +93,32 @@ impl Db {
         })
     }
 
+    pub fn delete_all(&self, key: &str) {
+        self.with_db(|env, store| {
+            let mut writer = env.write().unwrap();
+            store.delete(&mut writer, key);
+        })
+    }
+
     pub fn put_json<T: Serialize>(&self, key: &str, v: T) {
         self.with_db(|env, store| {
             let result = serde_json::to_string(&v).unwrap();
             let mut writer = env.write().unwrap();
 
             store.put(&mut writer, &key, &Value::Json(&result)).unwrap();
+            writer.commit().unwrap();
+        });
+    }
+
+    pub fn put_all_json<T: Serialize>(&self, key: &str, v: &Vec<T>) {
+        self.with_db(|env, store| {
+            let mut writer = env.write().unwrap();
+            for (i, v) in v.iter().enumerate() {
+                let result = serde_json::to_string(&v).unwrap();
+                store
+                    .put(&mut writer, &format!("{}{}", key, i), &Value::Json(&result))
+                    .unwrap();
+            }
             writer.commit().unwrap();
         });
     }

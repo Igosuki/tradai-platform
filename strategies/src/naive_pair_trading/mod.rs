@@ -246,7 +246,7 @@ impl Strategy {
                 .data_table
                 .model()
                 .map(|m| {
-                    m.at.gt(Utc::now().sub(
+                    m.at.gt(&Utc::now().sub(
                         self.beta_sample_freq
                             .mul((self.beta_eval_freq as f64 * 1.2) as i32),
                     ))
