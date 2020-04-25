@@ -73,7 +73,7 @@ const LINEAR_MODEL_KEY: &'static str = "linear_model";
 pub struct LinearModelValue {
     pub beta: f64,
     pub alpha: f64,
-    at: DateTime<Utc>,
+    pub at: DateTime<Utc>,
 }
 
 impl Default for DataTable {

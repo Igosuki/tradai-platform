@@ -6,7 +6,7 @@ pub mod input;
 pub mod metrics;
 pub mod state;
 
-use std::ops::Add;
+use std::ops::{Add, Mul, Sub};
 
 use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
 use crate::StrategySink;
@@ -242,6 +242,16 @@ impl Strategy {
 
     fn can_eval(&self) -> bool {
         self.data_table.has_model()
+            && self
+                .data_table
+                .model()
+                .map(|m| {
+                    m.at.gt(Utc::now().sub(
+                        self.beta_sample_freq
+                            .mul((self.beta_eval_freq as f64 * 1.2) as i32),
+                    ))
+                })
+                .unwrap_or(false)
     }
 
     fn process_row(&mut self, row: &DataRow) {
