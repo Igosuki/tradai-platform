@@ -251,7 +251,7 @@ impl Strategy {
             self.set_short_spread(row.left.ask);
             self.state.set_pnl();
         }
-        let time = self.last_sample_time.add(chrono::Duration::minutes(1));
+        let time = self.last_sample_time.add(self.beta_sample_freq);
         let should_sample = row.time.gt(&time) || row.time == time;
         if should_sample {
             self.inc_samples_since_last();
