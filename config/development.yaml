@@ -3,9 +3,9 @@
 exchanges:
   binance:
     orderbook:
-      symbols: ['BTC_USDT', 'ETH_USDT']
+      symbols: ['BTC_USDT', 'ETH_USDT', 'LTC_USDT', 'XRP_USDT', 'ETC_USDT', 'EOS_USDT', 'ZEC_BTC', 'ETC_BTC', 'BCH_USDT']
     trades:
-      symbols: ['BTC_USDT', 'ETH_USDT']
+      symbols: ['BTC_USDT', 'ETH_USDT', 'LTC_USDT', 'XRP_USDT', 'ETC_USDT','EOS_USDT', 'ZEC_BTC', 'ETC_BTC', 'BCH_USDT']
 
 strategies:
   - type: Naive
@@ -16,6 +16,61 @@ strategies:
     beta_sample_freq: 1min
     window_size: 500
 
+  - type: Naive
+    left: 'LTC_USDT'
+    right: 'BCH_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+
+  - type: Naive
+    left: 'XRP_USDT'
+    right: 'ETC_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+
+  - type: Naive
+    left: 'LTC_USDT'
+    right: 'EOS_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+
+  - type: Naive
+    left: 'LTC_USDT'
+    right: 'ETC_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+
+  - type: Naive
+    left: 'ZEC_BTC'
+    right: 'ETC_BTC'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+
+  - type: Naive
+    left: 'BCH_USDT'
+    right: 'ZEC_BTC'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+
+  - type: Naive
+    left: 'EOS_USDT'
+    right: 'ZEC_BTC'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
 
 file_rotation:
   max_file_size: 1 Mb
