@@ -67,3 +67,4 @@ plotlib = "0.5.1"
 plotters = { version = "0.2.12", features = ["svg", "image_encoder"] }
 tempdir = "0.3.7"
 tempfile = "3.1.0"
+quickcheck = "0.9.2"

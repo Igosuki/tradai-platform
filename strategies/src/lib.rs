@@ -1,3 +1,5 @@
+#![feature(test)]
+
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
@@ -11,6 +13,9 @@ use derive_more::Display;
 use parse_duration::parse;
 use serde::Deserialize;
 use uuid::Uuid;
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck;
 
 pub mod naive_pair_trading;
 
@@ -138,7 +143,7 @@ mod test {
                 Exchange::Binance,
                 LiveEvent::LiveOrderbook(Orderbook {
                     timestamp: chrono::Utc::now().timestamp(),
-                    pair: Pair::BTC_USDT,
+                    pair: "BTC_USDT".into(),
                     asks: vec![
                         (BigDecimal::from(0.1), BigDecimal::from(0.1)),
                         (BigDecimal::from(0.2), BigDecimal::from(0.2)),
