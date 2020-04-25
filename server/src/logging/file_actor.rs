@@ -189,7 +189,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
                     event_ms: lt.event_ms,
                     amount: lt.amount,
                 };
-                debug!("Avro bean {:?}", lt);
+                trace!("Avro bean {:?}", lt);
                 match writer.append_ser(lt) {
                     Err(e) => {
                         trace!("Error writing avro bean {:?}", e);
@@ -213,7 +213,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
                         .map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()])
                         .collect(),
                 };
-                debug!("Avro bean {:?}", orderbook);
+                trace!("Avro bean {:?}", orderbook);
                 match writer.append_ser(orderbook) {
                     Err(e) => {
                         trace!("Error writing avro bean {:?}", e);

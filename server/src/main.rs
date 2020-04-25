@@ -15,7 +15,7 @@ extern crate lazy_static;
 extern crate log;
 extern crate trader;
 
-use actix_rt::System;
+use actix_rt::{time, System};
 use std::collections::HashMap;
 #[cfg(feature = "flame_it")]
 use std::fs::File;
@@ -25,7 +25,7 @@ use std::sync::mpsc::channel;
 use std::sync::{Arc, RwLock};
 use std::{fs, io};
 
-use futures::{pin_mut, select, FutureExt};
+use futures::{join, pin_mut, select, Future, FutureExt};
 
 use actix::{Actor, Addr, Recipient, SyncArbiter};
 use actix_rt::signal::unix::{signal, Signal, SignalKind};
@@ -40,6 +40,8 @@ use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::exchange_bot::ExchangeBot;
 use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::LiveEventEnveloppe;
+use itertools::join;
+use std::time::Duration;
 use strategies::{self, StrategyActor, StrategyActorOptions};
 use trader::logging::file_actor::{AvroFileActor, FileActorOptions};
 use trader::settings::{self, Settings};
@@ -137,10 +139,11 @@ async fn main() -> io::Result<()> {
 
     let server = server::httpserver(exchanges.clone(), keys_path.clone());
 
+    // ping all bots at regular intervals
     // // Handle interrupts for graceful shutdown
     // await_termination().await?;
-    server.await?;
-    drop(bots);
+    let j = join!(server, poll_bots(bots));
+    j.0?;
     System::current().stop();
     info!("Caught interrupt and stopped the system");
 
@@ -241,6 +244,17 @@ async fn await_termination() -> std::io::Result<()> {
     select! {
         _ = t1 => info!("Interrupt"),
         _ = t2 => info!("SigUSR1"),
+    }
+    Ok(())
+}
+
+async fn poll_bots(bots: HashMap<Exchange, Box<dyn ExchangeBot>>) -> std::io::Result<()> {
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    loop {
+        interval.tick().await;
+        for (_, bot) in &bots {
+            bot.ping();
+        }
     }
     Ok(())
 }
