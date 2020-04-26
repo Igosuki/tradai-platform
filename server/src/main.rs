@@ -1,8 +1,5 @@
 #![feature(try_trait)]
 
-#[macro_use]
-extern crate actix_rt;
-
 extern crate clap;
 extern crate coinnect_rt;
 #[cfg(feature = "flame_it")]
@@ -257,6 +254,7 @@ async fn exchange_bots(
     bots
 }
 
+#[allow(dead_code)]
 async fn await_termination() -> std::io::Result<()> {
     let _stream: Signal = signal(SignalKind::terminate())?;
     let mut stream: Signal = signal(SignalKind::interrupt())?;
@@ -280,5 +278,4 @@ async fn poll_bots(bots: HashMap<Exchange, Box<dyn ExchangeBot>>) -> std::io::Re
             bot.ping();
         }
     }
-    Ok(())
 }

@@ -303,6 +303,7 @@ impl Strategy {
         self.db.put_json(&format!("orders:{}", Uuid::new_v4()), pos)
     }
 
+    #[allow(dead_code)]
     fn get_positions(&self) -> Vec<Position> {
         self.db.read_json_vec("orders")
     }
