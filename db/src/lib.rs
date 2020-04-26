@@ -96,7 +96,7 @@ impl Db {
     pub fn delete_all(&self, key: &str) {
         self.with_db(|env, store| {
             let mut writer = env.write().unwrap();
-            store.delete(&mut writer, key);
+            store.delete(&mut writer, key).unwrap();
         })
     }
 

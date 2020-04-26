@@ -213,14 +213,6 @@ impl MovingState {
         self.nominal_position
     }
 
-    pub(super) fn traded_price_right(&self) -> f64 {
-        self.traded_price_right
-    }
-
-    pub(super) fn traded_price_left(&self) -> f64 {
-        self.traded_price_left
-    }
-
     pub(super) fn set_units_to_buy_long_spread(&mut self, units_to_buy_long_spread: f64) {
         self.units_to_buy_long_spread = units_to_buy_long_spread;
     }

@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-use lazy_static;
 use avro_rs::schema::Schema;
+use lazy_static;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Deserialize, Serialize)]
 pub enum TradeType {
@@ -11,7 +11,7 @@ pub enum TradeType {
 }
 
 lazy_static! {
-    pub static ref LIVETRADE_SCHEMA : Schema = Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveTrade\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"float\"},{\"name\":\"price\",\"type\":\"float\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
+    pub static ref LIVETRADE_SCHEMA : Schema = Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveTrade\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
 }
 
 #[serde(default)]
@@ -37,7 +37,7 @@ impl Default for LiveTrade {
 }
 
 lazy_static! {
-    pub static ref LIVEORDER_SCHEMA : Schema = Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveOrder\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"amount\",\"type\":\"float\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"price\",\"type\":\"float\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
+    pub static ref LIVEORDER_SCHEMA : Schema = Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveOrder\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
 }
 
 #[serde(default)]
@@ -63,7 +63,7 @@ impl Default for LiveOrder {
 }
 
 lazy_static! {
-    pub static ref ORDERBOOK_SCHEMA : Schema = Schema::parse_str("{\"type\":\"record\",\"name\":\"Orderbook\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"asks\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"array\",\"items\":\"float\"}}},{\"name\":\"bids\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"array\",\"items\":\"float\"}}}]}").unwrap();
+    pub static ref ORDERBOOK_SCHEMA : Schema = Schema::parse_str("{\"type\":\"record\",\"name\":\"Orderbook\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"asks\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"array\",\"items\":\"double\"}}},{\"name\":\"bids\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"array\",\"items\":\"double\"}}}]}").unwrap();
 }
 
 #[serde(default)]

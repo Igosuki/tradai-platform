@@ -1,5 +1,5 @@
 use chrono::prelude::*;
-use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe, Pair};
+use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use std::path::PathBuf;
 
 pub mod file_actor;
