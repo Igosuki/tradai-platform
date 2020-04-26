@@ -544,18 +544,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75bf05cf4e05e803d8458ba57c61201b90068fa39f9200962fa401cd5f9ab403"
 
 [[package]]
-name = "bigdecimal"
-version = "0.0.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "679e21a6734fdfc63378aea80c2bf31e6ac8ced21ed33e1ee37f8f7bf33c2056"
-dependencies = [
- "num-bigint",
- "num-integer",
- "num-traits 0.2.11",
- "serde 1.0.106",
-]
-
-[[package]]
 name = "binance"
 version = "0.10.2"
 source = "git+https://github.com/Igosuki/binance-rs-async.git#fe5f0b54de92a84e868cd03d22008cff63d60e8b"
@@ -820,7 +808,6 @@ dependencies = [
  "backoff",
  "base64 0.11.0",
  "bidir-map",
- "bigdecimal",
  "binance 0.10.2 (git+https://github.com/Igosuki/binance-rs-async.git)",
  "bstr",
  "bytes 0.5.4",
@@ -839,6 +826,7 @@ dependencies = [
  "libflate",
  "log",
  "openssl",
+ "ordered-float",
  "pin-project",
  "prometheus",
  "prometheus-static-metric",
@@ -3741,7 +3729,6 @@ dependencies = [
  "actix",
  "actix-rt",
  "anyhow",
- "bigdecimal",
  "chrono",
  "clap",
  "coinnect_rt",
@@ -4173,7 +4160,6 @@ dependencies = [
  "avro-rs",
  "awc",
  "bidir-map",
- "bigdecimal",
  "byte-unit",
  "bytes 0.5.4",
  "chrono",

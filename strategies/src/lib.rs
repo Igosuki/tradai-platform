@@ -119,7 +119,7 @@ mod test {
 
     use actix::SyncArbiter;
     use actix_rt::System;
-    use bigdecimal::BigDecimal;
+
     use coinnect_rt::exchange::Exchange;
     use coinnect_rt::types::Orderbook;
     use coinnect_rt::types::Pair;
@@ -151,14 +151,8 @@ mod test {
                 LiveEvent::LiveOrderbook(Orderbook {
                     timestamp: chrono::Utc::now().timestamp(),
                     pair: "BTC_USDT".into(),
-                    asks: vec![
-                        (BigDecimal::from(0.1), BigDecimal::from(0.1)),
-                        (BigDecimal::from(0.2), BigDecimal::from(0.2)),
-                    ],
-                    bids: vec![
-                        (BigDecimal::from(0.1), BigDecimal::from(0.1)),
-                        (BigDecimal::from(0.2), BigDecimal::from(0.2)),
-                    ],
+                    asks: vec![(0.1), 0.1, (0.2), 0.2],
+                    bids: vec![(0.1), 0.1, (0.2), 0.2],
                 }),
             );
             println!("Sending...");

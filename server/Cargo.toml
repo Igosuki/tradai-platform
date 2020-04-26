@@ -45,7 +45,6 @@ chrono = { version = "0.4.10", features = ["serde"] }
 url = "2.1.0"
 uuid = { version = "0.8.1", features = ["v4"] }
 byte-unit = "3.0.3"
-bigdecimal = { version = "0.0.14", features = ["serde"] }
 error-chain = "0.12.1"
 config = { version = "0.9", features = ["yaml"] }
 rand = "0.7.3"

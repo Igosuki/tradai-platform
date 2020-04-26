@@ -4,7 +4,6 @@ use avro_rs::{
     types::{ToAvro, Value},
     Codec, Schema, Writer,
 };
-use bigdecimal::ToPrimitive;
 use chrono::Duration;
 use derive_more::Display;
 use log::Level::*;
@@ -208,7 +207,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
                 let lt = LT {
                     pair: lt.pair,
                     tt: lt.tt.into(),
-                    price: lt.price.to_f32().unwrap(),
+                    price: lt.price,
                     event_ms: lt.event_ms,
                     amount: lt.amount,
                 };
@@ -218,16 +217,8 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
                 let orderbook = OB {
                     pair: lt.pair.to_string(),
                     event_ms: lt.timestamp,
-                    asks: lt
-                        .asks
-                        .iter()
-                        .map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()])
-                        .collect(),
-                    bids: lt
-                        .bids
-                        .iter()
-                        .map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()])
-                        .collect(),
+                    asks: lt.asks.iter().map(|(p, v)| vec![*p, *v]).collect(),
+                    bids: lt.bids.iter().map(|(p, v)| vec![*p, *v]).collect(),
                 };
                 AvroFileActor::append_log(&mut writer, orderbook)
             }
@@ -269,7 +260,7 @@ mod test {
 
     use actix::SyncArbiter;
     use actix_rt::System;
-    use bigdecimal::BigDecimal;
+
     use coinnect_rt::exchange::Exchange;
     use coinnect_rt::types::Orderbook;
     use coinnect_rt::types::Pair;
@@ -305,14 +296,8 @@ mod test {
                 LiveEvent::LiveOrderbook(Orderbook {
                     timestamp: chrono::Utc::now().timestamp(),
                     pair: Pair::BTC_USDT,
-                    asks: vec![
-                        (BigDecimal::from(0.1), BigDecimal::from(0.1)),
-                        (BigDecimal::from(0.2), BigDecimal::from(0.2)),
-                    ],
-                    bids: vec![
-                        (BigDecimal::from(0.1), BigDecimal::from(0.1)),
-                        (BigDecimal::from(0.2), BigDecimal::from(0.2)),
-                    ],
+                    asks: vec![(0.1), 0.1, (0.2), 0.2],
+                    bids: vec![(0.1), 0.1, (0.2), 0.2],
                 }),
             );
             println!("Sending...");

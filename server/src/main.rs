@@ -15,7 +15,7 @@ extern crate lazy_static;
 extern crate log;
 extern crate trader;
 
-use actix_rt::{time, System};
+use actix_rt::System;
 use std::collections::HashMap;
 #[cfg(feature = "flame_it")]
 use std::fs::File;
@@ -25,7 +25,7 @@ use std::sync::mpsc::channel;
 use std::sync::{Arc, RwLock};
 use std::{fs, io};
 
-use futures::{join, pin_mut, select, Future, FutureExt};
+use futures::{pin_mut, select, FutureExt};
 
 use actix::{Actor, Addr, Recipient, SyncArbiter};
 use actix_rt::signal::unix::{signal, Signal, SignalKind};
@@ -42,7 +42,6 @@ use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::LiveEventEnveloppe;
 #[cfg(feature = "gprof")]
 use gperftools::heap_profiler::HEAP_PROFILER;
-use itertools::join;
 use std::time::Duration;
 use strategies::{self, StrategyActor, StrategyActorOptions};
 use trader::logging::file_actor::{AvroFileActor, FileActorOptions};
