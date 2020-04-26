@@ -40,6 +40,8 @@ use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::exchange_bot::ExchangeBot;
 use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::LiveEventEnveloppe;
+#[cfg(feature = "gprof")]
+use gperftools::heap_profiler::HEAP_PROFILER;
 use itertools::join;
 use std::time::Duration;
 use strategies::{self, StrategyActor, StrategyActorOptions};
@@ -83,6 +85,12 @@ struct Opts {
 #[actix_rt::main]
 #[cfg_attr(feature = "flame_it", flame)]
 async fn main() -> io::Result<()> {
+    #[cfg(feature = "gprof")]
+    HEAP_PROFILER
+        .lock()
+        .unwrap()
+        .start("./trader.hprof")
+        .unwrap();
     env_logger::init();
     let opts: Opts = Opts::from_args();
     let env = std::env::var("TRADER_ENV").unwrap_or("development".to_string());
@@ -146,6 +154,10 @@ async fn main() -> io::Result<()> {
         // ping all bots at regular intervals
         _ = poll_bots(bots).fuse() => println!("Stopped polling bots."),
     };
+    if settings_v.profile_main {
+        #[cfg(feature = "gprof")]
+        HEAP_PROFILER.lock().unwrap().stop().unwrap();
+    }
     System::current().stop();
     info!("Caught interrupt and stopped the system");
 
@@ -179,16 +191,22 @@ fn strategy_actors(settings: Arc<RwLock<Settings>>) -> Vec<Addr<StrategyActor>> 
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
     let settings_v = arc1.read().unwrap();
-    let string = Arc::new(arc.read().unwrap().db_storage_path.clone());
+    let string = Arc::new(arc.clone().read().unwrap().db_storage_path.clone());
+    let exchanges = Arc::new(arc.clone().read().unwrap().exchanges.clone());
     settings_v
         .strategies
         .clone()
         .into_iter()
         .map(move |strategy| {
             let arc2 = string.clone();
+            let arc3 = exchanges.clone();
             SyncArbiter::start(1, move || {
                 StrategyActor::new(StrategyActorOptions {
-                    strategy: strategies::from_settings(arc2.clone().as_ref(), &strategy),
+                    strategy: strategies::from_settings(
+                        arc2.clone().as_ref(),
+                        arc3.get(&strategy.exchange()).unwrap().fees,
+                        &strategy,
+                    ),
                 })
             })
         })

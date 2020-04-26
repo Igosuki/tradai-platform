@@ -9,7 +9,7 @@ pub mod state;
 use std::ops::{Add, Mul, Sub};
 
 use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
-use crate::StrategySink;
+use crate::{NaiveStrategy, StrategySink};
 use coinnect_rt::types::LiveEvent;
 use db::Db;
 use metrics::StrategyMetrics;
@@ -40,45 +40,34 @@ pub struct Strategy {
 }
 
 impl Strategy {
-    pub fn new(
-        left_pair: &str,
-        right_pair: &str,
-        beta_eval_freq: i32,
-        beta_sample_freq: Duration,
-        window_size: i32,
-        db_path: &str,
-    ) -> Self {
-        let db_name = format!("{}_{}", left_pair, right_pair);
-        let metrics =
-            StrategyMetrics::for_strat(prometheus::default_registry(), left_pair, right_pair);
-        let strat_db_path = format!(
-            "{}/naive_pair_trading_{}_{}",
-            db_path, left_pair, right_pair
-        );
+    pub fn new(db_path: &str, fees_rate: f64, n: &NaiveStrategy) -> Self {
+        let db_name = format!("{}_{}", n.left, n.right);
+        let metrics = StrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
+        let strat_db_path = format!("{}/naive_pair_trading_{}_{}", db_path, n.left, n.right);
         Self {
-            fees_rate: 0.001,
-            res_threshold_long: -0.04,
-            res_threshold_short: 0.04,
-            stop_loss: -0.1,
+            fees_rate,
+            res_threshold_long: n.threshold_long,
+            res_threshold_short: n.threshold_short,
+            stop_loss: n.stop_loss,
             samples_since_last: 0,
-            beta_eval_window_size: window_size,
-            beta_eval_freq,
+            beta_eval_window_size: n.window_size,
+            beta_eval_freq: n.beta_eval_freq,
             state: MovingState::new(100.0),
             data_table: Self::make_lm_table(
-                left_pair,
-                right_pair,
+                &n.left,
+                &n.right,
                 &strat_db_path,
-                window_size as usize,
+                n.window_size as usize,
             ),
-            right_pair: right_pair.to_string(),
-            left_pair: left_pair.to_string(),
+            right_pair: n.right.to_string(),
+            left_pair: n.left.to_string(),
             last_row_process_time: Utc.timestamp_millis(0),
             last_sample_time: Utc.timestamp_millis(0),
             metrics: Arc::new(metrics),
             db: Db::new(&strat_db_path, db_name),
             last_left: None,
             last_right: None,
-            beta_sample_freq,
+            beta_sample_freq: n.beta_sample_freq(),
         }
     }
 
