@@ -1,10 +1,3 @@
-use std::cell::RefCell;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::rc::Rc;
-
 use actix::{Actor, Handler, Running, SyncContext};
 use avro_rs::encode::encode;
 use avro_rs::{
@@ -13,16 +6,24 @@ use avro_rs::{
 };
 use bigdecimal::ToPrimitive;
 use chrono::Duration;
-use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use derive_more::Display;
+use log::Level::*;
 use rand::random;
+use std::cell::{RefCell, RefMut};
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use uuid::Uuid;
 
 use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
+use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use models::avro_gen::{
     self,
     models::{LiveTrade as LT, Orderbook as OB},
 };
+use serde::Serialize;
 
 type RotatingWriter = Writer<'static, RotatingFile<SizeAndExpirationPolicy>>;
 
@@ -42,6 +43,7 @@ pub struct FileActorOptions {
 #[derive(Debug, Display)]
 pub enum Error {
     NoWriterError,
+    WriterError,
     NoPartitionError,
     NoSchemaError,
     IOError(std::io::Error),
@@ -142,6 +144,24 @@ impl AvroFileActor {
             _ => None,
         }
     }
+
+    fn append_log<S: std::fmt::Debug + Serialize>(
+        writer: &mut RefMut<Writer<RotatingFile<SizeAndExpirationPolicy>>>,
+        s: S,
+    ) -> Result<i32, Error> {
+        if log_enabled!(Trace) {
+            trace!("Avro bean {:?}", s);
+        }
+        match writer.append_ser(s) {
+            Err(e) => {
+                if log_enabled!(Trace) {
+                    trace!("Error writing avro bean {:?}", e);
+                }
+                Err(Error::WriterError)
+            }
+            _ => Ok(0),
+        }
+    }
 }
 
 impl Actor for AvroFileActor {
@@ -172,10 +192,12 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
     fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
         let rc = self.writer_for(&msg);
         if rc.is_err() {
-            debug!(
-                "Could not acquire writer for partition {:?}",
-                rc.err().unwrap()
-            );
+            if log_enabled!(Debug) {
+                debug!(
+                    "Could not acquire writer for partition {:?}",
+                    rc.err().unwrap()
+                );
+            }
             return;
         }
         let rc_ok = rc.unwrap();
@@ -189,14 +211,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
                     event_ms: lt.event_ms,
                     amount: lt.amount,
                 };
-                trace!("Avro bean {:?}", lt);
-                match writer.append_ser(lt) {
-                    Err(e) => {
-                        trace!("Error writing avro bean {:?}", e);
-                        Err(e)
-                    }
-                    _ => Ok(0),
-                }
+                AvroFileActor::append_log(&mut writer, lt)
             }
             LiveEvent::LiveOrderbook(lt) => {
                 let orderbook = OB {
@@ -213,18 +228,11 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
                         .map(|(p, v)| vec![p.to_f32().unwrap(), v.to_f32().unwrap()])
                         .collect(),
                 };
-                trace!("Avro bean {:?}", orderbook);
-                match writer.append_ser(orderbook) {
-                    Err(e) => {
-                        trace!("Error writing avro bean {:?}", e);
-                        Err(e)
-                    }
-                    _ => Ok(0),
-                }
+                AvroFileActor::append_log(&mut writer, orderbook)
             }
             _ => Ok(0),
         };
-        match appended.and_then(|_| writer.flush()) {
+        match appended.and_then(|_| writer.flush().map_err(|e| Error::WriterError)) {
             Err(e) => trace!("Failed to flush writer {:?}", e),
             Ok(_) => (),
         }
