@@ -141,7 +141,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_add_order() {
         let exchanges = ExchangeConfig {
-            key_file: "keys_real_test.json".to_string(),
+            key_file: "../keys_real_test.json".to_string(),
             exchanges: vec![Bitstamp],
         };
         let data = Mutex::new(build_exchanges(exchanges));

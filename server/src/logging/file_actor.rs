@@ -166,7 +166,7 @@ impl AvroFileActor {
 impl Actor for AvroFileActor {
     type Context = SyncContext<Self>;
 
-    fn started(&mut self, ctx: &mut Self::Context) {
+    fn started(&mut self, _ctx: &mut Self::Context) {
         // ctx.set_mailbox_capacity(ctx.);
         info!("AvroFileActor : started");
     }
@@ -224,7 +224,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
             }
             _ => Ok(0),
         };
-        match appended.and_then(|_| writer.flush().map_err(|e| Error::WriterError)) {
+        match appended.and_then(|_| writer.flush().map_err(|_e| Error::WriterError)) {
             Err(e) => trace!("Failed to flush writer {:?}", e),
             Ok(_) => (),
         }
@@ -263,7 +263,6 @@ mod test {
 
     use coinnect_rt::exchange::Exchange;
     use coinnect_rt::types::Orderbook;
-    use coinnect_rt::types::Pair;
     use fs_extra::dir::get_dir_content;
     use tempdir;
 
