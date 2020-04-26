@@ -21,6 +21,7 @@ pub struct Strategy {
     res_threshold_long: f64,
     res_threshold_short: f64,
     stop_loss: f64,
+    stop_gain: f64,
     samples_since_last: i32,
     beta_eval_window_size: i32,
     beta_eval_freq: i32,
@@ -49,6 +50,7 @@ impl Strategy {
             res_threshold_long: n.threshold_long,
             res_threshold_short: n.threshold_short,
             stop_loss: n.stop_loss,
+            stop_gain: n.stop_gain,
             samples_since_last: 0,
             beta_eval_window_size: n.window_size,
             beta_eval_freq: n.beta_eval_freq,
@@ -88,14 +90,16 @@ impl Strategy {
         self.samples_since_last += 1;
     }
 
-    fn log_stop_loss(&self, pos: PositionKind) {
-        info!(
-            "---- Stop-loss executed ({} position) ----",
-            match pos {
-                PositionKind::SHORT => "short",
-                PositionKind::LONG => "long",
-            }
-        )
+    fn maybe_log_stop_loss(&self, pos: PositionKind) {
+        if self.should_stop(pos) {
+            info!(
+                "---- Stop-loss executed ({} position) ----",
+                match pos {
+                    PositionKind::SHORT => "short",
+                    PositionKind::LONG => "long",
+                }
+            )
+        }
     }
 
     fn should_eval(&self) -> bool {
@@ -162,6 +166,14 @@ impl Strategy {
         }
     }
 
+    fn should_stop(&self, pk: PositionKind) -> bool {
+        let ret = match pk {
+            PositionKind::SHORT => self.state.short_position_return(),
+            PositionKind::LONG => self.state.long_position_return(),
+        };
+        ret > self.stop_gain || ret < self.stop_loss
+    }
+
     fn eval_latest(&mut self, lr: &DataRow) {
         if self.state.no_position_taken() {
             if self.should_eval() {
@@ -173,29 +185,28 @@ impl Strategy {
 
         self.state.set_beta_lr();
         self.state.set_predicted_right(self.predict(&lr.left));
+        self.state
+            .set_res((lr.right.mid - self.state.predicted_right()) / lr.right.mid);
 
-        if self.state.beta_lr() >= 0.0 {
-            self.state
-                .set_res((lr.right.mid - self.state.predicted_right()) / lr.right.mid);
-        } else {
-            self.state.set_res(0.0);
+        if self.state.beta_lr() <= 0.0 {
+            return;
         }
+
+        // Possibly open a short position
         if (self.state.res() > self.res_threshold_short) && self.state.no_position_taken() {
             let position = self.short_position(lr.right.bid, lr.left.ask, lr.time);
             self.log_position(&position);
             self.state.open(position, self.fees_rate);
         }
 
+        // Possibly close a short position
         if self.state.is_short() {
-            let short_position_return =
-                self.state
-                    .set_short_position_return(self.fees_rate, lr.right.ask, lr.left.bid);
+            self.state
+                .set_short_position_return(self.fees_rate, lr.right.ask, lr.left.bid);
             if (self.state.res() <= self.res_threshold_short && self.state.res() < 0.0)
-                || short_position_return < self.stop_loss
+                || self.should_stop(PositionKind::SHORT)
             {
-                if short_position_return < self.stop_loss {
-                    self.log_stop_loss(PositionKind::SHORT);
-                }
+                self.maybe_log_stop_loss(PositionKind::SHORT);
                 let position = self.short_position(lr.right.ask, lr.left.bid, lr.time);
                 self.log_position(&position);
                 self.state.close(position, self.fees_rate);
@@ -204,22 +215,21 @@ impl Strategy {
             }
         }
 
+        // Possibly open a long position
         if self.state.res() <= self.res_threshold_long && self.state.no_position_taken() {
             let position = self.long_position(lr.right.ask, lr.left.bid, lr.time);
             self.log_position(&position);
             self.state.open(position, self.fees_rate);
         }
 
+        // Possibly close a long position
         if self.state.is_long() {
-            let long_position_return =
-                self.state
-                    .set_long_position_return(self.fees_rate, lr.right.bid, lr.left.ask);
+            self.state
+                .set_long_position_return(self.fees_rate, lr.right.bid, lr.left.ask);
             if (self.state.res() >= self.res_threshold_long && self.state.res() > 0.0)
-                || long_position_return < self.stop_loss
+                || self.should_stop(PositionKind::LONG)
             {
-                if long_position_return < self.stop_loss {
-                    self.log_stop_loss(PositionKind::LONG);
-                }
+                self.maybe_log_stop_loss(PositionKind::LONG);
                 let position = self.long_position(lr.right.bid, lr.left.ask, lr.time);
                 self.log_position(&position);
                 self.state.close(position, self.fees_rate);

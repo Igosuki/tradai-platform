@@ -247,11 +247,10 @@ impl MovingState {
         fees_rate: f64,
         current_price_right: f64,
         current_price_left: f64,
-    ) -> f64 {
-        let x = self.get_long_position_value(fees_rate, current_price_right, current_price_left)
-            / self.pnl;
-        self.long_position_return = x;
-        x
+    ) {
+        self.long_position_return =
+            self.get_long_position_value(fees_rate, current_price_right, current_price_left)
+                / self.pnl;
     }
 
     pub fn get_short_position_value(
@@ -272,11 +271,10 @@ impl MovingState {
         fees_rate: f64,
         current_price_right: f64,
         current_price_left: f64,
-    ) -> f64 {
-        let x = self.get_short_position_value(fees_rate, current_price_right, current_price_left)
-            / self.pnl;
-        self.short_position_return = x;
-        return x;
+    ) {
+        self.short_position_return =
+            self.get_short_position_value(fees_rate, current_price_right, current_price_left)
+                / self.pnl;
     }
 
     pub(super) fn short_position_return(&self) -> f64 {

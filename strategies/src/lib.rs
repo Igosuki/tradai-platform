@@ -30,6 +30,7 @@ pub struct NaiveStrategy {
     pub threshold_long: f64,
     pub threshold_short: f64,
     pub stop_loss: f64,
+    pub stop_gain: f64,
 }
 
 impl NaiveStrategy {
