@@ -360,6 +360,8 @@ mod test {
     use super::state::MovingState;
     use super::{BookPosition, DataRow, DataTable, Strategy};
     use crate::naive_pair_trading::input::to_pos;
+    use crate::NaiveStrategy;
+    use coinnect_rt::exchange::Exchange;
     use ordered_float::OrderedFloat;
     use std::error::Error;
     use std::fs::File;
@@ -544,12 +546,20 @@ mod test {
         init();
         let root = Builder::new().prefix("test_data").tempdir().unwrap();
         let mut strat = Strategy::new(
-            LEFT_PAIR,
-            RIGHT_PAIR,
-            5000,
-            Duration::minutes(1),
-            500,
             root.into_path().to_str().unwrap(),
+            0.001,
+            &NaiveStrategy {
+                left: LEFT_PAIR.into(),
+                right: RIGHT_PAIR.into(),
+                beta_eval_freq: 5000,
+                beta_sample_freq: "1min".to_string(),
+                window_size: 500,
+                exchange: Exchange::Binance,
+                threshold_long: -0.04,
+                threshold_short: 0.04,
+                stop_loss: -0.1,
+                stop_gain: 0.075,
+            },
         );
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 03, 25);

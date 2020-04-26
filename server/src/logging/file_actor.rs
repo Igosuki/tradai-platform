@@ -295,9 +295,9 @@ mod test {
                 Exchange::Binance,
                 LiveEvent::LiveOrderbook(Orderbook {
                     timestamp: chrono::Utc::now().timestamp(),
-                    pair: Pair::BTC_USDT,
-                    asks: vec![(0.1), 0.1, (0.2), 0.2],
-                    bids: vec![(0.1), 0.1, (0.2), 0.2],
+                    pair: "BTC_USDT".into(),
+                    asks: vec![(0.1, 0.1), (0.2, 0.2)],
+                    bids: vec![(0.1, 0.1), (0.2, 0.2)],
                 }),
             );
             println!("Sending...");
