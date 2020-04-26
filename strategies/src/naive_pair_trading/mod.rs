@@ -100,7 +100,7 @@ impl Strategy {
     }
 
     fn log_stop_loss(&self, pos: PositionKind) {
-        debug!(
+        info!(
             "---- Stop-loss executed ({} position) ----",
             match pos {
                 PositionKind::SHORT => "short",

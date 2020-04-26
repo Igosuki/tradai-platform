@@ -170,28 +170,28 @@ impl DataTable {
     pub fn beta(&self) -> f64 {
         let (var, covar) = self.current_window().tee();
         let variance: f64 = var.map(|r| r.left.mid).variance();
-        trace!("variance {:?}", variance);
+        trace!("variance {}", variance);
         let covariance: f64 = covar
             .map(|r| (r.left.mid, r.right.mid))
             .covariance::<(f64, f64), f64>();
-        trace!("covariance {:?}", covariance);
+        trace!("covariance {}", covariance);
         let beta_val = covariance / variance;
-        trace!("beta_val {:?}", beta_val);
+        trace!("beta_val {}", beta_val);
         beta_val
     }
 
     pub fn alpha(&self, beta_val: f64) -> f64 {
         let (left, right) = self.current_window().tee();
         let mean_left: f64 = left.map(|l| l.left.mid).mean();
-        trace!("mean left {:?}", mean_left);
+        trace!("mean left {}", mean_left);
         let mean_right: f64 = right.map(|l| l.right.mid).mean();
-        trace!("mean right {:?}", mean_right);
+        trace!("mean right {}", mean_right);
         mean_right - beta_val * mean_left
     }
 
     pub fn predict(&self, alpha_val: f64, beta_val: f64, bp: &BookPosition) -> f64 {
         let p = alpha_val + beta_val * bp.mid;
-        trace!("predict {:?}", p);
+        trace!("predict {}", p);
         p
     }
 

@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use log::Level::Debug;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
@@ -94,32 +95,38 @@ impl MovingState {
     }
 
     fn log_pos(&self, op: &Operation, pos: &PositionKind, time: DateTime<Utc>) {
-        debug!(
-            "{} {} position at {}",
-            op,
-            match pos {
-                PositionKind::SHORT => "short",
-                PositionKind::LONG => "long",
-            },
-            time.format(TS_FORMAT)
-        );
+        if log_enabled!(Debug) {
+            debug!(
+                "{} {} position at {}",
+                op,
+                match pos {
+                    PositionKind::SHORT => "short",
+                    PositionKind::LONG => "long",
+                },
+                time.format(TS_FORMAT)
+            );
+        }
     }
 
     fn log_trade(&self, op: Operation, spread: f64, pair: &str, value: f64, qty: f64) {
-        debug!("{} {:.2} {} at {} for {:.2}", op, spread, pair, value, qty);
+        if log_enabled!(Debug) {
+            debug!("{} {:.2} {} at {} for {:.2}", op, spread, pair, value, qty);
+        }
     }
 
     fn log_info(&self, pos: &PositionKind) {
-        debug!(
-            "Additional info : units {:.2} beta val {:.2} value strat {}",
-            match pos {
-                PositionKind::SHORT => self.units_to_buy_short_spread,
-                PositionKind::LONG => self.units_to_buy_long_spread,
-            },
-            self.beta_val,
-            self.value_strat
-        );
-        debug!("--------------------------------")
+        if log_enabled!(Debug) {
+            debug!(
+                "Additional info : units {:.2} beta val {:.2} value strat {}",
+                match pos {
+                    PositionKind::SHORT => self.units_to_buy_short_spread,
+                    PositionKind::LONG => self.units_to_buy_long_spread,
+                },
+                self.beta_val,
+                self.value_strat
+            );
+            debug!("--------------------------------")
+        }
     }
 
     pub(super) fn no_position_taken(&self) -> bool {
