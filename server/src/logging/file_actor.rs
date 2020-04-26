@@ -167,15 +167,16 @@ impl AvroFileActor {
 impl Actor for AvroFileActor {
     type Context = SyncContext<Self>;
 
-    fn started(&mut self, _: &mut Self::Context) {
-        info!("starting");
+    fn started(&mut self, ctx: &mut Self::Context) {
+        // ctx.set_mailbox_capacity(ctx.);
+        info!("AvroFileActor : started");
     }
     fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
-        info!("stopping");
+        info!("AvroFileActor : stopping");
         Running::Stop
     }
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("File actor stopped, flushing writers...");
+        info!("AvroFileActor stopped, flushing writers...");
         let writers = &self.writers.borrow_mut();
         for (_k, v) in writers.iter() {
             v.borrow_mut().flush().unwrap_or_else(|_| {

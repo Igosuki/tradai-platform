@@ -91,7 +91,7 @@ impl Strategy {
     }
 
     fn maybe_log_stop_loss(&self, pos: PositionKind) {
-        if self.should_stop(pos) {
+        if self.should_stop(&pos) {
             info!(
                 "---- Stop-loss executed ({} position) ----",
                 match pos {
@@ -166,7 +166,7 @@ impl Strategy {
         }
     }
 
-    fn should_stop(&self, pk: PositionKind) -> bool {
+    fn should_stop(&self, pk: &PositionKind) -> bool {
         let ret = match pk {
             PositionKind::SHORT => self.state.short_position_return(),
             PositionKind::LONG => self.state.long_position_return(),
@@ -188,6 +188,14 @@ impl Strategy {
         self.state
             .set_res((lr.right.mid - self.state.predicted_right()) / lr.right.mid);
 
+        // if (dynamic_threshold & (i %% threshold_eval_window_size == 0)){
+        //     res_threshold_long = min(res_threshold_long, quantile(pair_data$res[max(beta_eval_window_size+1, i-threshold_eval_window_size):(i-1)], 0.025))
+        //     res_threshold_short = max(res_threshold_short, quantile(pair_data$res[max(beta_eval_window_size+1, i-threshold_eval_window_size):(i-1)], 0.975))
+        //     print("################################################################")
+        //     print(paste0("res_threshold_long has been set to: ", res_threshold_long))
+        //     print(paste0("res_threshold_short has been set to: ", res_threshold_short))
+        // }
+
         if self.state.beta_lr() <= 0.0 {
             return;
         }
@@ -204,7 +212,7 @@ impl Strategy {
             self.state
                 .set_short_position_return(self.fees_rate, lr.right.ask, lr.left.bid);
             if (self.state.res() <= self.res_threshold_short && self.state.res() < 0.0)
-                || self.should_stop(PositionKind::SHORT)
+                || self.should_stop(&PositionKind::SHORT)
             {
                 self.maybe_log_stop_loss(PositionKind::SHORT);
                 let position = self.short_position(lr.right.ask, lr.left.bid, lr.time);
@@ -227,7 +235,7 @@ impl Strategy {
             self.state
                 .set_long_position_return(self.fees_rate, lr.right.bid, lr.left.ask);
             if (self.state.res() >= self.res_threshold_long && self.state.res() > 0.0)
-                || self.should_stop(PositionKind::LONG)
+                || self.should_stop(&PositionKind::LONG)
             {
                 self.maybe_log_stop_loss(PositionKind::LONG);
                 let position = self.long_position(lr.right.bid, lr.left.ask, lr.time);
