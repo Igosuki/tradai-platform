@@ -205,7 +205,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
         let appended = match msg.1 {
             LiveEvent::LiveTrade(lt) => {
                 let lt = LT {
-                    pair: lt.pair,
+                    pair: lt.pair.to_string(),
                     tt: lt.tt.into(),
                     price: lt.price,
                     event_ms: lt.event_ms,
