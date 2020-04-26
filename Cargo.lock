@@ -544,6 +544,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75bf05cf4e05e803d8458ba57c61201b90068fa39f9200962fa401cd5f9ab403"
 
 [[package]]
+name = "bimap"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "783204f24fd7724ea274d327619cfa6a6018047bb0561a68aadff6f56787591b"
+dependencies = [
+ "cfg-if",
+ "serde 1.0.106",
+]
+
+[[package]]
 name = "binance"
 version = "0.10.2"
 source = "git+https://github.com/Igosuki/binance-rs-async.git#fe5f0b54de92a84e868cd03d22008cff63d60e8b"
@@ -807,7 +817,7 @@ dependencies = [
  "awc",
  "backoff",
  "base64 0.11.0",
- "bidir-map",
+ "bimap",
  "binance 0.10.2 (git+https://github.com/Igosuki/binance-rs-async.git)",
  "bstr",
  "bytes 0.5.4",

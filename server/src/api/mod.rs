@@ -102,7 +102,6 @@ mod tests {
     use coinnect_rt::exchange::Exchange::Bitstamp;
     use coinnect_rt::exchange::{Exchange, ExchangeApi};
     use coinnect_rt::types::OrderType;
-    use coinnect_rt::types::Pair::BTC_USD;
     use futures::lock::Mutex;
 
     use crate::api::config_app;
@@ -151,9 +150,9 @@ mod tests {
         let _o = crate::api::Order {
             exchg: Bitstamp,
             t: OrderType::SellLimit,
-            pair: BTC_USD,
+            pair: "BTC_USD".into(),
             qty: 0.000001,
-            price: 1,
+            price: 1.0,
         };
         let payload = r#"{"exchg":"Bitstamp","type":"SellLimit","pair":"BTC_USD", "qty": 0.0000001, "price": 0.01}"#.as_bytes();
 

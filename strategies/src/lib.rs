@@ -151,8 +151,8 @@ mod test {
                 LiveEvent::LiveOrderbook(Orderbook {
                     timestamp: chrono::Utc::now().timestamp(),
                     pair: "BTC_USDT".into(),
-                    asks: vec![(0.1), 0.1, (0.2), 0.2],
-                    bids: vec![(0.1), 0.1, (0.2), 0.2],
+                    asks: vec![(0.1, 0.1), (0.2, 0.2)],
+                    bids: vec![(0.1, 0.1), (0.2, 0.2)],
                 }),
             );
             println!("Sending...");
