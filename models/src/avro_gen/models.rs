@@ -1,6 +1,6 @@
-use avro_rs::schema::Schema;
-use lazy_static;
 use serde::{Deserialize, Serialize};
+use lazy_static;
+use avro_rs::schema::Schema;
 
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Deserialize, Serialize)]
 pub enum TradeType {
