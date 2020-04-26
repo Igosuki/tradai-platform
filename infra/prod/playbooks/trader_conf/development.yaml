@@ -31,8 +31,8 @@ strategies:
     beta_eval_freq: 5000
     beta_sample_freq: 1min
     window_size: 500
-    threshold_long: -0.04
-    threshold_short: 0.04
+    threshold_long: -0.03
+    threshold_short: 0.03
     stop_loss: -0.1
     stop_gain: 0.075
 
@@ -55,8 +55,8 @@ strategies:
     beta_eval_freq: 5000
     beta_sample_freq: 1min
     window_size: 500
-    threshold_long: -0.04
-    threshold_short: 0.04
+    threshold_long: -0.03
+    threshold_short: 0.03
     stop_loss: -0.1
     stop_gain: 0.075
 
