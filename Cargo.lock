@@ -1609,6 +1609,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "gperftools"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20a3fc5818b1223ec628fc6998c8900486208b577f78c07500d4b52f983ebc9d"
+dependencies = [
+ "error-chain",
+ "lazy_static 1.4.0",
+ "pkg-config",
+]
+
+[[package]]
 name = "h2"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4179,6 +4190,7 @@ dependencies = [
  "fs_extra",
  "futures",
  "futures-util",
+ "gperftools",
  "hmac 0.4.2",
  "itertools",
  "lazy_static 1.4.0",

@@ -27,12 +27,29 @@ pub struct NaiveStrategy {
     pub beta_eval_freq: i32,
     pub beta_sample_freq: String,
     pub window_size: i32,
+    pub threshold_long: f64,
+    pub threshold_short: f64,
+    pub stop_loss: f64,
+}
+
+impl NaiveStrategy {
+    fn beta_sample_freq(&self) -> Duration {
+        Duration::from_std(parse(&self.beta_sample_freq).unwrap()).unwrap()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type")]
 pub enum Strategy {
     Naive(NaiveStrategy),
+}
+
+impl Strategy {
+    pub fn exchange(&self) -> Exchange {
+        match self {
+            Self::Naive(s) => s.exchange,
+        }
+    }
 }
 
 pub struct StrategyActorOptions {
@@ -88,20 +105,9 @@ pub trait StrategySink {
     fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()>;
 }
 
-pub fn from_settings(db_path: &str, s: &Strategy) -> Box<dyn StrategySink> {
+pub fn from_settings(db_path: &str, fees: f64, s: &Strategy) -> Box<dyn StrategySink> {
     let s = match s {
-        Strategy::Naive(n) => {
-            let left = n.left.clone();
-            let right = n.right.clone();
-            crate::naive_pair_trading::Strategy::new(
-                &left,
-                &right,
-                n.beta_eval_freq,
-                Duration::from_std(parse(&n.beta_sample_freq).unwrap()).unwrap(),
-                n.window_size,
-                db_path,
-            )
-        }
+        Strategy::Naive(n) => crate::naive_pair_trading::Strategy::new(db_path, fees, n),
     };
     Box::new(s)
 }
