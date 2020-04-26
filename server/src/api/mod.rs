@@ -55,12 +55,7 @@ pub async fn add_order(
         .get_mut(&order.exchg)
         .ok_or(ExchangeNotFound(order.exchg))?;
     let _resp = api
-        .add_order(
-            order.t,
-            order.pair,
-            order.qty.with_prec(8),
-            Some(order.price.with_prec(2)),
-        )
+        .add_order(order.t, order.pair, order.qty, Some(order.price))
         .await
         .map_err(|e| ApiError::Coinnect(e))?;
     Ok(HttpResponse::Ok().finish())
@@ -100,7 +95,7 @@ mod tests {
         http::{header, StatusCode},
         test, App,
     };
-    use bigdecimal::BigDecimal;
+
     use coinnect_rt::bitstamp::BitstampCreds;
     use coinnect_rt::bittrex::BittrexCreds;
     use coinnect_rt::coinnect::Coinnect;
@@ -157,8 +152,8 @@ mod tests {
             exchg: Bitstamp,
             t: OrderType::SellLimit,
             pair: BTC_USD,
-            qty: BigDecimal::from(0.000001),
-            price: BigDecimal::from(1),
+            qty: 0.000001,
+            price: 1,
         };
         let payload = r#"{"exchg":"Bitstamp","type":"SellLimit","pair":"BTC_USD", "qty": 0.0000001, "price": 0.01}"#.as_bytes();
 

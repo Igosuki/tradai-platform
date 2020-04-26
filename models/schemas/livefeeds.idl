@@ -8,16 +8,16 @@ protocol Simple {
   record LiveTrade {
       long event_ms;
       string pair;
-      float amount;
-      float price;
+      double amount;
+      double price;
       int tt;
   }
 
   record LiveOrder {
       long event_ms;
-      float amount;
+      double amount;
       string pair;
-      float price;
+      double price;
       int tt;
   }
 
@@ -25,7 +25,7 @@ protocol Simple {
     long event_ms;
     string pair;
     // [(Price, Volume)...]
-    array<array<float>> asks;
-    array<array<float>> bids;
+    array<array<double>> asks;
+    array<array<double>> bids;
   }
 }

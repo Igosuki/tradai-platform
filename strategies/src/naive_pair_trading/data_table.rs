@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use coinnect_rt::types::{BigDecimalConv, Orderbook};
+use coinnect_rt::types::Orderbook;
 use db::Db;
 use itertools::Itertools;
 use math::iter::{CovarianceExt, MeanExt, VarianceExt};
@@ -35,14 +35,8 @@ impl BookPosition {
     }
 
     pub fn from_book(t: Orderbook) -> Option<BookPosition> {
-        let first_ask = t
-            .asks
-            .first()
-            .map(|a| (a.0.as_f64().unwrap(), a.1.as_f64().unwrap()));
-        let first_bid = t
-            .bids
-            .first()
-            .map(|a| (a.0.as_f64().unwrap(), a.1.as_f64().unwrap()));
+        let first_ask = t.asks.first().map(|a| (a.0, a.1));
+        let first_bid = t.bids.first().map(|a| (a.0, a.1));
         match (first_ask, first_bid) {
             (Some(ask), Some(bid)) => return Some(BookPosition::new(ask.0, ask.1, bid.0, bid.1)),
             _ => return None,

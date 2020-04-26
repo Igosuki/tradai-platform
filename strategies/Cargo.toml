@@ -30,7 +30,6 @@ parse_duration = "2.1.0"
 log = "0.4"
 env_logger = "0.7"
 uuid = { version = "0.8.1", features = ["v4"] }
-bigdecimal = "0.0.14"
 ordered-float = "1.0"
 glob = "0.3"
 
