@@ -91,6 +91,8 @@ async fn main() -> io::Result<()> {
         .unwrap()
         .start("./trader.hprof")
         .unwrap();
+
+    // Logging, App config
     env_logger::init();
     let opts: Opts = Opts::from_args();
     let env = std::env::var("TRADER_ENV").unwrap_or("development".to_string());
@@ -125,8 +127,10 @@ async fn main() -> io::Result<()> {
 
     // Live Events recipients
     let mut recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
+    // File actor that logs avro beans for all events
     let fa = file_actor(settings.clone()).recipient();
     recipients.push(fa);
+    // Strategy actors, cf strategy crate
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
     let strat_actors: Vec<Recipient<LiveEventEnveloppe>> = strategy_actors(arc1)
@@ -136,15 +140,16 @@ async fn main() -> io::Result<()> {
     for actor in strat_actors {
         recipients.push(actor);
     }
-    // Metrics
+
+    // Metrics pusher
     let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(&settings_v.prom_push_gw));
 
+    // Exchange bot actors, they just receive data
     let keys_path = PathBuf::from(settings_v.keys.clone());
-
     let exchanges = settings_v.exchanges.clone();
-
     let bots = exchange_bots(exchanges.clone(), keys_path.clone(), recipients).await;
 
+    // API Server
     let server = server::httpserver(exchanges.clone(), keys_path.clone());
 
     // Handle interrupts for graceful shutdown
