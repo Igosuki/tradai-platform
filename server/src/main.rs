@@ -137,13 +137,15 @@ async fn main() -> io::Result<()> {
 
     let bots = exchange_bots(exchanges.clone(), keys_path.clone(), recipients).await;
 
-    // let server = server::httpserver(exchanges.clone(), keys_path.clone());
+    let server = server::httpserver(exchanges.clone(), keys_path.clone());
 
-    // ping all bots at regular intervals
-    // // Handle interrupts for graceful shutdown
-    await_termination().await?;
-    // let j = join!(server, poll_bots(bots));
-    // j.0?;
+    // Handle interrupts for graceful shutdown
+    // await_termination().await?;
+    select! {
+        _ = server.fuse() => println!("Http Server terminated."),
+        // ping all bots at regular intervals
+        _ = poll_bots(bots).fuse() => println!("Stopped polling bots."),
+    };
     System::current().stop();
     info!("Caught interrupt and stopped the system");
 
