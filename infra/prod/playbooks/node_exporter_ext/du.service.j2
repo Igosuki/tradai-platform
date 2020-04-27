@@ -1,0 +1,13 @@
+# /etc/systemd/system/node_exporter_ext_du.service
+
+[Unit]
+Description=Monitor certain directories and put their size in a file readable by the node_exporter
+
+[Service]
+ExecStart=du -sb /var/log /var/cache/apt /root/data | sed -ne 's/^\([0-9]\+\)\t\(.*\)$/node_directory_size_bytes{directory="\2"} \1/p' > /var/lib/node_exporter/textfile_collector/directory_size.prom.$$ && mv /var/lib/node_exporter/textfile_collector/directory_size.prom.$$ /var/lib/node_exporter/textfile_collector/directory_size.prom
+WorkingDirectory=/app/shoes-scraper
+Slice=shoes-scraper.slice
+User=root
+
+[Install]
+WantedBy=multi-user.target

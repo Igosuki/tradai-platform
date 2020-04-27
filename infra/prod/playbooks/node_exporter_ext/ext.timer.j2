@@ -1,0 +1,14 @@
+# /etc/systemd/system/node_exporter_ext.timer
+
+[Unit]
+Description=Run the node exporter extension du command every 5 minutes
+Requires=node_exporter_ext_du.service
+
+[Timer]
+Unit=node_exporter_ext_du.service
+OnUnitInactiveSec=5m
+RandomizedDelaySec=5m
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
