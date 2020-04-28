@@ -1,14 +1,12 @@
----
-
 exchanges:
   binance:
     fees: 0.001
     orderbook:
-      symbols: ['BTC_USDT']
-    trades:
-      symbols: ['BTC_USDT']
+      symbols: ["BTC_USDT", "BCH_USDT", "ETH_USDT", "ETC_USDT"]
+#    trades:
+#      symbols: ['BTC_USDT', 'BCH_USDT', 'ETH_USDT', 'ETC_USDT', 'XRP_USDT', 'EOS_USDT', 'BNB_USDT', 'LTC_USDT', 'DASH_USDT', 'ETH_BTC', 'BCH_BTC', 'ETC_BTC', 'ADA_BTC', 'TUSD_BTC', 'STEEM_BTC', 'LTC_BTC', 'ZEC_BTC', 'BTC_EUR', 'ETH_EUR']
 
-strategies:
+srategies:
   - type: Naive
     left: 'ETH_USDT'
     right: 'BTC_USDT'
@@ -21,14 +19,115 @@ strategies:
     stop_loss: -0.1
     stop_gain: 0.075
 
+  - type: Naive
+    left: 'LTC_USDT'
+    right: 'BCH_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'XRP_USDT'
+    right: 'ETC_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'LTC_USDT'
+    right: 'EOS_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'LTC_USDT'
+    right: 'ETC_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'ZEC_BTC'
+    right: 'ETC_BTC'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'BCH_USDT'
+    right: 'ZEC_BTC'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'EOS_USDT'
+    right: 'ZEC_BTC'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'BCH_USDT'
+    right: 'ETC_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 10secs
+    window_size: 500
+    threshold_long: -0.02
+    threshold_short: 0.02
+    stop_loss: -0.1
+    stop_gain: 0.075
+
 file_rotation:
-  max_file_size: 1 Mb
-  max_file_time: 10
+  max_file_size: 50 Mb
+  max_file_time: 1800
 
 data_dir: './data'
 
 keys: keys_real.json
 
-db_storage_path: './data'
+db_storage_path: './database'
 
 prom_push_gw: 127.0.0.1:9091
+
+prom_instance: trader2
+
+api:
+  port: 8180

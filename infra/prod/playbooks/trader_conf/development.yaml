@@ -7,9 +7,9 @@ exchanges:
   binance:
     fees: 0.001
     orderbook:
-      symbols: ['BTC_USDT', 'BCH_USDT', 'ETH_USDT', 'ETC_USDT', 'XRP_USDT', 'EOS_USDT', 'BNB_USDT', 'LTC_USDT', 'DASH_USDT', 'BAB_USD', 'ETC_USD', 'BTC_USD', 'ETH_USD', 'BSV_USD', 'USDT_USD', 'XRP_USD', 'LTC_USD', 'EOS_USD', 'ETH_BTC', 'BCH_BTC', 'ETC_BTC', 'XRP_BTC', 'BSV_BTC', 'XTP_BTC', 'XRP_BTC', 'ADA_BTC', 'TUSD_BTC', 'STEEM_BTC', 'LTC_BTC', 'ZEC_BTC', 'BTC_EUR', 'ETH_EUR']
+      symbols: ['BTC_USDT', 'BCH_USDT', 'ETH_USDT', 'ETC_USDT', 'XRP_USDT', 'EOS_USDT', 'BNB_USDT', 'LTC_USDT', 'DASH_USDT', 'ETH_BTC', 'BCH_BTC', 'ETC_BTC', 'ADA_BTC', 'TUSD_BTC', 'STEEM_BTC', 'LTC_BTC', 'ZEC_BTC', 'BTC_EUR', 'ETH_EUR']
     trades:
-      symbols: ['BTC_USDT', 'BCH_USDT', 'ETH_USDT', 'ETC_USDT', 'XRP_USDT', 'EOS_USDT', 'BNB_USDT', 'LTC_USDT', 'DASH_USDT', 'BAB_USD', 'ETC_USD', 'BTC_USD', 'ETH_USD', 'BSV_USD', 'USDT_USD', 'XRP_USD', 'LTC_USD', 'EOS_USD', 'ETH_BTC', 'BCH_BTC', 'ETC_BTC', 'XRP_BTC', 'BSV_BTC', 'XTP_BTC', 'XRP_BTC', 'ADA_BTC', 'TUSD_BTC', 'STEEM_BTC', 'LTC_BTC', 'ZEC_BTC', 'BTC_EUR', 'ETH_EUR']
+      symbols: ['BTC_USDT', 'BCH_USDT', 'ETH_USDT', 'ETC_USDT', 'XRP_USDT', 'EOS_USDT', 'BNB_USDT', 'LTC_USDT', 'DASH_USDT', 'ETH_BTC', 'BCH_BTC', 'ETC_BTC', 'ADA_BTC', 'TUSD_BTC', 'STEEM_BTC', 'LTC_BTC', 'ZEC_BTC', 'BTC_EUR', 'ETH_EUR']
 
 strategies:
   - type: Naive
@@ -108,6 +108,17 @@ strategies:
     stop_loss: -0.1
     stop_gain: 0.075
 
+  - type: Naive
+    left: 'BCH_USDT'
+    right: 'ETC_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 10secs
+    window_size: 500
+    threshold_long: -0.02
+    threshold_short: 0.02
+    stop_loss: -0.1
+    stop_gain: 0.075
 
 file_rotation:
   max_file_size: 50 Mb
@@ -120,3 +131,8 @@ keys: /root/config/keys_real.json
 db_storage_path: './database'
 
 prom_push_gw: 127.0.0.1:9091
+
+prom_instance: trader
+
+api:
+  port: 8180

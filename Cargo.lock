@@ -1055,6 +1055,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "itertools",
+ "lmdb-rkv",
+ "log",
  "rkv",
  "serde 1.0.106",
  "serde_derive",
