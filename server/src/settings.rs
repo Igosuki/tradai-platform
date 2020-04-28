@@ -38,7 +38,7 @@ pub struct FileRotation {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Port(pub u16);
+pub struct Port(pub i32);
 
 /// Timeout in seconds.
 impl Default for Port {
@@ -72,6 +72,7 @@ pub struct Settings {
     pub strategies: Vec<Strategy>,
     pub db_storage_path: String,
     pub prom_push_gw: String,
+    pub prom_instance: String,
 }
 
 impl Settings {

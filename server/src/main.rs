@@ -138,7 +138,10 @@ async fn main() -> io::Result<()> {
     }
 
     // Metrics pusher
-    let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(&settings_v.prom_push_gw));
+    let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(
+        &settings_v.prom_push_gw,
+        &settings_v.prom_instance,
+    ));
 
     // Exchange bot actors, they just receive data
     let keys_path = PathBuf::from(settings_v.keys.clone());
@@ -146,7 +149,7 @@ async fn main() -> io::Result<()> {
     let bots = exchange_bots(exchanges.clone(), keys_path.clone(), recipients).await;
 
     // API Server
-    let server = server::httpserver(exchanges.clone(), keys_path.clone());
+    let server = server::httpserver(exchanges.clone(), keys_path.clone(), settings_v.api.port.0);
 
     // Handle interrupts for graceful shutdown
     // await_termination().await?;

@@ -11,6 +11,7 @@ use std::sync::Mutex;
 pub async fn httpserver(
     exchanges: HashMap<Exchange, ExchangeSettings>,
     keys_path: PathBuf,
+    port: i32,
 ) -> std::io::Result<()> {
     // Make and start the api
     let app = move || {
@@ -48,9 +49,9 @@ pub async fn httpserver(
             .data(data)
             .configure(crate::api::config_app)
     };
-    debug!("Starting api server on {} ...", 8080);
+    debug!("Starting api server on {} ...", port);
     HttpServer::new(app)
-        .bind(format!("localhost:{}", 8080))?
+        .bind(format!("localhost:{}", port))?
         .run()
         .await
 }
