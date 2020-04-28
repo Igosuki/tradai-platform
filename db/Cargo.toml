@@ -10,6 +10,7 @@ edition = "2018"
 itertools = "0.9"
 # DB
 rkv = "0.10.4"
+lmdb-rkv = "0.14.0"
 
 # Error
 thiserror = "1.0.14"
@@ -19,3 +20,6 @@ anyhow = "1.0.28"
 serde_json = "1.0"
 serde = "1.0"
 serde_derive = "1.0"
+
+# std
+log = "0.4.8"
