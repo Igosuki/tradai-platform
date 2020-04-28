@@ -1,3 +1,7 @@
+#[macro_use]
+extern crate log;
+
+use rkv::error::StoreError::LmdbError;
 use rkv::{Manager, Rkv, SingleStore, StoreOptions, Value};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -96,7 +100,13 @@ impl Db {
     pub fn delete_all(&self, key: &str) {
         self.with_db(|env, store| {
             let mut writer = env.write().unwrap();
-            store.delete(&mut writer, key).unwrap();
+            match store.delete(&mut writer, key) {
+                Ok(()) => {}
+                Err(e) => match e {
+                    LmdbError(lmdb::Error::NotFound) => {}
+                    e => error!("Failed to delete key {} for {}", key, e),
+                },
+            };
         })
     }
 
