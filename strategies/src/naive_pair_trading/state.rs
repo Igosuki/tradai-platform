@@ -1,13 +1,13 @@
+use actix::Message;
 use chrono::{DateTime, Utc};
 use log::Level::Debug;
 use serde::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
 use strum_macros::{AsRefStr, EnumString};
 
 const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
 #[derive(Debug, Deserialize, Serialize)]
-pub(super) struct Position {
+pub struct Position {
     pub kind: PositionKind,
     pub right_price: f64,
     pub left_price: f64,
@@ -17,7 +17,7 @@ pub(super) struct Position {
 }
 
 #[derive(Debug, Deserialize, Serialize, EnumString, AsRefStr)]
-pub(super) enum PositionKind {
+pub enum PositionKind {
     #[strum(serialize = "short")]
     SHORT,
     #[strum(serialize = "long")]

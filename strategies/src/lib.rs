@@ -4,10 +4,13 @@
 extern crate serde_derive;
 #[macro_use]
 extern crate log;
-#[macro_use]
 extern crate strum_macros;
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck;
 
 use actix::{Actor, Handler, Running, SyncContext};
+use actix_derive::{Message, MessageResponse};
 use chrono::Duration;
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe, Pair};
@@ -15,11 +18,30 @@ use derive_more::Display;
 use parse_duration::parse;
 use serde::Deserialize;
 use uuid::Uuid;
-#[cfg(test)]
-#[macro_use]
-extern crate quickcheck;
 
 pub mod naive_pair_trading;
+
+use naive_pair_trading::state::Position;
+use naive_pair_trading::state::PositionKind;
+
+#[derive(Debug, Display)]
+pub enum Error {
+    IOError(std::io::Error),
+}
+
+impl std::error::Error for Error {}
+
+#[derive(Deserialize, Serialize, MessageResponse)]
+#[serde(tag = "type")]
+pub enum StrategyData {
+    NaivePositions(Vec<Position>),
+}
+
+#[derive(Deserialize, Serialize, Message)]
+#[rtype(result = "Option<StrategyData>")]
+pub enum DataQuery {
+    NaivePositions,
+}
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct NaiveStrategy {
@@ -59,13 +81,6 @@ pub struct StrategyActorOptions {
     pub strategy: Box<dyn StrategySink>,
 }
 
-#[derive(Debug, Display)]
-pub enum Error {
-    IOError(std::io::Error),
-}
-
-impl std::error::Error for Error {}
-
 pub struct StrategyActor {
     _session_uuid: Uuid,
     inner: Box<dyn StrategySink>,
@@ -104,8 +119,19 @@ impl Handler<LiveEventEnveloppe> for StrategyActor {
     }
 }
 
+impl Handler<DataQuery> for StrategyActor {
+    type Result = <DataQuery as actix::Message>::Result;
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    fn handle(&mut self, msg: DataQuery, _ctx: &mut Self::Context) -> Self::Result {
+        self.inner.data(msg)
+    }
+}
+
 pub trait StrategySink {
     fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()>;
+
+    fn data(&mut self, q: DataQuery) -> Option<StrategyData>;
 }
 
 pub fn from_settings(db_path: &str, fees: f64, s: &Strategy) -> Box<dyn StrategySink> {

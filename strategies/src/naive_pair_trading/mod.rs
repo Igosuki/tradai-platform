@@ -10,12 +10,14 @@ use std::ops::{Add, Mul, Sub};
 
 use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
 use crate::naive_pair_trading::state::Operation;
-use crate::{NaiveStrategy, StrategySink};
+use crate::{DataQuery, NaiveStrategy, StrategyData, StrategySink};
 use coinnect_rt::types::LiveEvent;
 use db::Db;
 use metrics::StrategyMetrics;
 use state::{MovingState, Position, PositionKind};
 use uuid::Uuid;
+
+const LM_AGE_CUTOFF_RATIO: f64 = 0.2;
 
 pub struct Strategy {
     fees_rate: f64,
@@ -252,10 +254,10 @@ impl Strategy {
                 .data_table
                 .model()
                 .map(|m| {
-                    m.at.gt(&Utc::now().sub(
-                        self.beta_sample_freq
-                            .mul((self.beta_eval_freq as f64 * 1.2) as i32),
-                    ))
+                    m.at.gt(&Utc::now()
+                        .sub(self.beta_sample_freq.mul(
+                            (self.beta_eval_freq as f64 * (1.0 + LM_AGE_CUTOFF_RATIO)) as i32,
+                        )))
                 })
                 .unwrap_or(false)
     }
@@ -273,7 +275,8 @@ impl Strategy {
             self.inc_samples_since_last();
         }
         // A model is available
-        if self.can_eval() {
+        let can_eval = self.can_eval();
+        if can_eval {
             self.eval_latest(row);
             self.log_state();
         }
@@ -284,9 +287,7 @@ impl Strategy {
         }
 
         // No model and there are enough samples
-        if !self.data_table.has_model()
-            && self.data_table.len() == self.beta_eval_window_size as usize
-        {
+        if !can_eval && self.data_table.len() == self.beta_eval_window_size as usize {
             self.eval_linear_model();
             self.set_long_spread(row.right.ask);
             self.set_short_spread(row.left.ask);
@@ -346,6 +347,13 @@ impl StrategySink for Strategy {
             }
         }
         Ok(())
+    }
+
+    fn data(&mut self, q: DataQuery) -> Option<StrategyData> {
+        match q {
+            DataQuery::NaivePositions => Some(StrategyData::NaivePositions(self.get_positions())),
+            _ => unreachable!(),
+        }
     }
 }
 

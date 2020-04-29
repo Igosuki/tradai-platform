@@ -22,6 +22,7 @@ binary = ["clap"]
 # actix
 actix = "0.9.0"
 actix-rt = "1.1"
+actix_derive = "0.5.0"
 
 # std
 itertools = "0.9"

@@ -1,6 +1,5 @@
 use super::state::MovingState;
 use super::state::Operation;
-use super::state::PositionKind;
 use crate::naive_pair_trading::data_table::DataRow;
 use crate::naive_pair_trading::state::Position;
 use prometheus::{GaugeVec, Opts, Registry};
