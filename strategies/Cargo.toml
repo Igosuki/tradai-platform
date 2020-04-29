@@ -32,6 +32,8 @@ env_logger = "0.7"
 uuid = { version = "0.8.1", features = ["v4"] }
 ordered-float = "1.0"
 glob = "0.3"
+strum = "0.18.0"
+strum_macros = "0.18.0"
 
 # Error
 thiserror = "1.0.14"
