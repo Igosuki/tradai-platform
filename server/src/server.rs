@@ -1,3 +1,4 @@
+use crate::graphql_schemas::root::create_schema;
 use actix_web::HttpServer;
 use coinnect_rt::binance::BinanceCreds;
 use coinnect_rt::bitstamp::BitstampCreds;
@@ -6,10 +7,13 @@ use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::{Exchange, ExchangeApi, ExchangeSettings};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::Mutex;
+use strategies::{Strategy, StrategyKey};
 
 pub async fn httpserver(
     exchanges: HashMap<Exchange, ExchangeSettings>,
+    strategies: Arc<HashMap<StrategyKey, Strategy>>,
     keys_path: PathBuf,
     port: i32,
 ) -> std::io::Result<()> {
@@ -45,8 +49,12 @@ pub async fn httpserver(
             apis.insert(xch, xch_api);
         }
         let data = Mutex::new(apis);
+        let schema = Arc::new(create_schema());
+
         actix_web::App::new()
+            .data(schema)
             .data(data)
+            .data(strategies.clone())
             .configure(crate::api::config_app)
     };
     debug!("Starting api server on {} ...", port);

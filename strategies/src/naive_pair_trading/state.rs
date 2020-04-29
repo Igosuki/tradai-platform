@@ -6,7 +6,7 @@ use strum_macros::{AsRefStr, EnumString};
 
 const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct Position {
     pub kind: PositionKind,
     pub right_price: f64,
@@ -16,7 +16,7 @@ pub struct Position {
     pub left_pair: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, EnumString, AsRefStr)]
+#[derive(Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
 pub enum PositionKind {
     #[strum(serialize = "short")]
     SHORT,

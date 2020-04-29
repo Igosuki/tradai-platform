@@ -1835,6 +1835,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "076f042c5b7b98f31d205f1249267e12a6518c1481e9dae9764af19b707d2292"
 dependencies = [
  "autocfg 1.0.0",
+ "serde 1.0.106",
 ]
 
 [[package]]
@@ -1933,6 +1934,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a27d435371a2fa5b6d2b028a74bbdb1234f308da363226a2854ca3ff8ba7055"
 dependencies = [
  "wasm-bindgen",
+]
+
+[[package]]
+name = "juniper"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f662ba51e2fbc3d6dd1ca66be70b44963606a34473156abddcb0351fc6caa668"
+dependencies = [
+ "chrono",
+ "fnv",
+ "indexmap",
+ "juniper_codegen",
+ "serde 1.0.106",
+ "serde_derive",
+ "url",
+ "uuid 0.7.4",
+]
+
+[[package]]
+name = "juniper_codegen"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d40af234d8e971a9d7dda93ffbcc8a44a93f17e69e3067f72ce7a6894c41d51b"
+dependencies = [
+ "proc-macro2 1.0.10",
+ "quote 1.0.3",
+ "syn 1.0.18",
 ]
 
 [[package]]
@@ -3176,7 +3204,7 @@ dependencies = [
  "serde 1.0.106",
  "serde_derive",
  "url",
- "uuid",
+ "uuid 0.8.1",
 ]
 
 [[package]]
@@ -3740,6 +3768,7 @@ dependencies = [
  "env_logger",
  "glob",
  "itertools",
+ "juniper",
  "log",
  "math",
  "ordered-float",
@@ -3758,7 +3787,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "util",
- "uuid",
+ "uuid 0.8.1",
 ]
 
 [[package]]
@@ -4183,6 +4212,7 @@ dependencies = [
  "gperftools",
  "hmac 0.4.2",
  "itertools",
+ "juniper",
  "lazy_static 1.4.0",
  "libc",
  "log",
@@ -4206,7 +4236,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "url",
- "uuid",
+ "uuid 0.8.1",
 ]
 
 [[package]]
@@ -4422,6 +4452,12 @@ dependencies = [
  "serde 1.0.106",
  "tokio",
 ]
+
+[[package]]
+name = "uuid"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90dbc611eb48397705a6b0f6e917da23ae517e4d127123d2cf7674206627d32a"
 
 [[package]]
 name = "uuid"
