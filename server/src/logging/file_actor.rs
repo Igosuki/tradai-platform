@@ -268,7 +268,6 @@ mod test {
 
     use super::*;
 
-    #[allow(dead_code)]
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();
     }
@@ -284,6 +283,7 @@ mod test {
 
     #[test]
     fn test_workflow() {
+        init();
         let dir = tempdir::TempDir::new("s").unwrap();
         let x = dir.path().clone();
         let dir_str = String::from(x.as_os_str().to_str().unwrap());
