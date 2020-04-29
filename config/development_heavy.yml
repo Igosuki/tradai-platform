@@ -1,0 +1,133 @@
+exchanges:
+  binance:
+    fees: 0.001
+    orderbook:
+      symbols: ['BTC_USDT', 'BCH_USDT', 'ETH_USDT', 'ETC_USDT', 'XRP_USDT', 'EOS_USDT', 'BNB_USDT', 'LTC_USDT', 'DASH_USDT', 'ETH_BTC', 'BCH_BTC', 'ETC_BTC', 'ADA_BTC', 'BTC_TUSD', 'STEEM_BTC', 'LTC_BTC', 'ZEC_BTC', 'BTC_EUR', 'ETH_EUR', 'ADA_BNB','ADA_BTC','ADA_BUSD','ADA_ETH','ADA_PAX','ADA_TUSD','ADA_USDC','ADA_USDT','ADX_BNB','ADX_BTC','ADX_ETH','AE_BNB','AE_BTC','AE_ETH','AGI_BNB','AGI_BTC','AGI_ETH','AION_BNB','AION_BTC','AION_BUSD','AION_ETH','AION_USDT','ALGO_BNB','ALGO_BTC','ALGO_BUSD','ALGO_PAX','ALGO_TUSD','ALGO_USDC','ALGO_USDT','AMB_BNB','AMB_BTC','AMB_ETH','ANKR_BNB','ANKR_BTC','ANKR_PAX','ANKR_TUSD','ANKR_USDC','ANKR_USDT','APPC_BNB','APPC_BTC','APPC_ETH','ARDR_BNB','ARDR_BTC','ARDR_ETH','ARK_BTC','ARK_ETH','ARN_BTC','ARN_ETH','ARPA_BNB','ARPA_BTC','ARPA_USDT','AST_BTC','AST_ETH','ATOM_BNB','ATOM_BTC','ATOM_BUSD','ATOM_PAX','ATOM_TUSD','ATOM_USDC','ATOM_USDT','BAND_BNB','BAND_BTC','BAND_USDT','BAT_BNB','BAT_BTC','BAT_BUSD','BAT_ETH','BAT_PAX','BAT_TUSD','BAT_USDC','BAT_USDT','BCC_BNB','BCC_BTC','BCC_ETH','BCC_USDT','BCD_BTC','BCD_ETH','BCHABC_BTC','BCHABC_BUSD','BCHABC_PAX','BCHABC_TUSD','BCHABC_USDC','BCHABC_USDT','BCHSV_BTC','BCHSV_PAX','BCHSV_TUSD', 'BCHSV_USDT','BCH_BNB','BCH_BTC','BCH_BUSD','BCH_PAX','BCH_TUSD','BCH_USDC','BCH_USDT','BCN_BNB','BCN_BTC','BCN_ETH','BCPT_BNB','BCPT_BTC','BCPT_ETH','BCPT_PAX','BCPT_TUSD','BCPT_USDC','BEAM_BNB','BEAM_BTC','BEAM_USDT','BEAR_BUSD','BEAR_USDT','BGBP_USDC','BLZ_BNB','BLZ_BTC','BLZ_ETH','BNBBEAR_BUSD','BNBBEAR_USDT','BNBBULL_BUSD','BNBBULL_USDT','BNB_BKRW','BNB_BTC','BNB_BUSD','BNB_ETH','BNB_EUR','BNB_IDRT','BNB_NGN','BNB_PAX','BNB_RUB','BNB_TRY','BNB_TUSD','BNB_USDC','BNB_USDS','BNB_USDT','BNB_ZAR','BNT_BTC','BNT_BUSD','BNT_ETH','BNT_USDT','BQX_BTC','BQX_ETH','BRD_BNB','BRD_BTC','BRD_ETH','BTCB_BTC','BTC_BKRW','BTC_BUSD','BTC_EUR','BTC_IDRT','BTC_NGN','BTC_PAX','BTC_RUB','BTC_TRY','BTC_TUSD','BTC_USDC','BTC_USDS','BTC_USDT','BTC_ZAR','BTG_BTC']
+    trades:
+      symbols: ['BTC_USDT', 'BCH_USDT', 'ETH_USDT', 'ETC_USDT', 'XRP_USDT', 'EOS_USDT', 'BNB_USDT', 'LTC_USDT', 'DASH_USDT', 'ETH_BTC', 'BCH_BTC', 'ETC_BTC', 'ADA_BTC', 'BTC_TUSD', 'STEEM_BTC', 'LTC_BTC', 'ZEC_BTC', 'BTC_EUR', 'ETH_EUR']
+
+srategies:
+  - type: Naive
+    left: 'ETH_USDT'
+    right: 'BTC_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'LTC_USDT'
+    right: 'BCH_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'XRP_USDT'
+    right: 'ETC_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'LTC_USDT'
+    right: 'EOS_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'LTC_USDT'
+    right: 'ETC_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'ZEC_BTC'
+    right: 'ETC_BTC'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'BCH_USDT'
+    right: 'ZEC_BTC'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'EOS_USDT'
+    right: 'ZEC_BTC'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 1min
+    window_size: 500
+    threshold_long: -0.04
+    threshold_short: 0.04
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+  - type: Naive
+    left: 'BCH_USDT'
+    right: 'ETC_USDT'
+    exchange: Binance
+    beta_eval_freq: 5000
+    beta_sample_freq: 10secs
+    window_size: 500
+    threshold_long: -0.02
+    threshold_short: 0.02
+    stop_loss: -0.1
+    stop_gain: 0.075
+
+file_rotation:
+  max_file_size: 50 Mb
+  max_file_time: 1800
+
+data_dir: './data'
+
+keys: keys_real.json
+
+db_storage_path: './database'
+
+prom_push_gw: 127.0.0.1:9091
+
+prom_instance: trader2
+
+api:
+  port: 8180
