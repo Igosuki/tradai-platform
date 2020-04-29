@@ -10,7 +10,7 @@ pub mod state;
 use std::ops::{Add, Mul, Sub};
 
 use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
-use crate::naive_pair_trading::state::Operation;
+use crate::naive_pair_trading::state::{Operation, OperationKind};
 use crate::{DataQuery, DataResult, StrategySink};
 use coinnect_rt::types::LiveEvent;
 use db::Db;
@@ -19,7 +19,7 @@ use options::Options;
 use state::{MovingState, Position, PositionKind};
 use uuid::Uuid;
 
-const LM_AGE_CUTOFF_RATIO: f64 = 0.2;
+const LM_AGE_CUTOFF_RATIO: f64 = 0.0013;
 
 pub struct NaiveTradingStrategy {
     fees_rate: f64,
@@ -48,6 +48,7 @@ impl NaiveTradingStrategy {
         let db_name = format!("{}_{}", n.left, n.right);
         let metrics = StrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
         let strat_db_path = format!("{}/naive_pair_trading_{}_{}", db_path, n.left, n.right);
+        let db = Db::new(&strat_db_path, db_name);
         Self {
             fees_rate,
             res_threshold_long: n.threshold_long,
@@ -57,7 +58,7 @@ impl NaiveTradingStrategy {
             samples_since_last: 0,
             beta_eval_window_size: n.window_size,
             beta_eval_freq: n.beta_eval_freq,
-            state: MovingState::new(100.0),
+            state: MovingState::new(100.0, db.clone()),
             data_table: Self::make_lm_table(
                 &n.left,
                 &n.right,
@@ -69,7 +70,7 @@ impl NaiveTradingStrategy {
             last_row_process_time: Utc.timestamp_millis(0),
             last_sample_time: Utc.timestamp_millis(0),
             metrics: Arc::new(metrics),
-            db: Db::new(&strat_db_path, db_name),
+            db,
             last_left: None,
             last_right: None,
             beta_sample_freq: n.beta_sample_freq(),
@@ -206,8 +207,8 @@ impl NaiveTradingStrategy {
         // Possibly open a short position
         if (self.state.res() > self.res_threshold_short) && self.state.no_position_taken() {
             let position = self.short_position(lr.right.bid, lr.left.ask, lr.time);
-            self.log_operation(&Operation::OPEN, &position);
-            self.state.open(position, self.fees_rate);
+            let op = self.state.open(position, self.fees_rate);
+            self.metrics.log_position(&op.pos, &op.kind);
         }
 
         // Possibly close a short position
@@ -219,8 +220,8 @@ impl NaiveTradingStrategy {
             {
                 self.maybe_log_stop_loss(PositionKind::SHORT);
                 let position = self.short_position(lr.right.ask, lr.left.bid, lr.time);
-                self.log_operation(&Operation::CLOSE, &position);
-                self.state.close(position, self.fees_rate);
+                let op = self.state.close(position, self.fees_rate);
+                self.metrics.log_position(&op.pos, &op.kind);
                 self.state.set_pnl();
                 self.eval_linear_model();
             }
@@ -229,8 +230,8 @@ impl NaiveTradingStrategy {
         // Possibly open a long position
         if self.state.res() <= self.res_threshold_long && self.state.no_position_taken() {
             let position = self.long_position(lr.right.ask, lr.left.bid, lr.time);
-            self.log_operation(&Operation::OPEN, &position);
-            self.state.open(position, self.fees_rate);
+            let op = self.state.open(position, self.fees_rate);
+            self.metrics.log_position(&op.pos, &op.kind);
         }
 
         // Possibly close a long position
@@ -242,8 +243,8 @@ impl NaiveTradingStrategy {
             {
                 self.maybe_log_stop_loss(PositionKind::LONG);
                 let position = self.long_position(lr.right.bid, lr.left.ask, lr.time);
-                self.log_operation(&Operation::CLOSE, &position);
-                self.state.close(position, self.fees_rate);
+                let op = self.state.close(position, self.fees_rate);
+                self.metrics.log_position(&op.pos, &op.kind);
                 self.state.set_pnl();
                 self.eval_linear_model();
             }
@@ -301,19 +302,13 @@ impl NaiveTradingStrategy {
         self.metrics.log_state(&self.state);
     }
 
-    fn log_operation(&self, op: &Operation, pos: &Position) {
-        self.db.put_json(&format!("orders:{}", Uuid::new_v4()), pos);
-        self.metrics.log_position(pos, op);
+    fn get_operations(&self) -> Vec<Operation> {
+        self.db.read_json_vec(state::OPERATIONS_KEY)
     }
 
-    #[allow(dead_code)]
-    fn get_positions(&self) -> Vec<Position> {
-        self.db.read_json_vec("orders")
-    }
-
-    #[allow(dead_code)]
-    fn get_position(&self, uuid: &str) -> Option<Position> {
-        self.db.read_json(&format!("orders:{}", uuid))
+    fn get_operation(&self, uuid: &str) -> Option<Operation> {
+        self.db
+            .read_json(&format!("{}:{}", state::OPERATIONS_KEY, uuid))
     }
 }
 
@@ -353,7 +348,7 @@ impl StrategySink for NaiveTradingStrategy {
 
     fn data(&mut self, q: DataQuery) -> Option<DataResult> {
         match q {
-            DataQuery::Positions => Some(DataResult::Positions(self.get_positions())),
+            DataQuery::Operations => Some(DataResult::Operations(self.get_operations())),
             _ => unreachable!(),
         }
     }
@@ -371,7 +366,7 @@ mod test {
     use super::state::MovingState;
     use super::{BookPosition, DataRow, DataTable, NaiveTradingStrategy};
     use crate::naive_pair_trading::input::to_pos;
-    use crate::Options;
+    use crate::naive_pair_trading::options::Options;
     use coinnect_rt::exchange::Exchange;
     use ordered_float::OrderedFloat;
     use std::error::Error;
@@ -389,7 +384,7 @@ mod test {
     const LEFT_PAIR: &'static str = "ETH_USDT";
     const RIGHT_PAIR: &'static str = "BTC_USDT";
 
-    #[derive(Debug, Serialize, Deserialize)]
+    #[derive(Debug, Serialize)]
     struct StrategyLog {
         time: DateTime<Utc>,
         right_mid: f64,
@@ -555,7 +550,7 @@ mod test {
     #[test]
     fn continuous_scenario() {
         init();
-        let root = Builder::new().prefix("test_data").tempdir().unwrap();
+        let root = tempdir::TempDir::new("test_data2").unwrap();
         let mut strat = NaiveTradingStrategy::new(
             root.into_path().to_str().unwrap(),
             0.001,
@@ -616,11 +611,11 @@ mod test {
             .collect();
         println!("Each iteration took {} on avg", elapsed / iterations);
 
-        let mut positions = strat.get_positions();
-        positions.sort_by(|p1, p2| p1.time.cmp(&p2.time));
+        let mut positions = strat.get_operations();
+        positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
         assert_eq!(
             Some(161.270004272461),
-            positions.last().map(|p| p.left_price)
+            positions.last().map(|p| p.pos.left_price)
         );
 
         // let logs_f = std::fs::File::create("strategy_logs.json").unwrap();

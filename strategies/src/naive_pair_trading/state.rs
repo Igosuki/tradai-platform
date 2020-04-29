@@ -1,12 +1,15 @@
 use actix::Message;
 use chrono::{DateTime, Utc};
-use log::Level::Debug;
+use db::Db;
+use log::Level::{Debug, Info};
 use serde::{Deserialize, Serialize};
+use std::panic;
 use strum_macros::{AsRefStr, EnumString};
+use uuid::Uuid;
 
 const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
-#[derive(Debug, Deserialize, Serialize, juniper::GraphQLObject)]
+#[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct Position {
     pub kind: PositionKind,
     pub right_price: f64,
@@ -16,7 +19,7 @@ pub struct Position {
     pub left_pair: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
+#[derive(Clone, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
 pub enum PositionKind {
     #[strum(serialize = "short")]
     SHORT,
@@ -24,67 +27,48 @@ pub enum PositionKind {
     LONG,
 }
 
-#[derive(Debug, Deserialize, Serialize, EnumString, AsRefStr)]
-pub(super) enum Operation {
-    #[strum(serialize = "open")]
-    OPEN,
-    #[strum(serialize = "close")]
-    CLOSE,
-    #[strum(serialize = "buy")]
-    BUY,
-    #[strum(serialize = "sell")]
-    SELL,
+#[derive(Debug, Deserialize, Serialize, juniper::GraphQLObject)]
+pub struct Operation {
+    pub kind: OperationKind,
+    pub pos: Position,
+    pub left_op: OperationKind,
+    pub right_op: OperationKind,
+    pub left_spread: f64,
+    pub right_spread: f64,
+    pub left_coef: f64,
+    pub right_coef: f64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub(super) struct MovingState {
-    position_short: i8,
-    position_long: i8,
-    value_strat: f64,
-    units_to_buy_long_spread: f64,
-    units_to_buy_short_spread: f64,
-    beta_val: f64,
-    alpha_val: f64,
-    beta_lr: f64,
-    predicted_right: f64,
-    res: f64,
-    open_position: f64,
-    nominal_position: f64,
-    traded_price_right: f64,
-    traded_price_left: f64,
-    short_position_return: f64,
-    long_position_return: f64,
-    close_position: f64,
-    pnl: f64,
-}
-
-impl MovingState {
-    pub fn new(initial_value: f64) -> MovingState {
-        MovingState {
-            position_short: 0,
-            position_long: 0,
-            value_strat: initial_value,
-            units_to_buy_long_spread: 0.0,
-            units_to_buy_short_spread: 0.0,
-            beta_val: 0.0,
-            alpha_val: 0.0,
-            beta_lr: 0.0,
-            predicted_right: 0.0,
-            res: 0.0,
-            open_position: 0.0,
-            nominal_position: 0.0,
-            traded_price_right: 0.0,
-            traded_price_left: 0.0,
-            short_position_return: 0.0,
-            long_position_return: 0.0,
-            close_position: 0.0,
-            pnl: 0.0,
-        }
+impl Operation {
+    fn left_qty(&self) -> f64 {
+        self.left_spread * self.pos.left_price * self.left_coef.abs()
     }
 
-    fn log_pos(&self, op: &Operation, pos: &PositionKind, time: DateTime<Utc>) {
-        if log_enabled!(Debug) {
-            debug!(
+    fn right_qty(&self) -> f64 {
+        self.right_spread * self.pos.right_price * self.right_coef.abs()
+    }
+
+    fn log(&self) {
+        self.log_pos(&self.kind, &self.pos.kind, self.pos.time);
+        self.log_trade(
+            &self.right_op,
+            self.right_spread,
+            &self.pos.right_pair,
+            self.pos.right_price,
+            self.right_qty(),
+        );
+        self.log_trade(
+            &self.left_op,
+            self.left_spread,
+            &self.pos.left_pair,
+            self.pos.left_price,
+            self.left_qty(),
+        );
+    }
+
+    fn log_pos(&self, op: &OperationKind, pos: &PositionKind, time: DateTime<Utc>) {
+        if log_enabled!(Info) {
+            info!(
                 "{} {} position at {}",
                 op.as_ref(),
                 match pos {
@@ -96,9 +80,9 @@ impl MovingState {
         }
     }
 
-    fn log_trade(&self, op: Operation, spread: f64, pair: &str, value: f64, qty: f64) {
-        if log_enabled!(Debug) {
-            debug!(
+    fn log_trade(&self, op: &OperationKind, spread: f64, pair: &str, value: f64, qty: f64) {
+        if log_enabled!(Info) {
+            info!(
                 "{} {:.2} {} at {} for {:.2}",
                 op.as_ref(),
                 spread,
@@ -108,19 +92,95 @@ impl MovingState {
             );
         }
     }
+}
 
-    fn log_info(&self, pos: &PositionKind) {
-        if log_enabled!(Debug) {
-            debug!(
-                "Additional info : units {:.2} beta val {:.2} value strat {}",
-                match pos {
-                    PositionKind::SHORT => self.units_to_buy_short_spread,
-                    PositionKind::LONG => self.units_to_buy_long_spread,
-                },
-                self.beta_val,
-                self.value_strat
-            );
-            debug!("--------------------------------")
+#[derive(Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
+pub enum OperationKind {
+    #[strum(serialize = "open")]
+    OPEN,
+    #[strum(serialize = "close")]
+    CLOSE,
+    #[strum(serialize = "buy")]
+    BUY,
+    #[strum(serialize = "sell")]
+    SELL,
+}
+
+pub(crate) const OPERATIONS_KEY: &'static str = "orders";
+
+pub(crate) const STATE_KEY: &'static str = "state";
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct MovingState {
+    position_short: i8,
+    position_long: i8,
+    value_strat: f64,
+    units_to_buy_long_spread: f64,
+    units_to_buy_short_spread: f64,
+    beta_val: f64,
+    alpha_val: f64,
+    beta_lr: f64,
+    predicted_right: f64,
+    res: f64,
+    nominal_position: f64,
+    traded_price_right: f64,
+    traded_price_left: f64,
+    short_position_return: f64,
+    long_position_return: f64,
+    pnl: f64,
+    #[serde(skip_serializing)]
+    db: Db,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ValueStrat {
+    value_strat: f64,
+    units_to_buy_long_spread: f64,
+    units_to_buy_short_spread: f64,
+    pnl: f64,
+}
+
+impl MovingState {
+    pub fn new(initial_value: f64, db: Db) -> MovingState {
+        let mut state = MovingState {
+            position_short: 0,
+            position_long: 0,
+            value_strat: initial_value,
+            units_to_buy_long_spread: 0.0,
+            units_to_buy_short_spread: 0.0,
+            beta_val: 0.0,
+            alpha_val: 0.0,
+            beta_lr: 0.0,
+            predicted_right: 0.0,
+            res: 0.0,
+            nominal_position: 0.0,
+            traded_price_right: 0.0,
+            traded_price_left: 0.0,
+            short_position_return: 0.0,
+            long_position_return: 0.0,
+            pnl: 0.0,
+            db,
+        };
+        state.reload_state();
+        state
+    }
+
+    fn reload_state(&mut self) {
+        let mut ops: Vec<Operation> = self.db.read_json_vec(OPERATIONS_KEY);
+        ops.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
+        ops.last().map(|o| match o.kind {
+            OperationKind::OPEN => match o.pos.kind {
+                PositionKind::SHORT => self.set_position_short(),
+                PositionKind::LONG => self.set_position_long(),
+            },
+            _ => {}
+        });
+        let mut previous_state: Option<ValueStrat> = self.db.read_json(STATE_KEY);
+        if let Some(ps) = previous_state {
+            self.set_units_to_buy_long_spread(ps.units_to_buy_long_spread);
+            self.set_units_to_buy_short_spread(ps.units_to_buy_short_spread);
+            self.value_strat = ps.value_strat;
+            self.pnl = ps.pnl;
         }
     }
 
@@ -158,6 +218,14 @@ impl MovingState {
 
     pub(super) fn predicted_right(&self) -> f64 {
         self.predicted_right
+    }
+
+    pub(super) fn traded_price_right(&self) -> f64 {
+        self.traded_price_right
+    }
+
+    pub(super) fn traded_price_left(&self) -> f64 {
+        self.traded_price_left
     }
 
     pub(super) fn set_pnl(&mut self) {
@@ -272,49 +340,45 @@ impl MovingState {
         self.long_position_return
     }
 
-    fn log_position(
+    fn make_operation(
         &self,
-        pos: &Position,
-        op: Operation,
+        pos: Position,
+        op_kind: OperationKind,
         spread: f64,
         right_coef: f64,
         left_coef: f64,
-    ) {
-        self.log_pos(&op, &pos.kind, pos.time);
-        let (left_op, right_op) = match (&pos.kind, &op) {
-            (PositionKind::SHORT, Operation::OPEN) => (Operation::BUY, Operation::SELL),
-            (PositionKind::LONG, Operation::OPEN) => (Operation::SELL, Operation::BUY),
-            (PositionKind::SHORT, Operation::CLOSE) => (Operation::SELL, Operation::BUY),
-            (PositionKind::LONG, Operation::CLOSE) => (Operation::BUY, Operation::SELL),
+    ) -> Operation {
+        let (left_op, right_op) = match (&pos.kind, &op_kind) {
+            (PositionKind::SHORT, OperationKind::OPEN) => (OperationKind::BUY, OperationKind::SELL),
+            (PositionKind::LONG, OperationKind::OPEN) => (OperationKind::SELL, OperationKind::BUY),
+            (PositionKind::SHORT, OperationKind::CLOSE) => {
+                (OperationKind::SELL, OperationKind::BUY)
+            }
+            (PositionKind::LONG, OperationKind::CLOSE) => (OperationKind::BUY, OperationKind::SELL),
             _ => unimplemented!(),
         };
-        self.log_trade(
-            right_op,
-            spread,
-            &pos.right_pair,
-            pos.right_price,
-            spread * pos.right_price * right_coef.abs(),
-        );
-        self.log_trade(
+        Operation {
+            pos,
+            kind: op_kind,
+            left_spread: spread * self.beta_val,
+            left_coef,
             left_op,
-            spread * self.beta_val,
-            &pos.left_pair,
-            pos.left_price,
-            spread * pos.left_price * left_coef.abs(),
-        );
-        self.log_info(&pos.kind);
+            right_spread: spread,
+            right_coef,
+            right_op,
+        }
     }
 
-    pub(super) fn open(&mut self, pos: Position, fees: f64) {
-        match pos.kind {
+    pub(super) fn open(&mut self, pos: Position, fees: f64) -> Operation {
+        let position_kind = pos.kind.clone();
+        match position_kind {
             PositionKind::SHORT => self.set_position_short(),
             PositionKind::LONG => self.set_position_long(),
         };
-        self.open_position = 1e5;
         self.nominal_position = self.beta_val;
         self.traded_price_right = pos.right_price;
         self.traded_price_left = pos.left_price;
-        let (spread, right_coef, left_coef) = match pos.kind {
+        let (spread, right_coef, left_coef) = match position_kind {
             PositionKind::SHORT => (
                 self.units_to_buy_short_spread,
                 1.0 - fees,
@@ -327,16 +391,27 @@ impl MovingState {
             ),
         };
         self.value_strat += spread * (pos.right_price * right_coef + pos.left_price * left_coef);
-        self.log_position(&pos, Operation::OPEN, spread, right_coef, left_coef);
+        let op = self.make_operation(
+            pos.clone(),
+            OperationKind::OPEN,
+            spread,
+            right_coef,
+            left_coef,
+        );
+        op.log();
+        self.save_operation(&op);
+        self.save();
+        self.log_info(&position_kind);
+        op
     }
 
-    pub(super) fn close(&mut self, pos: Position, fees: f64) {
-        match pos.kind {
+    pub(super) fn close(&mut self, pos: Position, fees: f64) -> Operation {
+        let kind: PositionKind = pos.kind.clone();
+        match kind {
             PositionKind::SHORT => self.unset_position_short(),
             PositionKind::LONG => self.unset_position_long(),
         };
-        self.close_position = 1e5;
-        let (spread, right_coef, left_coef) = match pos.kind {
+        let (spread, right_coef, left_coef) = match kind {
             PositionKind::SHORT => (
                 self.units_to_buy_short_spread,
                 -(1.0 + fees),
@@ -349,6 +424,47 @@ impl MovingState {
             ),
         };
         self.value_strat += spread * (pos.right_price * right_coef + pos.left_price * left_coef);
-        self.log_position(&pos, Operation::CLOSE, spread, right_coef, left_coef);
+        let (left_op, right_op) = match kind {
+            PositionKind::SHORT => (OperationKind::SELL, OperationKind::BUY),
+            PositionKind::LONG => (OperationKind::BUY, OperationKind::SELL),
+        };
+        let op = self.make_operation(pos, OperationKind::CLOSE, spread, right_coef, left_coef);
+        op.log();
+        self.save_operation(&op);
+        self.save();
+        self.log_info(&kind);
+        op
+    }
+
+    fn save_operation(&self, op: &Operation) {
+        self.db
+            .put_json(&format!("{}:{}", OPERATIONS_KEY, Uuid::new_v4()), op);
+    }
+
+    fn save(&self) {
+        self.db.put_json(
+            STATE_KEY,
+            ValueStrat {
+                units_to_buy_short_spread: self.units_to_buy_short_spread,
+                units_to_buy_long_spread: self.units_to_buy_long_spread,
+                value_strat: self.value_strat,
+                pnl: self.pnl,
+            },
+        );
+    }
+
+    fn log_info(&self, pos: &PositionKind) {
+        if log_enabled!(Info) {
+            info!(
+                "Additional info : units {:.2} beta val {:.2} value strat {}",
+                match pos {
+                    PositionKind::SHORT => self.units_to_buy_short_spread,
+                    PositionKind::LONG => self.units_to_buy_long_spread,
+                },
+                self.beta_val,
+                self.value_strat
+            );
+            info!("--------------------------------")
+        }
     }
 }

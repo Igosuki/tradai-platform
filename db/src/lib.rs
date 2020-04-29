@@ -20,7 +20,7 @@ pub enum DataStoreError {
     JsonError(#[from] serde_json::error::Error),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Db {
     name: String,
     root: Box<Path>,
