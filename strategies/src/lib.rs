@@ -9,7 +9,9 @@ extern crate strum_macros;
 #[macro_use]
 extern crate quickcheck;
 
-use actix::{Actor, Handler, Running, SyncContext};
+use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
+use crate::query::{DataQuery, DataResult};
+use actix::{Actor, Addr, Handler, Running, SyncArbiter, SyncContext};
 use actix_derive::{Message, MessageResponse};
 use chrono::Duration;
 use coinnect_rt::exchange::Exchange;
@@ -17,12 +19,13 @@ use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe, Pair};
 use derive_more::Display;
 use parse_duration::parse;
 use serde::Deserialize;
+use std::str::FromStr;
+use std::sync::Arc;
+use strum_macros::EnumString;
 use uuid::Uuid;
 
 pub mod naive_pair_trading;
-
-use naive_pair_trading::state::Position;
-use naive_pair_trading::state::PositionKind;
+pub mod query;
 
 #[derive(Debug, Display)]
 pub enum Error {
@@ -31,48 +34,57 @@ pub enum Error {
 
 impl std::error::Error for Error {}
 
-#[derive(Deserialize, Serialize, MessageResponse)]
-#[serde(tag = "type")]
-pub enum StrategyData {
-    NaivePositions(Vec<Position>),
+#[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display)]
+pub enum StrategyType {
+    #[strum(serialize = "naive")]
+    Naive,
 }
 
-#[derive(Deserialize, Serialize, Message)]
-#[rtype(result = "Option<StrategyData>")]
-pub enum DataQuery {
-    NaivePositions,
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct StrategyKey(pub StrategyType, pub String);
+
+impl StrategyKey {
+    pub fn from(t: &str, k: &str) -> Option<Self> {
+        let st = StrategyType::from_str(t).ok()?;
+        Some(Self(st, k.to_string()))
+    }
 }
 
-#[derive(Clone, Debug, Deserialize)]
-pub struct NaiveStrategy {
-    pub left: Pair,
-    pub right: Pair,
-    pub exchange: Exchange,
-    pub beta_eval_freq: i32,
-    pub beta_sample_freq: String,
-    pub window_size: i32,
-    pub threshold_long: f64,
-    pub threshold_short: f64,
-    pub stop_loss: f64,
-    pub stop_gain: f64,
-}
+#[derive(Clone)]
+pub struct Strategy(pub StrategyKey, pub Addr<StrategyActor>);
 
-impl NaiveStrategy {
-    fn beta_sample_freq(&self) -> Duration {
-        Duration::from_std(parse(&self.beta_sample_freq).unwrap()).unwrap()
+impl Strategy {
+    pub fn new(db_path: Arc<String>, fees: f64, settings: StrategySettings) -> Self {
+        Self(
+            settings.key(),
+            SyncArbiter::start(1, move || {
+                let strat_settings = from_settings(db_path.clone().as_ref(), fees, &settings);
+                StrategyActor::new(StrategyActorOptions {
+                    strategy: strat_settings,
+                })
+            }),
+        )
     }
 }
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type")]
-pub enum Strategy {
-    Naive(NaiveStrategy),
+pub enum StrategySettings {
+    Naive(NaiveStrategyOptions),
 }
 
-impl Strategy {
+impl StrategySettings {
     pub fn exchange(&self) -> Exchange {
         match self {
             Self::Naive(s) => s.exchange,
+        }
+    }
+
+    pub fn key(&self) -> StrategyKey {
+        match &self {
+            StrategySettings::Naive(n) => {
+                StrategyKey(StrategyType::Naive, format!("{}_{}", n.left, n.right))
+            }
         }
     }
 }
@@ -131,12 +143,14 @@ impl Handler<DataQuery> for StrategyActor {
 pub trait StrategySink {
     fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()>;
 
-    fn data(&mut self, q: DataQuery) -> Option<StrategyData>;
+    fn data(&mut self, q: DataQuery) -> Option<DataResult>;
 }
 
-pub fn from_settings(db_path: &str, fees: f64, s: &Strategy) -> Box<dyn StrategySink> {
+pub fn from_settings(db_path: &str, fees: f64, s: &StrategySettings) -> Box<dyn StrategySink> {
     let s = match s {
-        Strategy::Naive(n) => crate::naive_pair_trading::Strategy::new(db_path, fees, n),
+        StrategySettings::Naive(n) => {
+            crate::naive_pair_trading::NaiveTradingStrategy::new(db_path, fees, n)
+        }
     };
     Box::new(s)
 }
@@ -166,6 +180,10 @@ mod test {
     impl StrategySink for DummyStrat {
         fn add_event(&mut self, _: LiveEvent) -> std::io::Result<()> {
             Ok(())
+        }
+
+        fn data(&mut self, q: DataQuery) -> Option<DataResult> {
+            unimplemented!()
         }
     }
 

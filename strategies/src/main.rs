@@ -16,7 +16,7 @@ use std::rc::Rc;
 use std::time::Instant;
 use strategies::naive_pair_trading::data_table::DataRow;
 use strategies::naive_pair_trading::input::{to_pos, CsvRecord};
-use strategies::naive_pair_trading::Strategy;
+use strategies::naive_pair_trading::NaiveTradingStrategy;
 use util::date::{DateRange, DurationRangeType};
 
 fn main() {
@@ -93,7 +93,7 @@ fn main() {
     println!("Right records count : {}", right_records.len());
 
     let mut data_table =
-        Strategy::make_lm_table(&left_pair, &right_pair, &db_storage_path, window_size);
+        NaiveTradingStrategy::make_lm_table(&left_pair, &right_pair, &db_storage_path, window_size);
     let mut right_only: i32 = 0;
     let mut left_only: i32 = 0;
     let mut both: i32 = 0;

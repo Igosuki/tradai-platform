@@ -18,7 +18,7 @@ use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::exchange_bot::ExchangeBot;
 use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::LiveEventEnveloppe;
-use strategies::{self, StrategyActor, StrategyActorOptions};
+use strategies::{self, Strategy, StrategyActor, StrategyActorOptions, StrategyKey};
 
 use crate::logging::file_actor::{AvroFileActor, FileActorOptions};
 use crate::settings::Settings;
@@ -34,10 +34,10 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     // Strategy actors, cf strategy crate
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
-    let strategy_actors = strategy_actors(arc1);
+    let strategies = strategies(arc1);
 
-    for a in strategy_actors {
-        recipients.push(a.recipient().clone());
+    for a in strategies.clone() {
+        recipients.push(a.1.recipient().clone());
     }
     // Metrics pusher
     let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(
@@ -49,9 +49,19 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     let keys_path = PathBuf::from(settings_v.keys.clone());
     let exchanges = settings_v.exchanges.clone();
     let bots = exchange_bots(exchanges.clone(), keys_path.clone(), recipients).await;
-
+    let strats_map: HashMap<StrategyKey, Strategy> = strategies
+        .clone()
+        .iter()
+        .map(|s| (s.0.clone(), s.clone()))
+        .collect();
+    let strats_map_a = Arc::new(strats_map);
     // API Server
-    let server = server::httpserver(exchanges.clone(), keys_path.clone(), settings_v.api.port.0);
+    let server = server::httpserver(
+        exchanges.clone(),
+        strats_map_a,
+        keys_path.clone(),
+        settings_v.api.port.0,
+    );
 
     // Handle interrupts for graceful shutdown
     // await_termination().await?;
@@ -78,29 +88,22 @@ fn file_actor(settings: Arc<RwLock<Settings>>) -> Addr<AvroFileActor> {
     })
 }
 
-fn strategy_actors(settings: Arc<RwLock<Settings>>) -> Vec<Addr<StrategyActor>> {
+fn strategies(settings: Arc<RwLock<Settings>>) -> Vec<Strategy> {
     println!("creating strat actors");
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
     let settings_v = arc1.read().unwrap();
-    let string = Arc::new(arc.clone().read().unwrap().db_storage_path.clone());
+    let db_path_str = Arc::new(arc.clone().read().unwrap().db_storage_path.clone());
     let exchanges = Arc::new(arc.clone().read().unwrap().exchanges.clone());
     settings_v
         .strategies
         .clone()
         .into_iter()
         .map(move |strategy| {
-            let arc2 = string.clone();
-            let arc3 = exchanges.clone();
-            SyncArbiter::start(1, move || {
-                StrategyActor::new(StrategyActorOptions {
-                    strategy: strategies::from_settings(
-                        arc2.clone().as_ref(),
-                        arc3.get(&strategy.exchange()).unwrap().fees,
-                        &strategy,
-                    ),
-                })
-            })
+            let db_path_a = db_path_str.clone();
+            let exchanges_conf = exchanges.clone();
+            let fees = exchanges_conf.get(&strategy.exchange()).unwrap().fees;
+            Strategy::new(db_path_a, fees, strategy)
         })
         .collect()
 }

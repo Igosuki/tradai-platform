@@ -7,7 +7,7 @@ use coinnect_rt::types::Pair;
 use config::{Config, ConfigError, Environment, File};
 use serde::de;
 use serde::{Deserialize, Deserializer};
-use strategies::Strategy;
+use strategies::StrategySettings;
 
 fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
 where
@@ -69,7 +69,7 @@ pub struct Settings {
     #[serde(default)]
     pub api: ApiSettings,
     #[serde(default)]
-    pub strategies: Vec<Strategy>,
+    pub strategies: Vec<StrategySettings>,
     pub db_storage_path: String,
     pub prom_push_gw: String,
     pub prom_instance: String,

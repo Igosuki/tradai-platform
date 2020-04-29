@@ -18,8 +18,11 @@ extern crate prometheus_static_metric;
 extern crate rand;
 extern crate serde_derive;
 extern crate uuid;
+#[macro_use]
+extern crate juniper;
 
 pub mod api;
+pub mod graphql_schemas;
 pub mod logging;
 pub mod server;
 pub mod settings;

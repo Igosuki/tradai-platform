@@ -4,22 +4,24 @@ use std::sync::Arc;
 pub mod data_table;
 pub mod input;
 pub mod metrics;
+pub mod options;
 pub mod state;
 
 use std::ops::{Add, Mul, Sub};
 
 use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
 use crate::naive_pair_trading::state::Operation;
-use crate::{DataQuery, NaiveStrategy, StrategyData, StrategySink};
+use crate::{DataQuery, DataResult, StrategySink};
 use coinnect_rt::types::LiveEvent;
 use db::Db;
 use metrics::StrategyMetrics;
+use options::Options;
 use state::{MovingState, Position, PositionKind};
 use uuid::Uuid;
 
 const LM_AGE_CUTOFF_RATIO: f64 = 0.2;
 
-pub struct Strategy {
+pub struct NaiveTradingStrategy {
     fees_rate: f64,
     res_threshold_long: f64,
     res_threshold_short: f64,
@@ -41,8 +43,8 @@ pub struct Strategy {
     last_right: Option<BookPosition>,
 }
 
-impl Strategy {
-    pub fn new(db_path: &str, fees_rate: f64, n: &NaiveStrategy) -> Self {
+impl NaiveTradingStrategy {
+    pub fn new(db_path: &str, fees_rate: f64, n: &Options) -> Self {
         let db_name = format!("{}_{}", n.left, n.right);
         let metrics = StrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
         let strat_db_path = format!("{}/naive_pair_trading_{}_{}", db_path, n.left, n.right);
@@ -315,7 +317,7 @@ impl Strategy {
     }
 }
 
-impl StrategySink for Strategy {
+impl StrategySink for NaiveTradingStrategy {
     fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()> {
         match le {
             LiveEvent::LiveOrderbook(ob) => {
@@ -349,9 +351,9 @@ impl StrategySink for Strategy {
         Ok(())
     }
 
-    fn data(&mut self, q: DataQuery) -> Option<StrategyData> {
+    fn data(&mut self, q: DataQuery) -> Option<DataResult> {
         match q {
-            DataQuery::NaivePositions => Some(StrategyData::NaivePositions(self.get_positions())),
+            DataQuery::Positions => Some(DataResult::Positions(self.get_positions())),
             _ => unreachable!(),
         }
     }
@@ -367,9 +369,9 @@ mod test {
 
     use super::input::{read_csv, CsvRecord};
     use super::state::MovingState;
-    use super::{BookPosition, DataRow, DataTable, Strategy};
+    use super::{BookPosition, DataRow, DataTable, NaiveTradingStrategy};
     use crate::naive_pair_trading::input::to_pos;
-    use crate::NaiveStrategy;
+    use crate::Options;
     use coinnect_rt::exchange::Exchange;
     use ordered_float::OrderedFloat;
     use std::error::Error;
@@ -554,10 +556,10 @@ mod test {
     fn continuous_scenario() {
         init();
         let root = Builder::new().prefix("test_data").tempdir().unwrap();
-        let mut strat = Strategy::new(
+        let mut strat = NaiveTradingStrategy::new(
             root.into_path().to_str().unwrap(),
             0.001,
-            &NaiveStrategy {
+            &Options {
                 left: LEFT_PAIR.into(),
                 right: RIGHT_PAIR.into(),
                 beta_eval_freq: 5000,
