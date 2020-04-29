@@ -2,6 +2,7 @@ use super::state::MovingState;
 use super::state::Operation;
 use super::state::PositionKind;
 use crate::naive_pair_trading::data_table::DataRow;
+use crate::naive_pair_trading::state::Position;
 use prometheus::{GaugeVec, Opts, Registry};
 use std::collections::HashMap;
 
@@ -15,12 +16,10 @@ impl StrategyMetrics {
         let mut gauges: HashMap<String, GaugeVec> = HashMap::new();
 
         {
-            let pos_labels = &["pos", "op"];
+            let pos_labels = &["pair", "as", "pos", "op"];
             let pos_gauge_names = vec!["position"];
             for gauge_name in pos_gauge_names {
-                let gauge_vec_opts = Opts::new(gauge_name, &format!("gauge for {}", gauge_name))
-                    .const_label("left_pair", left_pair)
-                    .const_label("right_pair", right_pair);
+                let gauge_vec_opts = Opts::new(gauge_name, &format!("gauge for {}", gauge_name));
                 let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
                 gauges.insert(gauge_name.to_string(), gauge_vec.clone());
                 registry.register(Box::new(gauge_vec.clone())).unwrap();
@@ -66,11 +65,12 @@ impl StrategyMetrics {
         }
     }
 
-    #[allow(dead_code)]
-    pub(super) fn log_position(&self, pos: PositionKind, op: Operation, state: MovingState) {
+    pub(super) fn log_position(&self, pos: &Position, op: &Operation) {
         self.gauges.get("position").map(|g| {
-            g.with_label_values(&[&format!("{}", pos), &format!("{}", op)])
-                .set(state.predicted_right())
+            g.with_label_values(&[&pos.left_pair, "left", pos.kind.as_ref(), op.as_ref()])
+                .set(pos.left_price);
+            g.with_label_values(&[&pos.right_pair, "right", pos.kind.as_ref(), op.as_ref()])
+                .set(pos.right_price);
         });
     }
 

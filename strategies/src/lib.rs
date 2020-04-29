@@ -4,6 +4,8 @@
 extern crate serde_derive;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate strum_macros;
 
 use actix::{Actor, Handler, Running, SyncContext};
 use chrono::Duration;
@@ -126,7 +128,6 @@ mod test {
 
     use super::*;
 
-    #[allow(dead_code)]
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();
     }
@@ -144,6 +145,7 @@ mod test {
 
     #[test]
     fn test_workflow() {
+        init();
         System::run(move || {
             let addr = SyncArbiter::start(1, move || actor(Box::new(DummyStrat)));
             let order_book_event = LiveEventEnveloppe(

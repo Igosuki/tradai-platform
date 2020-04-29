@@ -9,6 +9,7 @@ pub mod state;
 use std::ops::{Add, Mul, Sub};
 
 use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
+use crate::naive_pair_trading::state::Operation;
 use crate::{NaiveStrategy, StrategySink};
 use coinnect_rt::types::LiveEvent;
 use db::Db;
@@ -25,13 +26,11 @@ pub struct Strategy {
     samples_since_last: i32,
     beta_eval_window_size: i32,
     beta_eval_freq: i32,
-    #[allow(dead_code)]
     beta_sample_freq: Duration,
     state: MovingState,
     data_table: DataTable,
     pub right_pair: String,
     pub left_pair: String,
-    #[allow(dead_code)]
     metrics: Arc<StrategyMetrics>,
     db: Db,
     last_row_process_time: DateTime<Utc>,
@@ -203,7 +202,7 @@ impl Strategy {
         // Possibly open a short position
         if (self.state.res() > self.res_threshold_short) && self.state.no_position_taken() {
             let position = self.short_position(lr.right.bid, lr.left.ask, lr.time);
-            self.log_position(&position);
+            self.log_operation(&Operation::OPEN, &position);
             self.state.open(position, self.fees_rate);
         }
 
@@ -216,7 +215,7 @@ impl Strategy {
             {
                 self.maybe_log_stop_loss(PositionKind::SHORT);
                 let position = self.short_position(lr.right.ask, lr.left.bid, lr.time);
-                self.log_position(&position);
+                self.log_operation(&Operation::CLOSE, &position);
                 self.state.close(position, self.fees_rate);
                 self.state.set_pnl();
                 self.eval_linear_model();
@@ -226,7 +225,7 @@ impl Strategy {
         // Possibly open a long position
         if self.state.res() <= self.res_threshold_long && self.state.no_position_taken() {
             let position = self.long_position(lr.right.ask, lr.left.bid, lr.time);
-            self.log_position(&position);
+            self.log_operation(&Operation::OPEN, &position);
             self.state.open(position, self.fees_rate);
         }
 
@@ -239,7 +238,7 @@ impl Strategy {
             {
                 self.maybe_log_stop_loss(PositionKind::LONG);
                 let position = self.long_position(lr.right.bid, lr.left.ask, lr.time);
-                self.log_position(&position);
+                self.log_operation(&Operation::CLOSE, &position);
                 self.state.close(position, self.fees_rate);
                 self.state.set_pnl();
                 self.eval_linear_model();
@@ -299,8 +298,9 @@ impl Strategy {
         self.metrics.log_state(&self.state);
     }
 
-    fn log_position(&self, pos: &Position) {
-        self.db.put_json(&format!("orders:{}", Uuid::new_v4()), pos)
+    fn log_operation(&self, op: &Operation, pos: &Position) {
+        self.db.put_json(&format!("orders:{}", Uuid::new_v4()), pos);
+        self.metrics.log_position(pos, op);
     }
 
     #[allow(dead_code)]

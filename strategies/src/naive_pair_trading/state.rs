@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use log::Level::Debug;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
+use strum_macros::{AsRefStr, EnumString};
 
 const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
@@ -15,37 +16,24 @@ pub(super) struct Position {
     pub left_pair: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, EnumString, AsRefStr)]
 pub(super) enum PositionKind {
+    #[strum(serialize = "short")]
     SHORT,
+    #[strum(serialize = "long")]
     LONG,
 }
 
-impl Display for PositionKind {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            PositionKind::SHORT => "short",
-            PositionKind::LONG => "long",
-        })
-    }
-}
-
+#[derive(Debug, Deserialize, Serialize, EnumString, AsRefStr)]
 pub(super) enum Operation {
+    #[strum(serialize = "open")]
     OPEN,
+    #[strum(serialize = "close")]
     CLOSE,
+    #[strum(serialize = "buy")]
     BUY,
+    #[strum(serialize = "sell")]
     SELL,
-}
-
-impl Display for Operation {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Operation::OPEN => "Open",
-            Operation::CLOSE => "Close",
-            Operation::BUY => "Buy",
-            Operation::SELL => "Sell",
-        })
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -98,7 +86,7 @@ impl MovingState {
         if log_enabled!(Debug) {
             debug!(
                 "{} {} position at {}",
-                op,
+                op.as_ref(),
                 match pos {
                     PositionKind::SHORT => "short",
                     PositionKind::LONG => "long",
@@ -110,7 +98,14 @@ impl MovingState {
 
     fn log_trade(&self, op: Operation, spread: f64, pair: &str, value: f64, qty: f64) {
         if log_enabled!(Debug) {
-            debug!("{} {:.2} {} at {} for {:.2}", op, spread, pair, value, qty);
+            debug!(
+                "{} {:.2} {} at {} for {:.2}",
+                op.as_ref(),
+                spread,
+                pair,
+                value,
+                qty
+            );
         }
     }
 
