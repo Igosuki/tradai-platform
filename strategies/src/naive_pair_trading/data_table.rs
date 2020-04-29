@@ -192,6 +192,11 @@ impl DataTable {
     pub fn len(&self) -> usize {
         self.rows.len()
     }
+
+    #[allow(dead_code)]
+    pub fn records_after(&self, cutoff: DateTime<Utc>) -> usize {
+        self.rows.iter().filter(|r| r.time.gt(&cutoff)).count()
+    }
 }
 
 #[cfg(test)]
