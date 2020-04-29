@@ -1,5 +1,5 @@
 use super::state::MovingState;
-use super::state::Operation;
+use super::state::OperationKind;
 use crate::naive_pair_trading::data_table::DataRow;
 use crate::naive_pair_trading::state::Position;
 use prometheus::{GaugeVec, Opts, Registry};
@@ -66,7 +66,7 @@ impl StrategyMetrics {
         }
     }
 
-    pub(super) fn log_position(&self, pos: &Position, op: &Operation) {
+    pub(super) fn log_position(&self, pos: &Position, op: &OperationKind) {
         self.gauges.get("position").map(|g| {
             g.with_label_values(&[&pos.left_pair, "left", pos.kind.as_ref(), op.as_ref()])
                 .set(pos.left_price);
