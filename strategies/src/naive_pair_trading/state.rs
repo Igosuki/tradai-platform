@@ -181,6 +181,8 @@ struct ValueStrat {
     units_to_buy_long_spread: f64,
     units_to_buy_short_spread: f64,
     pnl: f64,
+    traded_price_left: f64,
+    traded_price_right: f64,
 }
 
 impl MovingState {
@@ -220,6 +222,8 @@ impl MovingState {
             self.set_units_to_buy_short_spread(ps.units_to_buy_short_spread);
             self.value_strat = ps.value_strat;
             self.pnl = ps.pnl;
+            self.traded_price_left = ps.traded_price_left;
+            self.traded_price_right = ps.traded_price_right;
         }
     }
 
@@ -456,6 +460,8 @@ impl MovingState {
                 units_to_buy_long_spread: self.units_to_buy_long_spread,
                 value_strat: self.value_strat,
                 pnl: self.pnl,
+                traded_price_left: self.traded_price_left,
+                traded_price_right: self.traded_price_right,
             },
         );
     }
