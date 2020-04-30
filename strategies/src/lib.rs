@@ -8,6 +8,8 @@ extern crate strum_macros;
 #[cfg(test)]
 #[macro_use]
 extern crate quickcheck;
+#[macro_use]
+extern crate juniper;
 
 use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::query::{DataQuery, DataResult};
@@ -161,7 +163,6 @@ mod test {
 
     use coinnect_rt::exchange::Exchange;
     use coinnect_rt::types::Orderbook;
-    use coinnect_rt::types::Pair;
 
     use super::*;
 

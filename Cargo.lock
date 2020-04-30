@@ -3767,6 +3767,7 @@ dependencies = [
  "db",
  "derive_more",
  "env_logger",
+ "futures",
  "glob",
  "itertools",
  "juniper",
