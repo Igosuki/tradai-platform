@@ -258,7 +258,6 @@ mod test {
                 "It should be None! ({:?})",
                 store.get(&reader, "foo").unwrap()
             );
-            store.iter_start()
         }
 
         {
