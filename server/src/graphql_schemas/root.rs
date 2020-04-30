@@ -1,9 +1,8 @@
 use juniper::{FieldError, FieldResult, RootNode};
 
-use actix_web::web;
 use std::collections::HashMap;
 use std::sync::Arc;
-use strategies::naive_pair_trading::state::{Operation, Position};
+use strategies::naive_pair_trading::state::Operation;
 use strategies::query::{DataQuery, DataResult};
 use strategies::{Strategy, StrategyKey};
 
@@ -41,6 +40,38 @@ impl QueryRoot {
                 id: sk.1.clone(),
             })
             .collect())
+    }
+
+    #[graphql(description = "Get all positions for this strat")]
+    fn dump_strat_db(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<String>> {
+        StrategyKey::from(&tk.t, &tk.id)
+            .ok_or(FieldError::new(
+                "Strategy type not found",
+                graphql_value!({ "not_found": "strategy type not found" }),
+            ))
+            .and_then(|strat| match context.strats.get(&strat) {
+                None => Err(FieldError::new(
+                    "Strategy not found",
+                    graphql_value!({ "not_found": "strategy not found" }),
+                )),
+                Some(strat) => {
+                    let f = strat.1.send(DataQuery::Dump);
+                    match futures::executor::block_on(f) {
+                        Ok(Some(DataResult::Dump(pos_vec))) => Ok(pos_vec),
+                        Err(_) => Err(FieldError::new(
+                            "Strategy mailbox was full",
+                            graphql_value!({ "unavailable": "strategy mailbox full" }),
+                        )),
+                        e => {
+                            error!("{:?}", e);
+                            Err(FieldError::new(
+                                "Unexpected error",
+                                graphql_value!({ "unavailable": "unexpected error" }),
+                            ))
+                        }
+                    }
+                }
+            })
     }
 
     #[graphql(description = "Get all positions for this strat")]

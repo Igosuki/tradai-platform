@@ -10,14 +10,13 @@ pub mod state;
 use std::ops::{Add, Mul, Sub};
 
 use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
-use crate::naive_pair_trading::state::{Operation, OperationKind};
+use crate::naive_pair_trading::state::Operation;
 use crate::{DataQuery, DataResult, StrategySink};
 use coinnect_rt::types::LiveEvent;
 use db::Db;
 use metrics::StrategyMetrics;
 use options::Options;
 use state::{MovingState, Position, PositionKind};
-use uuid::Uuid;
 
 const LM_AGE_CUTOFF_RATIO: f64 = 0.0013;
 
@@ -303,12 +302,11 @@ impl NaiveTradingStrategy {
     }
 
     fn get_operations(&self) -> Vec<Operation> {
-        self.db.read_json_vec(state::OPERATIONS_KEY)
+        self.state.get_operations()
     }
 
-    fn get_operation(&self, uuid: &str) -> Option<Operation> {
-        self.db
-            .read_json(&format!("{}:{}", state::OPERATIONS_KEY, uuid))
+    fn dump_db(&self) -> Vec<String> {
+        self.state.dump_db()
     }
 }
 
@@ -349,7 +347,7 @@ impl StrategySink for NaiveTradingStrategy {
     fn data(&mut self, q: DataQuery) -> Option<DataResult> {
         match q {
             DataQuery::Operations => Some(DataResult::Operations(self.get_operations())),
-            _ => unreachable!(),
+            DataQuery::Dump => Some(DataResult::Dump(self.dump_db())),
         }
     }
 }

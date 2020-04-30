@@ -13,37 +13,19 @@ extern crate log;
 extern crate trader;
 
 use actix_rt::System;
-use std::collections::HashMap;
 #[cfg(feature = "flame_it")]
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::io;
 use std::process;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, RwLock};
-use std::{fs, io};
 
-use futures::{pin_mut, select, FutureExt};
-
-use actix::{Actor, Addr, Recipient, SyncArbiter};
-use actix_rt::signal::unix::{signal, Signal, SignalKind};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use structopt::StructOpt;
 
-use coinnect_rt::binance::BinanceCreds;
-use coinnect_rt::bitstamp::BitstampCreds;
-use coinnect_rt::bittrex::BittrexCreds;
-use coinnect_rt::coinnect::Coinnect;
-use coinnect_rt::exchange::{Exchange, ExchangeSettings};
-use coinnect_rt::exchange_bot::ExchangeBot;
-use coinnect_rt::metrics::PrometheusPushActor;
-use coinnect_rt::types::LiveEventEnveloppe;
 #[cfg(feature = "gprof")]
 use gperftools::heap_profiler::HEAP_PROFILER;
-use std::time::Duration;
-use strategies::{self, StrategyActor, StrategyActorOptions};
-use trader::logging::file_actor::{AvroFileActor, FileActorOptions};
-use trader::settings::{self, Settings};
-use trader::{logging, server};
+use trader::settings;
 
 //lazy_static! {
 //    static ref CONFIG_FILE: String = {
