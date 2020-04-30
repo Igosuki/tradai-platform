@@ -1,5 +1,6 @@
 use crate::graphql_schemas::root::create_schema;
-use actix_web::HttpServer;
+use actix_cors::Cors;
+use actix_web::{http, HttpServer};
 use coinnect_rt::binance::BinanceCreds;
 use coinnect_rt::bitstamp::BitstampCreds;
 use coinnect_rt::bittrex::BittrexCreds;
@@ -52,6 +53,16 @@ pub async fn httpserver(
         let schema = create_schema();
 
         actix_web::App::new()
+            .wrap(
+                Cors::new()
+                    .allowed_origin("http://localhost:8180")
+                    .allowed_methods(vec!["GET", "POST"])
+                    .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+                    .allowed_header(http::header::CONTENT_TYPE)
+                    .supports_credentials()
+                    .max_age(3600)
+                    .finish(),
+            )
             .data(schema)
             .data(data)
             .data(strategies.clone())

@@ -9,14 +9,16 @@ use derive_more::Display;
 use futures::lock::Mutex;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
-use juniper_actix::{
-    graphiql_handler as gqli_handler, graphql_handler, playground_handler as play_handler,
-};
+use juniper_actix::{graphiql_handler as gqli_handler, graphql_handler};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "flame_it")]
 use std::fs::File;
 use std::sync::Arc;
 use strategies::{Strategy, StrategyKey};
+
+mod playground_source;
+
+use playground_source::playground_source;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Order {
@@ -79,6 +81,17 @@ pub struct StratLookupQuery {
 async fn graphiql_handler() -> Result<HttpResponse, Error> {
     gqli_handler("/", None).await
 }
+
+pub async fn play_handler(
+    graphql_endpoint_url: &str,
+    subscriptions_endpoint_url: Option<&'static str>,
+) -> Result<HttpResponse, Error> {
+    let html = playground_source(graphql_endpoint_url, subscriptions_endpoint_url);
+    Ok(HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(html))
+}
+
 async fn playground_handler() -> Result<HttpResponse, Error> {
     play_handler("/", None).await
 }
