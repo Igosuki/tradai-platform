@@ -9,6 +9,9 @@ use derive_more::Display;
 use futures::lock::Mutex;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
+use juniper_actix::{
+    graphiql_handler as gqli_handler, graphql_handler, playground_handler as play_handler,
+};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "flame_it")]
 use std::fs::File;
@@ -50,7 +53,7 @@ impl From<std::io::Error> for ApiError {
     }
 }
 
-pub async fn add_order(
+async fn add_order(
     query: web::Json<Order>,
     exchanges: web::Data<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>>,
 ) -> Result<HttpResponse, Error> {
@@ -73,34 +76,27 @@ pub struct StratLookupQuery {
     q: String,
 }
 
-pub async fn graphql(
-    data: web::Json<GraphQLRequest>,
-    schema: web::Data<Arc<Schema>>,
+async fn graphiql_handler() -> Result<HttpResponse, Error> {
+    gqli_handler("/", None).await
+}
+async fn playground_handler() -> Result<HttpResponse, Error> {
+    play_handler("/", None).await
+}
+
+async fn graphql(
+    req: actix_web::HttpRequest,
+    payload: actix_web::web::Payload,
+    schema: web::Data<Schema>,
     strats: web::Data<Arc<HashMap<StrategyKey, Strategy>>>,
 ) -> Result<HttpResponse, Error> {
     let ctx = Context {
         strats: strats.get_ref().to_owned(),
     };
-    let res = web::block(move || {
-        let res = data.execute(&schema, &ctx);
-        Ok::<_, serde_json::error::Error>(serde_json::to_string(&res)?)
-    })
-    .await
-    .map_err(Error::from)?;
-
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(res))
-}
-
-pub async fn graphql_playground() -> HttpResponse {
-    HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(graphiql_source("/graphql"))
+    graphql_handler(&schema, &ctx, req, payload).await
 }
 
 #[cfg(feature = "flame_it")]
-pub fn dump_profiler_file(name: Option<&String>) -> Result<(), std::io::Error> {
+fn dump_profiler_file(name: Option<&String>) -> Result<(), std::io::Error> {
     let string = format!("flame-graph-{}.html", chrono::Utc::now());
     let graph_file_name = name.unwrap_or(&string);
     info!("Dumping profiler file at {}", graph_file_name);
@@ -117,8 +113,9 @@ pub async fn dump_profiler(q: web::Query<HashMap<String, String>>) -> Result<Htt
 pub fn config_app(cfg: &mut web::ServiceConfig) {
     cfg.service(web::resource("/").route(web::get().to(|| async { HttpResponse::Ok().finish() })));
     cfg.service(web::scope("/orders").service(web::resource("").route(web::post().to(add_order))));
-    cfg.service(web::resource("/graphiql").route(web::get().to(graphql_playground)));
     cfg.service(web::resource("/graphql").route(web::post().to(graphql)));
+    cfg.service(web::resource("/playground").route(web::get().to(playground_handler)));
+    cfg.service(web::resource("/graphiql").route(web::get().to(graphiql_handler)));
     #[cfg(feature = "flame_it")]
     cfg.service(
         web::scope("/profiling")
