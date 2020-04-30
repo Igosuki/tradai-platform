@@ -1,6 +1,8 @@
 use juniper::{FieldError, FieldResult, RootNode};
 
+use futures::Stream;
 use std::collections::HashMap;
+use std::pin::Pin;
 use std::sync::Arc;
 use strategies::naive_pair_trading::state::Operation;
 use strategies::query::{DataQuery, DataResult};
@@ -28,7 +30,7 @@ pub struct TypeAndKeyInput {
     id: String,
 }
 
-#[juniper::object(Context = Context)]
+#[juniper::graphql_object(Context = Context)]
 impl QueryRoot {
     #[graphql(description = "List of all strats")]
     fn strats(context: &Context) -> FieldResult<Vec<TypeAndKey>> {
@@ -106,11 +108,24 @@ impl QueryRoot {
 
 pub struct MutationRoot;
 
-#[juniper::object(Context = Context)]
+#[juniper::graphql_object(Context = Context)]
 impl MutationRoot {}
 
-pub type Schema = RootNode<'static, QueryRoot, MutationRoot>;
+pub struct Subscription;
+
+type StringStream = Pin<Box<dyn Stream<Item = Result<String, FieldError>> + Send>>;
+
+#[juniper::graphql_subscription(Context = Context)]
+impl Subscription {
+    async fn hello_world() -> StringStream {
+        let stream =
+            tokio::stream::iter(vec![Ok(String::from("Hello")), Ok(String::from("World!"))]);
+        Box::pin(stream)
+    }
+}
+
+pub type Schema = RootNode<'static, QueryRoot, MutationRoot, Subscription>;
 
 pub fn create_schema() -> Schema {
-    Schema::new(QueryRoot, MutationRoot)
+    Schema::new(QueryRoot, MutationRoot, Subscription)
 }
