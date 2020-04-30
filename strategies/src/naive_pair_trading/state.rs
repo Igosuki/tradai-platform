@@ -18,7 +18,9 @@ pub struct Position {
     pub left_pair: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
+#[derive(
+    Eq, PartialEq, Clone, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
+)]
 pub enum PositionKind {
     #[strum(serialize = "short")]
     SHORT,
@@ -111,8 +113,7 @@ pub(crate) const STATE_KEY: &'static str = "state";
 
 #[derive(Clone, Debug, Serialize)]
 pub(super) struct MovingState {
-    position_short: i8,
-    position_long: i8,
+    position: Option<PositionKind>,
     value_strat: f64,
     units_to_buy_long_spread: f64,
     units_to_buy_short_spread: f64,
@@ -142,8 +143,7 @@ struct ValueStrat {
 impl MovingState {
     pub fn new(initial_value: f64, db: Db) -> MovingState {
         let mut state = MovingState {
-            position_short: 0,
-            position_long: 0,
+            position: None,
             value_strat: initial_value,
             units_to_buy_long_spread: 0.0,
             units_to_buy_short_spread: 0.0,
@@ -167,11 +167,8 @@ impl MovingState {
     fn reload_state(&mut self) {
         let mut ops: Vec<Operation> = self.db.read_json_vec(OPERATIONS_KEY);
         ops.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
-        ops.last().map(|o| match o.kind {
-            OperationKind::OPEN => match o.pos.kind {
-                PositionKind::SHORT => self.set_position_short(),
-                PositionKind::LONG => self.set_position_long(),
-            },
+        ops.last().map(|o| match &o.kind {
+            OperationKind::OPEN => self.set_position(o.pos.kind.clone()),
             _ => {}
         });
         let previous_state: Option<ValueStrat> = self.db.read_json(STATE_KEY);
@@ -184,31 +181,23 @@ impl MovingState {
     }
 
     pub(super) fn no_position_taken(&self) -> bool {
-        self.position_short == 0 && self.position_long == 0
+        self.position.is_none()
     }
 
     pub(super) fn is_long(&self) -> bool {
-        self.position_long == 1
+        self.position.eq(&Some(PositionKind::LONG))
     }
 
     pub(super) fn is_short(&self) -> bool {
-        self.position_short == 1
+        self.position.eq(&Some(PositionKind::SHORT))
     }
 
-    pub(super) fn set_position_short(&mut self) {
-        self.position_short = 1;
+    pub(super) fn set_position(&mut self, k: PositionKind) {
+        self.position = Some(k);
     }
 
-    pub(super) fn unset_position_short(&mut self) {
-        self.position_short = 0;
-    }
-
-    pub(super) fn set_position_long(&mut self) {
-        self.position_long = 1;
-    }
-
-    pub(super) fn unset_position_long(&mut self) {
-        self.position_long = 0;
+    pub(super) fn unset_position(&mut self) {
+        self.position = None;
     }
 
     pub(super) fn set_predicted_right(&mut self, predicted_right: f64) {
@@ -370,10 +359,7 @@ impl MovingState {
 
     pub(super) fn open(&mut self, pos: Position, fees: f64) -> Operation {
         let position_kind = pos.kind.clone();
-        match position_kind {
-            PositionKind::SHORT => self.set_position_short(),
-            PositionKind::LONG => self.set_position_long(),
-        };
+        self.set_position(position_kind.clone());
         self.nominal_position = self.beta_val;
         self.traded_price_right = pos.right_price;
         self.traded_price_left = pos.left_price;
@@ -406,10 +392,7 @@ impl MovingState {
 
     pub(super) fn close(&mut self, pos: Position, fees: f64) -> Operation {
         let kind: PositionKind = pos.kind.clone();
-        match kind {
-            PositionKind::SHORT => self.unset_position_short(),
-            PositionKind::LONG => self.unset_position_long(),
-        };
+        self.unset_position();
         let (spread, right_coef, left_coef) = match kind {
             PositionKind::SHORT => (
                 self.units_to_buy_short_spread,
