@@ -354,30 +354,26 @@ impl StrategySink for NaiveTradingStrategy {
 
 #[cfg(test)]
 mod test {
-    use chrono::{DateTime, Duration, TimeZone, Utc};
+    use chrono::{DateTime, TimeZone, Utc};
     use itertools::Itertools;
     use plotters::prelude::*;
-    use serde::{Deserialize, Serialize};
-    use std::io::Result;
+    use serde::Serialize;
 
-    use super::input::{read_csv, CsvRecord};
+    use super::input::CsvRecord;
     use super::state::MovingState;
-    use super::{BookPosition, DataRow, DataTable, NaiveTradingStrategy};
+    use super::{DataRow, DataTable, NaiveTradingStrategy};
     use crate::naive_pair_trading::input::to_pos;
     use crate::naive_pair_trading::options::Options;
     use coinnect_rt::exchange::Exchange;
     use ordered_float::OrderedFloat;
     use std::error::Error;
-    use std::fs::File;
     use std::ops::Deref;
     use std::path::Path;
     use std::process::Command;
     use std::sync::Arc;
     use std::time::Instant;
-    use tempfile::Builder;
     use tokio::runtime::Runtime;
     use util::date::{DateRange, DurationRangeType};
-    use util::serdes::date_time_format;
 
     const LEFT_PAIR: &'static str = "ETH_USDT";
     const RIGHT_PAIR: &'static str = "BTC_USDT";
@@ -611,10 +607,12 @@ mod test {
 
         let mut positions = strat.get_operations();
         positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
+        let last_position = positions.last();
         assert_eq!(
             Some(161.270004272461),
-            positions.last().map(|p| p.pos.left_price)
+            last_position.map(|p| p.pos.left_price)
         );
+        assert_eq!(Some(85.04525162445327), last_position.map(|p| p.left_qty()));
 
         // let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
         // serde_json::to_writer(logs_f, &logs);

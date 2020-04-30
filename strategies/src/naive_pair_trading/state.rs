@@ -41,11 +41,13 @@ pub struct Operation {
 }
 
 impl Operation {
-    fn left_qty(&self) -> f64 {
+    // #[graphql(description = "left quantity")]
+    pub fn left_qty(&self) -> f64 {
         self.left_spread * self.pos.left_price * self.left_coef.abs()
     }
 
-    fn right_qty(&self) -> f64 {
+    // #[graphql(description = "right quantity")]
+    pub fn right_qty(&self) -> f64 {
         self.right_spread * self.pos.right_price * self.right_coef.abs()
     }
 
@@ -272,41 +274,18 @@ impl MovingState {
         self.units_to_buy_short_spread = units_to_buy_short_spread;
     }
 
-    fn get_long_position_value(
-        &self,
-        fees_rate: f64,
-        current_price_right: f64,
-        current_price_left: f64,
-    ) -> f64 {
-        return self.units_to_buy_long_spread
-            * (self.traded_price_left * self.beta_val * (1.0 - fees_rate)
-                - self.traded_price_right * (1.0 + fees_rate)
-                + current_price_right * (1.0 - fees_rate)
-                - current_price_left * self.beta_val * (1.0 + fees_rate));
-    }
-
     pub(super) fn set_long_position_return(
         &mut self,
         fees_rate: f64,
         current_price_right: f64,
         current_price_left: f64,
     ) {
-        self.long_position_return =
-            self.get_long_position_value(fees_rate, current_price_right, current_price_left)
-                / self.pnl;
-    }
-
-    pub fn get_short_position_value(
-        &self,
-        fees_rate: f64,
-        current_price_right: f64,
-        current_price_left: f64,
-    ) -> f64 {
-        return self.units_to_buy_short_spread
-            * (self.traded_price_right * (1.0 - fees_rate)
-                - self.traded_price_left * self.beta_val * (1.0 + fees_rate)
-                + current_price_left * self.beta_val * (1.0 - fees_rate)
-                - current_price_right * (1.0 + fees_rate));
+        self.long_position_return = (self.units_to_buy_long_spread
+            * ((self.traded_price_left * self.beta_val * (1.0 - fees_rate))
+                - (self.traded_price_right * (1.0 + fees_rate))
+                + (current_price_right * (1.0 - fees_rate))
+                - (current_price_left * self.beta_val * (1.0 + fees_rate))))
+            / self.pnl;
     }
 
     pub(super) fn set_short_position_return(
@@ -315,9 +294,12 @@ impl MovingState {
         current_price_right: f64,
         current_price_left: f64,
     ) {
-        self.short_position_return =
-            self.get_short_position_value(fees_rate, current_price_right, current_price_left)
-                / self.pnl;
+        self.short_position_return = (self.units_to_buy_short_spread
+            * ((self.traded_price_right * (1.0 - fees_rate))
+                - (self.traded_price_left * self.beta_val * (1.0 + fees_rate))
+                + (current_price_left * self.beta_val * (1.0 - fees_rate))
+                - (current_price_right * (1.0 + fees_rate))))
+            / self.pnl;
     }
 
     pub(super) fn short_position_return(&self) -> f64 {
@@ -364,18 +346,21 @@ impl MovingState {
         self.traded_price_right = pos.right_price;
         self.traded_price_left = pos.left_price;
         let (spread, right_coef, left_coef) = match position_kind {
-            PositionKind::SHORT => (
-                self.units_to_buy_short_spread,
-                1.0 - fees,
-                -(self.beta_val * (1.0 + fees)),
-            ),
-            PositionKind::LONG => (
-                self.units_to_buy_long_spread,
-                -(1.0 + fees),
-                self.beta_val * (1.0 - fees),
-            ),
+            PositionKind::SHORT => {
+                let (spread, right_coef, left_coef) =
+                    (self.units_to_buy_short_spread, 1.0 - fees, 1.0 + fees);
+                self.value_strat += spread
+                    * (pos.right_price * right_coef - pos.left_price * self.beta_val * left_coef);
+                (spread, right_coef, left_coef)
+            }
+            PositionKind::LONG => {
+                let (spread, right_coef, left_coef) =
+                    (self.units_to_buy_long_spread, 1.0 + fees, 1.0 - fees);
+                self.value_strat += spread
+                    * (pos.left_price * self.beta_val * left_coef - pos.right_price * right_coef);
+                (spread, right_coef, left_coef)
+            }
         };
-        self.value_strat += spread * (pos.right_price * right_coef + pos.left_price * left_coef);
         let op = self.make_operation(
             pos.clone(),
             OperationKind::OPEN,
@@ -394,18 +379,21 @@ impl MovingState {
         let kind: PositionKind = pos.kind.clone();
         self.unset_position();
         let (spread, right_coef, left_coef) = match kind {
-            PositionKind::SHORT => (
-                self.units_to_buy_short_spread,
-                -(1.0 + fees),
-                self.beta_val * (1.0 - fees),
-            ),
-            PositionKind::LONG => (
-                self.units_to_buy_long_spread,
-                1.0 - fees,
-                -(self.beta_val * (1.0 + fees)),
-            ),
+            PositionKind::SHORT => {
+                let (spread, right_coef, left_coef) =
+                    (self.units_to_buy_short_spread, 1.0 + fees, 1.0 - fees);
+                self.value_strat += spread
+                    * (pos.left_price * self.beta_val * left_coef - pos.right_price * right_coef);
+                (spread, right_coef, left_coef)
+            }
+            PositionKind::LONG => {
+                let (spread, right_coef, left_coef) =
+                    (self.units_to_buy_long_spread, 1.0 - fees, 1.0 + fees);
+                self.value_strat += spread
+                    * (pos.right_price * right_coef - pos.left_price * self.beta_val * left_coef);
+                (spread, right_coef, left_coef)
+            }
         };
-        self.value_strat += spread * (pos.right_price * right_coef + pos.left_price * left_coef);
         let op = self.make_operation(pos, OperationKind::CLOSE, spread, right_coef, left_coef);
         op.log();
         self.save_operation(&op);
