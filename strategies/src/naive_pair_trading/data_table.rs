@@ -208,7 +208,7 @@ mod test {
     use tempfile::TempDir;
 
     use chrono::{TimeZone, Utc};
-    use quickcheck::{Arbitrary, Gen, QuickCheck, StdThreadGen};
+    use quickcheck::{Arbitrary, Gen, StdThreadGen};
     use test::Bencher;
 
     impl Arbitrary for BookPosition {

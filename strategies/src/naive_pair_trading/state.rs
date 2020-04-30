@@ -28,7 +28,7 @@ pub enum PositionKind {
     LONG,
 }
 
-#[derive(Debug, Deserialize, Serialize, juniper::GraphQLObject)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Operation {
     pub kind: OperationKind,
     pub pos: Position,
@@ -40,13 +40,54 @@ pub struct Operation {
     pub right_coef: f64,
 }
 
+#[juniper::graphql_object]
 impl Operation {
-    // #[graphql(description = "left quantity")]
+    #[graphql(description = "the kind of operation")]
+    pub fn kind(&self) -> &OperationKind {
+        &self.kind
+    }
+
+    #[graphql(description = "the position this operation is based on")]
+    pub fn pos(&self) -> &Position {
+        &self.pos
+    }
+
+    #[graphql(description = "the buy/sell operation for the 'left' crypto pair")]
+    pub fn left_op(&self) -> &OperationKind {
+        &self.left_op
+    }
+
+    #[graphql(description = "the buy/sell operation for the 'right' crypto pair")]
+    pub fn right_op(&self) -> &OperationKind {
+        &self.right_op
+    }
+
+    #[graphql(description = "the spread of the 'left' crypto pair")]
+    pub fn left_spread(&self) -> f64 {
+        self.left_spread
+    }
+
+    #[graphql(description = "the spread of the 'right' crypto pair")]
+    pub fn right_spread(&self) -> f64 {
+        self.right_spread
+    }
+
+    #[graphql(description = "left quantity")]
     pub fn left_qty(&self) -> f64 {
         self.left_spread * self.pos.left_price * self.left_coef.abs()
     }
 
-    // #[graphql(description = "right quantity")]
+    #[graphql(description = "right quantity")]
+    pub fn right_qty(&self) -> f64 {
+        self.right_spread * self.pos.right_price * self.right_coef.abs()
+    }
+}
+
+impl Operation {
+    pub fn left_qty(&self) -> f64 {
+        self.left_spread * self.pos.left_price * self.left_coef.abs()
+    }
+
     pub fn right_qty(&self) -> f64 {
         self.right_spread * self.pos.right_price * self.right_coef.abs()
     }
