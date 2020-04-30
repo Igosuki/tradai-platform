@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use crate::api::ApiError::ExchangeNotFound;
-use crate::graphql_schemas::root::{create_schema, Context, Schema};
-use actix::Addr;
+use crate::graphql_schemas::root::{Context, Schema};
 use actix_web::{web, Error, HttpResponse, ResponseError};
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{OrderType, Pair, Price, Volume};
@@ -14,7 +13,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "flame_it")]
 use std::fs::File;
 use std::sync::Arc;
-use strategies::{Strategy, StrategyActor, StrategyKey};
+use strategies::{Strategy, StrategyKey};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Order {

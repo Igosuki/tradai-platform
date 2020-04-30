@@ -1,0 +1,14 @@
+---
+- hosts: btc2
+  name: Download the trading system data for backup
+  remote_user: root
+  tasks:
+    - shell: find database -maxdepth 5 -type f
+      register: db_files_to_copy
+      args:
+        chdir: /root
+    - name: backup databases
+      fetch: src={{ item }} dest=/tmp/database-{{ inventory_hostname }}
+      with_items: "{{ db_files_to_copy.stdout_lines }}"
+      args:
+        chdir: /root/

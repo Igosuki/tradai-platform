@@ -1,7 +1,6 @@
-use actix::Message;
 use chrono::{DateTime, Utc};
 use db::Db;
-use log::Level::{Debug, Info};
+use log::Level::Info;
 use serde::{Deserialize, Serialize};
 use std::panic;
 use strum_macros::{AsRefStr, EnumString};
@@ -175,7 +174,7 @@ impl MovingState {
             },
             _ => {}
         });
-        let mut previous_state: Option<ValueStrat> = self.db.read_json(STATE_KEY);
+        let previous_state: Option<ValueStrat> = self.db.read_json(STATE_KEY);
         if let Some(ps) = previous_state {
             self.set_units_to_buy_long_spread(ps.units_to_buy_long_spread);
             self.set_units_to_buy_short_spread(ps.units_to_buy_short_spread);
@@ -424,10 +423,6 @@ impl MovingState {
             ),
         };
         self.value_strat += spread * (pos.right_price * right_coef + pos.left_price * left_coef);
-        let (left_op, right_op) = match kind {
-            PositionKind::SHORT => (OperationKind::SELL, OperationKind::BUY),
-            PositionKind::LONG => (OperationKind::BUY, OperationKind::SELL),
-        };
         let op = self.make_operation(pos, OperationKind::CLOSE, spread, right_coef, left_coef);
         op.log();
         self.save_operation(&op);
@@ -451,6 +446,26 @@ impl MovingState {
                 pnl: self.pnl,
             },
         );
+    }
+
+    pub fn get_operations(&self) -> Vec<Operation> {
+        self.db.read_json_vec(OPERATIONS_KEY)
+    }
+
+    pub fn dump_db(&self) -> Vec<String> {
+        self.db.with_db(|env, store| {
+            let reader = env.read().unwrap();
+            let mut strings: Vec<String> = Vec::new();
+            for r in store.iter_start(&reader).unwrap() {
+                strings.push(format!("{:?}", r))
+            }
+            strings
+        })
+    }
+
+    #[allow(dead_code)]
+    fn get_operation(&self, uuid: &str) -> Option<Operation> {
+        self.db.read_json(&format!("{}:{}", OPERATIONS_KEY, uuid))
     }
 
     fn log_info(&self, pos: &PositionKind) {

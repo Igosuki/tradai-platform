@@ -23,3 +23,6 @@ serde_derive = "1.0"
 
 # std
 log = "0.4.8"
+
+[dev-dependencies]
+tempdir = "0.3.7"

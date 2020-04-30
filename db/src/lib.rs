@@ -1,8 +1,11 @@
 #[macro_use]
 extern crate log;
+#[cfg(test)]
+#[macro_use]
+extern crate serde_derive;
 
 use rkv::error::StoreError::LmdbError;
-use rkv::{Manager, Rkv, SingleStore, StoreOptions, Value};
+use rkv::{Manager, Rkv, SingleStore, StoreOptions, Value, Writer};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fs;
@@ -107,6 +110,7 @@ impl Db {
                     e => error!("Failed to delete key {} for {}", key, e),
                 },
             };
+            Self::commit(writer, key);
         })
     }
 
@@ -116,7 +120,7 @@ impl Db {
             let mut writer = env.write().unwrap();
 
             store.put(&mut writer, &key, &Value::Json(&result)).unwrap();
-            writer.commit().unwrap();
+            Self::commit(writer, key);
         });
     }
 
@@ -129,7 +133,7 @@ impl Db {
                     .put(&mut writer, &format!("{}{}", key, i), &Value::Json(&result))
                     .unwrap();
             }
-            writer.commit().unwrap();
+            Self::commit(writer, key);
         });
     }
 
@@ -141,8 +145,15 @@ impl Db {
             let mut writer = env.write().unwrap();
             let _value: Value = v.into();
             store.put(&mut writer, &key, &v.into()).unwrap();
-            writer.commit().unwrap();
+            Self::commit(writer, key);
         });
+    }
+
+    fn commit(w: Writer, key: &str) {
+        match w.commit() {
+            Ok(_) => {}
+            Err(e) => error!("Failed to commit key {} for {}", key, e),
+        }
     }
 }
 
@@ -150,10 +161,9 @@ impl Db {
 mod test {
     use crate::Db;
     use rkv::{Rkv, SingleStore, Value};
-    use serde::Deserialize;
     use std::sync::RwLockReadGuard;
 
-    fn make_db(env: RwLockReadGuard<Rkv>, store: SingleStore) {
+    fn make_db_test(env: RwLockReadGuard<Rkv>, store: SingleStore) {
         {
             // Use a write transaction to mutate the store via a `Writer`.
             // There can be only one writer for a given environment, so opening
@@ -248,6 +258,7 @@ mod test {
                 "It should be None! ({:?})",
                 store.get(&reader, "foo").unwrap()
             );
+            store.iter_start()
         }
 
         {
@@ -321,9 +332,9 @@ mod test {
         }
     }
 
-    fn db(path: &str) {
-        let db = Db::new("data/simple-db", "mydb".to_string());
-        db.with_db(make_db);
+    fn db() -> Db {
+        let dir = tempdir::TempDir::new("s").unwrap();
+        Db::new(dir.into_path().to_str().unwrap(), "mydb".to_string())
     }
 
     #[derive(Debug, Deserialize, PartialEq)]
@@ -337,23 +348,43 @@ mod test {
         store
             .put(
                 &mut writer,
-                "json",
+                "jsona",
                 &Value::Json(r#"{"foo":"bar", "number": 1}"#),
             )
             .unwrap();
+        store
+            .put(
+                &mut writer,
+                "jsonb",
+                &Value::Json(r#"{"foo":"bar", "number": 2}"#),
+            )
+            .unwrap();
+        writer.commit().unwrap();
     }
 
     #[test]
     fn db_json_fetch() {
-        let db = Db::new("data/simple-db", "mydb".to_string());
+        let db = db();
         db.with_db(insert_json);
         let vec: Vec<Foobar> = db.read_json_vec("json");
         assert_eq!(
             vec,
-            [Foobar {
-                foo: "bar".to_string(),
-                number: 1,
-            }]
+            [
+                Foobar {
+                    foo: "bar".to_string(),
+                    number: 1,
+                },
+                Foobar {
+                    foo: "bar".to_string(),
+                    number: 2,
+                }
+            ]
         )
+    }
+
+    #[test]
+    fn db_test_basics() {
+        let db = db();
+        db.with_db(make_db_test);
     }
 }

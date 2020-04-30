@@ -7,7 +7,6 @@ use futures::{pin_mut, select, FutureExt};
 
 use actix::{Actor, Addr, Recipient, SyncArbiter};
 use actix_rt::signal::unix::{signal, Signal, SignalKind};
-use notify::RecursiveMode;
 use std::time::Duration;
 
 use coinnect_rt::binance::BinanceCreds;
@@ -18,7 +17,7 @@ use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::exchange_bot::ExchangeBot;
 use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::LiveEventEnveloppe;
-use strategies::{self, Strategy, StrategyActor, StrategyActorOptions, StrategyKey};
+use strategies::{self, Strategy, StrategyKey};
 
 use crate::logging::file_actor::{AvroFileActor, FileActorOptions};
 use crate::settings::Settings;
