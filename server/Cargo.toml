@@ -16,51 +16,51 @@ path = "src/main.rs"
 
 models = { path = "../models" }
 # Rust lang extensions
-lazy_static = "1.4.0"
-once_cell = "1.2.0"
-notify = "4.0.15"
+lazy_static = "1.4"
+once_cell = "1.2"
+notify = "4.0"
 
 # CLI
-clap = "2.33.0"
-structopt = "0.3.8"
+clap = "2.33"
+structopt = "0.3"
 
 # Codecs
-serde_json = "1.0.0"
-serde = "1.0.104"
-serde_derive = "1.0.104"
-derive_more = "0.99.2"
-data-encoding = "2.0.0-rc.1"
-bytes = "0.5.3"
+serde_json = "1.0"
+serde = "1.0"
+serde_derive = "1.0"
+derive_more = "0.99"
+data-encoding = "2.2"
+bytes = "0.5"
 avro-rs = { git = "https://github.com/Igosuki/avro-rs.git" }
 
 # Data structures
-bidir-map = "1.0.0"
+bidir-map = "1.0"
 
 # Error
-thiserror = "1.0.14"
-anyhow = "1.0.28"
+thiserror = "1.0"
+anyhow = "1.0"
 
 # Std Utils
-chrono = { version = "0.4.10", features = ["serde"] }
-url = "2.1.0"
-uuid = { version = "0.8.1", features = ["v4"] }
-byte-unit = "3.0.3"
-error-chain = "0.12.1"
+chrono = { version = "0.4", features = ["serde"] }
+url = "2.1"
+uuid = { version = "0.8", features = ["v4"] }
+byte-unit = "3.0"
+error-chain = "0.12"
 config = { version = "0.9", features = ["yaml"] }
-rand = "0.7.3"
+rand = "0.7"
 itertools = "0.9"
-fs_extra = "1.1.0"
-parse_duration = "2.1.0"
-tempdir = "0.3.7"
+fs_extra = "1.1"
+parse_duration = "2.1"
+tempdir = "0.3"
 
 # SSL
-sha2 = "0.6.0"
-hmac = "0.4.2"
-openssl = "0.10.26"
-native-tls = "0.2.3"
+sha2 = "0.6"
+hmac = "0.4"
+openssl = "0.10"
+native-tls = "0.2"
 
 # Logging
-log = "0.4.8"
+log = "0.4"
 env_logger = "0.7.1"
 
 # Futures
