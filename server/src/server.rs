@@ -49,7 +49,7 @@ pub async fn httpserver(
             apis.insert(xch, xch_api);
         }
         let data = Mutex::new(apis);
-        let schema = Arc::new(create_schema());
+        let schema = create_schema();
 
         actix_web::App::new()
             .data(schema)
