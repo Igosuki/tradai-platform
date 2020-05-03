@@ -17,13 +17,13 @@
         owner: root
         group: root
         mode: '+x'
-    - name: Model Loader binary
-      copy:
-        src: ../../../cargo-target/x86_64-unknown-linux-musl/release/model_loader
-        dest: /root/model_loader
-        owner: root
-        group: root
-        mode: '+x'
+#    - name: Model Loader binary
+#      copy:
+#        src: ../../../cargo-target/x86_64-unknown-linux-musl/release/model_loader
+#        dest: /root/model_loader
+#        owner: root
+#        group: root
+#        mode: '+x'
   tasks:
     - name: backup trader
       shell: cp trader "trader.bak.$(date +%F)"
