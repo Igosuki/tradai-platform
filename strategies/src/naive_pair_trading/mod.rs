@@ -1,4 +1,7 @@
+use anyhow::Result;
 use chrono::{DateTime, Duration, TimeZone, Utc};
+use log::Level::Trace;
+use std::ops::{Add, Mul, Sub};
 use std::sync::Arc;
 
 pub mod data_table;
@@ -7,12 +10,10 @@ pub mod metrics;
 pub mod options;
 pub mod state;
 
-use log::Level::Trace;
-use std::ops::{Add, Mul, Sub};
-
 use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
 use crate::naive_pair_trading::state::Operation;
-use crate::{DataQuery, DataResult, StrategySink};
+use crate::query::FieldMutation;
+use crate::{DataQuery, DataResult, StrategyInterface};
 use coinnect_rt::types::LiveEvent;
 use db::Db;
 use metrics::StrategyMetrics;
@@ -310,9 +311,13 @@ impl NaiveTradingStrategy {
     fn dump_db(&self) -> Vec<String> {
         self.state.dump_db()
     }
+
+    fn change_state(&mut self, field: String, v: f64) -> Result<()> {
+        self.state.change_state(field, v)
+    }
 }
 
-impl StrategySink for NaiveTradingStrategy {
+impl StrategyInterface for NaiveTradingStrategy {
     fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()> {
         match le {
             LiveEvent::LiveOrderbook(ob) => {
@@ -351,6 +356,10 @@ impl StrategySink for NaiveTradingStrategy {
             DataQuery::Operations => Some(DataResult::Operations(self.get_operations())),
             DataQuery::Dump => Some(DataResult::Dump(self.dump_db())),
         }
+    }
+
+    fn mutate(&mut self, m: FieldMutation) -> Result<()> {
+        self.change_state(m.field, m.value)
     }
 }
 

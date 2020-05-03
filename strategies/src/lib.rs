@@ -11,9 +11,8 @@ extern crate quickcheck;
 #[macro_use]
 extern crate juniper;
 
-use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
-use crate::query::{DataQuery, DataResult};
 use actix::{Actor, Addr, Handler, Running, SyncArbiter, SyncContext};
+use anyhow::Result;
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use derive_more::Display;
@@ -22,6 +21,9 @@ use std::str::FromStr;
 use std::sync::Arc;
 use strum_macros::EnumString;
 use uuid::Uuid;
+
+use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
+use crate::query::{DataQuery, DataResult, FieldMutation};
 
 pub mod naive_pair_trading;
 pub mod query;
@@ -89,12 +91,12 @@ impl StrategySettings {
 }
 
 pub struct StrategyActorOptions {
-    pub strategy: Box<dyn StrategySink>,
+    pub strategy: Box<dyn StrategyInterface>,
 }
 
 pub struct StrategyActor {
     _session_uuid: Uuid,
-    inner: Box<dyn StrategySink>,
+    inner: Box<dyn StrategyInterface>,
 }
 
 impl StrategyActor {
@@ -139,13 +141,26 @@ impl Handler<DataQuery> for StrategyActor {
     }
 }
 
-pub trait StrategySink {
+impl Handler<FieldMutation> for StrategyActor {
+    type Result = <FieldMutation as actix::Message>::Result;
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    fn handle(&mut self, msg: FieldMutation, _ctx: &mut Self::Context) -> Self::Result {
+        self.inner
+            .mutate(msg)
+            .map_err(|ae| std::io::Error::new(std::io::ErrorKind::Other, ae))
+    }
+}
+
+pub trait StrategyInterface {
     fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()>;
 
     fn data(&mut self, q: DataQuery) -> Option<DataResult>;
+
+    fn mutate(&mut self, m: FieldMutation) -> Result<()>;
 }
 
-pub fn from_settings(db_path: &str, fees: f64, s: &StrategySettings) -> Box<dyn StrategySink> {
+pub fn from_settings(db_path: &str, fees: f64, s: &StrategySettings) -> Box<dyn StrategyInterface> {
     let s = match s {
         StrategySettings::Naive(n) => {
             crate::naive_pair_trading::NaiveTradingStrategy::new(db_path, fees, n)
@@ -170,12 +185,12 @@ mod test {
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
-    fn actor(strategy: Box<dyn StrategySink>) -> StrategyActor {
+    fn actor(strategy: Box<dyn StrategyInterface>) -> StrategyActor {
         StrategyActor::new(StrategyActorOptions { strategy })
     }
 
     struct DummyStrat;
-    impl StrategySink for DummyStrat {
+    impl StrategyInterface for DummyStrat {
         fn add_event(&mut self, _: LiveEvent) -> std::io::Result<()> {
             Ok(())
         }
