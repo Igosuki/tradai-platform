@@ -7,6 +7,7 @@ pub mod metrics;
 pub mod options;
 pub mod state;
 
+use log::Level::Trace;
 use std::ops::{Add, Mul, Sub};
 
 use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
@@ -106,15 +107,17 @@ impl NaiveTradingStrategy {
     }
 
     fn should_eval(&self) -> bool {
-        let x = (self.samples_since_last % self.beta_eval_freq) == 0;
-        if x {
+        let freq_and_samples = (self.samples_since_last % self.beta_eval_freq) == 0;
+        if freq_and_samples && log_enabled!(Trace) {
             trace!(
                 "eval_time : {} % {} == 0",
                 self.samples_since_last,
                 self.beta_eval_freq
             );
         }
-        x
+        let neg_beta_and_samples = (self.state.beta_lr() < 0.0
+            && self.samples_since_last % self.beta_eval_window_size == 0);
+        freq_and_samples || neg_beta_and_samples
     }
 
     fn set_model_from_table(&mut self) {
