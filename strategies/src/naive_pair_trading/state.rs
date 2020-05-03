@@ -1,12 +1,21 @@
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use db::Db;
 use log::Level::Info;
 use serde::{Deserialize, Serialize};
 use std::panic;
+use std::str::FromStr;
 use strum_macros::{AsRefStr, EnumString};
+use thiserror::Error;
 use uuid::Uuid;
 
 const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
+
+#[derive(Error, Debug)]
+pub enum StateError {
+    #[error("wrong mutable state field")]
+    InvalidFieldMutation(#[from] strum::ParseError),
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct Position {
@@ -176,13 +185,24 @@ pub(super) struct MovingState {
 }
 
 #[derive(Serialize, Deserialize)]
-struct ValueStrat {
+struct TransientState {
     value_strat: f64,
     units_to_buy_long_spread: f64,
     units_to_buy_short_spread: f64,
     pnl: f64,
     traded_price_left: f64,
     traded_price_right: f64,
+    nominal_position: Option<f64>,
+}
+
+#[derive(EnumString)]
+enum MutableTransientStateField {
+    #[strum(serialize = "value_strat")]
+    ValueStrat,
+    #[strum(serialize = "pnl")]
+    Pnl,
+    #[strum(serialize = "nominal_position")]
+    NominalPosition,
 }
 
 impl MovingState {
@@ -216,7 +236,7 @@ impl MovingState {
             OperationKind::OPEN => self.set_position(o.pos.kind.clone()),
             _ => {}
         });
-        let previous_state: Option<ValueStrat> = self.db.read_json(STATE_KEY);
+        let previous_state: Option<TransientState> = self.db.read_json(STATE_KEY);
         if let Some(ps) = previous_state {
             self.set_units_to_buy_long_spread(ps.units_to_buy_long_spread);
             self.set_units_to_buy_short_spread(ps.units_to_buy_short_spread);
@@ -224,6 +244,9 @@ impl MovingState {
             self.pnl = ps.pnl;
             self.traded_price_left = ps.traded_price_left;
             self.traded_price_right = ps.traded_price_right;
+            if let Some(np) = ps.nominal_position {
+                self.nominal_position = np;
+            }
         }
     }
 
@@ -455,15 +478,26 @@ impl MovingState {
     fn save(&self) {
         self.db.put_json(
             STATE_KEY,
-            ValueStrat {
+            TransientState {
                 units_to_buy_short_spread: self.units_to_buy_short_spread,
                 units_to_buy_long_spread: self.units_to_buy_long_spread,
                 value_strat: self.value_strat,
                 pnl: self.pnl,
                 traded_price_left: self.traded_price_left,
                 traded_price_right: self.traded_price_right,
+                nominal_position: Some(self.nominal_position),
             },
         );
+    }
+
+    pub fn change_state(&mut self, field: String, v: f64) -> Result<()> {
+        let str = MutableTransientStateField::from_str(&field)?;
+        match str {
+            MutableTransientStateField::ValueStrat => self.value_strat = v,
+            MutableTransientStateField::NominalPosition => self.nominal_position = v,
+            MutableTransientStateField::Pnl => self.pnl = v,
+        }
+        Ok(self.save())
     }
 
     pub fn get_operations(&self) -> Vec<Operation> {

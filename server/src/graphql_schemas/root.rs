@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 use strategies::naive_pair_trading::state::Operation;
-use strategies::query::{DataQuery, DataResult};
+use strategies::query::{DataQuery, DataResult, FieldMutation};
 use strategies::{Strategy, StrategyKey};
 
 pub struct Context {
@@ -109,7 +109,36 @@ impl QueryRoot {
 pub struct MutationRoot;
 
 #[juniper::graphql_object(Context = Context)]
-impl MutationRoot {}
+impl MutationRoot {
+    #[graphql(description = "Get all positions for this strat")]
+    fn state(context: &Context, tk: TypeAndKeyInput, fm: FieldMutation) -> FieldResult<bool> {
+        StrategyKey::from(&tk.t, &tk.id)
+            .ok_or(FieldError::new(
+                "Strategy type not found",
+                graphql_value!({ "not_found": "strategy type not found" }),
+            ))
+            .and_then(|strat| match context.strats.get(&strat) {
+                None => Err(FieldError::new(
+                    "Strategy not found",
+                    graphql_value!({ "not_found": "strategy not found" }),
+                )),
+                Some(strat) => {
+                    let f = strat.1.send(fm);
+                    match futures::executor::block_on(f) {
+                        Ok(_) => Ok(true),
+                        Err(_) => Err(FieldError::new(
+                            "Strategy mailbox was full",
+                            graphql_value!({ "unavailable": "strategy mailbox full" }),
+                        )),
+                        _ => Err(FieldError::new(
+                            "Unexpected error",
+                            graphql_value!({ "unavailable": "unexpected error" }),
+                        )),
+                    }
+                }
+            })
+    }
+}
 
 pub struct Subscription;
 
