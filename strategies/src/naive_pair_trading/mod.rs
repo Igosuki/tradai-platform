@@ -272,7 +272,6 @@ impl NaiveTradingStrategy {
             self.set_model_from_table();
             self.set_long_spread(row.right.ask);
             self.set_short_spread(row.left.ask);
-            self.state.set_pnl();
         }
         let time = self.last_sample_time.add(self.beta_sample_freq);
         let should_sample = row.time.gt(&time) || row.time == time;
