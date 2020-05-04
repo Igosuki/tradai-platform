@@ -1,3 +1,4 @@
+use crate::query::MutableField;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use db::Db;
@@ -10,12 +11,6 @@ use thiserror::Error;
 use uuid::Uuid;
 
 const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
-
-#[derive(Error, Debug)]
-pub enum StateError {
-    #[error("wrong mutable state field")]
-    InvalidFieldMutation(#[from] strum::ParseError),
-}
 
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct Position {
@@ -195,16 +190,6 @@ struct TransientState {
     nominal_position: Option<f64>,
 }
 
-#[derive(EnumString)]
-enum MutableTransientStateField {
-    #[strum(serialize = "value_strat")]
-    ValueStrat,
-    #[strum(serialize = "pnl")]
-    Pnl,
-    #[strum(serialize = "nominal_position")]
-    NominalPosition,
-}
-
 impl MovingState {
     pub fn new(initial_value: f64, db: Db) -> MovingState {
         let mut state = MovingState {
@@ -222,7 +207,7 @@ impl MovingState {
             traded_price_left: 0.0,
             short_position_return: 0.0,
             long_position_return: 0.0,
-            pnl: 0.0,
+            pnl: initial_value,
             db,
         };
         state.reload_state();
@@ -490,12 +475,11 @@ impl MovingState {
         );
     }
 
-    pub fn change_state(&mut self, field: String, v: f64) -> Result<()> {
-        let str = MutableTransientStateField::from_str(&field)?;
-        match str {
-            MutableTransientStateField::ValueStrat => self.value_strat = v,
-            MutableTransientStateField::NominalPosition => self.nominal_position = v,
-            MutableTransientStateField::Pnl => self.pnl = v,
+    pub fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> {
+        match field {
+            MutableField::ValueStrat => self.value_strat = v,
+            MutableField::NominalPosition => self.nominal_position = v,
+            MutableField::Pnl => self.pnl = v,
         }
         Ok(self.save())
     }
