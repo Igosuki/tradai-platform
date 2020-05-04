@@ -12,7 +12,7 @@ pub mod state;
 
 use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
 use crate::naive_pair_trading::state::Operation;
-use crate::query::FieldMutation;
+use crate::query::{FieldMutation, MutableField};
 use crate::{DataQuery, DataResult, StrategyInterface};
 use coinnect_rt::types::LiveEvent;
 use db::Db;
@@ -139,6 +139,11 @@ impl NaiveTradingStrategy {
             .predict(self.state.alpha(), self.state.beta(), bp)
     }
 
+    fn update_spread(&mut self, row: &DataRow) {
+        self.set_long_spread(row.right.ask);
+        self.set_short_spread(row.left.ask);
+    }
+
     fn set_long_spread(&mut self, traded_price: f64) {
         self.state.set_units_to_buy_long_spread(
             self.state.value_strat() / (traded_price * (1.0 + self.fees_rate)),
@@ -186,8 +191,7 @@ impl NaiveTradingStrategy {
             if self.should_eval() {
                 self.eval_linear_model();
             }
-            self.set_long_spread(lr.right.ask);
-            self.set_short_spread(lr.left.ask);
+            self.update_spread(lr);
         }
 
         self.state.set_beta_lr();
@@ -271,8 +275,7 @@ impl NaiveTradingStrategy {
     fn process_row(&mut self, row: &DataRow) {
         if self.data_table.try_loading_model() {
             self.set_model_from_table();
-            self.set_long_spread(row.right.ask);
-            self.set_short_spread(row.left.ask);
+            self.update_spread(row);
         }
         let time = self.last_sample_time.add(self.beta_sample_freq);
         let should_sample = row.time.gt(&time) || row.time == time;
@@ -294,8 +297,7 @@ impl NaiveTradingStrategy {
         // No model and there are enough samples
         if !can_eval && self.data_table.len() == self.beta_eval_window_size as usize {
             self.eval_linear_model();
-            self.set_long_spread(row.right.ask);
-            self.set_short_spread(row.left.ask);
+            self.update_spread(row);
             self.state.set_pnl();
         }
     }
@@ -312,7 +314,7 @@ impl NaiveTradingStrategy {
         self.state.dump_db()
     }
 
-    fn change_state(&mut self, field: String, v: f64) -> Result<()> {
+    fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> {
         self.state.change_state(field, v)
     }
 }

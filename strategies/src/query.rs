@@ -16,9 +16,19 @@ pub enum DataQuery {
     Dump,
 }
 
+#[derive(Deserialize, Serialize, juniper::GraphQLEnum)]
+pub enum MutableField {
+    #[graphql(name = "value_strat")]
+    ValueStrat,
+    #[graphql(name = "pnl")]
+    Pnl,
+    #[graphql(name = "nominal_position")]
+    NominalPosition,
+}
+
 #[derive(Deserialize, Serialize, Message, juniper::GraphQLInputObject)]
 #[rtype(result = "std::io::Result<()>")]
 pub struct FieldMutation {
-    pub field: String,
+    pub field: MutableField,
     pub value: f64,
 }
