@@ -93,5 +93,19 @@ fn load_records(path: &str) -> Vec<CsvRecord> {
 }
 
 pub fn to_pos(r: &CsvRecord) -> BookPosition {
-    BookPosition::new(r.a1, r.aq1, r.b1, r.bq1)
+    let asks = [
+        (r.a1, r.aq1),
+        (r.a2, r.aq2),
+        (r.a3, r.aq3),
+        (r.a4, r.aq4),
+        (r.a5, r.aq5),
+    ];
+    let bids = [
+        (r.b1, r.bq1),
+        (r.b2, r.bq2),
+        (r.b3, r.bq3),
+        (r.b4, r.bq4),
+        (r.b5, r.bq5),
+    ];
+    BookPosition::new(&asks, &bids)
 }
