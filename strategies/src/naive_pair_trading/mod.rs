@@ -267,16 +267,16 @@ impl NaiveTradingStrategy {
 
     fn can_eval(&self) -> bool {
         self.data_table.has_model()
-            && self
-                .data_table
-                .model()
-                .map(|m| {
-                    m.at.gt(&Utc::now()
-                        .sub(self.beta_sample_freq.mul(
+            && (!self.state.no_position_taken()
+                || self
+                    .data_table
+                    .model()
+                    .map(|m| {
+                        m.at.gt(&Utc::now().sub(self.beta_sample_freq.mul(
                             (self.beta_eval_freq as f64 * (1.0 + LM_AGE_CUTOFF_RATIO)) as i32,
                         )))
-                })
-                .unwrap_or(false)
+                    })
+                    .unwrap_or(false))
     }
 
     fn process_row(&mut self, row: &DataRow) {
