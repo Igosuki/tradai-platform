@@ -3,8 +3,18 @@ use coinnect_rt::types::Orderbook;
 use db::Db;
 use itertools::Itertools;
 use math::iter::{CovarianceExt, MeanExt, VarianceExt};
+use std::convert::TryFrom;
 use std::iter::{Rev, Take};
 use std::slice::Iter;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum DataTableError {
+    #[error("at least one bid expected")]
+    MissingBids,
+    #[error("at least one ask expected")]
+    MissingAsks,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BookPosition {
@@ -20,27 +30,37 @@ pub struct BookPosition {
 }
 
 impl BookPosition {
-    pub fn new(ask: f64, ask_q: f64, bid: f64, bid_q: f64) -> Self {
+    pub fn new(asks: &[(f64, f64)], bids: &[(f64, f64)]) -> Self {
+        let first_ask = asks[0];
+        let first_bid = bids[0];
         Self {
-            ask,
-            ask_q,
-            bid,
-            bid_q,
-            mid: Self::mid(ask, bid),
+            ask: first_ask.0,
+            ask_q: first_ask.1,
+            bid: first_bid.0,
+            bid_q: first_bid.1,
+            mid: Self::mid(asks, bids),
         }
     }
 
-    fn mid(ask: f64, bid: f64) -> f64 {
-        (ask + bid) / 2.0
+    fn mid(asks: &[(f64, f64)], bids: &[(f64, f64)]) -> f64 {
+        let (asks_iter, asks_iter2) = asks.iter().tee();
+        let (bids_iter, bids_iter2) = bids.iter().tee();
+        (asks_iter.map(|a| a.0 * a.1).sum::<f64>() + bids_iter.map(|b| b.0 * b.1).sum::<f64>())
+            / asks_iter2.interleave(bids_iter2).map(|t| t.1).sum::<f64>()
     }
+}
 
-    pub fn from_book(t: Orderbook) -> Option<BookPosition> {
-        let first_ask = t.asks.first().map(|a| (a.0, a.1));
-        let first_bid = t.bids.first().map(|a| (a.0, a.1));
-        match (first_ask, first_bid) {
-            (Some(ask), Some(bid)) => Some(BookPosition::new(ask.0, ask.1, bid.0, bid.1)),
-            _ => None,
+impl TryFrom<Orderbook> for BookPosition {
+    type Error = DataTableError;
+
+    fn try_from(t: Orderbook) -> Result<Self, Self::Error> {
+        if t.asks.is_empty() {
+            return Err(DataTableError::MissingAsks);
         }
+        if t.bids.is_empty() {
+            return Err(DataTableError::MissingBids);
+        }
+        Ok(BookPosition::new(&t.asks, &t.bids))
     }
 }
 

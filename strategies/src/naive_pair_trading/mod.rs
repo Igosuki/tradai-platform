@@ -1,6 +1,7 @@
 use anyhow::Result;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use log::Level::Trace;
+use std::convert::TryInto;
 use std::ops::{Add, Div, Mul, Sub};
 use std::sync::Arc;
 
@@ -331,9 +332,9 @@ impl StrategyInterface for NaiveTradingStrategy {
         if let LiveEvent::LiveOrderbook(ob) = le {
             let string = ob.pair.clone();
             if string == self.left_pair {
-                self.last_left = BookPosition::from_book(ob);
+                self.last_left = ob.try_into().ok();
             } else if string == self.right_pair {
-                self.last_right = BookPosition::from_book(ob);
+                self.last_right = ob.try_into().ok();
             }
         }
         let now = Utc::now();
