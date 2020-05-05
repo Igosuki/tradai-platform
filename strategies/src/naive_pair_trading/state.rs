@@ -5,9 +5,7 @@ use db::Db;
 use log::Level::Info;
 use serde::{Deserialize, Serialize};
 use std::panic;
-use std::str::FromStr;
 use strum_macros::{AsRefStr, EnumString};
-use thiserror::Error;
 use uuid::Uuid;
 
 const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
@@ -142,7 +140,9 @@ impl Operation {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
+#[derive(
+    PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
+)]
 pub enum OperationKind {
     #[strum(serialize = "open")]
     OPEN,
@@ -154,9 +154,9 @@ pub enum OperationKind {
     SELL,
 }
 
-pub(crate) const OPERATIONS_KEY: &'static str = "orders";
+pub(crate) static OPERATIONS_KEY: &str = "orders";
 
-pub(crate) const STATE_KEY: &'static str = "state";
+pub(crate) static STATE_KEY: &str = "state";
 
 #[derive(Clone, Debug, Serialize)]
 pub(super) struct MovingState {
@@ -217,10 +217,11 @@ impl MovingState {
     fn reload_state(&mut self) {
         let mut ops: Vec<Operation> = self.db.read_json_vec(OPERATIONS_KEY);
         ops.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
-        ops.last().map(|o| match &o.kind {
-            OperationKind::OPEN => self.set_position(o.pos.kind.clone()),
-            _ => {}
-        });
+        if let Some(o) = ops.last() {
+            if OperationKind::OPEN == o.kind {
+                self.set_position(o.pos.kind.clone());
+            }
+        }
         let previous_state: Option<TransientState> = self.db.read_json(STATE_KEY);
         if let Some(ps) = previous_state {
             self.set_units_to_buy_long_spread(ps.units_to_buy_long_spread);
@@ -263,10 +264,12 @@ impl MovingState {
         self.predicted_right
     }
 
+    #[cfg(test)]
     pub(super) fn traded_price_right(&self) -> f64 {
         self.traded_price_right
     }
 
+    #[cfg(test)]
     pub(super) fn traded_price_left(&self) -> f64 {
         self.traded_price_left
     }
@@ -414,13 +417,7 @@ impl MovingState {
                 (spread, right_coef, left_coef)
             }
         };
-        let op = self.make_operation(
-            pos.clone(),
-            OperationKind::OPEN,
-            spread,
-            right_coef,
-            left_coef,
-        );
+        let op = self.make_operation(pos, OperationKind::OPEN, spread, right_coef, left_coef);
         op.log();
         self.save_operation(&op);
         self.save();
@@ -481,7 +478,8 @@ impl MovingState {
             MutableField::NominalPosition => self.nominal_position = v,
             MutableField::Pnl => self.pnl = v,
         }
-        Ok(self.save())
+        self.save();
+        Ok(())
     }
 
     pub fn get_operations(&self) -> Vec<Operation> {

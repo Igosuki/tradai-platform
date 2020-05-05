@@ -79,7 +79,7 @@ impl AvroFileActor {
     /// Finds the next incremental file name for this path
     fn next_file_part_name(previous: &PathBuf) -> Option<PathBuf> {
         let previous_name = previous.file_stem().and_then(|os_str| os_str.to_str())?;
-        let i = previous_name.rfind("-")?;
+        let i = previous_name.rfind('-')?;
         let (stem, num) = previous_name.split_at(i + 1);
         let next_name = format!(
             "{}{:04}.{}",
@@ -101,7 +101,7 @@ impl AvroFileActor {
             Entry::Vacant(v) => {
                 let buf = self.base_path.join(partition);
                 // Create base directory for partition if necessary
-                fs::create_dir_all(&buf).map_err(|e| Error::IOError(e))?;
+                fs::create_dir_all(&buf).map_err(Error::IOError)?;
 
                 let schema = self.schema_for(&e.1).ok_or(Error::NoSchemaError)?;
 
@@ -120,7 +120,7 @@ impl AvroFileActor {
                     AvroFileActor::next_file_part_name,
                     Some(avro_header(&schema, marker.clone())?),
                 )
-                .map_err(|e| Error::IOError(e))?;
+                .map_err(Error::IOError)?;
 
                 // Schema based avro file writer
                 let mut writer = Writer::new(&schema, file);
@@ -224,9 +224,8 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
             }
             _ => Ok(0),
         };
-        match appended.and_then(|_| writer.flush().map_err(|_e| Error::WriterError)) {
-            Err(e) => trace!("Failed to flush writer {:?}", e),
-            Ok(_) => (),
+        if let Err(e) = appended.and_then(|_| writer.flush().map_err(|_e| Error::WriterError)) {
+            trace!("Failed to flush writer {:?}", e)
         }
     }
 }

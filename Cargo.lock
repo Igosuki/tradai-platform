@@ -587,24 +587,6 @@ dependencies = [
 [[package]]
 name = "binance"
 version = "0.10.2"
-source = "git+https://github.com/Igosuki/binance-rs-async.git#fe5f0b54de92a84e868cd03d22008cff63d60e8b"
-dependencies = [
- "error-chain",
- "futures 0.3.4",
- "hex 0.4.2",
- "reqwest",
- "ring",
- "serde 1.0.106",
- "serde_derive",
- "serde_json",
- "serde_qs",
- "tungstenite",
- "url",
-]
-
-[[package]]
-name = "binance"
-version = "0.10.2"
 dependencies = [
  "csv",
  "error-chain",
@@ -867,13 +849,14 @@ dependencies = [
  "backoff",
  "base64 0.11.0",
  "bimap",
- "binance 0.10.2 (git+https://github.com/Igosuki/binance-rs-async.git)",
+ "binance",
  "bstr",
  "bytes 0.5.4",
  "chrono",
  "data-encoding",
  "derive_more",
  "error-chain",
+ "float-cmp",
  "futures 0.3.4",
  "futures-util",
  "hmac 0.4.2",
@@ -1370,6 +1353,15 @@ dependencies = [
  "crc32fast",
  "libc",
  "miniz_oxide",
+]
+
+[[package]]
+name = "float-cmp"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "499a1bfa03d254b047e7e5c1fc8dd23a8cf6b344a8eb7e622ae4bc76bfac8e68"
+dependencies = [
+ "num-traits 0.2.11",
 ]
 
 [[package]]

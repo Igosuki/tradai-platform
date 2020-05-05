@@ -7,8 +7,6 @@ use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{OrderType, Pair, Price, Volume};
 use derive_more::Display;
 use futures::lock::Mutex;
-use juniper::http::graphiql::graphiql_source;
-use juniper::http::GraphQLRequest;
 use juniper_actix::{graphiql_handler as gqli_handler, graphql_handler};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "flame_it")]
@@ -67,7 +65,7 @@ async fn add_order(
     let _resp = api
         .add_order(order.t, order.pair, order.qty, Some(order.price))
         .await
-        .map_err(|e| ApiError::Coinnect(e))?;
+        .map_err(ApiError::Coinnect)?;
     Ok(HttpResponse::Ok().finish())
 }
 
@@ -174,7 +172,7 @@ mod tests {
                         BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap();
                     exchg_map.insert(
                         exchange,
-                        Coinnect::new(exchange, Box::new(my_creds)).unwrap(),
+                        Coinnect::new_exchange(exchange, Box::new(my_creds)).unwrap(),
                     );
                 }
                 Exchange::Bittrex => {
@@ -182,7 +180,7 @@ mod tests {
                         BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap();
                     exchg_map.insert(
                         exchange,
-                        Coinnect::new(exchange, Box::new(my_creds)).unwrap(),
+                        Coinnect::new_exchange(exchange, Box::new(my_creds)).unwrap(),
                     );
                 }
                 _ => (),

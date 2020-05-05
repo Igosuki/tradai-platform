@@ -28,7 +28,6 @@ pub struct NaiveTradingStrategy {
     res_threshold_short: f64,
     stop_loss: f64,
     stop_gain: f64,
-    samples_since_last: i32,
     beta_eval_window_size: i32,
     beta_eval_freq: i32,
     beta_sample_freq: Duration,
@@ -37,9 +36,9 @@ pub struct NaiveTradingStrategy {
     pub right_pair: String,
     pub left_pair: String,
     metrics: Arc<StrategyMetrics>,
-    db: Db,
     last_row_process_time: DateTime<Utc>,
     last_sample_time: DateTime<Utc>,
+    last_row_time_at_eval: DateTime<Utc>,
     last_left: Option<BookPosition>,
     last_right: Option<BookPosition>,
 }
@@ -56,10 +55,9 @@ impl NaiveTradingStrategy {
             res_threshold_short: n.threshold_short,
             stop_loss: n.stop_loss,
             stop_gain: n.stop_gain,
-            samples_since_last: 0,
             beta_eval_window_size: n.window_size,
             beta_eval_freq: n.beta_eval_freq,
-            state: MovingState::new(100.0, db.clone()),
+            state: MovingState::new(100.0, db),
             data_table: Self::make_lm_table(
                 &n.left,
                 &n.right,
@@ -70,8 +68,8 @@ impl NaiveTradingStrategy {
             left_pair: n.left.to_string(),
             last_row_process_time: Utc.timestamp_millis(0),
             last_sample_time: Utc.timestamp_millis(0),
+            last_row_time_at_eval: Utc.timestamp_millis(0),
             metrics: Arc::new(metrics),
-            db,
             last_left: None,
             last_right: None,
             beta_sample_freq: n.beta_sample_freq(),
@@ -91,15 +89,20 @@ impl NaiveTradingStrategy {
         )
     }
 
-    fn inc_samples_since_last(&mut self) {
-        self.samples_since_last += 1;
-    }
-
-    fn maybe_log_stop_loss(&self, pos: PositionKind) {
-        if self.should_stop(&pos) {
+    fn maybe_log_stop_loss(&self, pk: PositionKind) {
+        if self.should_stop(&pk) {
+            let ret = self.return_value(&pk);
+            let expr = if ret > self.stop_gain {
+                "gain"
+            } else if ret < self.stop_loss {
+                "loss"
+            } else {
+                "n/a"
+            };
             info!(
-                "---- Stop-loss executed ({} position) ----",
-                match pos {
+                "---- Stop-{} executed ({} position) ----",
+                expr,
+                match pk {
                     PositionKind::SHORT => "short",
                     PositionKind::LONG => "long",
                 }
@@ -107,18 +110,23 @@ impl NaiveTradingStrategy {
         }
     }
 
-    fn should_eval(&self) -> bool {
-        let freq_and_samples = (self.samples_since_last % self.beta_eval_freq) == 0;
-        if freq_and_samples && log_enabled!(Trace) {
-            trace!(
-                "eval_time : {} % {} == 0",
-                self.samples_since_last,
-                self.beta_eval_freq
-            );
+    fn should_eval(&self, now: DateTime<Utc>) -> bool {
+        let mt = self.last_row_time_at_eval;
+        let obsolescence = mt.add(self.beta_sample_freq.mul(self.beta_eval_freq));
+        let model_obsolete = now.gt(&obsolescence);
+        if model_obsolete && log_enabled!(Trace) {
+            trace!("eval_time reached : {} > {}", now, obsolescence);
         }
-        let neg_beta_and_samples = (self.state.beta_lr() < 0.0
-            && self.samples_since_last % self.beta_eval_window_size == 0);
-        freq_and_samples || neg_beta_and_samples
+        if model_obsolete {
+            println!("model obsolete ? {}", model_obsolete);
+        } else if self.state.beta_lr() < 0.0
+            && now.gt(&mt.add(self.beta_sample_freq.mul(self.beta_eval_window_size)))
+        {
+            println!("beta neg and window reached");
+        }
+        model_obsolete
+            || self.state.beta_lr() < 0.0
+                && now.gt(&mt.add(self.beta_sample_freq.mul(self.beta_eval_window_size)))
     }
 
     fn set_model_from_table(&mut self) {
@@ -132,6 +140,7 @@ impl NaiveTradingStrategy {
     fn eval_linear_model(&mut self) {
         self.data_table.update_model();
         self.set_model_from_table();
+        self.last_row_time_at_eval = self.last_sample_time;
     }
 
     fn predict(&self, bp: &BookPosition) -> f64 {
@@ -179,16 +188,20 @@ impl NaiveTradingStrategy {
     }
 
     fn should_stop(&self, pk: &PositionKind) -> bool {
-        let ret = match pk {
+        let ret = self.return_value(pk);
+        ret > self.stop_gain || ret < self.stop_loss
+    }
+
+    fn return_value(&self, pk: &PositionKind) -> f64 {
+        match pk {
             PositionKind::SHORT => self.state.short_position_return(),
             PositionKind::LONG => self.state.long_position_return(),
-        };
-        ret > self.stop_gain || ret < self.stop_loss
+        }
     }
 
     fn eval_latest(&mut self, lr: &DataRow) {
         if self.state.no_position_taken() {
-            if self.should_eval() {
+            if self.should_eval(lr.time) {
                 self.eval_linear_model();
             }
             self.update_spread(lr);
@@ -276,12 +289,13 @@ impl NaiveTradingStrategy {
         if self.data_table.try_loading_model() {
             self.set_model_from_table();
             self.update_spread(row);
+            self.last_row_time_at_eval = self
+                .data_table
+                .last_model_time()
+                .unwrap_or(Utc.timestamp_millis(0));
         }
         let time = self.last_sample_time.add(self.beta_sample_freq);
         let should_sample = row.time.gt(&time) || row.time == time;
-        if should_sample {
-            self.inc_samples_since_last();
-        }
         // A model is available
         let can_eval = self.can_eval();
         if can_eval {
@@ -321,33 +335,27 @@ impl NaiveTradingStrategy {
 
 impl StrategyInterface for NaiveTradingStrategy {
     fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()> {
-        match le {
-            LiveEvent::LiveOrderbook(ob) => {
-                let string = ob.pair.clone();
-                if string == self.left_pair {
-                    self.last_left = BookPosition::from_book(ob);
-                } else if string == self.right_pair {
-                    self.last_right = BookPosition::from_book(ob);
-                }
+        if let LiveEvent::LiveOrderbook(ob) = le {
+            let string = ob.pair.clone();
+            if string == self.left_pair {
+                self.last_left = BookPosition::from_book(ob);
+            } else if string == self.right_pair {
+                self.last_right = BookPosition::from_book(ob);
             }
-            _ => {}
-        };
+        }
         let now = Utc::now();
         if now.gt(&self
             .last_row_process_time
             .add(chrono::Duration::milliseconds(200)))
         {
-            match (self.last_left.clone(), self.last_right.clone()) {
-                (Some(l), Some(r)) => {
-                    let x = DataRow {
-                        left: l,
-                        right: r,
-                        time: now,
-                    };
-                    self.process_row(&x);
-                    self.last_row_process_time = now;
-                }
-                _ => {}
+            if let (Some(l), Some(r)) = (self.last_left.clone(), self.last_right.clone()) {
+                let x = DataRow {
+                    left: l,
+                    right: r,
+                    time: now,
+                };
+                self.process_row(&x);
+                self.last_row_process_time = now;
             }
         }
         Ok(())
@@ -377,6 +385,7 @@ mod test {
     use super::{DataRow, DataTable, NaiveTradingStrategy};
     use crate::naive_pair_trading::input::to_pos;
     use crate::naive_pair_trading::options::Options;
+    use crate::StrategyInterface;
     use coinnect_rt::exchange::Exchange;
     use ordered_float::OrderedFloat;
     use std::error::Error;
@@ -388,8 +397,8 @@ mod test {
     use tokio::runtime::Runtime;
     use util::date::{DateRange, DurationRangeType};
 
-    const LEFT_PAIR: &'static str = "ETH_USDT";
-    const RIGHT_PAIR: &'static str = "BTC_USDT";
+    static LEFT_PAIR: &str = "ETH_USDT";
+    static RIGHT_PAIR: &str = "BTC_USDT";
 
     #[derive(Debug, Serialize)]
     struct StrategyLog {
@@ -533,8 +542,8 @@ mod test {
         init();
         let mut dt = DataTable::default();
         // Read downsampled streams
-        let dt0 = Utc.ymd(2020, 03, 25);
-        let dt1 = Utc.ymd(2020, 03, 25);
+        let dt0 = Utc.ymd(2020, 3, 25);
+        let dt1 = Utc.ymd(2020, 3, 25);
         let (left_records, right_records) =
             load_csv_dataset(&DateRange(dt0, dt1, DurationRangeType::Days, 1));
         // align data
@@ -558,15 +567,17 @@ mod test {
     fn continuous_scenario() {
         init();
         let root = tempdir::TempDir::new("test_data2").unwrap();
+        let beta_eval_freq = 5000;
+        let window_size = 500;
         let mut strat = NaiveTradingStrategy::new(
             root.into_path().to_str().unwrap(),
             0.001,
             &Options {
                 left: LEFT_PAIR.into(),
                 right: RIGHT_PAIR.into(),
-                beta_eval_freq: 5000,
+                beta_eval_freq,
                 beta_sample_freq: "1min".to_string(),
-                window_size: 500,
+                window_size: window_size,
                 exchange: Exchange::Binance,
                 threshold_long: -0.04,
                 threshold_short: 0.04,
@@ -575,8 +586,8 @@ mod test {
             },
         );
         // Read downsampled streams
-        let dt0 = Utc.ymd(2020, 03, 25);
-        let dt1 = Utc.ymd(2020, 04, 08);
+        let dt0 = Utc.ymd(2020, 3, 25);
+        let dt1 = Utc.ymd(2020, 4, 8);
         let (left_records, right_records) =
             load_csv_dataset(&DateRange(dt0, dt1, DurationRangeType::Days, 1));
         println!("Dataset loaded in memory...");
@@ -595,12 +606,12 @@ mod test {
                 iterations += 1;
                 let now = Instant::now();
 
-                if i % 1000 == 0 {
-                    trace!(
-                        "{} iterations..., table of size {}",
-                        i,
-                        strat.data_table.len()
-                    );
+                if iterations as i32 % (beta_eval_freq + window_size - 1) == 0
+                    || (iterations as i32 % window_size == 0 && !strat.data_table.has_model())
+                {
+                    // simulate a model update ever n because we cannot simulate time
+                    // strat.eval_linear_model();
+                    // debug!("{:?}", strat.data_table.last_model_time());
                 }
                 let log = {
                     let row_time = l.event_ms;
@@ -622,10 +633,10 @@ mod test {
         positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
         let last_position = positions.last();
         assert_eq!(
-            Some(161.270004272461),
+            Some(156.720001220703),
             last_position.map(|p| p.pos.left_price)
         );
-        assert_eq!(Some(85.04525162445327), last_position.map(|p| p.left_qty()));
+        assert_eq!(Some(115.79), last_position.map(|p| p.left_qty()));
 
         // let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
         // serde_json::to_writer(logs_f, &logs);

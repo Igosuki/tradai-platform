@@ -38,8 +38,8 @@ impl BookPosition {
         let first_ask = t.asks.first().map(|a| (a.0, a.1));
         let first_bid = t.bids.first().map(|a| (a.0, a.1));
         match (first_ask, first_bid) {
-            (Some(ask), Some(bid)) => return Some(BookPosition::new(ask.0, ask.1, bid.0, bid.1)),
-            _ => return None,
+            (Some(ask), Some(bid)) => Some(BookPosition::new(ask.0, ask.1, bid.0, bid.1)),
+            _ => None,
         }
     }
 }
@@ -63,7 +63,7 @@ pub struct DataTable {
     last_model_load_attempt: Option<DateTime<Utc>>,
 }
 
-const LINEAR_MODEL_KEY: &'static str = "linear_model";
+static LINEAR_MODEL_KEY: &str = "linear_model";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LinearModelValue {
@@ -97,7 +97,7 @@ impl DataTable {
             rows: Vec::new(),
             window_size,
             max_size: window_size * 2, // Keep window_size * 8 elements
-            db: db,
+            db,
             last_model: None,
             last_model_load_attempt: None,
         }
@@ -115,8 +115,8 @@ impl DataTable {
         self.last_model = Some(value);
         self.db.put_json(LINEAR_MODEL_KEY, &self.last_model);
         self.db.delete_all("row");
-        self.db
-            .put_all_json("row", &self.current_window().rev().collect());
+        let x: Vec<&DataRow> = self.current_window().rev().collect();
+        self.db.put_all_json("row", &x);
     }
 
     pub fn load_model(&mut self) {
@@ -124,6 +124,10 @@ impl DataTable {
         self.last_model = lmv;
         self.rows = self.db.read_json_vec("row");
         self.last_model_load_attempt = Some(Utc::now());
+    }
+
+    pub fn last_model_time(&self) -> Option<DateTime<Utc>> {
+        self.last_model.as_ref().map(|m| m.at)
     }
 
     pub fn wipe_model(&mut self) {
@@ -191,6 +195,10 @@ impl DataTable {
 
     pub fn len(&self) -> usize {
         self.rows.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
     }
 
     #[allow(dead_code)]

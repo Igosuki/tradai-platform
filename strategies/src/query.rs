@@ -1,6 +1,5 @@
 use crate::naive_pair_trading::state::Operation;
 use actix_derive::{Message, MessageResponse};
-use juniper::ScalarValue;
 
 #[derive(Debug, Deserialize, Serialize, MessageResponse)]
 #[serde(tag = "type")]
