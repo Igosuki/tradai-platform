@@ -30,14 +30,10 @@
       args:
         chdir: /root/
       ignore_errors: yes
-    - name: stop trader
-      systemd: state=stopped name=trader
-    - name: enable the new trader
-      shell: cp trader.staged trader
+    - name: restart trader
+      shell: systemctl stop trader && cp trader.staged trader && systemctl start trader
       args:
         chdir: /root/
-    - name: start trader
-      systemd: state=restarted name=trader.service daemon_reload=yes
     - name: start cloner service
       shell: systemctl enable cloner.service
     - name: start cloner timer

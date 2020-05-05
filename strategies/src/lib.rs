@@ -4,12 +4,6 @@
 extern crate serde_derive;
 #[macro_use]
 extern crate log;
-extern crate strum_macros;
-#[cfg(test)]
-#[macro_use]
-extern crate quickcheck;
-#[macro_use]
-extern crate juniper;
 
 use actix::{Actor, Addr, Handler, Running, SyncArbiter, SyncContext};
 use anyhow::Result;
@@ -190,12 +184,17 @@ mod test {
     }
 
     struct DummyStrat;
+
     impl StrategyInterface for DummyStrat {
         fn add_event(&mut self, _: LiveEvent) -> std::io::Result<()> {
             Ok(())
         }
 
-        fn data(&mut self, q: DataQuery) -> Option<DataResult> {
+        fn data(&mut self, _q: DataQuery) -> Option<DataResult> {
+            unimplemented!()
+        }
+
+        fn mutate(&mut self, _m: FieldMutation) -> anyhow::Result<()> {
             unimplemented!()
         }
     }

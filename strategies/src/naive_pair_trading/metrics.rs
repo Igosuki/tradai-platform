@@ -5,9 +5,11 @@ use crate::naive_pair_trading::state::Position;
 use prometheus::{GaugeVec, Opts, Registry};
 use std::collections::HashMap;
 
+type StateGauge = (String, fn(&MovingState) -> f64);
+
 pub struct StrategyMetrics {
     gauges: HashMap<String, GaugeVec>,
-    state_gauges: Vec<(String, fn(&MovingState) -> f64)>,
+    state_gauges: Vec<StateGauge>,
 }
 
 impl StrategyMetrics {
@@ -38,7 +40,7 @@ impl StrategyMetrics {
                 registry.register(Box::new(gauge_vec.clone())).unwrap();
             }
         }
-        let state_gauges: Vec<(String, fn(&MovingState) -> f64)> = vec![
+        let state_gauges: Vec<StateGauge> = vec![
             ("return".to_string(), |x| {
                 x.short_position_return() + x.long_position_return()
             }),
@@ -67,28 +69,28 @@ impl StrategyMetrics {
     }
 
     pub(super) fn log_position(&self, pos: &Position, op: &OperationKind) {
-        self.gauges.get("position").map(|g| {
+        if let Some(g) = self.gauges.get("position") {
             g.with_label_values(&[&pos.left_pair, "left", pos.kind.as_ref(), op.as_ref()])
                 .set(pos.left_price);
             g.with_label_values(&[&pos.right_pair, "right", pos.kind.as_ref(), op.as_ref()])
                 .set(pos.right_price);
-        });
+        }
     }
 
     pub(super) fn log_state(&self, state: &MovingState) {
         for (state_gauge_name, state_gauge_fn) in &self.state_gauges {
-            self.gauges
-                .get(state_gauge_name)
-                .map(|g| g.with_label_values(&[]).set(state_gauge_fn(state)));
+            if let Some(g) = self.gauges.get(state_gauge_name) {
+                g.with_label_values(&[]).set(state_gauge_fn(state))
+            }
         }
     }
 
     pub(super) fn log_row(&self, lr: &DataRow) {
-        self.gauges
-            .get("left_mid")
-            .map(|g| g.with_label_values(&[]).set(lr.left.mid));
-        self.gauges
-            .get("right_mid")
-            .map(|g| g.with_label_values(&[]).set(lr.right.mid));
+        if let Some(g) = self.gauges.get("left_mid") {
+            g.with_label_values(&[]).set(lr.left.mid)
+        };
+        if let Some(g) = self.gauges.get("right_mid") {
+            g.with_label_values(&[]).set(lr.right.mid)
+        };
     }
 }

@@ -76,11 +76,11 @@ impl Db {
             let iter = store.iter_from(&reader, key).unwrap();
             let x: Vec<T> = iter
                 .flat_map(|r| {
-                    r.map_err(|e| DataStoreError::StoreError(e))
+                    r.map_err(DataStoreError::StoreError)
                         .and_then(|v| match v.1 {
                             Some(rkv::value::Value::Json(json_str)) => {
                                 serde_json::from_str::<T>(json_str)
-                                    .map_err(|e| DataStoreError::JsonError(e))
+                                    .map_err(DataStoreError::JsonError)
                             }
                             _ => Err(DataStoreError::ExpectedJson),
                         })
@@ -124,7 +124,7 @@ impl Db {
         });
     }
 
-    pub fn put_all_json<T: Serialize>(&self, key: &str, v: &Vec<T>) {
+    pub fn put_all_json<T: Serialize>(&self, key: &str, v: &[T]) {
         self.with_db(|env, store| {
             let mut writer = env.write().unwrap();
             for (i, v) in v.iter().enumerate() {

@@ -27,20 +27,20 @@ pub async fn httpserver(
                     let creds = Box::new(
                         BittrexCreds::new_from_file("account_bittrex", keys_path.clone()).unwrap(),
                     );
-                    Coinnect::new(xch, creds.clone()).unwrap()
+                    Coinnect::new_exchange(xch, creds.clone()).unwrap()
                 }
                 Exchange::Bitstamp => {
                     let creds = Box::new(
                         BitstampCreds::new_from_file("account_bitstamp", keys_path.clone())
                             .unwrap(),
                     );
-                    Coinnect::new(xch, creds.clone()).unwrap()
+                    Coinnect::new_exchange(xch, creds.clone()).unwrap()
                 }
                 Exchange::Binance => {
                     let creds = Box::new(
                         BinanceCreds::new_from_file("account_binance", keys_path.clone()).unwrap(),
                     );
-                    Coinnect::new(xch, creds.clone()).unwrap()
+                    Coinnect::new_exchange(xch, creds.clone()).unwrap()
                 }
                 _ => {
                     info!("Unknown exchange when building Exchange Apis : {:?}", xch);

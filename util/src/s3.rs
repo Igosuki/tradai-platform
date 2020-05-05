@@ -34,6 +34,6 @@ pub async fn download_file(key: &str, dest: PathBuf) -> std::io::Result<()> {
     let mut read = object.body.unwrap().into_async_read();
     let mut buf = Vec::new();
     read.read_to_end(&mut buf).await?;
-    result.write(&buf)?;
+    result.write_all(&buf)?;
     result.flush()
 }

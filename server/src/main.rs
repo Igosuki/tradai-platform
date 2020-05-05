@@ -73,7 +73,7 @@ async fn main() -> io::Result<()> {
     // Logging, App config
     env_logger::init();
     let opts: Opts = Opts::from_args();
-    let env = std::env::var("TRADER_ENV").unwrap_or("development".to_string());
+    let env = std::env::var("TRADER_ENV").unwrap_or_else(|_| "development".to_string());
     let settings =
         Arc::new(RwLock::new(settings::Settings::new(env).map_err(|e| {
             std::io::Error::new(std::io::ErrorKind::InvalidData, e)
@@ -103,7 +103,9 @@ async fn main() -> io::Result<()> {
         flame::start("main bot");
     }
 
-    trader::system::start(arc).await;
+    if let Err(e) = trader::system::start(arc).await {
+        error!("Trader system exited in error: {}", e);
+    }
     if settings_v.profile_main {
         #[cfg(feature = "gprof")]
         HEAP_PROFILER.lock().unwrap().stop().unwrap();

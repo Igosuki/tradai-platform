@@ -52,22 +52,17 @@ where
             ..
         } = self;
         // TODO: use a rwlock
-        let new_path = (naming_policy)(path.as_ref()).ok_or(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            RotatingFileError,
-        ))?;
+        let new_path = (naming_policy)(path.as_ref())
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, RotatingFileError))?;
         self.rotation_policy.set_last_flush(Utc::now());
         self.path = Box::new(new_path.clone());
         let f = File::create(new_path)?;
-        match self.on_new_header.clone() {
-            Some(h) => {
-                let mut fd = f.try_clone()?;
-                fd.write(h.as_ref())?;
-                fd.flush()?;
-                drop(fd)
-            }
-            None => (),
-        };
+        if let Some(h) = self.on_new_header.clone() {
+            let mut fd = f.try_clone()?;
+            fd.write_all(h.as_ref())?;
+            fd.flush()?;
+            drop(fd)
+        }
         self.inner = f;
         Ok(())
     }

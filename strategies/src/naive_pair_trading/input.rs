@@ -72,7 +72,7 @@ pub fn load_records_from_csv(
     let get_records = move |p: String| {
         dr.clone()
             .flat_map(|dt| {
-                let date = dt.clone();
+                let date = dt;
                 let buf = base_path
                     .join(format!("pr={}", p.clone()))
                     .join(format!("dt={}", date.format("%Y-%m-%d")));
@@ -82,15 +82,14 @@ pub fn load_records_from_csv(
             })
             .collect()
     };
-    return (
+    (
         get_records(left_pair.to_string()),
         get_records(right_pair.to_string()),
-    );
+    )
 }
 
 fn load_records(path: &str) -> Vec<CsvRecord> {
-    let dt1 = read_csv(path).unwrap();
-    dt1
+    read_csv(path).unwrap()
 }
 
 pub fn to_pos(r: &CsvRecord) -> BookPosition {

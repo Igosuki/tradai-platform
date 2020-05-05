@@ -76,7 +76,7 @@ fn file_actor(settings: Arc<RwLock<Settings>>) -> Addr<AvroFileActor> {
     SyncArbiter::start(2, move || {
         let settings_v = &settings.read().unwrap();
         let data_dir = settings_v.data_dir.clone();
-        let dir = Path::new(data_dir.as_str()).clone();
+        let dir = Path::new(data_dir.as_str());
         fs::create_dir_all(&dir).unwrap();
         AvroFileActor::new(&FileActorOptions {
             base_dir: dir.to_str().unwrap().to_string(),
@@ -92,8 +92,8 @@ fn strategies(settings: Arc<RwLock<Settings>>) -> Vec<Strategy> {
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
     let settings_v = arc1.read().unwrap();
-    let db_path_str = Arc::new(arc.clone().read().unwrap().db_storage_path.clone());
-    let exchanges = Arc::new(arc.clone().read().unwrap().exchanges.clone());
+    let db_path_str = Arc::new(arc.read().unwrap().db_storage_path.clone());
+    let exchanges = Arc::new(arc.read().unwrap().exchanges.clone());
     settings_v
         .strategies
         .clone()
@@ -167,7 +167,7 @@ async fn poll_bots(bots: HashMap<Exchange, Box<dyn ExchangeBot>>) -> std::io::Re
     let mut interval = tokio::time::interval(Duration::from_secs(1));
     loop {
         interval.tick().await;
-        for (_, bot) in &bots {
+        for bot in bots.values() {
             bot.ping();
         }
     }

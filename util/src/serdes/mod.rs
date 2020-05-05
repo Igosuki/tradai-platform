@@ -4,7 +4,7 @@ pub mod date_time_format {
     use rust_decimal::Decimal;
     use serde::{self, Deserialize, Deserializer, Serializer};
 
-    const DATE_FORMAT: &'static str = "%Y-%m-%d %H:%M:%S";
+    static DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
     pub fn serialize<S>(date: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -21,9 +21,11 @@ pub mod date_time_format {
         let s = String::deserialize(deserializer)?;
         let pr = s.parse::<i64>();
         pr.map(|millis| Utc.timestamp_millis(millis))
-            .or(Decimal::from_scientific(s.as_str())
-                .map(|decimal| Utc.timestamp_millis(decimal.to_i64().unwrap())))
-            .or(Utc.datetime_from_str(&s, DATE_FORMAT))
+            .or_else(|_| {
+                Decimal::from_scientific(s.as_str())
+                    .map(|decimal| Utc.timestamp_millis(decimal.to_i64().unwrap()))
+            })
+            .or_else(|_| Utc.datetime_from_str(&s, DATE_FORMAT))
             .map_err(serde::de::Error::custom)
     }
 }
