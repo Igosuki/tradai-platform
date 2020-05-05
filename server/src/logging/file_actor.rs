@@ -263,7 +263,6 @@ mod test {
     use coinnect_rt::exchange::Exchange;
     use coinnect_rt::types::Orderbook;
     use fs_extra::dir::get_dir_content;
-    use tempdir;
 
     use super::*;
 
@@ -284,9 +283,9 @@ mod test {
     fn test_workflow() {
         init();
         let dir = tempdir::TempDir::new("s").unwrap();
-        let x = dir.path().clone();
+        let x = dir.path();
         let dir_str = String::from(x.as_os_str().to_str().unwrap());
-        let new_dir = dir_str.clone();
+        let new_dir = dir_str;
         System::run(move || {
             let addr = SyncArbiter::start(1, move || actor(new_dir.clone().as_str()));
             let order_book_event = LiveEventEnveloppe(
