@@ -1,7 +1,7 @@
 use anyhow::Result;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use log::Level::Trace;
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Div, Mul, Sub};
 use std::sync::Arc;
 
 pub mod data_table;
@@ -117,16 +117,9 @@ impl NaiveTradingStrategy {
         if model_obsolete && log_enabled!(Trace) {
             trace!("eval_time reached : {} > {}", now, obsolescence);
         }
-        if model_obsolete {
-            println!("model obsolete ? {}", model_obsolete);
-        } else if self.state.beta_lr() < 0.0
-            && now.gt(&mt.add(self.beta_sample_freq.mul(self.beta_eval_window_size)))
-        {
-            println!("beta neg and window reached");
-        }
         model_obsolete
             || self.state.beta_lr() < 0.0
-                && now.gt(&mt.add(self.beta_sample_freq.mul(self.beta_eval_window_size)))
+                && now.gt(&mt.add(self.beta_sample_freq.mul(self.beta_eval_freq.div(10))))
     }
 
     fn set_model_from_table(&mut self) {
@@ -292,7 +285,7 @@ impl NaiveTradingStrategy {
             self.last_row_time_at_eval = self
                 .data_table
                 .last_model_time()
-                .unwrap_or(Utc.timestamp_millis(0));
+                .unwrap_or_else(|| Utc.timestamp_millis(0));
         }
         let time = self.last_sample_time.add(self.beta_sample_freq);
         let should_sample = row.time.gt(&time) || row.time == time;
@@ -385,7 +378,6 @@ mod test {
     use super::{DataRow, DataTable, NaiveTradingStrategy};
     use crate::naive_pair_trading::input::to_pos;
     use crate::naive_pair_trading::options::Options;
-    use crate::StrategyInterface;
     use coinnect_rt::exchange::Exchange;
     use ordered_float::OrderedFloat;
     use std::error::Error;
@@ -422,7 +414,7 @@ mod test {
     fn load_csv_dataset(dr: &DateRange) -> (Vec<CsvRecord>, Vec<CsvRecord>) {
         let bp = std::env::var_os("BITCOINS_REPO")
             .and_then(|oss| oss.into_string().ok())
-            .unwrap_or("..".to_string());
+            .unwrap_or_else(|| "..".to_string());
         let exchange_name = "Binance";
         let channel = "order_books";
 
@@ -430,7 +422,7 @@ mod test {
             .join("data")
             .join(exchange_name)
             .join(channel);
-        let bpc = Arc::new(bp.clone());
+        let bpc = Arc::new(bp);
         let mut rt = Runtime::new().unwrap();
         let mut dl_test_data = |pair: &'static str| {
             rt.block_on(async {
@@ -451,15 +443,17 @@ mod test {
                     .expect("failed to unzip file");
             });
         };
-        for s in vec![LEFT_PAIR, RIGHT_PAIR] {
+        for s in &[LEFT_PAIR, RIGHT_PAIR] {
             if !base_path.exists() || !base_path.join(&format!("pr={}", s)).exists() {
                 //download dataset from spaces
-                std::fs::create_dir_all(&base_path);
+                std::fs::create_dir_all(&base_path).unwrap();
                 dl_test_data(s);
             }
         }
         super::input::load_records_from_csv(dr, &base_path, LEFT_PAIR, RIGHT_PAIR, "*csv")
     }
+
+    type StrategyEntry<'a> = (&'a str, Vec<fn(&StrategyLog) -> f64>);
 
     fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn Error>> {
         let now = Utc::now();
@@ -468,7 +462,7 @@ mod test {
             now.format("%Y%m%d%H:%M:%S")
         );
         let color_wheel = vec![&BLACK, &BLUE, &RED];
-        let more_lines: Vec<(&str, Vec<fn(&StrategyLog) -> f64>)> = vec![
+        let more_lines: Vec<StrategyEntry<'_>> = vec![
             (
                 "value",
                 vec![|x| x.right_mid, |x| x.state.predicted_right()],
@@ -577,10 +571,10 @@ mod test {
                 right: RIGHT_PAIR.into(),
                 beta_eval_freq,
                 beta_sample_freq: "1min".to_string(),
-                window_size: window_size,
+                window_size,
                 exchange: Exchange::Binance,
-                threshold_long: -0.04,
-                threshold_short: 0.04,
+                threshold_long: -0.03,
+                threshold_short: 0.03,
                 stop_loss: -0.1,
                 stop_gain: 0.075,
             },
@@ -602,7 +596,7 @@ mod test {
         println!("crypto2_m {}", right_sum);
         let logs: Vec<StrategyLog> = zip
             .enumerate()
-            .map(|(i, (l, r))| {
+            .map(|(_i, (l, r))| {
                 iterations += 1;
                 let now = Instant::now();
 
@@ -640,13 +634,13 @@ mod test {
 
         // let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
         // serde_json::to_writer(logs_f, &logs);
-        std::fs::create_dir_all("graphs");
+        std::fs::create_dir_all("graphs").unwrap();
         let drew = draw_line_plot(logs);
         if let Ok(file) = drew {
             let copied = std::fs::copy(&file, "graphs/naive_pair_trading_plot_latest.svg");
             assert!(copied.is_ok(), format!("{:?}", copied));
         } else {
-            assert!(false, format!("{:?}", drew));
+            panic!(format!("{:?}", drew));
         }
     }
 }

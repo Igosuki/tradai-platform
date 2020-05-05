@@ -1,18 +1,12 @@
 #[macro_use]
 extern crate clap;
 
-use chrono::{DateTime, Timelike};
 use chrono::{Duration, TimeZone, Utc};
 use clap::{App, Arg};
 use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
-use log::kv::Source;
-use std::borrow::{Borrow, BorrowMut};
-use std::cell::RefCell;
-use std::fs::File;
 use std::ops::Sub;
-use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::path::Path;
 use std::time::Instant;
 use strategies::naive_pair_trading::data_table::DataRow;
 use strategies::naive_pair_trading::input::{to_pos, CsvRecord};
@@ -103,11 +97,11 @@ fn main() {
         .sorted_by(by_date)
         .merge_join_by(right_records.iter().sorted_by(by_date), by_date)
         .map(|either| match either {
-            Left(l) => {
+            Left(_l) => {
                 left_only += 1;
                 None
             }
-            Right(r) => {
+            Right(_r) => {
                 right_only += 1;
                 None
             }
