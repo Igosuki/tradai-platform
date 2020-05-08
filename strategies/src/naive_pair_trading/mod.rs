@@ -234,9 +234,9 @@ impl NaiveTradingStrategy {
             {
                 self.maybe_log_stop_loss(PositionKind::SHORT);
                 let position = self.short_position(lr.right.ask, lr.left.bid, lr.time);
+                self.state.set_pnl();
                 let op = self.state.close(position, self.fees_rate);
                 self.metrics.log_position(&op.pos, &op.kind);
-                self.state.set_pnl();
                 self.eval_linear_model();
             }
         }
@@ -257,9 +257,9 @@ impl NaiveTradingStrategy {
             {
                 self.maybe_log_stop_loss(PositionKind::LONG);
                 let position = self.long_position(lr.right.bid, lr.left.ask, lr.time);
+                self.state.set_pnl();
                 let op = self.state.close(position, self.fees_rate);
                 self.metrics.log_position(&op.pos, &op.kind);
-                self.state.set_pnl();
                 self.eval_linear_model();
             }
         }
