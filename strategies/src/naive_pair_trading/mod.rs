@@ -206,14 +206,6 @@ impl NaiveTradingStrategy {
         self.state
             .set_res((lr.right.mid - self.state.predicted_right()) / lr.right.mid);
 
-        // if (dynamic_threshold & (i %% threshold_eval_window_size == 0)){
-        //     res_threshold_long = min(res_threshold_long, quantile(pair_data$res[max(beta_eval_window_size+1, i-threshold_eval_window_size):(i-1)], 0.025))
-        //     res_threshold_short = max(res_threshold_short, quantile(pair_data$res[max(beta_eval_window_size+1, i-threshold_eval_window_size):(i-1)], 0.975))
-        //     print("################################################################")
-        //     print(paste0("res_threshold_long has been set to: ", res_threshold_long))
-        //     print(paste0("res_threshold_short has been set to: ", res_threshold_short))
-        // }
-
         if self.state.beta_lr() <= 0.0 {
             return;
         }

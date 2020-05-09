@@ -419,7 +419,6 @@ impl MovingState {
         };
         let op = self.make_operation(pos, OperationKind::OPEN, spread, right_coef, left_coef);
         op.log();
-        self.set_pnl();
         self.save_operation(&op);
         self.save();
         self.log_info(&position_kind);
