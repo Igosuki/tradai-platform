@@ -448,9 +448,17 @@ impl MovingState {
         op.log();
         self.set_pnl();
         self.save_operation(&op);
+        self.clear_position();
         self.save();
         self.log_info(&kind);
         op
+    }
+
+    fn clear_position(&mut self) {
+        self.long_position_return = 0.0;
+        self.short_position_return = 0.0;
+        self.traded_price_left = 0.0;
+        self.traded_price_right = 0.0;
     }
 
     fn save_operation(&self, op: &Operation) {

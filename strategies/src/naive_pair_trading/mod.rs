@@ -295,7 +295,6 @@ impl NaiveTradingStrategy {
         if !can_eval && self.data_table.len() == self.beta_eval_window_size as usize {
             self.eval_linear_model();
             self.update_spread(row);
-            self.state.set_pnl();
         }
     }
 
