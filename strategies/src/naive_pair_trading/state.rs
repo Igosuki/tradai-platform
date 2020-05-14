@@ -1,10 +1,16 @@
 use crate::query::MutableField;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use coinnect_rt::exchange::ExchangeApi;
+use coinnect_rt::types::{OrderInfo, OrderType};
 use db::Db;
+use futures::join;
+use futures::lock::Mutex;
+use futures::stream::FuturesUnordered;
 use log::Level::Info;
 use serde::{Deserialize, Serialize};
 use std::panic;
+use std::sync::Arc;
 use strum_macros::{AsRefStr, EnumString};
 use uuid::Uuid;
 
@@ -40,6 +46,8 @@ pub struct Operation {
     pub right_spread: f64,
     pub left_coef: f64,
     pub right_coef: f64,
+    pub left_transaction: Option<OrderInfo>,
+    pub right_transaction: Option<OrderInfo>,
 }
 
 #[juniper::graphql_object]
@@ -141,7 +149,7 @@ impl Operation {
 }
 
 #[derive(
-    PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
+    Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
 )]
 pub enum OperationKind {
     #[strum(serialize = "open")]
@@ -154,11 +162,21 @@ pub enum OperationKind {
     SELL,
 }
 
+impl Into<OrderType> for OperationKind {
+    fn into(self) -> OrderType {
+        match self {
+            OperationKind::BUY => OrderType::BuyMarket,
+            OperationKind::SELL => OrderType::SellMarket,
+            _ => unimplemented!(),
+        }
+    }
+}
+
 pub(crate) static OPERATIONS_KEY: &str = "orders";
 
 pub(crate) static STATE_KEY: &str = "state";
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 pub(super) struct MovingState {
     position: Option<PositionKind>,
     value_strat: f64,
@@ -177,6 +195,8 @@ pub(super) struct MovingState {
     pnl: f64,
     #[serde(skip_serializing)]
     db: Db,
+    #[serde(skip_serializing)]
+    remote: Arc<Mutex<Box<dyn ExchangeApi>>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -191,7 +211,7 @@ struct TransientState {
 }
 
 impl MovingState {
-    pub fn new(initial_value: f64, db: Db) -> MovingState {
+    pub fn new(initial_value: f64, db: Db, api: Arc<Mutex<Box<dyn ExchangeApi>>>) -> MovingState {
         let mut state = MovingState {
             position: None,
             value_strat: initial_value,
@@ -209,6 +229,7 @@ impl MovingState {
             long_position_return: 0.0,
             pnl: initial_value,
             db,
+            remote: api,
         };
         state.reload_state();
         state
@@ -392,6 +413,8 @@ impl MovingState {
             right_spread: spread,
             right_coef,
             right_op,
+            left_transaction: None,
+            right_transaction: None,
         }
     }
 
@@ -417,9 +440,9 @@ impl MovingState {
                 (spread, right_coef, left_coef)
             }
         };
-        let op = self.make_operation(pos, OperationKind::OPEN, spread, right_coef, left_coef);
+        let mut op = self.make_operation(pos, OperationKind::OPEN, spread, right_coef, left_coef);
         op.log();
-        self.save_operation(&op);
+        self.save_operation(&mut op);
         self.save();
         self.log_info(&position_kind);
         op
@@ -444,10 +467,10 @@ impl MovingState {
                 (spread, right_coef, left_coef)
             }
         };
-        let op = self.make_operation(pos, OperationKind::CLOSE, spread, right_coef, left_coef);
+        let mut op = self.make_operation(pos, OperationKind::CLOSE, spread, right_coef, left_coef);
+        self.save_operation(&mut op);
         op.log();
         self.set_pnl();
-        self.save_operation(&op);
         self.clear_position();
         self.save();
         self.log_info(&kind);
@@ -461,9 +484,27 @@ impl MovingState {
         self.traded_price_right = 0.0;
     }
 
-    fn save_operation(&self, op: &Operation) {
-        self.db
-            .put_json(&format!("{}:{}", OPERATIONS_KEY, Uuid::new_v4()), op);
+    async fn save_operation(&mut self, op: &mut Operation) {
+        let mut remote_api = self.remote.lock().await;
+        let left_req = remote_api.add_order(
+            op.left_op.clone().into(),
+            op.pos.left_pair.clone().into(),
+            op.left_spread,
+            Some(op.pos.left_price),
+        );
+        let right_req = remote_api.add_order(
+            op.right_op.clone().into(),
+            op.pos.right_pair.clone().into(),
+            op.right_spread,
+            Some(op.pos.right_price),
+        );
+        let res: FuturesUnordered<_> = vec![left_req, right_req].iter_mut().collect();
+        let (left_info, right_info) = join!(left_req, right_req);
+        for r in res.await {}
+        op.left_transaction = left_info.ok();
+        op.right_transaction = right_info.ok();
+        let op_key = format!("{}:{}", OPERATIONS_KEY, Uuid::new_v4());
+        self.db.put_json(&op_key, op);
     }
 
     fn save(&self) {

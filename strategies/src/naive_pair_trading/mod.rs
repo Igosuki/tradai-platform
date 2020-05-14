@@ -15,8 +15,10 @@ use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
 use crate::naive_pair_trading::state::Operation;
 use crate::query::{FieldMutation, MutableField};
 use crate::{DataQuery, DataResult, StrategyInterface};
+use coinnect_rt::exchange::ExchangeApi;
 use coinnect_rt::types::LiveEvent;
 use db::Db;
+use futures::lock::Mutex;
 use metrics::StrategyMetrics;
 use options::Options;
 use state::{MovingState, Position, PositionKind};
@@ -45,7 +47,12 @@ pub struct NaiveTradingStrategy {
 }
 
 impl NaiveTradingStrategy {
-    pub fn new(db_path: &str, fees_rate: f64, n: &Options) -> Self {
+    pub fn new(
+        db_path: &str,
+        fees_rate: f64,
+        n: &Options,
+        api: Arc<Mutex<Box<dyn ExchangeApi>>>,
+    ) -> Self {
         let db_name = format!("{}_{}", n.left, n.right);
         let metrics = StrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
         let strat_db_path = format!("{}/naive_pair_trading_{}_{}", db_path, n.left, n.right);
@@ -58,7 +65,7 @@ impl NaiveTradingStrategy {
             stop_gain: n.stop_gain,
             beta_eval_window_size: n.window_size,
             beta_eval_freq: n.beta_eval_freq,
-            state: MovingState::new(100.0, db),
+            state: MovingState::new(100.0, db, api),
             data_table: Self::make_lm_table(
                 &n.left,
                 &n.right,
@@ -367,7 +374,7 @@ mod test {
     use super::{DataRow, DataTable, NaiveTradingStrategy};
     use crate::naive_pair_trading::input::to_pos;
     use crate::naive_pair_trading::options::Options;
-    use coinnect_rt::exchange::Exchange;
+    use coinnect_rt::exchange::{Exchange, MockApi};
     use ordered_float::OrderedFloat;
     use std::error::Error;
     use std::ops::Deref;
@@ -567,6 +574,7 @@ mod test {
                 stop_loss: -0.1,
                 stop_gain: 0.075,
             },
+            Arc::new(MockApi),
         );
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 3, 25);
