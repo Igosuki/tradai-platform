@@ -12,6 +12,45 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use strategies::{Strategy, StrategyKey};
 
+pub fn build_exchanges(
+    exchanges: Arc<HashMap<Exchange, ExchangeSettings>>,
+    keys_path: PathBuf,
+) -> HashMap<Exchange, Box<dyn ExchangeApi>> {
+    let mut apis: HashMap<Exchange, Box<dyn ExchangeApi>> = HashMap::new();
+    for (xch, _conf) in exchanges.as_ref() {
+        let xch_api = build_exchange_api(keys_path.clone(), xch);
+        apis.insert(*xch, xch_api);
+    }
+    apis
+}
+
+pub fn build_exchange_api(keys_path: PathBuf, xch: &Exchange) -> Box<dyn ExchangeApi> {
+    match xch {
+        Exchange::Bittrex => {
+            let creds = Box::new(
+                BittrexCreds::new_from_file("account_bittrex", keys_path.clone()).unwrap(),
+            );
+            Coinnect::new_exchange(*xch, creds.clone()).unwrap()
+        }
+        Exchange::Bitstamp => {
+            let creds = Box::new(
+                BitstampCreds::new_from_file("account_bitstamp", keys_path.clone()).unwrap(),
+            );
+            Coinnect::new_exchange(*xch, creds.clone()).unwrap()
+        }
+        Exchange::Binance => {
+            let creds = Box::new(
+                BinanceCreds::new_from_file("account_binance", keys_path.clone()).unwrap(),
+            );
+            Coinnect::new_exchange(*xch, creds.clone()).unwrap()
+        }
+        _ => {
+            info!("Unknown exchange when building Exchange Apis : {:?}", *xch);
+            unimplemented!()
+        }
+    }
+}
+
 pub async fn httpserver(
     exchanges: HashMap<Exchange, ExchangeSettings>,
     strategies: Arc<HashMap<StrategyKey, Strategy>>,
@@ -20,35 +59,7 @@ pub async fn httpserver(
 ) -> std::io::Result<()> {
     // Make and start the api
     let app = move || {
-        let mut apis: HashMap<Exchange, Box<dyn ExchangeApi>> = HashMap::new();
-        for (xch, _conf) in exchanges.clone() {
-            let xch_api = match xch {
-                Exchange::Bittrex => {
-                    let creds = Box::new(
-                        BittrexCreds::new_from_file("account_bittrex", keys_path.clone()).unwrap(),
-                    );
-                    Coinnect::new_exchange(xch, creds.clone()).unwrap()
-                }
-                Exchange::Bitstamp => {
-                    let creds = Box::new(
-                        BitstampCreds::new_from_file("account_bitstamp", keys_path.clone())
-                            .unwrap(),
-                    );
-                    Coinnect::new_exchange(xch, creds.clone()).unwrap()
-                }
-                Exchange::Binance => {
-                    let creds = Box::new(
-                        BinanceCreds::new_from_file("account_binance", keys_path.clone()).unwrap(),
-                    );
-                    Coinnect::new_exchange(xch, creds.clone()).unwrap()
-                }
-                _ => {
-                    info!("Unknown exchange when building Exchange Apis : {:?}", xch);
-                    unimplemented!()
-                }
-            };
-            apis.insert(xch, xch_api);
-        }
+        let apis = build_exchanges(Arc::new(exchanges.clone()), keys_path.clone());
         let data = Mutex::new(apis);
         let schema = create_schema();
 

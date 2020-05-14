@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
-use futures::{pin_mut, select, FutureExt};
+use futures::{lock::Mutex as FuturesMutex, pin_mut, select, FutureExt};
 
 use actix::{Actor, Addr, Recipient, SyncArbiter};
 use actix_rt::signal::unix::{signal, Signal, SignalKind};
@@ -99,10 +99,12 @@ fn strategies(settings: Arc<RwLock<Settings>>) -> Vec<Strategy> {
         .clone()
         .into_iter()
         .map(move |strategy| {
+            let buf = settings_v.keys.clone();
+            let api = server::build_exchange_api(buf.into(), &strategy.exchange());
             let db_path_a = db_path_str.clone();
             let exchanges_conf = exchanges.clone();
             let fees = exchanges_conf.get(&strategy.exchange()).unwrap().fees;
-            Strategy::new(db_path_a, fees, strategy)
+            Strategy::new(db_path_a, fees, strategy, Arc::new(FuturesMutex::new(api)))
         })
         .collect()
 }

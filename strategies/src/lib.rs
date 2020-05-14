@@ -7,7 +7,7 @@ extern crate log;
 
 use actix::{Actor, Addr, Handler, Running, SyncArbiter, SyncContext};
 use anyhow::Result;
-use coinnect_rt::exchange::Exchange;
+use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use derive_more::Display;
 use serde::Deserialize;
@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::query::{DataQuery, DataResult, FieldMutation};
+use futures::lock::Mutex;
 
 pub mod naive_pair_trading;
 pub mod query;
@@ -49,11 +50,17 @@ impl StrategyKey {
 pub struct Strategy(pub StrategyKey, pub Addr<StrategyActor>);
 
 impl Strategy {
-    pub fn new(db_path: Arc<String>, fees: f64, settings: StrategySettings) -> Self {
+    pub fn new(
+        db_path: Arc<String>,
+        fees: f64,
+        settings: StrategySettings,
+        api: Arc<Mutex<Box<dyn ExchangeApi>>>,
+    ) -> Self {
         Self(
             settings.key(),
             SyncArbiter::start(1, move || {
-                let strat_settings = from_settings(db_path.clone().as_ref(), fees, &settings);
+                let strat_settings =
+                    from_settings(db_path.clone().as_ref(), fees, &settings, api.clone());
                 StrategyActor::new(StrategyActorOptions {
                     strategy: strat_settings,
                 })
@@ -154,10 +161,15 @@ pub trait StrategyInterface {
     fn mutate(&mut self, m: FieldMutation) -> Result<()>;
 }
 
-pub fn from_settings(db_path: &str, fees: f64, s: &StrategySettings) -> Box<dyn StrategyInterface> {
+pub fn from_settings(
+    db_path: &str,
+    fees: f64,
+    s: &StrategySettings,
+    api: Arc<Mutex<Box<dyn ExchangeApi>>>,
+) -> Box<dyn StrategyInterface> {
     let s = match s {
         StrategySettings::Naive(n) => {
-            crate::naive_pair_trading::NaiveTradingStrategy::new(db_path, fees, n)
+            crate::naive_pair_trading::NaiveTradingStrategy::new(db_path, fees, n, api.clone())
         }
     };
     Box::new(s)
