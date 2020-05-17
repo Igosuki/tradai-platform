@@ -136,7 +136,11 @@ async fn exchange_bots(
             }
             Exchange::Binance => {
                 let creds = Box::new(
-                    BinanceCreds::new_from_file("account_binance", keys_path.clone()).unwrap(),
+                    BinanceCreds::new_from_file(
+                        coinnect_rt::binance::credentials::ACCOUNT_KEY,
+                        keys_path.clone(),
+                    )
+                    .unwrap(),
                 );
                 Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone())
                     .await

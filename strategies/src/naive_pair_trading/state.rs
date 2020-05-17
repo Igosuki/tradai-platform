@@ -5,7 +5,7 @@ use coinnect_rt::exchange::ExchangeApi;
 use coinnect_rt::types::{OrderInfo, OrderType};
 use db::Db;
 use futures::join;
-use futures::lock::Mutex;
+use futures::lock::{Mutex, MutexGuard};
 use futures::stream::FuturesUnordered;
 use log::Level::Info;
 use serde::{Deserialize, Serialize};
@@ -36,7 +36,7 @@ pub enum PositionKind {
     LONG,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Operation {
     pub kind: OperationKind,
     pub pos: Position,
@@ -46,8 +46,8 @@ pub struct Operation {
     pub right_spread: f64,
     pub left_coef: f64,
     pub right_coef: f64,
-    pub left_transaction: Option<OrderInfo>,
-    pub right_transaction: Option<OrderInfo>,
+    pub left_transaction: Transaction,
+    pub right_transaction: Transaction,
 }
 
 #[juniper::graphql_object]
@@ -170,6 +170,25 @@ impl Into<OrderType> for OperationKind {
             _ => unimplemented!(),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum Rejection {
+    BadRequest,
+    InsufficientFunds,
+    Timeout,
+    Cancelled,
+    OtherFailure,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum Transaction {
+    Staged,
+    New(OrderInfo),
+    Filled,
+    Rejected(Rejection),
 }
 
 pub(crate) static OPERATIONS_KEY: &str = "orders";
@@ -413,8 +432,8 @@ impl MovingState {
             right_spread: spread,
             right_coef,
             right_op,
-            left_transaction: None,
-            right_transaction: None,
+            left_transaction: Transaction::Staged,
+            right_transaction: Transaction::Staged,
         }
     }
 
@@ -485,26 +504,33 @@ impl MovingState {
     }
 
     async fn save_operation(&mut self, op: &mut Operation) {
-        let mut remote_api = self.remote.lock().await;
+        let op_key = format!("{}:{}", OPERATIONS_KEY, Uuid::new_v4());
+        self.db.put_json(&op_key, op.clone());
+        let mut remote_api: MutexGuard<Box<dyn ExchangeApi>> = self.remote.lock().await;
         let left_req = remote_api.add_order(
             op.left_op.clone().into(),
             op.pos.left_pair.clone().into(),
             op.left_spread,
             Some(op.pos.left_price),
         );
+        let mut remote_api: MutexGuard<Box<dyn ExchangeApi>> = self.remote.lock().await;
         let right_req = remote_api.add_order(
             op.right_op.clone().into(),
             op.pos.right_pair.clone().into(),
             op.right_spread,
             Some(op.pos.right_price),
         );
-        let res: FuturesUnordered<_> = vec![left_req, right_req].iter_mut().collect();
         let (left_info, right_info) = join!(left_req, right_req);
-        for r in res.await {}
-        op.left_transaction = left_info.ok();
-        op.right_transaction = right_info.ok();
-        let op_key = format!("{}:{}", OPERATIONS_KEY, Uuid::new_v4());
+        op.left_transaction = Self::into_transaction(left_info);
+        op.right_transaction = Self::into_transaction(right_info);
         self.db.put_json(&op_key, op);
+    }
+
+    fn into_transaction(res: coinnect_rt::error::Result<OrderInfo>) -> Transaction {
+        match res {
+            Ok(o) => Transaction::New(o),
+            Err(_e) => Transaction::Rejected(Rejection::BadRequest),
+        }
     }
 
     fn save(&self) {

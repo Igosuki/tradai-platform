@@ -40,7 +40,11 @@ pub fn build_exchange_api(keys_path: PathBuf, xch: &Exchange) -> Box<dyn Exchang
         }
         Exchange::Binance => {
             let creds = Box::new(
-                BinanceCreds::new_from_file("account_binance", keys_path.clone()).unwrap(),
+                BinanceCreds::new_from_file(
+                    coinnect_rt::binance::credentials::ACCOUNT_KEY,
+                    keys_path.clone(),
+                )
+                .unwrap(),
             );
             Coinnect::new_exchange(*xch, creds.clone()).unwrap()
         }
