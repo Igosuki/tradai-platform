@@ -25,7 +25,7 @@ pub enum DataStoreError {
 
 #[derive(Debug, Clone)]
 pub struct Db {
-    name: String,
+    pub name: String,
     root: Box<Path>,
 }
 

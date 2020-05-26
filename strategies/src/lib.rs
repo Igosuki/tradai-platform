@@ -4,6 +4,8 @@
 extern crate serde_derive;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate anyhow;
 
 use actix::{Actor, Addr, Handler, Running, SyncArbiter, SyncContext};
 use anyhow::Result;
@@ -20,15 +22,9 @@ use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::query::{DataQuery, DataResult, FieldMutation};
 use futures::lock::Mutex;
 
+pub mod error;
 pub mod naive_pair_trading;
 pub mod query;
-
-#[derive(Debug, Display)]
-pub enum Error {
-    IOError(std::io::Error),
-}
-
-impl std::error::Error for Error {}
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display)]
 pub enum StrategyType {

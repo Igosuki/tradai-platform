@@ -9,6 +9,7 @@ pub mod data_table;
 pub mod input;
 pub mod metrics;
 pub mod options;
+pub mod order_manager;
 pub mod state;
 
 use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
@@ -53,9 +54,9 @@ impl NaiveTradingStrategy {
         n: &Options,
         api: Arc<Mutex<Box<dyn ExchangeApi>>>,
     ) -> Self {
-        let db_name = format!("{}_{}", n.left, n.right);
         let metrics = StrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
         let strat_db_path = format!("{}/naive_pair_trading_{}_{}", db_path, n.left, n.right);
+        let db_name = format!("{}_{}", n.left, n.right);
         let db = Db::new(&strat_db_path, db_name);
         Self {
             fees_rate,
