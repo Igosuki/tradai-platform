@@ -1,8 +1,11 @@
+use crate::naive_pair_trading::order_manager::OrderManager;
 use crate::query::MutableField;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use coinnect_rt::exchange::ExchangeApi;
-use coinnect_rt::types::{OrderInfo, OrderType};
+use coinnect_rt::types::{
+    AddOrderRequest, OrderInfo, OrderQuery, OrderStatus, OrderType, Pair, TradeType,
+};
 use db::Db;
 use futures::join;
 use futures::lock::{Mutex, MutexGuard};
@@ -162,11 +165,11 @@ pub enum OperationKind {
     SELL,
 }
 
-impl Into<OrderType> for OperationKind {
-    fn into(self) -> OrderType {
+impl Into<TradeType> for OperationKind {
+    fn into(self) -> TradeType {
         match self {
-            OperationKind::BUY => OrderType::BuyMarket,
-            OperationKind::SELL => OrderType::SellMarket,
+            OperationKind::BUY => TradeType::Buy,
+            OperationKind::SELL => TradeType::Sell,
             _ => unimplemented!(),
         }
     }
@@ -215,7 +218,7 @@ pub(super) struct MovingState {
     #[serde(skip_serializing)]
     db: Db,
     #[serde(skip_serializing)]
-    remote: Arc<Mutex<Box<dyn ExchangeApi>>>,
+    order_manager: OrderManager,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -248,7 +251,7 @@ impl MovingState {
             long_position_return: 0.0,
             pnl: initial_value,
             db,
-            remote: api,
+            order_manager: OrderManager::new(api.clone()),
         };
         state.reload_state();
         state
@@ -506,19 +509,17 @@ impl MovingState {
     async fn save_operation(&mut self, op: &mut Operation) {
         let op_key = format!("{}:{}", OPERATIONS_KEY, Uuid::new_v4());
         self.db.put_json(&op_key, op.clone());
-        let mut remote_api: MutexGuard<Box<dyn ExchangeApi>> = self.remote.lock().await;
-        let left_req = remote_api.add_order(
+        let left_req = self.order_manager.stage_order(
             op.left_op.clone().into(),
             op.pos.left_pair.clone().into(),
             op.left_spread,
-            Some(op.pos.left_price),
+            op.pos.left_price,
         );
-        let mut remote_api: MutexGuard<Box<dyn ExchangeApi>> = self.remote.lock().await;
-        let right_req = remote_api.add_order(
+        let right_req = self.order_manager.stage_order(
             op.right_op.clone().into(),
             op.pos.right_pair.clone().into(),
             op.right_spread,
-            Some(op.pos.right_price),
+            op.pos.right_price,
         );
         let (left_info, right_info) = join!(left_req, right_req);
         op.left_transaction = Self::into_transaction(left_info);
@@ -526,7 +527,7 @@ impl MovingState {
         self.db.put_json(&op_key, op);
     }
 
-    fn into_transaction(res: coinnect_rt::error::Result<OrderInfo>) -> Transaction {
+    fn into_transaction(res: anyhow::Result<OrderInfo>) -> Transaction {
         match res {
             Ok(o) => Transaction::New(o),
             Err(_e) => Transaction::Rejected(Rejection::BadRequest),

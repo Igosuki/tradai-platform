@@ -1,16 +1,22 @@
 use juniper::{FieldError, FieldResult, RootNode};
 
+use crate::api::ApiError;
+use crate::api::ApiError::ExchangeNotFound;
 use actix::MailboxError;
+use coinnect_rt::exchange::{Exchange, ExchangeApi};
+use coinnect_rt::types::{AddOrderRequest, OrderInfo, OrderQuery, OrderType, TradeType};
 use futures::Stream;
+use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use strategies::naive_pair_trading::state::Operation;
 use strategies::query::{DataQuery, DataResult, FieldMutation};
 use strategies::{Strategy, StrategyKey};
 
 pub struct Context {
     pub strats: Arc<HashMap<StrategyKey, Strategy>>,
+    pub exchanges: Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>>,
 }
 
 impl juniper::Context for Context {}
@@ -29,6 +35,51 @@ pub struct TypeAndKeyInput {
     #[graphql(name = "type")]
     t: String,
     id: String,
+}
+
+#[derive(juniper::GraphQLEnum)]
+pub enum TradeTypeInput {
+    Sell,
+    Buy,
+}
+
+impl Into<TradeType> for TradeTypeInput {
+    fn into(self) -> TradeType {
+        match self {
+            TradeTypeInput::Sell => TradeType::Sell,
+            TradeTypeInput::Buy => TradeType::Buy,
+        }
+    }
+}
+
+#[derive(juniper::GraphQLEnum)]
+pub enum OrderTypeInput {
+    Limit,
+    Market,
+}
+
+impl Into<OrderType> for OrderTypeInput {
+    fn into(self) -> OrderType {
+        match self {
+            OrderTypeInput::Limit => OrderType::Limit,
+            OrderTypeInput::Market => OrderType::Market,
+        }
+    }
+}
+
+#[derive(juniper::GraphQLInputObject)]
+pub struct AddOrderInput {
+    exchg: String,
+    order_type: OrderTypeInput,
+    side: TradeTypeInput,
+    pair: String,
+    quantity: f64,
+    price: f64,
+}
+
+#[derive(juniper::GraphQLObject)]
+pub struct OrderResult {
+    pub identifier: Vec<String>,
 }
 
 #[juniper::graphql_object(Context = Context)]
@@ -142,6 +193,36 @@ impl MutationRoot {
                     }
                 }
             })
+    }
+
+    #[graphql(description = "Add an order (for testing)")]
+    fn add_order(context: &Context, input: AddOrderInput) -> FieldResult<OrderResult> {
+        let exchg: Exchange = input.exchg.clone().into();
+        let mut api_lock = context.exchanges.lock().unwrap();
+        let mut api_r = api_lock.get_mut(&exchg).ok_or_else(|| {
+            FieldError::new(
+                "Exchange type not found",
+                graphql_value!({ "not_found": "exchange type not found" }),
+            )
+        });
+        api_r.and_then(|api| {
+            let request = AddOrderRequest {
+                order_type: input.order_type.into(),
+                side: input.side.into(),
+                quantity: Some(input.quantity),
+                pair: input.pair.into(),
+                price: Some(input.price),
+                ..AddOrderRequest::default()
+            };
+            futures::executor::block_on(api.order(OrderQuery::AddOrder(request)))
+                .map_err(|e| {
+                    let error_str = format!("{:?}", e);
+                    FieldError::new("Coinnect error", graphql_value!({ "error": error_str }))
+                })
+                .map(|oi| OrderResult {
+                    identifier: oi.identifier,
+                })
+        })
     }
 }
 

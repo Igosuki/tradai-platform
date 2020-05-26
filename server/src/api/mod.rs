@@ -6,12 +6,11 @@ use actix_web::{web, Error, HttpResponse, ResponseError};
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{OrderType, Pair, Price, Volume};
 use derive_more::Display;
-use futures::lock::Mutex;
 use juniper_actix::{graphiql_handler as gqli_handler, graphql_handler};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "flame_it")]
 use std::fs::File;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use strategies::{Strategy, StrategyKey};
 
 mod playground_source;
@@ -53,29 +52,6 @@ impl From<std::io::Error> for ApiError {
     }
 }
 
-async fn add_order(
-    query: web::Json<Order>,
-    exchanges: web::Data<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>>,
-) -> Result<HttpResponse, Error> {
-    let order = query.0;
-    let mut x = exchanges.lock().await;
-    let api = x
-        .get_mut(&order.exchg)
-        .ok_or(ExchangeNotFound(order.exchg))?;
-    let _resp = api
-        .add_order(order.t, order.pair, order.qty, Some(order.price))
-        .await
-        .map_err(ApiError::Coinnect)?;
-    Ok(HttpResponse::Ok().finish())
-}
-
-#[derive(PartialEq, Eq, Hash, Deserialize)]
-pub struct StratLookupQuery {
-    strategy: String,
-    key: String,
-    q: String,
-}
-
 async fn graphiql_handler() -> Result<HttpResponse, Error> {
     gqli_handler("/", None).await
 }
@@ -99,9 +75,11 @@ async fn graphql(
     payload: actix_web::web::Payload,
     schema: web::Data<Schema>,
     strats: web::Data<Arc<HashMap<StrategyKey, Strategy>>>,
+    exchanges: web::Data<Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>>>,
 ) -> Result<HttpResponse, Error> {
     let ctx = Context {
         strats: strats.get_ref().to_owned(),
+        exchanges: exchanges.get_ref().to_owned(),
     };
     graphql_handler(&schema, &ctx, req, payload).await
 }
@@ -122,7 +100,6 @@ pub async fn dump_profiler(q: web::Query<HashMap<String, String>>) -> Result<Htt
 }
 
 pub fn config_app(cfg: &mut web::ServiceConfig) {
-    cfg.service(web::scope("/orders").service(web::resource("").route(web::post().to(add_order))));
     cfg.service(
         web::resource("/")
             .route(web::post().to(graphql))
@@ -156,6 +133,9 @@ mod tests {
     use futures::lock::Mutex;
 
     use crate::api::config_app;
+    use crate::graphql_schemas::root::create_schema;
+    use std::sync::Arc;
+    use strategies::{Strategy, StrategyKey};
 
     pub struct ExchangeConfig {
         key_file: String,
@@ -189,26 +169,40 @@ mod tests {
         exchg_map
     }
 
+    fn strats() -> HashMap<StrategyKey, Strategy> {
+        HashMap::new()
+    }
+
     #[actix_rt::test]
     async fn test_add_order() {
+        let schema = create_schema();
         let exchanges = ExchangeConfig {
             key_file: "../keys_real_test.json".to_string(),
             exchanges: vec![Bitstamp],
         };
-        let data = Mutex::new(build_exchanges(exchanges));
-        let mut app = test::init_service(App::new().data(data).configure(config_app)).await;
+        let data: Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>> =
+            Arc::new(Mutex::new(build_exchanges(exchanges)));
+        let strats: Arc<HashMap<StrategyKey, Strategy>> = Arc::new(strats());
+        let mut app = test::init_service(
+            App::new()
+                .data(data)
+                .data(schema)
+                .data(strats)
+                .configure(config_app),
+        )
+        .await;
 
         let _o = crate::api::Order {
             exchg: Bitstamp,
-            t: OrderType::SellLimit,
+            t: OrderType::Limit,
             pair: "BTC_USD".into(),
             qty: 0.000001,
             price: 1.0,
         };
-        let payload = r#"{"exchg":"Bitstamp","type":"SellLimit","pair":"BTC_USD", "qty": 0.0000001, "price": 0.01}"#.as_bytes();
+        let payload = r##"{"variables": null, "query": "{add_order(exchg:"Bitstamp",type:"SellLimit",pair:"BTC_USD", qty: 0.0000001, price: 0.01}" }"##.as_bytes();
 
         let req = test::TestRequest::post()
-            .uri("/orders")
+            .uri("/")
             .header(header::CONTENT_TYPE, "application/json")
             .set_payload(payload)
             .to_request();

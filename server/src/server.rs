@@ -64,7 +64,7 @@ pub async fn httpserver(
     // Make and start the api
     let app = move || {
         let apis = build_exchanges(Arc::new(exchanges.clone()), keys_path.clone());
-        let data = Mutex::new(apis);
+        let data = Arc::new(Mutex::new(apis));
         let schema = create_schema();
 
         actix_web::App::new()
