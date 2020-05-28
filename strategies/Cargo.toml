@@ -25,6 +25,8 @@ actix-rt = "1.1"
 actix_derive = "0.5"
 
 futures = "0.3"
+tokio = { version = "0.2", features = ["full"] }
+
 # graph_ql
 juniper = { git = "https://github.com/graphql-rust/juniper" }
 
@@ -39,6 +41,8 @@ ordered-float = "1.0"
 glob = "0.3"
 strum = "0.18"
 strum_macros = "0.18"
+async-trait = "0.1"
+async-std = "1.6"
 
 # Error
 thiserror = "1.0"
@@ -68,7 +72,6 @@ clap = { version = "2.33", optional = true }
 
 [dev-dependencies]
 util = { path = "../util", features = ["s3"] }
-tokio = { version = "0.2", features = ["full"] }
 plotlib = "0.5"
 plotters = { version = "0.2", features = ["svg", "image_encoder"] }
 tempdir = "0.3"

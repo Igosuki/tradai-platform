@@ -67,7 +67,7 @@ env_logger = "0.7"
 async-std = "1.5"
 futures = { version ="0.3", features = ["thread-pool"] }
 futures-util = "0.3"
-tokio = { version = "0.2", features = ["full"] }
+tokio = { version = "0.2", features = ["full", "time"] }
 
 # Actix
 awc = "1.0"

@@ -1,15 +1,10 @@
-use crate::naive_pair_trading::order_manager::OrderManager;
+use crate::naive_pair_trading::order_manager::{OrderManager, StagedOrder, Transaction};
 use crate::query::MutableField;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use coinnect_rt::exchange::ExchangeApi;
-use coinnect_rt::types::{
-    AddOrderRequest, OrderInfo, OrderQuery, OrderStatus, OrderType, Pair, TradeType,
-};
+use coinnect_rt::types::TradeType;
 use db::Db;
-use futures::join;
-use futures::lock::{Mutex, MutexGuard};
-use futures::stream::FuturesUnordered;
 use log::Level::Info;
 use serde::{Deserialize, Serialize};
 use std::panic;
@@ -49,8 +44,8 @@ pub struct Operation {
     pub right_spread: f64,
     pub left_coef: f64,
     pub right_coef: f64,
-    pub left_transaction: Transaction,
-    pub right_transaction: Transaction,
+    pub left_transaction: Option<Transaction>,
+    pub right_transaction: Option<Transaction>,
 }
 
 #[juniper::graphql_object]
@@ -175,25 +170,6 @@ impl Into<TradeType> for OperationKind {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum Rejection {
-    BadRequest,
-    InsufficientFunds,
-    Timeout,
-    Cancelled,
-    OtherFailure,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum Transaction {
-    Staged,
-    New(OrderInfo),
-    Filled,
-    Rejected(Rejection),
-}
-
 pub(crate) static OPERATIONS_KEY: &str = "orders";
 
 pub(crate) static STATE_KEY: &str = "state";
@@ -233,7 +209,8 @@ struct TransientState {
 }
 
 impl MovingState {
-    pub fn new(initial_value: f64, db: Db, api: Arc<Mutex<Box<dyn ExchangeApi>>>) -> MovingState {
+    pub fn new(initial_value: f64, db: Db, api: Arc<Box<dyn ExchangeApi>>) -> MovingState {
+        let db_root_path = db.root.clone();
         let mut state = MovingState {
             position: None,
             value_strat: initial_value,
@@ -251,7 +228,7 @@ impl MovingState {
             long_position_return: 0.0,
             pnl: initial_value,
             db,
-            order_manager: OrderManager::new(api.clone()),
+            order_manager: OrderManager::new(api.clone(), &db_root_path),
         };
         state.reload_state();
         state
@@ -435,12 +412,12 @@ impl MovingState {
             right_spread: spread,
             right_coef,
             right_op,
-            left_transaction: Transaction::Staged,
-            right_transaction: Transaction::Staged,
+            left_transaction: None,
+            right_transaction: None,
         }
     }
 
-    pub(super) fn open(&mut self, pos: Position, fees: f64) -> Operation {
+    pub(super) async fn open(&mut self, pos: Position, fees: f64) -> Operation {
         let position_kind = pos.kind.clone();
         self.set_position(position_kind.clone());
         self.nominal_position = self.beta_val;
@@ -464,13 +441,13 @@ impl MovingState {
         };
         let mut op = self.make_operation(pos, OperationKind::OPEN, spread, right_coef, left_coef);
         op.log();
-        self.save_operation(&mut op);
+        self.save_operation(&mut op).await;
         self.save();
         self.log_info(&position_kind);
         op
     }
 
-    pub(super) fn close(&mut self, pos: Position, fees: f64) -> Operation {
+    pub(super) async fn close(&mut self, pos: Position, fees: f64) -> Operation {
         let kind: PositionKind = pos.kind.clone();
         self.unset_position();
         let (spread, right_coef, left_coef) = match kind {
@@ -490,7 +467,7 @@ impl MovingState {
             }
         };
         let mut op = self.make_operation(pos, OperationKind::CLOSE, spread, right_coef, left_coef);
-        self.save_operation(&mut op);
+        self.save_operation(&mut op).await;
         op.log();
         self.set_pnl();
         self.clear_position();
@@ -508,34 +485,35 @@ impl MovingState {
 
     async fn save_operation(&mut self, op: &mut Operation) {
         let op_key = format!("{}:{}", OPERATIONS_KEY, Uuid::new_v4());
-        self.db.put_json(&op_key, op.clone());
-        let left_req = self.order_manager.stage_order(
-            op.left_op.clone().into(),
-            op.pos.left_pair.clone().into(),
-            op.left_spread,
-            op.pos.left_price,
-        );
-        let right_req = self.order_manager.stage_order(
-            op.right_op.clone().into(),
-            op.pos.right_pair.clone().into(),
-            op.right_spread,
-            op.pos.right_price,
-        );
-        let (left_info, right_info) = join!(left_req, right_req);
-        op.left_transaction = Self::into_transaction(left_info);
-        op.right_transaction = Self::into_transaction(right_info);
-        self.db.put_json(&op_key, op);
-    }
-
-    fn into_transaction(res: anyhow::Result<OrderInfo>) -> Transaction {
-        match res {
-            Ok(o) => Transaction::New(o),
-            Err(_e) => Transaction::Rejected(Rejection::BadRequest),
+        if let Err(e) = self.db.put_json(&op_key, op.clone()) {
+            error!("Error saving operation: {:?}", e);
+        }
+        let reqs = self
+            .order_manager
+            .stage_orders(vec![
+                StagedOrder {
+                    op_kind: op.left_op.clone().into(),
+                    pair: op.pos.left_pair.clone().into(),
+                    qty: op.left_spread,
+                    price: op.pos.left_price,
+                },
+                StagedOrder {
+                    op_kind: op.right_op.clone().into(),
+                    pair: op.pos.right_pair.clone().into(),
+                    qty: op.right_spread,
+                    price: op.pos.right_price,
+                },
+            ])
+            .await;
+        op.left_transaction = Some(reqs[0].as_ref().unwrap().clone());
+        op.right_transaction = Some(reqs[1].as_ref().unwrap().clone());
+        if let Err(e) = self.db.put_json(&op_key, op.clone()) {
+            error!("Error saving operation after writing transactions: {:?}", e);
         }
     }
 
     fn save(&self) {
-        self.db.put_json(
+        if let Err(e) = self.db.put_json(
             STATE_KEY,
             TransientState {
                 units_to_buy_short_spread: self.units_to_buy_short_spread,
@@ -546,7 +524,9 @@ impl MovingState {
                 traded_price_right: self.traded_price_right,
                 nominal_position: Some(self.nominal_position),
             },
-        );
+        ) {
+            error!("Error saving state: {:?}", e);
+        }
     }
 
     pub fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> {

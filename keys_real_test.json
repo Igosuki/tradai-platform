@@ -10,5 +10,10 @@
     "api_key"    : "a",
     "api_secret" : "b",
     "customer_id": "c"
+  },
+  "account_binance": {
+    "exchange": "binance",
+    "api_key"    : "mI7GzF3pe0JIstXBlhZZJ57auPLCnFP11yirbj6c8yjXRTNKnsjQhul08cpB4LPx",
+    "api_secret" : "gfIXkpTrlRBuTnXws4oCW9vOcFysP2OtwtjuS7qEeMZJ0lWCvbGUMY6cpAxV2AGk"
   }
 }

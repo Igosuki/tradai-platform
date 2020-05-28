@@ -19,7 +19,6 @@ use crate::{DataQuery, DataResult, StrategyInterface};
 use coinnect_rt::exchange::ExchangeApi;
 use coinnect_rt::types::LiveEvent;
 use db::Db;
-use futures::lock::Mutex;
 use metrics::StrategyMetrics;
 use options::Options;
 use state::{MovingState, Position, PositionKind};
@@ -48,12 +47,7 @@ pub struct NaiveTradingStrategy {
 }
 
 impl NaiveTradingStrategy {
-    pub fn new(
-        db_path: &str,
-        fees_rate: f64,
-        n: &Options,
-        api: Arc<Mutex<Box<dyn ExchangeApi>>>,
-    ) -> Self {
+    pub fn new(db_path: &str, fees_rate: f64, n: &Options, api: Arc<Box<dyn ExchangeApi>>) -> Self {
         let metrics = StrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
         let strat_db_path = format!("{}/naive_pair_trading_{}_{}", db_path, n.left, n.right);
         let db_name = format!("{}_{}", n.left, n.right);
@@ -140,7 +134,9 @@ impl NaiveTradingStrategy {
     }
 
     fn eval_linear_model(&mut self) {
-        self.data_table.update_model();
+        if let Err(e) = self.data_table.update_model() {
+            error!("Error saving model : {:?}", e);
+        }
         self.set_model_from_table();
         self.last_row_time_at_eval = self.last_sample_time;
     }
@@ -201,7 +197,7 @@ impl NaiveTradingStrategy {
         }
     }
 
-    fn eval_latest(&mut self, lr: &DataRow) {
+    async fn eval_latest(&mut self, lr: &DataRow) {
         if self.state.no_position_taken() {
             if self.should_eval(lr.time) {
                 self.eval_linear_model();
@@ -221,7 +217,7 @@ impl NaiveTradingStrategy {
         // Possibly open a short position
         if (self.state.res() > self.res_threshold_short) && self.state.no_position_taken() {
             let position = self.short_position(lr.right.bid, lr.left.ask, lr.time);
-            let op = self.state.open(position, self.fees_rate);
+            let op = self.state.open(position, self.fees_rate).await;
             self.metrics.log_position(&op.pos, &op.kind);
         }
 
@@ -234,7 +230,7 @@ impl NaiveTradingStrategy {
             {
                 self.maybe_log_stop_loss(PositionKind::SHORT);
                 let position = self.short_position(lr.right.ask, lr.left.bid, lr.time);
-                let op = self.state.close(position, self.fees_rate);
+                let op = self.state.close(position, self.fees_rate).await;
                 self.metrics.log_position(&op.pos, &op.kind);
                 self.eval_linear_model();
             }
@@ -243,7 +239,7 @@ impl NaiveTradingStrategy {
         // Possibly open a long position
         if self.state.res() <= self.res_threshold_long && self.state.no_position_taken() {
             let position = self.long_position(lr.right.ask, lr.left.bid, lr.time);
-            let op = self.state.open(position, self.fees_rate);
+            let op = self.state.open(position, self.fees_rate).await;
             self.metrics.log_position(&op.pos, &op.kind);
         }
 
@@ -256,7 +252,7 @@ impl NaiveTradingStrategy {
             {
                 self.maybe_log_stop_loss(PositionKind::LONG);
                 let position = self.long_position(lr.right.bid, lr.left.ask, lr.time);
-                let op = self.state.close(position, self.fees_rate);
+                let op = self.state.close(position, self.fees_rate).await;
                 self.metrics.log_position(&op.pos, &op.kind);
                 self.eval_linear_model();
             }
@@ -277,7 +273,7 @@ impl NaiveTradingStrategy {
                     .unwrap_or(false))
     }
 
-    fn process_row(&mut self, row: &DataRow) {
+    async fn process_row(&mut self, row: &DataRow) {
         if self.data_table.try_loading_model() {
             self.set_model_from_table();
             self.last_row_time_at_eval = self
@@ -290,7 +286,7 @@ impl NaiveTradingStrategy {
         // A model is available
         let can_eval = self.can_eval();
         if can_eval {
-            self.eval_latest(row);
+            self.eval_latest(row).await;
             self.log_state();
         }
         self.metrics.log_row(&row);
@@ -323,8 +319,9 @@ impl NaiveTradingStrategy {
     }
 }
 
+#[async_trait]
 impl StrategyInterface for NaiveTradingStrategy {
-    fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()> {
+    async fn add_event(&mut self, le: LiveEvent) -> anyhow::Result<()> {
         if let LiveEvent::LiveOrderbook(ob) = le {
             let string = ob.pair.clone();
             if string == self.left_pair {
@@ -344,14 +341,14 @@ impl StrategyInterface for NaiveTradingStrategy {
                     right: r,
                     time: now,
                 };
-                self.process_row(&x);
+                self.process_row(&x).await;
                 self.last_row_process_time = now;
             }
         }
         Ok(())
     }
 
-    fn data(&mut self, q: DataQuery) -> Option<DataResult> {
+    fn data(&self, q: DataQuery) -> Option<DataResult> {
         match q {
             DataQuery::Operations => Some(DataResult::Operations(self.get_operations())),
             DataQuery::Dump => Some(DataResult::Dump(self.dump_db())),

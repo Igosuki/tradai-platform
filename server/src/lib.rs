@@ -1,3 +1,4 @@
+#![deny(unused_must_use, unused_mut, unused_imports, unused_import_braces)]
 #![feature(try_trait)]
 
 extern crate actix;
@@ -20,6 +21,8 @@ extern crate serde_derive;
 extern crate uuid;
 #[macro_use]
 extern crate juniper;
+#[macro_use]
+extern crate anyhow;
 
 pub mod api;
 pub mod graphql_schemas;

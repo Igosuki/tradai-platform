@@ -9,7 +9,7 @@ pub enum DataResult {
 }
 
 #[derive(Deserialize, Serialize, Message)]
-#[rtype(result = "Option<DataResult>")]
+#[rtype(result = "Result<Option<DataResult>, anyhow::Error>")]
 pub enum DataQuery {
     Operations,
     Dump,
@@ -26,7 +26,7 @@ pub enum MutableField {
 }
 
 #[derive(Deserialize, Serialize, Message, juniper::GraphQLInputObject)]
-#[rtype(result = "std::io::Result<()>")]
+#[rtype(result = "Result<(), anyhow::Error>")]
 pub struct FieldMutation {
     pub field: MutableField,
     pub value: f64,

@@ -1,3 +1,4 @@
+use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
 use actix::{Actor, Handler, Running, SyncContext};
 use avro_rs::encode::encode;
 use avro_rs::{
@@ -5,9 +6,15 @@ use avro_rs::{
     Codec, Schema, Writer,
 };
 use chrono::Duration;
+use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use derive_more::Display;
 use log::Level::*;
+use models::avro_gen::{
+    self,
+    models::{LiveTrade as LT, Orderbook as OB},
+};
 use rand::random;
+use serde::Serialize;
 use std::cell::{RefCell, RefMut};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -15,14 +22,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use uuid::Uuid;
-
-use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
-use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
-use models::avro_gen::{
-    self,
-    models::{LiveTrade as LT, Orderbook as OB},
-};
-use serde::Serialize;
 
 type RotatingWriter = Writer<'static, RotatingFile<SizeAndExpirationPolicy>>;
 
@@ -187,18 +186,15 @@ impl Actor for AvroFileActor {
 }
 
 impl Handler<LiveEventEnveloppe> for AvroFileActor {
-    type Result = ();
+    type Result = anyhow::Result<()>;
 
     fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
         let rc = self.writer_for(&msg);
-        if rc.is_err() {
+        if let Err(rc_err) = rc {
             if log_enabled!(Debug) {
-                debug!(
-                    "Could not acquire writer for partition {:?}",
-                    rc.err().unwrap()
-                );
+                debug!("Could not acquire writer for partition {:?}", rc_err);
             }
-            return;
+            return Err(anyhow!(rc_err));
         }
         let rc_ok = rc.unwrap();
         let mut writer = rc_ok.borrow_mut();
@@ -225,8 +221,10 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
             _ => Ok(0),
         };
         if let Err(e) = appended.and_then(|_| writer.flush().map_err(|_e| Error::WriterError)) {
-            trace!("Failed to flush writer {:?}", e)
+            trace!("Failed to flush writer {:?}", e);
+            return Err(anyhow!(e));
         }
+        Ok(())
     }
 }
 
