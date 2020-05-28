@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use coinnect_rt::types::Orderbook;
-use db::Db;
+use db::{DataStoreError, Db};
 use itertools::Itertools;
 use math::iter::{CovarianceExt, MeanExt, VarianceExt};
 use std::convert::TryFrom;
@@ -123,7 +123,7 @@ impl DataTable {
         }
     }
 
-    pub fn update_model(&mut self) {
+    pub fn update_model(&mut self) -> Result<(), DataStoreError> {
         let beta = self.beta();
         let alpha = self.alpha(beta);
         let now = Utc::now();
@@ -133,10 +133,11 @@ impl DataTable {
             at: now,
         };
         self.last_model = Some(value);
-        self.db.put_json(LINEAR_MODEL_KEY, &self.last_model);
-        self.db.delete_all("row");
+        self.db.put_json(LINEAR_MODEL_KEY, &self.last_model)?;
+        self.db.delete_all("row")?;
         let x: Vec<&DataRow> = self.current_window().rev().collect();
-        self.db.put_all_json("row", &x);
+        self.db.put_all_json("row", &x)?;
+        Ok(())
     }
 
     pub fn load_model(&mut self) {
@@ -150,9 +151,10 @@ impl DataTable {
         self.last_model.as_ref().map(|m| m.at)
     }
 
-    pub fn wipe_model(&mut self) {
-        self.db.delete_all(LINEAR_MODEL_KEY);
-        self.db.delete_all("row");
+    pub fn wipe_model(&mut self) -> Result<(), DataStoreError> {
+        self.db.delete_all(LINEAR_MODEL_KEY)?;
+        self.db.delete_all("row")?;
+        Ok(())
     }
 
     pub fn model(&self) -> Box<Option<LinearModelValue>> {
@@ -178,8 +180,12 @@ impl DataTable {
     pub fn push(&mut self, row: &DataRow) {
         self.rows.push(row.clone());
         // Truncate the table by window_size once max_size is reached
-        self.db
-            .put_json(&format!("row{}", self.rows.len() - 1), row);
+        if let Err(e) = self
+            .db
+            .put_json(&format!("row{}", self.rows.len() - 1), row)
+        {
+            error!("Failed writing row : {:?}", e);
+        }
         if self.rows.len() > self.max_size {
             self.rows.drain(0..self.window_size);
         }

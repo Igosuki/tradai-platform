@@ -6,10 +6,10 @@ use coinnect_rt::bitstamp::BitstampCreds;
 use coinnect_rt::bittrex::BittrexCreds;
 use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::{Exchange, ExchangeApi, ExchangeSettings};
+use futures::lock::Mutex;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::Mutex;
 use strategies::{Strategy, StrategyKey};
 
 pub fn build_exchanges(

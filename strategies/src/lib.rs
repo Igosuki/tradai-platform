@@ -1,3 +1,4 @@
+#![deny(unused_must_use, unused_mut, unused_imports, unused_import_braces)]
 #![feature(test)]
 
 #[macro_use]
@@ -6,21 +7,24 @@ extern crate serde_derive;
 extern crate log;
 #[macro_use]
 extern crate anyhow;
+#[macro_use]
+extern crate async_trait;
 
-use actix::{Actor, Addr, Handler, Running, SyncArbiter, SyncContext};
+use actix::{Actor, Addr, Context, Handler, ResponseActFuture, Running, WrapFuture};
 use anyhow::Result;
+use async_std::sync::Arc;
+use async_std::sync::RwLock;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use derive_more::Display;
 use serde::Deserialize;
 use std::str::FromStr;
-use std::sync::Arc;
+
 use strum_macros::EnumString;
 use uuid::Uuid;
 
 use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::query::{DataQuery, DataResult, FieldMutation};
-use futures::lock::Mutex;
 
 pub mod error;
 pub mod naive_pair_trading;
@@ -50,18 +54,15 @@ impl Strategy {
         db_path: Arc<String>,
         fees: f64,
         settings: StrategySettings,
-        api: Arc<Mutex<Box<dyn ExchangeApi>>>,
+        api: Arc<Box<dyn ExchangeApi>>,
     ) -> Self {
-        Self(
-            settings.key(),
-            SyncArbiter::start(1, move || {
-                let strat_settings =
-                    from_settings(db_path.clone().as_ref(), fees, &settings, api.clone());
-                StrategyActor::new(StrategyActorOptions {
-                    strategy: strat_settings,
-                })
-            }),
-        )
+        Self(settings.key(), {
+            let strat_settings =
+                from_settings(db_path.clone().as_ref(), fees, &settings, api.clone());
+            StrategyActor::start(StrategyActor::new(StrategyActorOptions {
+                strategy: strat_settings,
+            }))
+        })
     }
 }
 
@@ -93,20 +94,20 @@ pub struct StrategyActorOptions {
 
 pub struct StrategyActor {
     _session_uuid: Uuid,
-    inner: Box<dyn StrategyInterface>,
+    inner: Arc<RwLock<Box<dyn StrategyInterface>>>,
 }
 
 impl StrategyActor {
     pub fn new(options: StrategyActorOptions) -> Self {
         Self {
             _session_uuid: Uuid::new_v4(),
-            inner: options.strategy,
+            inner: Arc::new(RwLock::new(options.strategy)),
         }
     }
 }
 
 impl Actor for StrategyActor {
-    type Context = SyncContext<Self>;
+    type Context = Context<Self>;
 
     fn started(&mut self, _: &mut Self::Context) {
         info!("starting");
@@ -120,39 +121,61 @@ impl Actor for StrategyActor {
     }
 }
 
+type StratActorResponseFuture<T> = ResponseActFuture<StrategyActor, T>;
 impl Handler<LiveEventEnveloppe> for StrategyActor {
-    type Result = ();
+    type Result = StratActorResponseFuture<anyhow::Result<()>>;
 
     #[cfg_attr(feature = "flame_it", flame)]
     fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
-        self.inner.add_event(msg.1).unwrap();
+        let lock = self.inner.clone();
+        Box::new(
+            async move {
+                let arc = lock.clone();
+                let mut act = arc.write().await;
+                act.add_event(msg.1).await
+            }
+            .into_actor(self),
+        )
     }
 }
 
 impl Handler<DataQuery> for StrategyActor {
-    type Result = <DataQuery as actix::Message>::Result;
+    type Result = StratActorResponseFuture<<DataQuery as actix::Message>::Result>;
 
     #[cfg_attr(feature = "flame_it", flame)]
     fn handle(&mut self, msg: DataQuery, _ctx: &mut Self::Context) -> Self::Result {
-        self.inner.data(msg)
+        let lock = self.inner.clone();
+        Box::new(
+            async move {
+                let act = lock.read().await;
+                Ok(act.data(msg))
+            }
+            .into_actor(self),
+        )
     }
 }
 
 impl Handler<FieldMutation> for StrategyActor {
-    type Result = <FieldMutation as actix::Message>::Result;
+    type Result = StratActorResponseFuture<<FieldMutation as actix::Message>::Result>;
 
     #[cfg_attr(feature = "flame_it", flame)]
     fn handle(&mut self, msg: FieldMutation, _ctx: &mut Self::Context) -> Self::Result {
-        self.inner
-            .mutate(msg)
-            .map_err(|ae| std::io::Error::new(std::io::ErrorKind::Other, ae))
+        let lock = self.inner.clone();
+        Box::new(
+            async move {
+                let mut act = lock.write().await;
+                act.mutate(msg)
+            }
+            .into_actor(self),
+        )
     }
 }
 
+#[async_trait]
 pub trait StrategyInterface {
-    fn add_event(&mut self, le: LiveEvent) -> std::io::Result<()>;
+    async fn add_event(&mut self, le: LiveEvent) -> anyhow::Result<()>;
 
-    fn data(&mut self, q: DataQuery) -> Option<DataResult>;
+    fn data(&self, q: DataQuery) -> Option<DataResult>;
 
     fn mutate(&mut self, m: FieldMutation) -> Result<()>;
 }
@@ -161,7 +184,7 @@ pub fn from_settings(
     db_path: &str,
     fees: f64,
     s: &StrategySettings,
-    api: Arc<Mutex<Box<dyn ExchangeApi>>>,
+    api: Arc<Box<dyn ExchangeApi>>,
 ) -> Box<dyn StrategyInterface> {
     let s = match s {
         StrategySettings::Naive(n) => {
@@ -194,7 +217,7 @@ mod test {
     struct DummyStrat;
 
     impl StrategyInterface for DummyStrat {
-        fn add_event(&mut self, _: LiveEvent) -> std::io::Result<()> {
+        async fn add_event(&mut self, _: LiveEvent) -> std::io::Result<()> {
             Ok(())
         }
 

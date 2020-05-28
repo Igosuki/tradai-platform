@@ -6,11 +6,12 @@ use actix_web::{web, Error, HttpResponse, ResponseError};
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{OrderType, Pair, Price, Volume};
 use derive_more::Display;
+use futures::lock::Mutex;
 use juniper_actix::{graphiql_handler as gqli_handler, graphql_handler};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "flame_it")]
 use std::fs::File;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use strategies::{Strategy, StrategyKey};
 
 mod playground_source;
@@ -116,25 +117,28 @@ pub fn config_app(cfg: &mut web::ServiceConfig) {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::path::PathBuf;
-
     use actix_web::{
         http::{header, StatusCode},
         test, App,
     };
+    use bytes::Buf;
+    use futures::lock::Mutex;
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+    use tokio::time::timeout;
 
     use coinnect_rt::bitstamp::BitstampCreds;
     use coinnect_rt::bittrex::BittrexCreds;
     use coinnect_rt::coinnect::Coinnect;
-    use coinnect_rt::exchange::Exchange::Bitstamp;
+    use coinnect_rt::exchange::Exchange::Binance;
     use coinnect_rt::exchange::{Exchange, ExchangeApi};
     use coinnect_rt::types::OrderType;
-    use futures::lock::Mutex;
 
     use crate::api::config_app;
     use crate::graphql_schemas::root::create_schema;
+    use coinnect_rt::binance::BinanceCreds;
     use std::sync::Arc;
+    use std::time::Duration;
     use strategies::{Strategy, StrategyKey};
 
     pub struct ExchangeConfig {
@@ -163,6 +167,14 @@ mod tests {
                         Coinnect::new_exchange(exchange, Box::new(my_creds)).unwrap(),
                     );
                 }
+                Exchange::Binance => {
+                    let my_creds =
+                        BinanceCreds::new_from_file("account_binance", path.clone()).unwrap();
+                    exchg_map.insert(
+                        exchange,
+                        Coinnect::new_exchange(exchange, Box::new(my_creds)).unwrap(),
+                    );
+                }
                 _ => (),
             }
         }
@@ -178,14 +190,19 @@ mod tests {
         let schema = create_schema();
         let exchanges = ExchangeConfig {
             key_file: "../keys_real_test.json".to_string(),
-            exchanges: vec![Bitstamp],
+            exchanges: vec![Binance],
         };
         let data: Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>> =
             Arc::new(Mutex::new(build_exchanges(exchanges)));
+        let mut guard = data.lock().await;
+        let binance_api: &mut Box<dyn ExchangeApi> = guard.get_mut(&Exchange::Binance).unwrap();
+        let ob = binance_api.orderbook("BTC_USDT".into()).await.unwrap();
+        drop(guard);
+        let price = ob.bids.first().unwrap().0;
         let strats: Arc<HashMap<StrategyKey, Strategy>> = Arc::new(strats());
         let mut app = test::init_service(
             App::new()
-                .data(data)
+                .data(data.clone())
                 .data(schema)
                 .data(strats)
                 .configure(config_app),
@@ -193,28 +210,45 @@ mod tests {
         .await;
 
         let _o = crate::api::Order {
-            exchg: Bitstamp,
+            exchg: Binance,
             t: OrderType::Limit,
             pair: "BTC_USD".into(),
             qty: 0.000001,
-            price: 1.0,
+            price,
         };
-        let payload = r##"{"variables": null, "query": "{add_order(exchg:"Bitstamp",type:"SellLimit",pair:"BTC_USD", qty: 0.0000001, price: 0.01}" }"##.as_bytes();
+        let string = format!(
+            r##"{{"variables": null, "query": "mutation {{ addOrder(input:{{exchg:\"Binance\", orderType: LIMIT,side: SELL, pair:\"BTC_USDT\", quantity: 0.0015, price: {} }}) {{ identifier }} }}" }}"##,
+            price
+        );
+        let payload = string.as_bytes();
 
         let req = test::TestRequest::post()
             .uri("/")
             .header(header::CONTENT_TYPE, "application/json")
-            .set_payload(payload)
+            .set_payload(string)
             .to_request();
-        let resp = test::call_service(&mut app, req).await;
+        let resp = timeout(Duration::from_secs(10), test::call_service(&mut app, req)).await;
+        assert!(resp.is_ok(), "response: {:?}", resp);
+        let resp = resp.unwrap();
         let status = resp.status();
         let body = test::read_body(resp).await;
+        let body_string = std::str::from_utf8(body.bytes()).unwrap();
+        let res: serde_json::error::Result<serde_json::Value> = serde_json::from_str(body_string);
+        assert!(res.is_ok(), "failed to deserialize json: {:?}", body_string);
+        let v = res.unwrap();
         assert_eq!(
             status,
             StatusCode::OK,
             "status : {}, body: {:?}",
             status,
             body
+        );
+        let option = v.get("data");
+        assert!(option.is_some(), "data should exist: {:?}", &option);
+        assert!(
+            option.unwrap() != &serde_json::Value::Null,
+            "data should not be null : {:?}",
+            v
         );
     }
 }
