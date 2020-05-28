@@ -97,6 +97,8 @@ pub struct StrategyActor {
     inner: Arc<RwLock<Box<dyn StrategyInterface>>>,
 }
 
+unsafe impl Send for StrategyActor {}
+
 impl StrategyActor {
     pub fn new(options: StrategyActorOptions) -> Self {
         Self {
