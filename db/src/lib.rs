@@ -5,7 +5,7 @@ extern crate log;
 extern crate serde_derive;
 
 use rkv::error::StoreError::LmdbError;
-use rkv::{Manager, Rkv, SingleStore, StoreOptions, Value, Writer};
+use rkv::{Manager, Rkv, SingleStore, StoreError, StoreOptions, Value, Writer};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fs;
@@ -26,8 +26,10 @@ pub enum DataStoreError {
 #[derive(Debug, Clone)]
 pub struct Db {
     pub name: String,
-    root: Box<Path>,
+    pub root: Box<Path>,
 }
+
+pub type WriteResult = Result<(), DataStoreError>;
 
 impl Db {
     pub fn new(root: &str, name: String) -> Self {
@@ -37,6 +39,17 @@ impl Db {
             root: Box::from(path),
             name,
         }
+    }
+
+    fn new_rkv(path: &Path) -> Result<Rkv, StoreError> {
+        if !path.is_dir() {
+            return Err(StoreError::DirectoryDoesNotExistError(path.into()));
+        }
+
+        let mut builder = Rkv::environment_builder();
+        builder.set_max_dbs(5);
+        builder.set_map_size((10 as i32).pow(7) as usize);
+        Rkv::from_env(path, builder)
     }
 
     pub fn with_db<F, B>(&self, process: F) -> B
@@ -49,10 +62,6 @@ impl Db {
         //   * a data file containing the key/value stores
         //   * a lock file containing metadata about current transactions
         //
-        // In this example, we use the `tempfile` crate to create the directory.
-        //
-        // let root = Builder::new().prefix("simple-db").tempdir().unwrap();
-
         // The Manager enforces that each process opens the same environment
         // at most once by caching a handle to each environment that it opens.
         // Use it to retrieve the handle to an opened environment—or create one
@@ -60,7 +69,7 @@ impl Db {
         let created_arc = Manager::singleton()
             .write()
             .unwrap()
-            .get_or_create(self.root.as_ref(), Rkv::new)
+            .get_or_create(self.root.as_ref(), Self::new_rkv)
             .unwrap();
         let env = created_arc.read().unwrap();
 
@@ -100,59 +109,74 @@ impl Db {
         })
     }
 
-    pub fn delete_all(&self, key: &str) {
+    pub fn delete_all(&self, key: &str) -> WriteResult {
         self.with_db(|env, store| {
             let mut writer = env.write().unwrap();
-            match store.delete(&mut writer, key) {
-                Ok(()) => {}
+            let result = match store.delete(&mut writer, key) {
+                Ok(()) => Ok(()),
                 Err(e) => match e {
-                    LmdbError(lmdb::Error::NotFound) => {}
-                    e => error!("Failed to delete key {} for {}", key, e),
+                    LmdbError(lmdb::Error::NotFound) => Ok(()),
+                    e => {
+                        error!("Failed to delete key {} for {}", key, e);
+                        Err(e)
+                    }
                 },
             };
-            Self::commit(writer, key);
+            Self::maybe_commit(result, writer, key)
         })
     }
 
-    pub fn put_json<T: Serialize>(&self, key: &str, v: T) {
+    pub fn put_json<T: Serialize>(&self, key: &str, v: T) -> WriteResult {
         self.with_db(|env, store| {
             let result = serde_json::to_string(&v).unwrap();
             let mut writer = env.write().unwrap();
 
-            store.put(&mut writer, &key, &Value::Json(&result)).unwrap();
-            Self::commit(writer, key);
-        });
+            let result = store.put(&mut writer, &key, &Value::Json(&result));
+            Self::maybe_commit(result, writer, key)
+        })
     }
 
-    pub fn put_all_json<T: Serialize>(&self, key: &str, v: &[T]) {
+    pub fn put_all_json<T: Serialize>(&self, key: &str, v: &[T]) -> WriteResult {
         self.with_db(|env, store| {
             let mut writer = env.write().unwrap();
-            for (i, v) in v.iter().enumerate() {
-                let result = serde_json::to_string(&v).unwrap();
-                store
-                    .put(&mut writer, &format!("{}{}", key, i), &Value::Json(&result))
-                    .unwrap();
-            }
-            Self::commit(writer, key);
-        });
+            let results: Result<Vec<()>, StoreError> = v
+                .iter()
+                .enumerate()
+                .map(|(i, v)| {
+                    let result = serde_json::to_string(&v).unwrap();
+                    store.put(&mut writer, &format!("{}{}", key, i), &Value::Json(&result))
+                })
+                .collect();
+            Self::maybe_commit(results, writer, key)
+        })
     }
 
-    pub fn put<'a, T: 'a>(&self, key: &str, v: &'a T)
+    pub fn put<'a, T: 'a>(&self, key: &str, v: &'a T) -> WriteResult
     where
         Value<'a>: From<&'a T>,
     {
         self.with_db(|env, store| {
             let mut writer = env.write().unwrap();
             let _value: Value = v.into();
-            store.put(&mut writer, &key, &v.into()).unwrap();
-            Self::commit(writer, key);
-        });
+            let result = store.put(&mut writer, &key, &v.into());
+            Self::maybe_commit(result, writer, key)
+        })
     }
 
     fn commit(w: Writer, key: &str) {
         match w.commit() {
             Ok(_) => {}
             Err(e) => error!("Failed to commit key {} for {}", key, e),
+        }
+    }
+
+    fn maybe_commit<T>(r: Result<T, StoreError>, w: Writer, key: &str) -> WriteResult {
+        match r {
+            Ok(_) => {
+                Self::commit(w, key);
+                Ok(())
+            }
+            Err(e) => Err(DataStoreError::StoreError(e)),
         }
     }
 }
@@ -336,7 +360,7 @@ mod test {
         Db::new(dir.into_path().to_str().unwrap(), "mydb".to_string())
     }
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
     struct Foobar {
         foo: String,
         number: i32,
@@ -379,6 +403,21 @@ mod test {
                 }
             ]
         )
+    }
+
+    #[test]
+    fn db_json_put_all_max() {
+        let db = db();
+        db.with_db(insert_json);
+        let mut vec: Vec<Foobar> = Vec::new();
+        for i in 0..10000 {
+            vec.push(Foobar {
+                foo: "bar".to_string(),
+                number: i,
+            });
+        }
+        let r = db.put_all_json("foos", &vec);
+        assert!(r.is_ok(), "failed to write all foos {:?}", r);
     }
 
     #[test]
