@@ -99,6 +99,26 @@ impl Db {
         })
     }
 
+    pub fn read_all_json<T: DeserializeOwned>(&self) -> Vec<(String, T)> {
+        self.with_db(|env, store| {
+            let reader = env.read().expect("reader");
+            let iter = store.iter_start(&reader).unwrap();
+            iter.map(|r| {
+                r.map_err(DataStoreError::StoreError)
+                    .and_then(|v| match v.1 {
+                        Some(rkv::value::Value::Json(json_str)) => {
+                            let t = serde_json::from_str::<T>(json_str)
+                                .map_err(DataStoreError::JsonError);
+                            t.map(|record| (std::str::from_utf8(v.0).unwrap().to_string(), record))
+                        }
+                        _ => Err(DataStoreError::ExpectedJson),
+                    })
+            })
+            .filter_map(|r| r.ok())
+            .collect()
+        })
+    }
+
     pub fn read_json<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
         self.with_db(|env, store| {
             let reader = env.read().expect("reader");

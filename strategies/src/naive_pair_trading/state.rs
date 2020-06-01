@@ -1,14 +1,13 @@
-use crate::naive_pair_trading::order_manager::{OrderManager, StagedOrder, Transaction};
+use crate::order_manager::{OrderManager, StagedOrder, Transaction};
 use crate::query::MutableField;
+use actix::{Addr, MailboxError};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use coinnect_rt::exchange::ExchangeApi;
 use coinnect_rt::types::TradeType;
 use db::Db;
 use log::Level::Info;
 use serde::{Deserialize, Serialize};
 use std::panic;
-use std::sync::Arc;
 use strum_macros::{AsRefStr, EnumString};
 use uuid::Uuid;
 
@@ -194,7 +193,7 @@ pub(super) struct MovingState {
     #[serde(skip_serializing)]
     db: Db,
     #[serde(skip_serializing)]
-    order_manager: OrderManager,
+    om: Addr<OrderManager>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -209,8 +208,7 @@ struct TransientState {
 }
 
 impl MovingState {
-    pub fn new(initial_value: f64, db: Db, api: Arc<Box<dyn ExchangeApi>>) -> MovingState {
-        let db_root_path = db.root.clone();
+    pub fn new(initial_value: f64, db: Db, om: Addr<OrderManager>) -> MovingState {
         let mut state = MovingState {
             position: None,
             value_strat: initial_value,
@@ -228,7 +226,7 @@ impl MovingState {
             long_position_return: 0.0,
             pnl: initial_value,
             db,
-            order_manager: OrderManager::new(api.clone(), &db_root_path),
+            om,
         };
         state.reload_state();
         state
@@ -488,27 +486,40 @@ impl MovingState {
         if let Err(e) = self.db.put_json(&op_key, op.clone()) {
             error!("Error saving operation: {:?}", e);
         }
-        let reqs = self
-            .order_manager
-            .stage_orders(vec![
-                StagedOrder {
-                    op_kind: op.left_op.clone().into(),
-                    pair: op.pos.left_pair.clone().into(),
-                    qty: op.left_spread,
-                    price: op.pos.left_price,
-                },
-                StagedOrder {
-                    op_kind: op.right_op.clone().into(),
-                    pair: op.pos.right_pair.clone().into(),
-                    qty: op.right_spread,
-                    price: op.pos.right_price,
-                },
-            ])
-            .await;
-        op.left_transaction = Some(reqs[0].as_ref().unwrap().clone());
-        op.right_transaction = Some(reqs[1].as_ref().unwrap().clone());
+        let reqs = futures::future::join_all(vec![
+            self.om.send(StagedOrder {
+                op_kind: op.left_op.clone().into(),
+                pair: op.pos.left_pair.clone().into(),
+                qty: op.left_spread,
+                price: op.pos.left_price,
+            }),
+            self.om.send(StagedOrder {
+                op_kind: op.right_op.clone().into(),
+                pair: op.pos.right_pair.clone().into(),
+                qty: op.right_spread,
+                price: op.pos.right_price,
+            }),
+        ])
+        .await;
+
+        op.left_transaction = Self::extract_transaction(reqs[0].as_ref());
+        op.right_transaction = Self::extract_transaction(reqs[1].as_ref());
         if let Err(e) = self.db.put_json(&op_key, op.clone()) {
             error!("Error saving operation after writing transactions: {:?}", e);
+        }
+        match (&op.left_transaction, &op.right_transaction) {
+            (None, _) | (_, None) => error!("Failed transaction"),
+            _ => info!("Transaction ok"),
+        }
+    }
+
+    fn extract_transaction(
+        res: std::result::Result<&Result<Transaction>, &MailboxError>,
+    ) -> Option<Transaction> {
+        if let Ok(Ok(tr)) = res {
+            Some(tr.clone())
+        } else {
+            None
         }
     }
 

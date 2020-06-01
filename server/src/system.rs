@@ -16,27 +16,28 @@ use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::exchange_bot::ExchangeBot;
 use coinnect_rt::metrics::PrometheusPushActor;
-use coinnect_rt::types::LiveEventEnveloppe;
+use coinnect_rt::types::{AccountEventEnveloppe, LiveEventEnveloppe};
 use strategies::{self, Strategy, StrategyKey};
 
 use crate::logging::file_actor::{AvroFileActor, FileActorOptions};
 use crate::settings::Settings;
 use crate::{logging, server};
+use strategies::order_manager::OrderManager;
 
 pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     let settings_v = settings.read().unwrap();
     // Live Events recipients
-    let mut recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
+    let mut live_events_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
     // File actor that logs avro beans for all events
     let fa = file_actor(settings.clone()).recipient();
-    recipients.push(fa);
+    live_events_recipients.push(fa);
     // Strategy actors, cf strategy crate
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
-    let strategies = strategies(arc1);
+    let strategies = strategies(arc1).await;
 
     for a in strategies.clone() {
-        recipients.push(a.1.recipient().clone());
+        live_events_recipients.push(a.1.recipient().clone());
     }
     // Metrics pusher
     let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(
@@ -47,7 +48,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     // Exchange bot actors, they just receive data
     let keys_path = PathBuf::from(settings_v.keys.clone());
     let exchanges = settings_v.exchanges.clone();
-    let bots = exchange_bots(exchanges.clone(), keys_path.clone(), recipients).await;
+    let bots = exchange_bots(exchanges.clone(), keys_path.clone(), live_events_recipients).await;
     let strats_map: HashMap<StrategyKey, Strategy> = strategies
         .clone()
         .iter()
@@ -87,26 +88,73 @@ fn file_actor(settings: Arc<RwLock<Settings>>) -> Addr<AvroFileActor> {
     })
 }
 
-fn strategies(settings: Arc<RwLock<Settings>>) -> Vec<Strategy> {
+async fn strategies(settings: Arc<RwLock<Settings>>) -> Vec<Strategy> {
     println!("creating strat actors");
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
     let settings_v = arc1.read().unwrap();
     let db_path_str = Arc::new(arc.read().unwrap().db_storage_path.clone());
     let exchanges = Arc::new(arc.read().unwrap().exchanges.clone());
+    let keys_path = PathBuf::from(settings_v.keys.clone());
+    let oms = order_managers(keys_path, &db_path_str, exchanges.clone()).await;
     settings_v
         .strategies
         .clone()
         .into_iter()
         .map(move |strategy| {
-            let buf = settings_v.keys.clone();
-            let api = server::build_exchange_api(buf.into(), &strategy.exchange());
             let db_path_a = db_path_str.clone();
             let exchanges_conf = exchanges.clone();
             let fees = exchanges_conf.get(&strategy.exchange()).unwrap().fees;
-            Strategy::new(db_path_a, fees, strategy, Arc::new(api))
+            let order_manager = oms.get(&strategy.exchange());
+            Strategy::new(
+                db_path_a,
+                fees,
+                strategy,
+                order_manager.map(|o| o.0.clone()),
+            )
         })
         .collect()
+}
+
+/// Get an order manager for each exchange
+async fn order_managers(
+    keys_path: PathBuf,
+    db_path: &str,
+    exchanges: Arc<HashMap<Exchange, ExchangeSettings>>,
+) -> HashMap<Exchange, (Addr<OrderManager>, Box<dyn ExchangeBot>)> {
+    let mut bots: HashMap<Exchange, (Addr<OrderManager>, Box<dyn ExchangeBot>)> = HashMap::new();
+    for (xch, conf) in exchanges.iter() {
+        if !conf.use_account {
+            continue;
+        }
+        let api = server::build_exchange_api(keys_path.clone().into(), &xch);
+        let om_path = format!("{}/om_{}", db_path, xch);
+        let order_manager = OrderManager::new(Arc::new(api), Path::new(&om_path));
+        let order_manager_addr = OrderManager::start(order_manager);
+        // TODO: Add a json logger to this for debugging
+        let recipients: Vec<Recipient<AccountEventEnveloppe>> =
+            vec![order_manager_addr.clone().recipient()];
+        let bot = match xch {
+            Exchange::Binance => {
+                let creds = Box::new(
+                    BinanceCreds::new_from_file(
+                        coinnect_rt::binance::credentials::ACCOUNT_KEY,
+                        keys_path.clone(),
+                    )
+                    .unwrap(),
+                );
+                Coinnect::new_account_stream(*xch, creds.clone(), recipients.clone())
+                    .await
+                    .unwrap()
+            }
+            _ => {
+                error!("Account streams are unsupported for {}", xch);
+                unimplemented!()
+            }
+        };
+        bots.insert(*xch, (order_manager_addr.clone(), bot));
+    }
+    bots
 }
 
 async fn exchange_bots(

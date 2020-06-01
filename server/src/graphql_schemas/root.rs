@@ -72,11 +72,13 @@ pub struct AddOrderInput {
     pair: String,
     quantity: f64,
     price: f64,
+    #[graphql(description = "Set this to true to pass a real order")]
+    dry_run: bool,
 }
 
 #[derive(juniper::GraphQLObject)]
 pub struct OrderResult {
-    pub identifier: Vec<String>,
+    pub identifier: String,
 }
 
 #[juniper::graphql_object(Context = Context)]
@@ -208,6 +210,7 @@ impl MutationRoot {
             pair: input.pair.into(),
             price: Some(input.price),
             enforcement: Some(OrderEnforcement::FOK),
+            dry_run: input.dry_run,
             ..AddOrderRequest::default()
         };
         api.order(OrderQuery::AddOrder(request))
@@ -216,9 +219,7 @@ impl MutationRoot {
                 let error_str = format!("{:?}", e);
                 FieldError::new("Coinnect error", graphql_value!({ "error": error_str }))
             })
-            .map(|oi| OrderResult {
-                identifier: oi.identifier,
-            })
+            .map(|oi| OrderResult { identifier: oi.id })
     }
 }
 
