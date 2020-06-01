@@ -9,14 +9,14 @@ pub mod data_table;
 pub mod input;
 pub mod metrics;
 pub mod options;
-pub mod order_manager;
 pub mod state;
 
 use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
 use crate::naive_pair_trading::state::Operation;
+use crate::order_manager::OrderManager;
 use crate::query::{FieldMutation, MutableField};
 use crate::{DataQuery, DataResult, StrategyInterface};
-use coinnect_rt::exchange::ExchangeApi;
+use actix::Addr;
 use coinnect_rt::types::LiveEvent;
 use db::Db;
 use metrics::StrategyMetrics;
@@ -47,7 +47,7 @@ pub struct NaiveTradingStrategy {
 }
 
 impl NaiveTradingStrategy {
-    pub fn new(db_path: &str, fees_rate: f64, n: &Options, api: Arc<Box<dyn ExchangeApi>>) -> Self {
+    pub fn new(db_path: &str, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
         let metrics = StrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
         let strat_db_path = format!("{}/naive_pair_trading_{}_{}", db_path, n.left, n.right);
         let db_name = format!("{}_{}", n.left, n.right);
@@ -60,7 +60,7 @@ impl NaiveTradingStrategy {
             stop_gain: n.stop_gain,
             beta_eval_window_size: n.window_size,
             beta_eval_freq: n.beta_eval_freq,
-            state: MovingState::new(100.0, db, api),
+            state: MovingState::new(100.0, db, om),
             data_table: Self::make_lm_table(
                 &n.left,
                 &n.right,
@@ -372,13 +372,14 @@ mod test {
     use super::{DataRow, DataTable, NaiveTradingStrategy};
     use crate::naive_pair_trading::input::to_pos;
     use crate::naive_pair_trading::options::Options;
+    use crate::order_manager::OrderManager;
     use coinnect_rt::exchange::{Exchange, MockApi};
     use ordered_float::OrderedFloat;
     use std::error::Error;
     use std::ops::Deref;
     use std::path::Path;
     use std::process::Command;
-    use std::sync::Arc;
+    use std::sync::{Arc, RwLock};
     use std::time::Instant;
     use tokio::runtime::Runtime;
     use util::date::{DateRange, DurationRangeType};
@@ -557,8 +558,9 @@ mod test {
         let root = tempdir::TempDir::new("test_data2").unwrap();
         let beta_eval_freq = 5000;
         let window_size = 500;
+        let path = root.into_path().to_str().unwrap();
         let mut strat = NaiveTradingStrategy::new(
-            root.into_path().to_str().unwrap(),
+            path,
             0.001,
             &Options {
                 left: LEFT_PAIR.into(),
@@ -572,7 +574,10 @@ mod test {
                 stop_loss: -0.1,
                 stop_gain: 0.075,
             },
-            Arc::new(MockApi),
+            Arc::new(RwLock::new(OrderManager::new(
+                Arc::new(Box::new(MockApi)),
+                Path::new(path),
+            ))),
         );
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 3, 25);

@@ -5,6 +5,7 @@ exchanges:
   #      trades:
   #        symbols: ['BTC_USD']
   binance:
+    use_account: true
     fees: 0.001
     orderbook:
       symbols: ['BCH_USDT', 'ETC_USDT']

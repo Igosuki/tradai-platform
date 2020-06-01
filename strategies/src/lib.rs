@@ -1,5 +1,6 @@
 #![deny(unused_must_use, unused_mut, unused_imports, unused_import_braces)]
 #![feature(test)]
+#![feature(async_closure)]
 
 #[macro_use]
 extern crate serde_derive;
@@ -14,7 +15,7 @@ use actix::{Actor, Addr, Context, Handler, ResponseActFuture, Running, WrapFutur
 use anyhow::Result;
 use async_std::sync::Arc;
 use async_std::sync::RwLock;
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
+use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use derive_more::Display;
 use serde::Deserialize;
@@ -24,11 +25,14 @@ use strum_macros::EnumString;
 use uuid::Uuid;
 
 use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
+use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation};
 
 pub mod error;
 pub mod naive_pair_trading;
+pub mod order_manager;
 pub mod query;
+mod wal;
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display)]
 pub enum StrategyType {
@@ -54,11 +58,11 @@ impl Strategy {
         db_path: Arc<String>,
         fees: f64,
         settings: StrategySettings,
-        api: Arc<Box<dyn ExchangeApi>>,
+        om: Option<Addr<OrderManager>>,
     ) -> Self {
         Self(settings.key(), {
             let strat_settings =
-                from_settings(db_path.clone().as_ref(), fees, &settings, api.clone());
+                from_settings(db_path.clone().as_ref(), fees, &settings, om.clone());
             StrategyActor::start(StrategyActor::new(StrategyActorOptions {
                 strategy: strat_settings,
             }))
@@ -186,11 +190,16 @@ pub fn from_settings(
     db_path: &str,
     fees: f64,
     s: &StrategySettings,
-    api: Arc<Box<dyn ExchangeApi>>,
+    om: Option<Addr<OrderManager>>,
 ) -> Box<dyn StrategyInterface> {
     let s = match s {
         StrategySettings::Naive(n) => {
-            crate::naive_pair_trading::NaiveTradingStrategy::new(db_path, fees, n, api.clone())
+            if let Some(o) = om {
+                crate::naive_pair_trading::NaiveTradingStrategy::new(db_path, fees, n, o)
+            } else {
+                error!("Expected an order manager to be available for the targeted exchange of this NaiveStrategy");
+                panic!();
+            }
         }
     };
     Box::new(s)
