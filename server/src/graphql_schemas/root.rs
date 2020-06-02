@@ -10,6 +10,7 @@ use std::sync::Arc;
 use strategies::naive_pair_trading::state::Operation;
 use strategies::query::{DataQuery, DataResult, FieldMutation};
 use strategies::{Strategy, StrategyKey};
+use uuid::Uuid;
 
 pub struct Context {
     pub strats: Arc<HashMap<StrategyKey, Strategy>>,
@@ -211,6 +212,7 @@ impl MutationRoot {
             price: Some(input.price),
             enforcement: Some(OrderEnforcement::FOK),
             dry_run: input.dry_run,
+            order_id: Some(Uuid::new_v4().to_string()),
             ..AddOrderRequest::default()
         };
         api.order(OrderQuery::AddOrder(request))

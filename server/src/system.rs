@@ -24,6 +24,18 @@ use crate::settings::Settings;
 use crate::{logging, server};
 use strategies::order_manager::OrderManager;
 
+pub struct AccountSystem {
+    pub om: Addr<OrderManager>,
+    pub bot: Box<dyn ExchangeBot>,
+}
+
+impl AccountSystem {
+    fn ping(&self) {
+        self.bot.ping();
+        self.om.do_send(coinnect_rt::exchange_bot::Ping);
+    }
+}
+
 pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     let settings_v = settings.read().unwrap();
     // Live Events recipients
@@ -31,10 +43,21 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     // File actor that logs avro beans for all events
     let fa = file_actor(settings.clone()).recipient();
     live_events_recipients.push(fa);
+    // Order Managers actors
+    let db_path_str = Arc::new(settings_v.db_storage_path.clone());
+    let keys_path = PathBuf::from(settings_v.keys.clone());
+    let oms = Arc::new(
+        order_managers(
+            keys_path,
+            &db_path_str,
+            Arc::new(settings_v.exchanges.clone()),
+        )
+        .await,
+    );
     // Strategy actors, cf strategy crate
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
-    let strategies = strategies(arc1).await;
+    let strategies = strategies(arc1, oms.clone()).await;
 
     for a in strategies.clone() {
         live_events_recipients.push(a.1.recipient().clone());
@@ -69,6 +92,8 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
         _ = server.fuse() => println!("Http Server terminated."),
         // ping all bots at regular intervals
         _ = poll_bots(bots).fuse() => println!("Stopped polling bots."),
+        // ping all account bots at regular intervals
+        _ = poll_account_bots(oms).fuse() => println!("Stopped polling order bots."),
     };
     Ok(())
 }
@@ -88,15 +113,16 @@ fn file_actor(settings: Arc<RwLock<Settings>>) -> Addr<AvroFileActor> {
     })
 }
 
-async fn strategies(settings: Arc<RwLock<Settings>>) -> Vec<Strategy> {
+async fn strategies(
+    settings: Arc<RwLock<Settings>>,
+    oms: Arc<HashMap<Exchange, AccountSystem>>,
+) -> Vec<Strategy> {
     println!("creating strat actors");
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
     let settings_v = arc1.read().unwrap();
     let db_path_str = Arc::new(arc.read().unwrap().db_storage_path.clone());
     let exchanges = Arc::new(arc.read().unwrap().exchanges.clone());
-    let keys_path = PathBuf::from(settings_v.keys.clone());
-    let oms = order_managers(keys_path, &db_path_str, exchanges.clone()).await;
     settings_v
         .strategies
         .clone()
@@ -110,7 +136,7 @@ async fn strategies(settings: Arc<RwLock<Settings>>) -> Vec<Strategy> {
                 db_path_a,
                 fees,
                 strategy,
-                order_manager.map(|o| o.0.clone()),
+                order_manager.map(|sys| sys.om.clone()),
             )
         })
         .collect()
@@ -121,8 +147,8 @@ async fn order_managers(
     keys_path: PathBuf,
     db_path: &str,
     exchanges: Arc<HashMap<Exchange, ExchangeSettings>>,
-) -> HashMap<Exchange, (Addr<OrderManager>, Box<dyn ExchangeBot>)> {
-    let mut bots: HashMap<Exchange, (Addr<OrderManager>, Box<dyn ExchangeBot>)> = HashMap::new();
+) -> HashMap<Exchange, AccountSystem> {
+    let mut bots: HashMap<Exchange, AccountSystem> = HashMap::new();
     for (xch, conf) in exchanges.iter() {
         if !conf.use_account {
             continue;
@@ -131,7 +157,6 @@ async fn order_managers(
         let om_path = format!("{}/om_{}", db_path, xch);
         let order_manager = OrderManager::new(Arc::new(api), Path::new(&om_path));
         let order_manager_addr = OrderManager::start(order_manager);
-        // TODO: Add a json logger to this for debugging
         let recipients: Vec<Recipient<AccountEventEnveloppe>> =
             vec![order_manager_addr.clone().recipient()];
         let bot = match xch {
@@ -143,7 +168,7 @@ async fn order_managers(
                     )
                     .unwrap(),
                 );
-                Coinnect::new_account_stream(*xch, creds.clone(), recipients.clone())
+                Coinnect::new_account_stream(*xch, creds.clone(), recipients)
                     .await
                     .unwrap()
             }
@@ -152,7 +177,13 @@ async fn order_managers(
                 unimplemented!()
             }
         };
-        bots.insert(*xch, (order_manager_addr.clone(), bot));
+        bots.insert(
+            *xch,
+            AccountSystem {
+                om: order_manager_addr.clone(),
+                bot,
+            },
+        );
     }
     bots
 }
@@ -223,6 +254,16 @@ async fn poll_bots(bots: HashMap<Exchange, Box<dyn ExchangeBot>>) -> std::io::Re
         interval.tick().await;
         for bot in bots.values() {
             bot.ping();
+        }
+    }
+}
+
+async fn poll_account_bots(systems: Arc<HashMap<Exchange, AccountSystem>>) -> std::io::Result<()> {
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    loop {
+        interval.tick().await;
+        for system in systems.values() {
+            system.ping();
         }
     }
 }
