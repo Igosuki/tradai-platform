@@ -1,9 +1,11 @@
 use crate::naive_pair_trading::state::TradeKind;
 use crate::wal::Wal;
-use actix::{Actor, Context, Handler, Message, ResponseActFuture, Running, WrapFuture};
+use actix::{
+    Actor, AsyncContext, Context, Handler, Message, ResponseActFuture, Running, WrapFuture,
+};
 use anyhow::Result;
 use async_std::sync::RwLock;
-use coinnect_rt::exchange::ExchangeApi;
+use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::exchange_bot::Ping;
 use coinnect_rt::types::{
     AccountEvent, AccountEventEnveloppe, AddOrderRequest, OrderEnforcement, OrderInfo, OrderQuery,
@@ -14,6 +16,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,6 +73,10 @@ impl Transaction {
     }
 }
 
+pub fn variant_eq<T>(a: &T, b: &T) -> bool {
+    std::mem::discriminant(&a) == std::mem::discriminant(&b)
+}
+
 #[derive(Message)]
 #[rtype(result = "Result<Transaction>")]
 pub(crate) struct StagedOrder {
@@ -93,7 +100,7 @@ impl OrderManager {
             "transactions_wal".to_string(),
         );
         let wal = Wal::new(wal_db);
-        let orders = Arc::new(RwLock::new(HashMap::new()));
+        let orders = Arc::new(RwLock::new(wal.read_all()));
         OrderManager {
             api,
             orders,
@@ -181,14 +188,60 @@ impl OrderManager {
     }
 }
 
+fn equivalent_status(trs: &TransactionStatus, os: &OrderStatus) -> bool {
+    match (trs, os) {
+        (TransactionStatus::Filled(_), OrderStatus::Filled)
+        | (TransactionStatus::Rejected(_), OrderStatus::Rejected)
+        | (TransactionStatus::Rejected(_), OrderStatus::PendingCancel)
+        | (TransactionStatus::Rejected(_), OrderStatus::Canceled)
+        | (TransactionStatus::Rejected(_), OrderStatus::Expired)
+        | (TransactionStatus::Staged(_), OrderStatus::New)
+        | (TransactionStatus::PartiallyFilled(_), OrderStatus::PartialyFilled) => true,
+        _ => false,
+    }
+}
+
 impl Actor for OrderManager {
     type Context = Context<Self>;
 
-    fn started(&mut self, _: &mut Self::Context) {
+    fn started(&mut self, ctx: &mut Self::Context) {
         info!("Starting Order Manager");
-        // In context, Read the WAL
-        // wal.read_all()
-        // In context, update all open orders
+        ctx.run_later(Duration::from_millis(0), |act, ctx| {
+            async {
+                let orders_read_lock = act.orders.read().await;
+                // Fetch all latest orders
+                let latest_orders = futures::future::join_all(
+                    orders_read_lock
+                        .iter()
+                        .filter(|(k, v)| match v {
+                            TransactionStatus::PartiallyFilled(_)
+                            | TransactionStatus::Staged(_) => true,
+                            _ => false,
+                        })
+                        .map(|(tr_id, tr_status)| act.api.get_order(tr_id.clone())),
+                )
+                .await;
+                for lo in latest_orders {
+                    if let Ok(order) = lo {
+                        let order_id = order.orig_order_id.clone();
+                        if let Some(tr_status) = orders_read_lock.get(&order_id) {
+                            if !equivalent_status(&tr_status, &order.status) {
+                                ctx.notify(AccountEventEnveloppe(
+                                    Exchange::Binance,
+                                    AccountEvent::OrderUpdate(order.into()),
+                                ));
+                            }
+                        } else {
+                            ctx.notify(AccountEventEnveloppe(
+                                Exchange::Binance,
+                                AccountEvent::OrderUpdate(order.into()),
+                            ));
+                        }
+                    }
+                }
+            }
+            .into_actor(act);
+        });
     }
     fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
         info!("Stopping Order Manager");
