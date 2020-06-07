@@ -93,7 +93,7 @@ impl OrderManager {
             "transactions_wal".to_string(),
         );
         let wal = Wal::new(wal_db);
-        let orders = Arc::new(RwLock::new(wal.read_all()));
+        let orders = Arc::new(RwLock::new(HashMap::new()));
         OrderManager {
             api,
             orders,
@@ -186,6 +186,9 @@ impl Actor for OrderManager {
 
     fn started(&mut self, _: &mut Self::Context) {
         info!("Starting Order Manager");
+        // In context, Read the WAL
+        // wal.read_all()
+        // In context, update all open orders
     }
     fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
         info!("Stopping Order Manager");
