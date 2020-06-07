@@ -1,4 +1,4 @@
-use crate::naive_pair_trading::state::OperationKind;
+use crate::naive_pair_trading::state::TradeKind;
 use crate::wal::Wal;
 use actix::{Actor, Context, Handler, Message, ResponseActFuture, Running, WrapFuture};
 use anyhow::Result;
@@ -53,14 +53,27 @@ pub enum TransactionStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
-    id: String,
-    status: TransactionStatus,
+    pub id: String,
+    pub status: TransactionStatus,
+}
+
+impl Transaction {
+    pub fn is_filled(&self) -> bool {
+        match self.status {
+            TransactionStatus::Filled(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn variant_eq(&self, b: &Transaction) -> bool {
+        std::mem::discriminant(&self.status) == std::mem::discriminant(&b.status)
+    }
 }
 
 #[derive(Message)]
 #[rtype(result = "Result<Transaction>")]
 pub(crate) struct StagedOrder {
-    pub op_kind: OperationKind,
+    pub op_kind: TradeKind,
     pub pair: Pair,
     pub qty: f64,
     pub price: f64,
@@ -111,9 +124,8 @@ impl OrderManager {
 
     pub(crate) async fn stage_order(&mut self, staged_order: StagedOrder) -> Result<Transaction> {
         let side = match staged_order.op_kind {
-            OperationKind::BUY => TradeType::Buy,
-            OperationKind::SELL => TradeType::Sell,
-            _ => unimplemented!(),
+            TradeKind::BUY => TradeType::Buy,
+            TradeKind::SELL => TradeType::Sell,
         };
         let order_id = Uuid::new_v4().to_string();
         let add_order = OrderQuery::AddOrder(AddOrderRequest {
@@ -208,6 +220,31 @@ impl Handler<StagedOrder> for OrderManager {
     fn handle(&mut self, order: StagedOrder, _ctx: &mut Self::Context) -> Self::Result {
         let mut zis = self.clone();
         Box::new(async move { zis.stage_order(order).await }.into_actor(self))
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<Transaction>")]
+pub struct OrderId(pub String);
+
+impl Handler<OrderId> for OrderManager {
+    type Result = ResponseActFuture<Self, Result<Transaction>>;
+
+    fn handle(&mut self, order: OrderId, _ctx: &mut Self::Context) -> Self::Result {
+        let zis = self.clone();
+        Box::new(
+            async move {
+                let order_id = order.0.clone();
+                zis.get_order(order_id.clone())
+                    .await
+                    .map(move |status| Transaction {
+                        id: order_id,
+                        status,
+                    })
+                    .ok_or(anyhow!("No order found"))
+            }
+            .into_actor(self),
+        )
     }
 }
 
