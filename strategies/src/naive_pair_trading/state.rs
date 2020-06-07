@@ -1,4 +1,5 @@
-use crate::order_manager::{OrderManager, StagedOrder, Transaction};
+use crate::naive_pair_trading::data_table::BookPosition;
+use crate::order_manager::{OrderId, OrderManager, StagedOrder, Transaction, TransactionStatus};
 use crate::query::MutableField;
 use actix::{Addr, MailboxError};
 use anyhow::Result;
@@ -35,16 +36,23 @@ pub enum PositionKind {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Operation {
+    pub id: String,
     pub kind: OperationKind,
     pub pos: Position,
-    pub left_op: OperationKind,
-    pub right_op: OperationKind,
-    pub left_spread: f64,
-    pub right_spread: f64,
     pub left_coef: f64,
     pub right_coef: f64,
     pub left_transaction: Option<Transaction>,
     pub right_transaction: Option<Transaction>,
+    pub left_trade: TradeOperation,
+    pub right_trade: TradeOperation,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
+pub struct TradeOperation {
+    kind: TradeKind,
+    pair: String,
+    qty: f64,
+    price: f64,
 }
 
 #[juniper::graphql_object]
@@ -59,61 +67,58 @@ impl Operation {
         &self.pos
     }
 
-    #[graphql(description = "the buy/sell operation for the 'left' crypto pair")]
-    pub fn left_op(&self) -> &OperationKind {
-        &self.left_op
+    #[graphql(description = "the operation of the 'left' crypto pair")]
+    pub fn left_trade(&self) -> &TradeOperation {
+        &self.left_trade
     }
 
-    #[graphql(description = "the buy/sell operation for the 'right' crypto pair")]
-    pub fn right_op(&self) -> &OperationKind {
-        &self.right_op
-    }
-
-    #[graphql(description = "the spread of the 'left' crypto pair")]
-    pub fn left_spread(&self) -> f64 {
-        self.left_spread
-    }
-
-    #[graphql(description = "the spread of the 'right' crypto pair")]
-    pub fn right_spread(&self) -> f64 {
-        self.right_spread
+    #[graphql(description = "the operation of the 'right' crypto pair")]
+    pub fn right_trade(&self) -> &TradeOperation {
+        &self.right_trade
     }
 
     #[graphql(description = "left quantity")]
-    pub fn left_qty(&self) -> f64 {
-        self.left_spread * self.pos.left_price * self.left_coef.abs()
+    pub fn left_value(&self) -> f64 {
+        self.left_trade.qty * self.pos.left_price * self.left_coef.abs()
     }
 
     #[graphql(description = "right quantity")]
-    pub fn right_qty(&self) -> f64 {
-        self.right_spread * self.pos.right_price * self.right_coef.abs()
+    pub fn right_value(&self) -> f64 {
+        self.right_trade.qty * self.pos.right_price * self.right_coef.abs()
     }
 }
 
 impl Operation {
-    pub fn left_qty(&self) -> f64 {
-        self.left_spread * self.pos.left_price * self.left_coef.abs()
+    pub fn left_value(&self) -> f64 {
+        self.left_trade.qty * self.pos.left_price * self.left_coef.abs()
     }
 
-    pub fn right_qty(&self) -> f64 {
-        self.right_spread * self.pos.right_price * self.right_coef.abs()
+    pub fn right_value(&self) -> f64 {
+        self.right_trade.qty * self.pos.right_price * self.right_coef.abs()
+    }
+
+    pub fn is_resolved(&self) -> bool {
+        match (&self.right_transaction, &self.left_transaction) {
+            (Some(trr), Some(trl)) => trr.is_filled() && trl.is_filled(),
+            _ => false,
+        }
     }
 
     fn log(&self) {
         self.log_pos(&self.kind, &self.pos.kind, self.pos.time);
         self.log_trade(
-            &self.right_op,
-            self.right_spread,
+            &self.right_trade.kind,
+            self.right_trade.qty,
             &self.pos.right_pair,
             self.pos.right_price,
-            self.right_qty(),
+            self.right_value(),
         );
         self.log_trade(
-            &self.left_op,
-            self.left_spread,
+            &self.left_trade.kind,
+            self.left_trade.qty,
             &self.pos.left_pair,
             self.pos.left_price,
-            self.left_qty(),
+            self.left_value(),
         );
     }
 
@@ -131,15 +136,15 @@ impl Operation {
         }
     }
 
-    fn log_trade(&self, op: &OperationKind, spread: f64, pair: &str, value: f64, qty: f64) {
+    fn log_trade(&self, op: &TradeKind, qty: f64, pair: &str, price: f64, value: f64) {
         if log_enabled!(Info) {
             info!(
                 "{} {:.2} {} at {} for {:.2}",
                 op.as_ref(),
-                spread,
+                qty,
                 pair,
-                value,
-                qty
+                price,
+                value
             );
         }
     }
@@ -153,18 +158,23 @@ pub enum OperationKind {
     OPEN,
     #[strum(serialize = "close")]
     CLOSE,
+}
+
+#[derive(
+    Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
+)]
+pub enum TradeKind {
     #[strum(serialize = "buy")]
     BUY,
     #[strum(serialize = "sell")]
     SELL,
 }
 
-impl Into<TradeType> for OperationKind {
+impl Into<TradeType> for TradeKind {
     fn into(self) -> TradeType {
         match self {
-            OperationKind::BUY => TradeType::Buy,
-            OperationKind::SELL => TradeType::Sell,
-            _ => unimplemented!(),
+            TradeKind::BUY => TradeType::Buy,
+            TradeKind::SELL => TradeType::Sell,
         }
     }
 }
@@ -194,6 +204,7 @@ pub(super) struct MovingState {
     db: Db,
     #[serde(skip_serializing)]
     om: Addr<OrderManager>,
+    ongoing_op: Option<Operation>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -205,6 +216,7 @@ struct TransientState {
     traded_price_left: f64,
     traded_price_right: f64,
     nominal_position: Option<f64>,
+    ongoing_op: Option<Operation>,
 }
 
 impl MovingState {
@@ -227,6 +239,7 @@ impl MovingState {
             pnl: initial_value,
             db,
             om,
+            ongoing_op: None,
         };
         state.reload_state();
         state
@@ -251,6 +264,7 @@ impl MovingState {
             if let Some(np) = ps.nominal_position {
                 self.nominal_position = np;
             }
+            self.ongoing_op = ps.ongoing_op;
         }
     }
 
@@ -393,25 +407,175 @@ impl MovingState {
         left_coef: f64,
     ) -> Operation {
         let (left_op, right_op) = match (&pos.kind, &op_kind) {
-            (PositionKind::SHORT, OperationKind::OPEN) => (OperationKind::BUY, OperationKind::SELL),
-            (PositionKind::LONG, OperationKind::OPEN) => (OperationKind::SELL, OperationKind::BUY),
-            (PositionKind::SHORT, OperationKind::CLOSE) => {
-                (OperationKind::SELL, OperationKind::BUY)
-            }
-            (PositionKind::LONG, OperationKind::CLOSE) => (OperationKind::BUY, OperationKind::SELL),
+            (PositionKind::SHORT, OperationKind::OPEN) => (TradeKind::BUY, TradeKind::SELL),
+            (PositionKind::LONG, OperationKind::OPEN) => (TradeKind::SELL, TradeKind::BUY),
+            (PositionKind::SHORT, OperationKind::CLOSE) => (TradeKind::SELL, TradeKind::BUY),
+            (PositionKind::LONG, OperationKind::CLOSE) => (TradeKind::BUY, TradeKind::SELL),
             _ => unimplemented!(),
         };
         Operation {
-            pos,
+            id: format!("{}:{}", OPERATIONS_KEY, Uuid::new_v4()),
+            pos: pos.clone(),
             kind: op_kind,
-            left_spread: spread * self.beta_val,
             left_coef,
-            left_op,
-            right_spread: spread,
             right_coef,
-            right_op,
             left_transaction: None,
             right_transaction: None,
+            left_trade: TradeOperation {
+                price: pos.left_price.clone(),
+                qty: spread * self.beta_val,
+                pair: pos.left_pair.clone().into(),
+                kind: left_op,
+            },
+            right_trade: TradeOperation {
+                price: pos.right_price.clone(),
+                qty: spread,
+                pair: pos.right_pair.clone().into(),
+                kind: right_op,
+            },
+        }
+    }
+
+    /// Fetches the latest version of this transaction for the order id
+    /// Returns whether it changed, and the latest transaction retrieved
+    async fn latest_transaction_change(
+        &self,
+        tr: &Transaction,
+    ) -> anyhow::Result<(bool, Transaction)> {
+        let new_tr = self.om.send(OrderId(tr.id.clone())).await??;
+        Ok((!new_tr.variant_eq(&tr), new_tr))
+    }
+
+    async fn maybe_retry_trade(
+        &self,
+        tr: Transaction,
+        trade: &TradeOperation,
+    ) -> anyhow::Result<Transaction> {
+        match tr {
+            // Changed and rejected, retry transaction
+            // TODO need to handle rejections in a finer grained way
+            // TODO introduce a backoff
+            Transaction {
+                status: TransactionStatus::Rejected(_),
+                ..
+            } => self.stage_order(trade.clone()).await,
+            _ => {
+                // TODO: Timeout can be managed here
+                Err(anyhow!("Nor rejected nor filled"))
+            }
+        }
+    }
+
+    pub(super) async fn resolve_pending_operations(
+        &mut self,
+        left_bp: &BookPosition,
+        right_bp: &BookPosition,
+    ) -> Result<()> {
+        match self.ongoing_op.as_ref() {
+            // There is an ongoing operation
+            Some(o) => {
+                match (&o.left_transaction, &o.right_transaction) {
+                    (Some(olt), Some(ort)) => {
+                        let pending_trs: (
+                            Result<(bool, Transaction)>,
+                            Result<(bool, Transaction)>,
+                        ) = futures::future::join(
+                            self.latest_transaction_change(olt),
+                            self.latest_transaction_change(ort),
+                        )
+                        .await;
+
+                        let olr = pending_trs.0?;
+                        let orr = pending_trs.1?;
+
+                        // One of the operations has changed, update the ongoing operation
+                        let lts = &olr.1;
+                        let rts = &orr.1;
+                        let mut new_op = o.clone();
+                        // Left or Right transaction changed
+                        if olr.0 || orr.0 {
+                            new_op.left_transaction = Some(lts.clone());
+                            new_op.right_transaction = Some(rts.clone());
+                        }
+                        // Both operations filled, clear position
+                        let result = if let (
+                            Transaction {
+                                status: TransactionStatus::Filled(_),
+                                ..
+                            },
+                            Transaction {
+                                status: TransactionStatus::Filled(_),
+                                ..
+                            },
+                        ) = (lts, rts)
+                        {
+                            self.ongoing_op = None;
+                            self.set_pnl();
+                            self.clear_position();
+                            self.save();
+                            Ok(())
+                        } else {
+                            let (current_price_left, current_price_right) = match (
+                                &self.position,
+                                &o.kind,
+                            ) {
+                                (Some(PositionKind::SHORT), OperationKind::OPEN) => {
+                                    (left_bp.ask, right_bp.bid)
+                                }
+                                (Some(PositionKind::SHORT), OperationKind::CLOSE) => {
+                                    (left_bp.bid, right_bp.ask)
+                                }
+                                (Some(PositionKind::LONG), OperationKind::OPEN) => {
+                                    (left_bp.bid, right_bp.ask)
+                                }
+                                (Some(PositionKind::LONG), OperationKind::CLOSE) => {
+                                    (left_bp.ask, right_bp.bid)
+                                }
+                                _ => {
+                                    error!("Tried to determine new price for transactions when no position is taken");
+                                    (0.0, 0.0)
+                                }
+                            };
+                            let new_left_trade = TradeOperation {
+                                price: current_price_left,
+                                ..o.left_trade.clone()
+                            };
+                            if let Err(e) = self
+                                .maybe_retry_trade(lts.clone(), &new_left_trade)
+                                .await
+                                .map(|tr| new_op.left_transaction = Some(tr))
+                            {
+                                error!(
+                                    "Failed to retry trade {:?}, {:?} : {}",
+                                    &lts, &new_left_trade, e
+                                );
+                            }
+                            let new_right_trade = TradeOperation {
+                                price: current_price_right,
+                                ..o.left_trade.clone()
+                            };
+                            if let Err(e) = self
+                                .maybe_retry_trade(rts.clone(), &new_right_trade)
+                                .await
+                                .map(|tr| new_op.right_transaction = Some(tr))
+                            {
+                                error!(
+                                    "Failed to retry right trade {:?}, {:?} : {}",
+                                    &rts, &new_right_trade, e
+                                );
+                            }
+                            Err(anyhow!(
+                                "Some operations have not been filled or had to be restaged"
+                            ))
+                        };
+                        self.ongoing_op = Some(new_op.clone());
+                        self.save_operation(&new_op);
+                        result
+                    }
+                    _ => Err(anyhow!("One of the transactions didn't go through")),
+                }
+            }
+            None => Err(anyhow!("No pending operation")),
         }
     }
 
@@ -439,7 +603,7 @@ impl MovingState {
         };
         let mut op = self.make_operation(pos, OperationKind::OPEN, spread, right_coef, left_coef);
         op.log();
-        self.save_operation(&mut op).await;
+        self.stage_operation(&mut op).await;
         self.save();
         self.log_info(&position_kind);
         op
@@ -465,10 +629,8 @@ impl MovingState {
             }
         };
         let mut op = self.make_operation(pos, OperationKind::CLOSE, spread, right_coef, left_coef);
-        self.save_operation(&mut op).await;
+        self.stage_operation(&mut op).await;
         op.log();
-        self.set_pnl();
-        self.clear_position();
         self.save();
         self.log_info(&kind);
         op
@@ -481,32 +643,34 @@ impl MovingState {
         self.traded_price_right = 0.0;
     }
 
-    async fn save_operation(&mut self, op: &mut Operation) {
-        let op_key = format!("{}:{}", OPERATIONS_KEY, Uuid::new_v4());
-        if let Err(e) = self.db.put_json(&op_key, op.clone()) {
+    async fn stage_order(&self, trade_op: TradeOperation) -> Result<Transaction> {
+        self.om
+            .send(StagedOrder {
+                op_kind: trade_op.kind,
+                pair: trade_op.pair.into(),
+                qty: trade_op.qty,
+                price: trade_op.price,
+            })
+            .await?
+            .map_err(|e| anyhow!("mailbox error {}", e))
+    }
+
+    fn save_operation(&mut self, op: &Operation) {
+        if let Err(e) = self.db.put_json(&op.id, op.clone()) {
             error!("Error saving operation: {:?}", e);
         }
-        let reqs = futures::future::join_all(vec![
-            self.om.send(StagedOrder {
-                op_kind: op.left_op.clone().into(),
-                pair: op.pos.left_pair.clone().into(),
-                qty: op.left_spread,
-                price: op.pos.left_price,
-            }),
-            self.om.send(StagedOrder {
-                op_kind: op.right_op.clone().into(),
-                pair: op.pos.right_pair.clone().into(),
-                qty: op.right_spread,
-                price: op.pos.right_price,
-            }),
-        ])
+    }
+    async fn stage_operation(&mut self, op: &mut Operation) {
+        self.save_operation(op);
+        let reqs: (Result<Transaction>, Result<Transaction>) = futures::future::join(
+            self.stage_order(op.left_trade.clone()),
+            self.stage_order(op.right_trade.clone()),
+        )
         .await;
 
-        op.left_transaction = Self::extract_transaction(reqs[0].as_ref());
-        op.right_transaction = Self::extract_transaction(reqs[1].as_ref());
-        if let Err(e) = self.db.put_json(&op_key, op.clone()) {
-            error!("Error saving operation after writing transactions: {:?}", e);
-        }
+        op.left_transaction = reqs.0.ok();
+        op.right_transaction = reqs.1.ok();
+        self.save_operation(&op);
         match (&op.left_transaction, &op.right_transaction) {
             (None, _) | (_, None) => error!("Failed transaction"),
             _ => info!("Transaction ok"),
@@ -534,6 +698,7 @@ impl MovingState {
                 traded_price_left: self.traded_price_left,
                 traded_price_right: self.traded_price_right,
                 nominal_position: Some(self.nominal_position),
+                ongoing_op: self.ongoing_op.clone(),
             },
         ) {
             error!("Error saving state: {:?}", e);

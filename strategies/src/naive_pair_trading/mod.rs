@@ -210,6 +210,18 @@ impl NaiveTradingStrategy {
         self.state
             .set_res((lr.right.mid - self.state.predicted_right()) / lr.right.mid);
 
+        // If a position is taken, resolve pending operations
+        // In case of error return immediatly as no trades can be made until the position is resolved
+        if (self.state.is_short() || self.state.is_long())
+            && self
+                .state
+                .resolve_pending_operations(&lr.left, &lr.right)
+                .await
+                .is_err()
+        {
+            return;
+        }
+
         if self.state.beta_lr() <= 0.0 {
             return;
         }
@@ -630,7 +642,7 @@ mod test {
             Some(156.720001220703),
             last_position.map(|p| p.pos.left_price)
         );
-        assert_eq!(Some(115.79), last_position.map(|p| p.left_qty()));
+        assert_eq!(Some(115.79), last_position.map(|p| p.left_value()));
 
         // let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
         // serde_json::to_writer(logs_f, &logs);
