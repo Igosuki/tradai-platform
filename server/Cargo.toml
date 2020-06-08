@@ -17,11 +17,11 @@ path = "src/main.rs"
 models = { path = "../models" }
 # Rust lang extensions
 lazy_static = "1.4"
-once_cell = "1.2"
+once_cell = "1.4"
 notify = "4.0"
 
 # CLI
-clap = "2.33"
+clap = "3.0.0-beta.1"
 structopt = "0.3"
 
 # Codecs
