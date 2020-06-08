@@ -641,7 +641,10 @@ mod test {
             Some(156.410003662109),
             last_position.map(|p| p.pos.left_price)
         );
-        assert_eq!(Some(115.79), last_position.map(|p| p.left_value()));
+        assert_eq!(
+            Some(57.61203640897418),
+            last_position.map(|p| p.left_value())
+        );
 
         // let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
         // serde_json::to_writer(logs_f, &logs);
