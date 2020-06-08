@@ -394,7 +394,6 @@ mod test {
     use std::process::Command;
     use std::sync::Arc;
     use std::time::Instant;
-    use tokio::runtime::Runtime;
     use util::date::{DateRange, DurationRangeType};
 
     static LEFT_PAIR: &str = "ETH_USDT";
@@ -419,7 +418,7 @@ mod test {
         }
     }
 
-    fn load_csv_dataset(dr: &DateRange) -> (Vec<CsvRecord>, Vec<CsvRecord>) {
+    async fn load_csv_dataset(dr: &DateRange) -> (Vec<CsvRecord>, Vec<CsvRecord>) {
         let bp = std::env::var_os("BITCOINS_REPO")
             .and_then(|oss| oss.into_string().ok())
             .unwrap_or_else(|| "..".to_string());
@@ -431,31 +430,29 @@ mod test {
             .join(exchange_name)
             .join(channel);
         let bpc = Arc::new(bp);
-        let mut rt = Runtime::new().unwrap();
-        let mut dl_test_data = |pair: &'static str| {
-            rt.block_on(async {
-                let out_file_name = format!("{}.zip", pair);
-                let file = tempfile::tempdir().unwrap();
-                let out_file = file.into_path().join(out_file_name);
-                let s3_key = &format!("test_data/{}/{}/{}.zip", exchange_name, channel, pair);
-                util::s3::download_file(&s3_key.clone(), out_file.clone())
-                    .await
-                    .unwrap();
-                let bp = bpc.deref();
+        let dl_test_data = async move |bpc: Arc<String>, pair: &'static str| {
+            let out_file_name = format!("{}.zip", pair);
+            let file = tempfile::tempdir().unwrap();
+            let out_file = file.into_path().join(out_file_name);
+            let s3_key = &format!("test_data/{}/{}/{}.zip", exchange_name, channel, pair);
+            util::s3::download_file(&s3_key.clone(), out_file.clone())
+                .await
+                .unwrap();
 
-                Command::new("unzip")
-                    .arg(&out_file)
-                    .arg("-d")
-                    .arg(bp)
-                    .output()
-                    .expect("failed to unzip file");
-            });
+            let bp = bpc.deref();
+
+            Command::new("unzip")
+                .arg(&out_file)
+                .arg("-d")
+                .arg(bp)
+                .output()
+                .expect("failed to unzip file");
         };
         for s in &[LEFT_PAIR, RIGHT_PAIR] {
             if !base_path.exists() || !base_path.join(&format!("pr={}", s)).exists() {
                 //download dataset from spaces
                 std::fs::create_dir_all(&base_path).unwrap();
-                dl_test_data(s);
+                dl_test_data(bpc.clone(), s).await;
             }
         }
         super::input::load_records_from_csv(dr, &base_path, LEFT_PAIR, RIGHT_PAIR, "*csv")
@@ -539,15 +536,15 @@ mod test {
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
-    #[test]
-    fn beta_val() {
+    #[tokio::test]
+    async fn beta_val() {
         init();
         let mut dt = DataTable::default();
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 3, 25);
         let dt1 = Utc.ymd(2020, 3, 25);
         let (left_records, right_records) =
-            load_csv_dataset(&DateRange(dt0, dt1, DurationRangeType::Days, 1));
+            load_csv_dataset(&DateRange(dt0, dt1, DurationRangeType::Days, 1)).await;
         // align data
         left_records
             .iter()
@@ -569,8 +566,8 @@ mod test {
     async fn continuous_scenario() {
         init();
         let root = tempdir::TempDir::new("test_data2").unwrap();
-        let beta_eval_freq = 5000;
-        let window_size = 500;
+        let beta_eval_freq = 1000;
+        let window_size = 2000;
         let buf = root.into_path();
         let path = buf.to_str().unwrap();
         let capi: Box<dyn ExchangeApi> = Box::new(MockApi);
@@ -599,7 +596,7 @@ mod test {
         let dt0 = Utc.ymd(2020, 3, 25);
         let dt1 = Utc.ymd(2020, 4, 8);
         let (left_records, right_records) =
-            load_csv_dataset(&DateRange(dt0, dt1, DurationRangeType::Days, 1));
+            load_csv_dataset(&DateRange(dt0, dt1, DurationRangeType::Days, 1)).await;
         println!("Dataset loaded in memory...");
         // align data
         let mut elapsed = 0 as u128;
@@ -641,7 +638,7 @@ mod test {
         positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
         let last_position = positions.last();
         assert_eq!(
-            Some(156.720001220703),
+            Some(156.410003662109),
             last_position.map(|p| p.pos.left_price)
         );
         assert_eq!(Some(115.79), last_position.map(|p| p.left_value()));

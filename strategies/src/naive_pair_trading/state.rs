@@ -77,12 +77,12 @@ impl Operation {
         &self.right_trade
     }
 
-    #[graphql(description = "left quantity")]
+    #[graphql(description = "left value")]
     pub fn left_value(&self) -> f64 {
         self.left_trade.qty * self.pos.left_price * self.left_coef.abs()
     }
 
-    #[graphql(description = "right quantity")]
+    #[graphql(description = "right value")]
     pub fn right_value(&self) -> f64 {
         self.right_trade.qty * self.pos.right_price * self.right_coef.abs()
     }
@@ -266,7 +266,7 @@ impl MovingState {
             }
             if let Some(op_key) = ps.ongoing_op {
                 let op: Option<Operation> = self.db.read_json(&op_key);
-                self.ongoing_op = op;
+                self.set_ongoing_op(op);
             }
         }
     }
@@ -289,6 +289,10 @@ impl MovingState {
 
     pub(super) fn unset_position(&mut self) {
         self.position = None;
+    }
+
+    fn set_ongoing_op(&mut self, op: Option<Operation>) {
+        self.ongoing_op = op;
     }
 
     pub(super) fn set_predicted_right(&mut self, predicted_right: f64) {
@@ -470,7 +474,8 @@ impl MovingState {
     }
 
     fn clear_ongoing_operation(&mut self) {
-        self.ongoing_op = None;
+        info!("Clearing ongoing operation");
+        self.set_ongoing_op(None);
         self.set_pnl();
         self.clear_position();
         self.save();
@@ -519,6 +524,7 @@ impl MovingState {
                             },
                         ) = (lts, rts)
                         {
+                            info!("Both transactions filled for {}", &o.id);
                             self.clear_ongoing_operation();
                             Ok(())
                         } else {
@@ -571,7 +577,7 @@ impl MovingState {
                                     &rts, &new_right_trade, e
                                 );
                             }
-                            self.ongoing_op = Some(new_op.clone());
+                            self.set_ongoing_op(Some(new_op.clone()));
                             Err(anyhow!(
                                 "Some operations have not been filled or had to be restaged"
                             ))
@@ -611,8 +617,9 @@ impl MovingState {
         let mut op = self.make_operation(pos, OperationKind::OPEN, spread, right_coef, left_coef);
         op.log();
         self.stage_operation(&mut op).await;
+        self.set_ongoing_op(Some(op.clone()));
         self.save();
-        self.log_info(&position_kind);
+        self.log_indicators(&position_kind);
         op
     }
 
@@ -637,9 +644,10 @@ impl MovingState {
         };
         let mut op = self.make_operation(pos, OperationKind::CLOSE, spread, right_coef, left_coef);
         self.stage_operation(&mut op).await;
+        self.set_ongoing_op(Some(op.clone()));
         op.log();
         self.save();
-        self.log_info(&kind);
+        self.log_indicators(&kind);
         op
     }
 
@@ -742,7 +750,7 @@ impl MovingState {
         self.db.read_json(&format!("{}:{}", OPERATIONS_KEY, uuid))
     }
 
-    fn log_info(&self, pos: &PositionKind) {
+    fn log_indicators(&self, pos: &PositionKind) {
         if log_enabled!(Info) {
             info!(
                 "Additional info : units {:.2} beta val {:.2} value strat {}",
