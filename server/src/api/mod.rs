@@ -217,7 +217,7 @@ mod tests {
             price,
         };
         let string = format!(
-            r##"{{"variables": null, "query": "mutation {{ addOrder(input:{{exchg:\"Binance\", orderType: LIMIT,side: SELL, pair:\"BTC_USDT\", quantity: 0.0015, price: {} }}) {{ identifier }} }}" }}"##,
+            r##"{{"variables": null, "query": "mutation {{ addOrder(input:{{exchg:\"Binance\", orderType: LIMIT,side: SELL, pair:\"BTC_USDT\", quantity: 0.0015, dryRun: true, price: {} }}) {{ identifier }} }}" }}"##,
             price
         );
         let payload = string.as_bytes();

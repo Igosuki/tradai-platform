@@ -216,7 +216,7 @@ struct TransientState {
     traded_price_left: f64,
     traded_price_right: f64,
     nominal_position: Option<f64>,
-    ongoing_op: Option<Operation>,
+    ongoing_op: Option<String>,
 }
 
 impl MovingState {
@@ -246,7 +246,7 @@ impl MovingState {
     }
 
     fn reload_state(&mut self) {
-        let mut ops: Vec<Operation> = self.db.read_json_vec(OPERATIONS_KEY);
+        let mut ops: Vec<Operation> = self.get_operations();
         ops.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
         if let Some(o) = ops.last() {
             if OperationKind::OPEN == o.kind {
@@ -264,7 +264,10 @@ impl MovingState {
             if let Some(np) = ps.nominal_position {
                 self.nominal_position = np;
             }
-            self.ongoing_op = ps.ongoing_op;
+            if let Some(op_key) = ps.ongoing_op {
+                let op: Option<Operation> = self.db.read_json(&op_key);
+                self.ongoing_op = op;
+            }
         }
     }
 
@@ -564,11 +567,11 @@ impl MovingState {
                                     &rts, &new_right_trade, e
                                 );
                             }
+                            self.ongoing_op = Some(new_op.clone());
                             Err(anyhow!(
                                 "Some operations have not been filled or had to be restaged"
                             ))
                         };
-                        self.ongoing_op = Some(new_op.clone());
                         self.save_operation(&new_op);
                         result
                     }
@@ -698,7 +701,7 @@ impl MovingState {
                 traded_price_left: self.traded_price_left,
                 traded_price_right: self.traded_price_right,
                 nominal_position: Some(self.nominal_position),
-                ongoing_op: self.ongoing_op.clone(),
+                ongoing_op: self.ongoing_op.as_ref().map(|o| o.id.clone()),
             },
         ) {
             error!("Error saving state: {:?}", e);

@@ -60,7 +60,7 @@ impl NaiveTradingStrategy {
             stop_gain: n.stop_gain,
             beta_eval_window_size: n.window_size,
             beta_eval_freq: n.beta_eval_freq,
-            state: MovingState::new(100.0, db, om),
+            state: MovingState::new(n.initial_cap, db, om),
             data_table: Self::make_lm_table(
                 &n.left,
                 &n.right,
@@ -585,6 +585,7 @@ mod test {
                 threshold_short: 0.03,
                 stop_loss: -0.1,
                 stop_gain: 0.075,
+                initial_cap: 100.0,
             },
             Arc::new(RwLock::new(OrderManager::new(
                 Arc::new(Box::new(MockApi)),

@@ -15,6 +15,7 @@ pub struct Options {
     pub threshold_short: f64,
     pub stop_loss: f64,
     pub stop_gain: f64,
+    pub initial_cap: f64,
 }
 
 impl Options {
