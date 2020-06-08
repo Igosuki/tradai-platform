@@ -1004,6 +1004,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap"
+version = "3.0.0-beta.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "860643c53f980f0d38a5e25dfab6c3c93b2cb3aa1fe192643d17a293c6c41936"
+dependencies = [
+ "atty",
+ "bitflags",
+ "clap_derive",
+ "indexmap",
+ "lazy_static 1.4.0",
+ "os_str_bytes",
+ "strsim 0.10.0",
+ "termcolor",
+ "textwrap",
+ "unicode-width",
+ "vec_map",
+]
+
+[[package]]
+name = "clap_derive"
+version = "3.0.0-beta.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb51c9e75b94452505acd21d929323f5a5c6c4735a852adbd39ef5fb1b014f30"
+dependencies = [
+ "heck",
+ "proc-macro-error 0.4.12",
+ "proc-macro2 1.0.18",
+ "quote 1.0.7",
+ "syn 1.0.30",
+]
+
+[[package]]
 name = "cloudabi"
 version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2247,7 +2279,7 @@ name = "juniper_codegen"
 version = "0.14.2"
 source = "git+https://github.com/graphql-rust/juniper#9167654a731ece63fab3f1bbdd988a80ed255c2c"
 dependencies = [
- "proc-macro-error",
+ "proc-macro-error 1.0.2",
  "proc-macro2 1.0.18",
  "quote 1.0.7",
  "syn 1.0.30",
@@ -2802,6 +2834,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "os_str_bytes"
+version = "2.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06de47b848347d8c4c94219ad8ecd35eb90231704b067e67e6ae2e36ee023510"
+
+[[package]]
 name = "palette"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3055,14 +3093,40 @@ checksum = "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c"
 
 [[package]]
 name = "proc-macro-error"
+version = "0.4.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18f33027081eba0a6d8aba6d1b1c3a3be58cbb12106341c2d5759fcd9b5277e7"
+dependencies = [
+ "proc-macro-error-attr 0.4.12",
+ "proc-macro2 1.0.18",
+ "quote 1.0.7",
+ "syn 1.0.30",
+ "version_check 0.9.2",
+]
+
+[[package]]
+name = "proc-macro-error"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98e9e4b82e0ef281812565ea4751049f1bdcdfccda7d3f459f2e138a40c08678"
 dependencies = [
- "proc-macro-error-attr",
+ "proc-macro-error-attr 1.0.2",
  "proc-macro2 1.0.18",
  "quote 1.0.7",
  "syn 1.0.30",
+ "version_check 0.9.2",
+]
+
+[[package]]
+name = "proc-macro-error-attr"
+version = "0.4.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a5b4b77fdb63c1eca72173d68d24501c54ab1269409f6b672c85deb18af69de"
+dependencies = [
+ "proc-macro2 1.0.18",
+ "quote 1.0.7",
+ "syn 1.0.30",
+ "syn-mid",
  "version_check 0.9.2",
 ]
 
@@ -4146,7 +4210,7 @@ dependencies = [
  "async-std",
  "async-trait",
  "chrono",
- "clap",
+ "clap 3.0.0-beta.1",
  "coinnect_rt",
  "csv",
  "db",
@@ -4203,12 +4267,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6446ced80d6c486436db5c078dde11a9f73d42b57fb273121e160b84f63d894c"
 
 [[package]]
+name = "strsim"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
+
+[[package]]
 name = "structopt"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "863246aaf5ddd0d6928dfeb1a9ca65f505599e4e1b399935ef7e75107516b4ef"
 dependencies = [
- "clap",
+ "clap 2.33.1",
  "lazy_static 1.4.0",
  "structopt-derive",
 ]
@@ -4220,7 +4290,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d239ca4b13aee7a2142e6795cbd69e457665ff8037aed33b3effdc430d2f927a"
 dependencies = [
  "heck",
- "proc-macro-error",
+ "proc-macro-error 1.0.2",
  "proc-macro2 1.0.18",
  "quote 1.0.7",
  "syn 1.0.30",
@@ -4603,7 +4673,7 @@ dependencies = [
  "byte-unit",
  "bytes 0.5.4",
  "chrono",
- "clap",
+ "clap 3.0.0-beta.1",
  "coinnect_rt",
  "config",
  "data-encoding",
