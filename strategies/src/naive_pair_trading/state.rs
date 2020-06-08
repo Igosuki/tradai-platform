@@ -474,7 +474,6 @@ impl MovingState {
     }
 
     fn clear_ongoing_operation(&mut self) {
-        info!("Clearing ongoing operation");
         self.set_ongoing_op(None);
         self.set_pnl();
         self.clear_position();
