@@ -565,7 +565,7 @@ mod test {
         assert!(x > 0.0, x);
     }
 
-    #[tokio::test]
+    #[actix_rt::test]
     async fn continuous_scenario() {
         init();
         let root = tempdir::TempDir::new("test_data2").unwrap();
@@ -575,7 +575,7 @@ mod test {
         let path = buf.to_str().unwrap();
         let capi: Box<dyn ExchangeApi> = Box::new(MockApi);
         let api = Arc::new(capi);
-        let order_manager = OrderManager::new(api, Path::new(path));
+        let order_manager = OrderManager::new(api, Path::new(path), true);
         let order_manager_addr = OrderManager::start(order_manager);
         let mut strat = NaiveTradingStrategy::new(
             path,
