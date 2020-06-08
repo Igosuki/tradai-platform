@@ -183,7 +183,7 @@ pub(crate) static OPERATIONS_KEY: &str = "orders";
 
 pub(crate) static STATE_KEY: &str = "state";
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub(super) struct MovingState {
     position: Option<PositionKind>,
     value_strat: f64,
@@ -469,6 +469,13 @@ impl MovingState {
         }
     }
 
+    fn clear_ongoing_operation(&mut self) {
+        self.ongoing_op = None;
+        self.set_pnl();
+        self.clear_position();
+        self.save();
+    }
+
     pub(super) async fn resolve_pending_operations(
         &mut self,
         left_bp: &BookPosition,
@@ -512,10 +519,7 @@ impl MovingState {
                             },
                         ) = (lts, rts)
                         {
-                            self.ongoing_op = None;
-                            self.set_pnl();
-                            self.clear_position();
-                            self.save();
+                            self.clear_ongoing_operation();
                             Ok(())
                         } else {
                             let (current_price_left, current_price_right) = match (
