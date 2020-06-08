@@ -7,16 +7,14 @@ use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{OrderType, Pair, Price, Volume};
 use derive_more::Display;
 use futures::lock::Mutex;
-use juniper_actix::{graphiql_handler as gqli_handler, graphql_handler};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "flame_it")]
 use std::fs::File;
 use std::sync::Arc;
 use strategies::{Strategy, StrategyKey};
 
+mod graphql;
 mod playground_source;
-
-use playground_source::playground_source;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Order {
@@ -54,21 +52,11 @@ impl From<std::io::Error> for ApiError {
 }
 
 async fn graphiql_handler() -> Result<HttpResponse, Error> {
-    gqli_handler("/", None).await
-}
-
-pub async fn play_handler(
-    graphql_endpoint_url: &str,
-    subscriptions_endpoint_url: Option<&'static str>,
-) -> Result<HttpResponse, Error> {
-    let html = playground_source(graphql_endpoint_url, subscriptions_endpoint_url);
-    Ok(HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html))
+    self::graphql::graphiql_handler("/", None).await
 }
 
 async fn playground_handler() -> Result<HttpResponse, Error> {
-    play_handler("/", None).await
+    self::graphql::playground_handler("/", None).await
 }
 
 async fn graphql(
@@ -82,7 +70,7 @@ async fn graphql(
         strats: strats.get_ref().to_owned(),
         exchanges: exchanges.get_ref().to_owned(),
     };
-    graphql_handler(&schema, &ctx, req, payload).await
+    self::graphql::graphql_handler(&schema, &ctx, req, payload).await
 }
 
 #[cfg(feature = "flame_it")]

@@ -80,7 +80,6 @@ actix-cors = "0.3.0-alpha.1"
 
 # Juniper
 juniper = { git = "https://github.com/graphql-rust/juniper" }
-juniper_actix = { git = "https://github.com/graphql-rust/juniper" }
 
 # Crypto
 #coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
