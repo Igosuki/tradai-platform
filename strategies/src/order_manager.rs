@@ -91,10 +91,11 @@ pub struct OrderManager {
     api: Arc<Box<dyn ExchangeApi>>,
     orders: Arc<RwLock<HashMap<String, TransactionStatus>>>,
     transactions_wal: Wal,
+    dry_mode: bool,
 }
 
 impl OrderManager {
-    pub fn new(api: Arc<Box<dyn ExchangeApi>>, db_path: &Path) -> Self {
+    pub fn new(api: Arc<Box<dyn ExchangeApi>>, db_path: &Path, dry_mode: bool) -> Self {
         let wal_db = Db::new(
             &format!("{}/transactions", db_path.to_str().unwrap()),
             "transactions_wal".to_string(),
@@ -105,6 +106,7 @@ impl OrderManager {
             api,
             orders,
             transactions_wal: wal,
+            dry_mode,
         }
     }
 
@@ -143,6 +145,7 @@ impl OrderManager {
             price: Some(staged_order.price),
             order_type: OrderType::Limit,
             enforcement: Some(OrderEnforcement::FOK),
+            dry_run: self.dry_mode,
             ..AddOrderRequest::default()
         });
         let staged_transaction = TransactionStatus::Staged(add_order.clone());
@@ -159,6 +162,13 @@ impl OrderManager {
         };
         self.register(order_id.clone(), written_transaction.clone())
             .await?;
+        // Dry mode simulates transactions as filled
+        // TODO: do this with a mocked account api instead
+        if self.dry_mode {
+            let filled_transaction = TransactionStatus::Filled(OrderUpdate::default());
+            self.register(order_id.clone(), filled_transaction.clone())
+                .await?;
+        }
         Ok(Transaction {
             id: order_id.clone(),
             status: written_transaction,
