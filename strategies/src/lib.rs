@@ -209,7 +209,6 @@ pub fn from_settings(
 mod test {
     use std::thread;
 
-    use actix::SyncArbiter;
     use actix_rt::System;
 
     use coinnect_rt::exchange::Exchange;
@@ -227,12 +226,13 @@ mod test {
 
     struct DummyStrat;
 
+    #[async_trait]
     impl StrategyInterface for DummyStrat {
-        async fn add_event(&mut self, _: LiveEvent) -> std::io::Result<()> {
+        async fn add_event(&mut self, _: LiveEvent) -> anyhow::Result<()> {
             Ok(())
         }
 
-        fn data(&mut self, _q: DataQuery) -> Option<DataResult> {
+        fn data(&self, q: DataQuery) -> Option<DataResult> {
             unimplemented!()
         }
 
@@ -245,7 +245,7 @@ mod test {
     fn test_workflow() {
         init();
         System::run(move || {
-            let addr = SyncArbiter::start(1, move || actor(Box::new(DummyStrat)));
+            let addr = StrategyActor::start(actor(Box::new(DummyStrat)));
             let order_book_event = LiveEventEnveloppe(
                 Exchange::Binance,
                 LiveEvent::LiveOrderbook(Orderbook {

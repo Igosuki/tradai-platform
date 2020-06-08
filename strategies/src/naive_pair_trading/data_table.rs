@@ -288,7 +288,7 @@ mod test {
             table.push(&DataRow::arbitrary(&mut gen))
         }
         b.iter(|| {
-            table.update_model();
+            table.update_model().unwrap();
             table.load_model();
         });
     }

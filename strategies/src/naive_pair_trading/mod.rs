@@ -385,13 +385,14 @@ mod test {
     use crate::naive_pair_trading::input::to_pos;
     use crate::naive_pair_trading::options::Options;
     use crate::order_manager::OrderManager;
-    use coinnect_rt::exchange::{Exchange, MockApi};
+    use actix::Actor;
+    use coinnect_rt::exchange::{Exchange, ExchangeApi, MockApi};
     use ordered_float::OrderedFloat;
     use std::error::Error;
     use std::ops::Deref;
     use std::path::Path;
     use std::process::Command;
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
     use std::time::Instant;
     use tokio::runtime::Runtime;
     use util::date::{DateRange, DurationRangeType};
@@ -564,13 +565,18 @@ mod test {
         assert!(x > 0.0, x);
     }
 
-    #[test]
-    fn continuous_scenario() {
+    #[tokio::test]
+    async fn continuous_scenario() {
         init();
         let root = tempdir::TempDir::new("test_data2").unwrap();
         let beta_eval_freq = 5000;
         let window_size = 500;
-        let path = root.into_path().to_str().unwrap();
+        let buf = root.into_path();
+        let path = buf.to_str().unwrap();
+        let capi: Box<dyn ExchangeApi> = Box::new(MockApi);
+        let api = Arc::new(capi);
+        let order_manager = OrderManager::new(api, Path::new(path));
+        let order_manager_addr = OrderManager::start(order_manager);
         let mut strat = NaiveTradingStrategy::new(
             path,
             0.001,
@@ -587,10 +593,7 @@ mod test {
                 stop_gain: 0.075,
                 initial_cap: 100.0,
             },
-            Arc::new(RwLock::new(OrderManager::new(
-                Arc::new(Box::new(MockApi)),
-                Path::new(path),
-            ))),
+            order_manager_addr,
         );
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 3, 25);
@@ -607,33 +610,31 @@ mod test {
         let right_sum: f64 = right.map(|r| (r.1.a1 + r.1.b1) / 2.0).sum();
         println!("crypto1_m {}", left_sum);
         println!("crypto2_m {}", right_sum);
-        let logs: Vec<StrategyLog> = zip
-            .enumerate()
-            .map(|(_i, (l, r))| {
-                iterations += 1;
-                let now = Instant::now();
+        let mut logs: Vec<StrategyLog> = Vec::new();
+        for (l, r) in zip {
+            iterations += 1;
+            let now = Instant::now();
 
-                if iterations as i32 % (beta_eval_freq + window_size - 1) == 0
-                    || (iterations as i32 % window_size == 0 && !strat.data_table.has_model())
-                {
-                    // simulate a model update ever n because we cannot simulate time
-                    // strat.eval_linear_model();
-                    // debug!("{:?}", strat.data_table.last_model_time());
-                }
-                let log = {
-                    let row_time = l.event_ms;
-                    let row = DataRow {
-                        time: row_time,
-                        left: to_pos(l),
-                        right: to_pos(r),
-                    };
-                    strat.process_row(&row);
-                    StrategyLog::from_state(row_time, strat.state.clone(), &row)
+            if iterations as i32 % (beta_eval_freq + window_size - 1) == 0
+                || (iterations as i32 % window_size == 0 && !strat.data_table.has_model())
+            {
+                // simulate a model update ever n because we cannot simulate time
+                // strat.eval_linear_model();
+                // debug!("{:?}", strat.data_table.last_model_time());
+            }
+            let log = {
+                let row_time = l.event_ms;
+                let row = DataRow {
+                    time: row_time,
+                    left: to_pos(l),
+                    right: to_pos(r),
                 };
-                elapsed += now.elapsed().as_nanos();
-                log
-            })
-            .collect();
+                strat.process_row(&row).await;
+                StrategyLog::from_state(row_time, strat.state.clone(), &row)
+            };
+            elapsed += now.elapsed().as_nanos();
+            logs.push(log);
+        }
         println!("Each iteration took {} on avg", elapsed / iterations);
 
         let mut positions = strat.get_operations();
