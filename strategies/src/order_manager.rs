@@ -143,6 +143,7 @@ impl OrderManager {
             price: Some(staged_order.price),
             order_type: OrderType::Limit,
             enforcement: Some(OrderEnforcement::FOK),
+            dry_run: false,
             ..AddOrderRequest::default()
         });
         let staged_transaction = TransactionStatus::Staged(add_order.clone());
