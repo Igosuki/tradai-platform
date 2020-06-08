@@ -134,7 +134,7 @@ impl Handler<LiveEventEnveloppe> for StrategyActor {
     #[cfg_attr(feature = "flame_it", flame)]
     fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
         let lock = self.inner.clone();
-        Box::new(
+        Box::pin(
             async move {
                 let arc = lock.clone();
                 let mut act = arc.write().await;
@@ -151,7 +151,7 @@ impl Handler<DataQuery> for StrategyActor {
     #[cfg_attr(feature = "flame_it", flame)]
     fn handle(&mut self, msg: DataQuery, _ctx: &mut Self::Context) -> Self::Result {
         let lock = self.inner.clone();
-        Box::new(
+        Box::pin(
             async move {
                 let act = lock.read().await;
                 Ok(act.data(msg))
@@ -167,7 +167,7 @@ impl Handler<FieldMutation> for StrategyActor {
     #[cfg_attr(feature = "flame_it", flame)]
     fn handle(&mut self, msg: FieldMutation, _ctx: &mut Self::Context) -> Self::Result {
         let lock = self.inner.clone();
-        Box::new(
+        Box::pin(
             async move {
                 let mut act = lock.write().await;
                 act.mutate(msg)
