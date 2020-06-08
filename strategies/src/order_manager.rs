@@ -267,7 +267,7 @@ impl Handler<AccountEventEnveloppe> for OrderManager {
 
     fn handle(&mut self, msg: AccountEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
         let mut zis = self.clone();
-        Box::new(
+        Box::pin(
             async move {
                 match msg.1 {
                     AccountEvent::OrderUpdate(update) => zis.update_order(update).await,
@@ -285,7 +285,7 @@ impl Handler<StagedOrder> for OrderManager {
 
     fn handle(&mut self, order: StagedOrder, _ctx: &mut Self::Context) -> Self::Result {
         let mut zis = self.clone();
-        Box::new(async move { zis.stage_order(order).await }.into_actor(self))
+        Box::pin(async move { zis.stage_order(order).await }.into_actor(self))
     }
 }
 
@@ -298,7 +298,7 @@ impl Handler<OrderId> for OrderManager {
 
     fn handle(&mut self, order: OrderId, _ctx: &mut Self::Context) -> Self::Result {
         let zis = self.clone();
-        Box::new(
+        Box::pin(
             async move {
                 let order_id = order.0.clone();
                 zis.get_order(order_id.clone())
