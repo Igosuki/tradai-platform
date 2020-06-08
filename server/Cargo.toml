@@ -46,7 +46,7 @@ url = "2.1"
 uuid = { version = "0.8", features = ["v4"] }
 byte-unit = "3.0"
 error-chain = "0.12"
-config = { version = "0.9", features = ["yaml"] }
+config = { version = "0.10", features = ["yaml"] }
 rand = "0.7"
 itertools = "0.9"
 fs_extra = "1.1"
@@ -54,8 +54,8 @@ parse_duration = "2.1"
 tempdir = "0.3"
 
 # SSL
-sha2 = "0.6"
-hmac = "0.4"
+sha2 = "0.8"
+hmac = "0.7"
 openssl = "0.10"
 native-tls = "0.2"
 

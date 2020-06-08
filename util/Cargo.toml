@@ -8,9 +8,9 @@ edition = "2018"
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
-rusoto_core = { version = "0.43", optional = true }
-rusoto_s3 = { version = "0.43", optional = true }
-rusoto_credential = { version = "0.43", optional = true }
+rusoto_core = { version = "0.44", optional = true }
+rusoto_s3 = { version = "0.44", optional = true }
+rusoto_credential = { version = "0.44", optional = true }
 tokio = { version = "0.2", features = ["full"], optional = true }
 serde = "1.0"
 rust_decimal = "1.4"
