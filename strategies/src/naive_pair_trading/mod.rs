@@ -60,7 +60,7 @@ impl NaiveTradingStrategy {
             stop_gain: n.stop_gain,
             beta_eval_window_size: n.window_size,
             beta_eval_freq: n.beta_eval_freq,
-            state: MovingState::new(n.initial_cap, db, om),
+            state: MovingState::new(n.initial_cap, db, om, n.dry_mode()),
             data_table: Self::make_lm_table(
                 &n.left,
                 &n.right,
@@ -572,7 +572,7 @@ mod test {
         let path = buf.to_str().unwrap();
         let capi: Box<dyn ExchangeApi> = Box::new(MockApi);
         let api = Arc::new(capi);
-        let order_manager = OrderManager::new(api, Path::new(path), true);
+        let order_manager = OrderManager::new(api, Path::new(path));
         let order_manager_addr = OrderManager::start(order_manager);
         let mut strat = NaiveTradingStrategy::new(
             path,
@@ -589,6 +589,7 @@ mod test {
                 stop_loss: -0.1,
                 stop_gain: 0.075,
                 initial_cap: 100.0,
+                dry_mode: Some(true),
             },
             order_manager_addr,
         );
