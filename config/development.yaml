@@ -6,7 +6,6 @@ exchanges:
   #        symbols: ['BTC_USD']
   binance:
     use_account: true
-    dry_mode: true
     fees: 0.001
     orderbook:
       symbols: ['BCH_USDT', 'ETC_USDT']

@@ -205,6 +205,8 @@ pub(super) struct MovingState {
     #[serde(skip_serializing)]
     om: Addr<OrderManager>,
     ongoing_op: Option<Operation>,
+    /// Remote operations are ran dry, meaning no actual action will be performed when possible
+    dry_mode: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -220,7 +222,7 @@ struct TransientState {
 }
 
 impl MovingState {
-    pub fn new(initial_value: f64, db: Db, om: Addr<OrderManager>) -> MovingState {
+    pub fn new(initial_value: f64, db: Db, om: Addr<OrderManager>, dry_mode: bool) -> MovingState {
         let mut state = MovingState {
             position: None,
             value_strat: initial_value,
@@ -240,6 +242,7 @@ impl MovingState {
             db,
             om,
             ongoing_op: None,
+            dry_mode,
         };
         state.reload_state();
         state
@@ -664,6 +667,7 @@ impl MovingState {
                 pair: trade_op.pair.into(),
                 qty: trade_op.qty,
                 price: trade_op.price,
+                dry_run: self.dry_mode,
             })
             .await?
             .map_err(|e| anyhow!("mailbox error {}", e))
