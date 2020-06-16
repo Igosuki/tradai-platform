@@ -1,8 +1,8 @@
 use anyhow::Result;
 use chrono::{DateTime, Duration, TimeZone, Utc};
-use log::Level::Trace;
+use log::Level::Debug;
 use std::convert::TryInto;
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Mul, Sub};
 use std::sync::Arc;
 
 pub mod data_table;
@@ -113,16 +113,23 @@ impl NaiveTradingStrategy {
         }
     }
 
-    fn should_eval(&self, now: DateTime<Utc>) -> bool {
-        let mt = self.last_row_time_at_eval;
-        let obsolescence = mt.add(self.beta_sample_freq.mul(self.beta_eval_freq));
-        let model_obsolete = now.gt(&obsolescence);
-        if model_obsolete && log_enabled!(Trace) {
-            trace!("eval_time reached : {} > {}", now, obsolescence);
+    fn should_eval(&self, event_time: DateTime<Utc>) -> bool {
+        let model_time = self.last_row_time_at_eval;
+        let mt_obsolescence = if self.state.beta_lr() < 0.0 {
+            // Model obsolescence is defined here as event time being greater than the sample window
+            model_time.add(self.beta_sample_freq.mul(self.beta_eval_freq / 10))
+        } else {
+            // When beta is negative the evaluation frequency is ten times lower
+            model_time.add(self.beta_sample_freq.mul(self.beta_eval_freq))
+        };
+        let is_model_obsolete = event_time.ge(&mt_obsolescence);
+        if is_model_obsolete && log_enabled!(Debug) {
+            debug!(
+                "model obsolete, eval time reached : {} > {} with model_time = {}",
+                event_time, mt_obsolescence, model_time
+            );
         }
-        model_obsolete
-            || self.state.beta_lr() < 0.0
-                && now.gt(&mt.add(self.beta_sample_freq.mul(self.beta_eval_freq.div(10))))
+        is_model_obsolete
     }
 
     fn set_model_from_table(&mut self) {
@@ -297,6 +304,9 @@ impl NaiveTradingStrategy {
         let should_sample = row.time.gt(&time) || row.time == time;
         // A model is available
         let can_eval = self.can_eval();
+        if should_sample {
+            self.last_sample_time = row.time;
+        }
         if can_eval {
             self.eval_latest(row).await;
             self.log_state();
@@ -304,7 +314,6 @@ impl NaiveTradingStrategy {
         self.metrics.log_row(&row);
         if should_sample {
             self.data_table.push(row);
-            self.last_sample_time = row.time;
         }
 
         // No model and there are enough samples
