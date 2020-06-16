@@ -1,7 +1,7 @@
 use crate::naive_pair_trading::data_table::BookPosition;
 use crate::order_manager::{OrderId, OrderManager, StagedOrder, Transaction, TransactionStatus};
 use crate::query::MutableField;
-use actix::{Addr, MailboxError};
+use actix::Addr;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use coinnect_rt::types::TradeType;
@@ -477,9 +477,15 @@ impl MovingState {
     }
 
     fn clear_ongoing_operation(&mut self) {
+        if let Some(Operation {
+            kind: OperationKind::CLOSE,
+            ..
+        }) = self.ongoing_op
+        {
+            self.set_pnl();
+            self.clear_position();
+        }
         self.set_ongoing_op(None);
-        self.set_pnl();
-        self.clear_position();
         self.save();
     }
 
@@ -504,7 +510,6 @@ impl MovingState {
 
                         let olr = pending_trs.0?;
                         let orr = pending_trs.1?;
-
                         // One of the operations has changed, update the ongoing operation
                         let lts = &olr.1;
                         let rts = &orr.1;
@@ -590,7 +595,7 @@ impl MovingState {
                     _ => Err(anyhow!("One of the transactions didn't go through")),
                 }
             }
-            None => Err(anyhow!("No pending operation")),
+            None => Ok(()),
         }
     }
 
@@ -627,7 +632,6 @@ impl MovingState {
 
     pub(super) async fn close(&mut self, pos: Position, fees: f64) -> Operation {
         let kind: PositionKind = pos.kind.clone();
-        self.unset_position();
         let (spread, right_coef, left_coef) = match kind {
             PositionKind::SHORT => {
                 let (spread, right_coef, left_coef) =
@@ -654,6 +658,7 @@ impl MovingState {
     }
 
     fn clear_position(&mut self) {
+        self.unset_position();
         self.long_position_return = 0.0;
         self.short_position_return = 0.0;
         self.traded_price_left = 0.0;
@@ -691,17 +696,7 @@ impl MovingState {
         self.save_operation(&op);
         match (&op.left_transaction, &op.right_transaction) {
             (None, _) | (_, None) => error!("Failed transaction"),
-            _ => info!("Transaction ok"),
-        }
-    }
-
-    fn extract_transaction(
-        res: std::result::Result<&Result<Transaction>, &MailboxError>,
-    ) -> Option<Transaction> {
-        if let Ok(Ok(tr)) = res {
-            Some(tr.clone())
-        } else {
-            None
+            _ => trace!("Transaction ok"),
         }
     }
 
@@ -756,13 +751,19 @@ impl MovingState {
     fn log_indicators(&self, pos: &PositionKind) {
         if log_enabled!(Info) {
             info!(
-                "Additional info : units {:.2} beta val {:.2} value strat {}",
+                "Additional info : units {:.2} beta val {:.2} value strat {}, return {}, res {}, pnl {}",
                 match pos {
                     PositionKind::SHORT => self.units_to_buy_short_spread,
                     PositionKind::LONG => self.units_to_buy_long_spread,
                 },
                 self.beta_val,
-                self.value_strat
+                self.value_strat,
+                match pos {
+                    PositionKind::SHORT => self.short_position_return,
+                    PositionKind::LONG => self.long_position_return,
+                },
+                self.res(),
+                self.pnl(),
             );
             info!("--------------------------------")
         }

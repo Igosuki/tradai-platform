@@ -48,7 +48,7 @@ impl Db {
 
         let mut builder = Rkv::environment_builder();
         builder.set_max_dbs(5);
-        builder.set_map_size((10 as i32).pow(7) as usize);
+        builder.set_map_size((10 as i32).pow(8) as usize);
         Rkv::from_env(path, builder)
     }
 

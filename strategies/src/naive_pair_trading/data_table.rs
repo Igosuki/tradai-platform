@@ -116,7 +116,7 @@ impl DataTable {
             id: id.to_string(),
             rows: Vec::new(),
             window_size,
-            max_size: window_size * 2, // Keep window_size * 8 elements
+            max_size: window_size * 2, // Keep window_size * 2 elements
             db,
             last_model: None,
             last_model_load_attempt: None,
