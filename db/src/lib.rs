@@ -10,7 +10,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
-use std::sync::RwLockReadGuard;
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -27,6 +27,7 @@ pub enum DataStoreError {
 pub struct Db {
     pub name: String,
     pub root: Box<Path>,
+    rwl: Arc<RwLock<Rkv>>,
 }
 
 pub type WriteResult = Result<(), DataStoreError>;
@@ -35,9 +36,26 @@ impl Db {
     pub fn new(root: &str, name: String) -> Self {
         fs::create_dir_all(root).unwrap();
         let path = Path::new(root);
+        let root: Box<Path> = Box::from(path);
+        // First determine the path to the environment, which is represented
+        // on disk as a directory containing two files:
+        //
+        //   * a data file containing the key/value stores
+        //   * a lock file containing metadata about current transactions
+        //
+        // The Manager enforces that each process opens the same environment
+        // at most once by caching a handle to each environment that it opens.
+        // Use it to retrieve the handle to an opened environment—or create one
+        // if it hasn't already been opened:
+        let created_arc = Manager::singleton()
+            .write()
+            .unwrap()
+            .get_or_create(root.as_ref(), Self::new_rkv)
+            .unwrap();
         Self {
-            root: Box::from(path),
+            root,
             name,
+            rwl: created_arc,
         }
     }
 
@@ -56,23 +74,7 @@ impl Db {
     where
         F: Fn(RwLockReadGuard<Rkv>, SingleStore) -> B,
     {
-        // First determine the path to the environment, which is represented
-        // on disk as a directory containing two files:
-        //
-        //   * a data file containing the key/value stores
-        //   * a lock file containing metadata about current transactions
-        //
-        // The Manager enforces that each process opens the same environment
-        // at most once by caching a handle to each environment that it opens.
-        // Use it to retrieve the handle to an opened environment—or create one
-        // if it hasn't already been opened:
-        let created_arc = Manager::singleton()
-            .write()
-            .unwrap()
-            .get_or_create(self.root.as_ref(), Self::new_rkv)
-            .unwrap();
-        let env = created_arc.read().unwrap();
-
+        let env = self.rwl.read().unwrap();
         // Then you can use the environment handle to get a handle to a datastore:
         let x: &str = &self.name;
         let store = env.open_single(x, StoreOptions::create()).unwrap();
