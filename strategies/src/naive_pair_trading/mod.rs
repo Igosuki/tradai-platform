@@ -108,7 +108,7 @@ impl NaiveTradingStrategy {
                 match pk {
                     PositionKind::SHORT => "short",
                     PositionKind::LONG => "long",
-                }
+                },
             )
         }
     }
@@ -125,8 +125,11 @@ impl NaiveTradingStrategy {
         let is_model_obsolete = event_time.ge(&mt_obsolescence);
         if is_model_obsolete && log_enabled!(Debug) {
             debug!(
-                "model obsolete, eval time reached : {} > {} with model_time = {}",
-                event_time, mt_obsolescence, model_time
+                "model obsolete, eval time reached : {} > {} with model_time = {}, beta_val = {}",
+                event_time,
+                mt_obsolescence,
+                model_time,
+                self.state.beta_lr()
             );
         }
         is_model_obsolete
@@ -218,13 +221,12 @@ impl NaiveTradingStrategy {
             .set_res((lr.right.mid - self.state.predicted_right()) / lr.right.mid);
 
         // If a position is taken, resolve pending operations
-        // In case of error return immediatly as no trades can be made until the position is resolved
-        if (self.state.is_short() || self.state.is_long())
-            && self
-                .state
-                .resolve_pending_operations(&lr.left, &lr.right)
-                .await
-                .is_err()
+        // In case of error return immediately as no trades can be made until the position is resolved
+        if self
+            .state
+            .resolve_pending_operations(&lr.left, &lr.right)
+            .await
+            .is_err()
         {
             return;
         }
@@ -648,11 +650,11 @@ mod test {
         positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
         let last_position = positions.last();
         assert_eq!(
-            Some(156.410003662109),
+            Some(162.130004882813),
             last_position.map(|p| p.pos.left_price)
         );
         assert_eq!(
-            Some(57.61203640897418),
+            Some(33.33032942489664),
             last_position.map(|p| p.left_value())
         );
 

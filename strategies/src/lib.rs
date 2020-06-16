@@ -232,7 +232,7 @@ mod test {
             Ok(())
         }
 
-        fn data(&self, q: DataQuery) -> Option<DataResult> {
+        fn data(&self, _q: DataQuery) -> Option<DataResult> {
             unimplemented!()
         }
 

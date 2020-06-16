@@ -174,6 +174,7 @@ impl OrderManager {
         })
     }
 
+    #[allow(dead_code)]
     pub(crate) async fn cancel_order(&mut self, order_id: String) -> Result<()> {
         self.register(
             order_id,
@@ -222,12 +223,12 @@ impl Actor for OrderManager {
                 let latest_orders = futures::future::join_all(
                     orders_read_lock
                         .iter()
-                        .filter(|(k, v)| match v {
+                        .filter(|(_k, v)| match v {
                             TransactionStatus::PartiallyFilled(_)
                             | TransactionStatus::Staged(_) => true,
                             _ => false,
                         })
-                        .map(|(tr_id, tr_status)| act.api.get_order(tr_id.clone())),
+                        .map(|(tr_id, _tr_status)| act.api.get_order(tr_id.clone())),
                 )
                 .await;
                 for lo in latest_orders {
