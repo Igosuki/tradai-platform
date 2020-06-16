@@ -38,6 +38,7 @@ strategies:
     stop_loss: -0.1
     stop_gain: 0.075
     initial_cap: 20.0
+    dry_mode: false
 
   - type: Naive
     left: 'XRP_USDT'
