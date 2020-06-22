@@ -61,8 +61,7 @@ impl Strategy {
         om: Option<Addr<OrderManager>>,
     ) -> Self {
         Self(settings.key(), {
-            let strat_settings =
-                from_settings(db_path.clone().as_ref(), fees, &settings, om.clone());
+            let strat_settings = from_settings(db_path.as_ref(), fees, &settings, om);
             StrategyActor::start(StrategyActor::new(StrategyActorOptions {
                 strategy: strat_settings,
             }))

@@ -28,7 +28,7 @@ futures = "0.3"
 tokio = { version = "0.2", features = ["full"] }
 
 # graph_ql
-juniper = { git = "https://github.com/graphql-rust/juniper" }
+juniper = { git = "https://github.com/graphql-rust/juniper", features = ["expose-test-schema"] }
 
 # std
 itertools = "0.9"

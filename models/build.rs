@@ -33,7 +33,7 @@ fn main() -> io::Result<()> {
         .ok()
         .and_then(|read| serde_json::from_str(read.as_str()).ok());
     eprintln!("Original avro state : {:?}", option);
-    let mut avro_state: AvroState = option.unwrap_or(serde_json::from_str("{}").unwrap());
+    let mut avro_state: AvroState = option.unwrap_or_else(|| serde_json::from_str("{}").unwrap());
 
     fs::create_dir_all(&dest_path).unwrap();
     fs::create_dir_all(&gen_path_dir).unwrap();
@@ -74,13 +74,12 @@ fn main() -> io::Result<()> {
                 "java -jar ./tools/avro-tools-1.9.1.jar idl {} {}/{}.{}",
                 file_name.display(),
                 dest_path.as_path().display(),
-                format!("{}", file_name.file_stem().unwrap().to_str().unwrap()),
+                file_name.file_stem().unwrap().to_str().unwrap().to_string(),
                 "avsc"
             ))
             .output();
-        match output {
-            Err(e) => println!("Error generating avro schema : {:?}", e),
-            _ => (),
+        if let Err(e) = output {
+            println!("Error generating avro schema : {:?}", e)
         }
     }
     if any_changes {
@@ -94,6 +93,6 @@ fn main() -> io::Result<()> {
         g.gen(&source, &mut file).unwrap();
     }
     serde_json::to_string(&avro_state)
-        .map_err(|e| std::io::Error::from(e))
+        .map_err(std::io::Error::from)
         .and_then(|st| avro_state_file.write_all(st.as_bytes()))
 }

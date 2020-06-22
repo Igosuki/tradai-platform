@@ -421,7 +421,6 @@ impl MovingState {
             (PositionKind::LONG, OperationKind::OPEN) => (TradeKind::SELL, TradeKind::BUY),
             (PositionKind::SHORT, OperationKind::CLOSE) => (TradeKind::SELL, TradeKind::BUY),
             (PositionKind::LONG, OperationKind::CLOSE) => (TradeKind::BUY, TradeKind::SELL),
-            _ => unimplemented!(),
         };
         Operation {
             id: format!("{}:{}", OPERATIONS_KEY, Uuid::new_v4()),
@@ -432,15 +431,15 @@ impl MovingState {
             left_transaction: None,
             right_transaction: None,
             left_trade: TradeOperation {
-                price: pos.left_price.clone(),
+                price: pos.left_price,
                 qty: spread * self.beta_val,
-                pair: pos.left_pair.clone().into(),
+                pair: pos.left_pair,
                 kind: left_op,
             },
             right_trade: TradeOperation {
-                price: pos.right_price.clone(),
+                price: pos.right_price,
                 qty: spread,
-                pair: pos.right_pair.clone().into(),
+                pair: pos.right_pair,
                 kind: right_op,
             },
         }
@@ -499,10 +498,7 @@ impl MovingState {
             Some(o) => {
                 match (&o.left_transaction, &o.right_transaction) {
                     (Some(olt), Some(ort)) => {
-                        let pending_trs: (
-                            Result<(bool, Transaction)>,
-                            Result<(bool, Transaction)>,
-                        ) = futures::future::join(
+                        let pending_trs = futures::future::join(
                             self.latest_transaction_change(olt),
                             self.latest_transaction_change(ort),
                         )

@@ -17,7 +17,7 @@ pub fn build_exchanges(
     keys_path: PathBuf,
 ) -> HashMap<Exchange, Box<dyn ExchangeApi>> {
     let mut apis: HashMap<Exchange, Box<dyn ExchangeApi>> = HashMap::new();
-    for (xch, _conf) in exchanges.as_ref() {
+    for xch in exchanges.as_ref().keys() {
         let xch_api = build_exchange_api(keys_path.clone(), xch);
         apis.insert(*xch, xch_api);
     }
@@ -27,26 +27,24 @@ pub fn build_exchanges(
 pub fn build_exchange_api(keys_path: PathBuf, xch: &Exchange) -> Box<dyn ExchangeApi> {
     match xch {
         Exchange::Bittrex => {
-            let creds = Box::new(
-                BittrexCreds::new_from_file("account_bittrex", keys_path.clone()).unwrap(),
-            );
-            Coinnect::new_exchange(*xch, creds.clone()).unwrap()
+            let creds =
+                Box::new(BittrexCreds::new_from_file("account_bittrex", keys_path).unwrap());
+            Coinnect::new_exchange(*xch, creds).unwrap()
         }
         Exchange::Bitstamp => {
-            let creds = Box::new(
-                BitstampCreds::new_from_file("account_bitstamp", keys_path.clone()).unwrap(),
-            );
-            Coinnect::new_exchange(*xch, creds.clone()).unwrap()
+            let creds =
+                Box::new(BitstampCreds::new_from_file("account_bitstamp", keys_path).unwrap());
+            Coinnect::new_exchange(*xch, creds).unwrap()
         }
         Exchange::Binance => {
             let creds = Box::new(
                 BinanceCreds::new_from_file(
                     coinnect_rt::binance::credentials::ACCOUNT_KEY,
-                    keys_path.clone(),
+                    keys_path,
                 )
                 .unwrap(),
             );
-            Coinnect::new_exchange(*xch, creds.clone()).unwrap()
+            Coinnect::new_exchange(*xch, creds).unwrap()
         }
         _ => {
             info!("Unknown exchange when building Exchange Apis : {:?}", *xch);
