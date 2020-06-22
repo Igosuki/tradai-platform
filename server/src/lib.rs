@@ -1,5 +1,6 @@
 #![deny(unused_must_use, unused_mut, unused_imports, unused_import_braces)]
 #![feature(try_trait)]
+#![feature(or_patterns)]
 
 extern crate actix;
 extern crate actix_derive;

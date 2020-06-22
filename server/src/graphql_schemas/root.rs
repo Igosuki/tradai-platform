@@ -182,12 +182,10 @@ impl MutationRoot {
                     let f = strat.1.send(fm);
                     match futures::executor::block_on(f) {
                         Ok(_) => Ok(true),
-                        Err(MailboxError::Closed) | Err(MailboxError::Timeout) => {
-                            Err(FieldError::new(
-                                "Strategy mailbox was full",
-                                graphql_value!({ "unavailable": "strategy mailbox full" }),
-                            ))
-                        }
+                        Err(MailboxError::Closed | MailboxError::Timeout) => Err(FieldError::new(
+                            "Strategy mailbox was full",
+                            graphql_value!({ "unavailable": "strategy mailbox full" }),
+                        )),
                     }
                 }
             })

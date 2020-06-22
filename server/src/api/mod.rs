@@ -59,12 +59,15 @@ async fn playground_handler() -> Result<HttpResponse, Error> {
     self::graphql::playground_handler("/", None).await
 }
 
+type ExchangeData = web::Data<Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>>>;
+type StratsData = web::Data<Arc<HashMap<StrategyKey, Strategy>>>;
+
 async fn graphql(
     req: actix_web::HttpRequest,
     payload: actix_web::web::Payload,
     schema: web::Data<Schema>,
-    strats: web::Data<Arc<HashMap<StrategyKey, Strategy>>>,
-    exchanges: web::Data<Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>>>,
+    strats: StratsData,
+    exchanges: ExchangeData,
 ) -> Result<HttpResponse, Error> {
     let ctx = Context {
         strats: strats.get_ref().to_owned(),

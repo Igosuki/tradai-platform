@@ -73,10 +73,6 @@ impl Transaction {
     }
 }
 
-pub fn variant_eq<T>(a: &T, b: &T) -> bool {
-    std::mem::discriminant(&a) == std::mem::discriminant(&b)
-}
-
 #[derive(Message)]
 #[rtype(result = "Result<Transaction>")]
 pub(crate) struct StagedOrder {
@@ -187,7 +183,7 @@ impl OrderManager {
 
     pub(crate) async fn get_order(&self, order_id: String) -> Option<TransactionStatus> {
         let reader = self.orders.read().await;
-        reader.get(&order_id).map(|o| o.clone())
+        reader.get(&order_id).cloned()
     }
 
     pub(crate) async fn register(&mut self, order_id: String, tr: TransactionStatus) -> Result<()> {
@@ -198,6 +194,7 @@ impl OrderManager {
     }
 }
 
+#[allow(clippy::unnested_or_patterns)]
 fn equivalent_status(trs: &TransactionStatus, os: &OrderStatus) -> bool {
     match (trs, os) {
         (TransactionStatus::Filled(_), OrderStatus::Filled)
@@ -307,7 +304,7 @@ impl Handler<OrderId> for OrderManager {
                         id: order_id,
                         status,
                     })
-                    .ok_or(anyhow!("No order found"))
+                    .ok_or_else(|| anyhow!("No order found"))
             }
             .into_actor(self),
         )

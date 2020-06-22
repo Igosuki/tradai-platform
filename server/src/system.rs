@@ -153,7 +153,7 @@ async fn order_managers(
         if !conf.use_account {
             continue;
         }
-        let api = server::build_exchange_api(keys_path.clone().into(), &xch);
+        let api = server::build_exchange_api(keys_path.clone(), &xch);
         let om_path = format!("{}/om_{}", db_path, xch);
         let order_manager = OrderManager::new(Arc::new(api), Path::new(&om_path));
         let order_manager_addr = OrderManager::start(order_manager);
