@@ -2,7 +2,7 @@
 extern crate log;
 #[cfg(test)]
 #[macro_use]
-extern crate serde_derive;
+extern crate serde;
 
 use rkv::error::StoreError::LmdbError;
 use rkv::{Manager, Rkv, SingleStore, StoreError, StoreOptions, Value, Writer};

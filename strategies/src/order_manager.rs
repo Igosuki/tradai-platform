@@ -12,7 +12,7 @@ use coinnect_rt::types::{
     OrderStatus, OrderType, OrderUpdate, Pair, TradeType,
 };
 use db::Db;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;

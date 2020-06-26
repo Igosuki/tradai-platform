@@ -3,13 +3,13 @@
 #![feature(async_closure)]
 
 #[macro_use]
-extern crate serde_derive;
-#[macro_use]
 extern crate log;
 #[macro_use]
 extern crate anyhow;
 #[macro_use]
 extern crate async_trait;
+#[macro_use]
+extern crate serde;
 
 use actix::{Actor, Addr, Context, Handler, ResponseActFuture, Running, WrapFuture};
 use anyhow::Result;
