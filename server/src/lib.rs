@@ -16,7 +16,6 @@ extern crate flamer;
 #[macro_use]
 extern crate log;
 extern crate prometheus;
-extern crate prometheus_static_metric;
 extern crate rand;
 extern crate uuid;
 #[macro_use]
