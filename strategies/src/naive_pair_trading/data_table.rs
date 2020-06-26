@@ -3,6 +3,7 @@ use coinnect_rt::types::Orderbook;
 use db::{DataStoreError, Db};
 use itertools::Itertools;
 use math::iter::{CovarianceExt, MeanExt, VarianceExt};
+use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::iter::{Rev, Take};
 use std::slice::Iter;

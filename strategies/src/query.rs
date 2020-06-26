@@ -1,5 +1,6 @@
 use crate::naive_pair_trading::state::Operation;
 use actix_derive::{Message, MessageResponse};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, MessageResponse)]
 #[serde(tag = "type")]

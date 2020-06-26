@@ -571,7 +571,6 @@ dependencies = [
  "reqwest",
  "ring",
  "serde 1.0.114",
- "serde_derive",
  "serde_json",
  "serde_qs",
  "tungstenite",
@@ -671,7 +670,7 @@ dependencies = [
  "hex 0.3.2",
  "libc",
  "linked-hash-map 0.5.3",
- "md5 0.6.1",
+ "md5",
  "rand 0.7.3",
  "serde 1.0.114",
  "serde_json",
@@ -1075,7 +1074,6 @@ dependencies = [
  "log",
  "rkv",
  "serde 1.0.114",
- "serde_derive",
  "serde_json",
  "tempdir",
  "thiserror",
@@ -2173,12 +2171,6 @@ name = "md5"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e6bcd6433cff03a4bfc3d9834d504467db1f1cf6d0ea765d37d330249ed629d"
-
-[[package]]
-name = "md5"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 
 [[package]]
 name = "memchr"
@@ -3299,93 +3291,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rusoto_core"
-version = "0.44.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "841ca8f73e7498ba39146ab43acea906bbbb807d92ec0b7ea4b6293d2621f80d"
-dependencies = [
- "async-trait",
- "base64 0.12.2",
- "bytes",
- "futures",
- "hmac",
- "http",
- "hyper",
- "hyper-tls",
- "lazy_static 1.4.0",
- "log",
- "md5 0.7.0",
- "percent-encoding",
- "pin-project",
- "rusoto_credential",
- "rusoto_signature",
- "rustc_version",
- "serde 1.0.114",
- "serde_json",
- "sha2",
- "tokio",
- "xml-rs",
-]
-
-[[package]]
-name = "rusoto_credential"
-version = "0.44.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60669ddc1bdbb83ce225593649d36b4c5f6bf9db47cc1ab3e81281abffc853f4"
-dependencies = [
- "async-trait",
- "chrono",
- "dirs",
- "futures",
- "hyper",
- "pin-project",
- "regex",
- "serde 1.0.114",
- "serde_json",
- "shlex",
- "tokio",
- "zeroize",
-]
-
-[[package]]
-name = "rusoto_s3"
-version = "0.44.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eebe039c71a8ab54ce6614e2967ef034bb3202f306e4025901f620cdfa5680c8"
-dependencies = [
- "async-trait",
- "bytes",
- "futures",
- "rusoto_core",
- "xml-rs",
-]
-
-[[package]]
-name = "rusoto_signature"
-version = "0.44.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9eddff187ac18c5a91d9ccda9353f30cf531620dce437c4db661dfe2e23b2029"
-dependencies = [
- "base64 0.12.2",
- "bytes",
- "futures",
- "hex 0.4.2",
- "hmac",
- "http",
- "hyper",
- "log",
- "md5 0.7.0",
- "percent-encoding",
- "pin-project",
- "rusoto_credential",
- "rustc_version",
- "serde 1.0.114",
- "sha2",
- "time 0.2.16",
- "tokio",
-]
-
-[[package]]
 name = "rust-argon2"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3666,12 +3571,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "shlex"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fdf1b9db47230893d76faad238fd6097fd6d6a9245cd7a4d90dbd639536bbd2"
-
-[[package]]
 name = "signal-hook-registry"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3878,7 +3777,6 @@ dependencies = [
  "prometheus",
  "quickcheck",
  "serde 1.0.114",
- "serde_derive",
  "serde_json",
  "strum",
  "strum_macros",
@@ -4341,7 +4239,6 @@ dependencies = [
  "rand 0.7.3",
  "rkv",
  "serde 1.0.114",
- "serde_derive",
  "serde_json",
  "sha2",
  "strategies",
@@ -4569,9 +4466,6 @@ name = "util"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "rusoto_core",
- "rusoto_credential",
- "rusoto_s3",
  "rust_decimal",
  "serde 1.0.114",
  "tokio",
@@ -4817,12 +4711,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xml-rs"
-version = "0.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b07db065a5cf61a7e4ba64f29e67db906fb1787316516c4e6e5ff0fea1efcd8a"
-
-[[package]]
 name = "yaml-rust"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4830,9 +4718,3 @@ checksum = "39f0c922f1a334134dc2f7a8b67dc5d25f0735263feec974345ff706bcf20b0d"
 dependencies = [
  "linked-hash-map 0.5.3",
 ]
-
-[[package]]
-name = "zeroize"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cbac2ed2ba24cc90f5e06485ac8c7c1e5449fe8911aef4d8877218af021a5b8"
