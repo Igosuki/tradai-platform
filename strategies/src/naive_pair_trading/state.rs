@@ -1,5 +1,7 @@
 use crate::naive_pair_trading::data_table::BookPosition;
-use crate::order_manager::{OrderId, OrderManager, StagedOrder, Transaction, TransactionStatus};
+use crate::order_manager::{
+    OrderId, OrderManager, Rejection, StagedOrder, Transaction, TransactionStatus,
+};
 use crate::query::MutableField;
 use actix::Addr;
 use anyhow::Result;
@@ -298,6 +300,10 @@ impl MovingState {
         self.ongoing_op = op;
     }
 
+    pub fn ongoing_op(&self) -> &Option<Operation> {
+        &self.ongoing_op
+    }
+
     pub(super) fn set_predicted_right(&mut self, predicted_right: f64) {
         self.predicted_right = predicted_right;
     }
@@ -530,6 +536,24 @@ impl MovingState {
                             info!("Both transactions filled for {}", &o.id);
                             self.clear_ongoing_operation();
                             Ok(())
+                        } else if let (
+                            // In this case, our bot did something wrong and repeating the operation
+                            // will always fail, so cancel the operation
+                            Transaction {
+                                status: TransactionStatus::Rejected(Rejection::BadRequest),
+                                ..
+                            },
+                            Transaction {
+                                status: TransactionStatus::Rejected(Rejection::BadRequest),
+                                ..
+                            },
+                        ) = (lts, rts)
+                        {
+                            let oid = &o.id.clone();
+                            self.ongoing_op = None;
+                            info!("Both transactions rejected with bad request for {}", &oid);
+                            self.clear_ongoing_operation();
+                            Ok(())
                         } else {
                             let (current_price_left, current_price_right) = match (
                                 &self.position,
@@ -733,7 +757,10 @@ impl MovingState {
             let reader = env.read().unwrap();
             let mut strings: Vec<String> = Vec::new();
             for r in store.iter_start(&reader).unwrap() {
-                strings.push(format!("{:?}", r))
+                if let Ok((kb, ov)) = r {
+                    let result: Option<&str> = std::str::from_utf8(kb).ok();
+                    strings.push(format!("{:?}:{:?}", result, ov))
+                }
             }
             strings
         })
