@@ -333,6 +333,10 @@ impl NaiveTradingStrategy {
         self.state.get_operations()
     }
 
+    fn get_ongoing_op(&self) -> &Option<Operation> {
+        self.state.ongoing_op()
+    }
+
     fn dump_db(&self) -> Vec<String> {
         self.state.dump_db()
     }
@@ -375,6 +379,9 @@ impl StrategyInterface for NaiveTradingStrategy {
         match q {
             DataQuery::Operations => Some(DataResult::Operations(self.get_operations())),
             DataQuery::Dump => Some(DataResult::Dump(self.dump_db())),
+            DataQuery::CurrentOperation => {
+                Some(DataResult::Operation(self.get_ongoing_op().clone()))
+            }
         }
     }
 

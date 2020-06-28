@@ -19,6 +19,43 @@ pub struct Context {
 
 impl juniper::Context for Context {}
 
+impl Context {
+    async fn with_strat<T, F>(&self, tk: TypeAndKeyInput, q: DataQuery, f: F) -> FieldResult<T>
+    where
+        F: Fn(DataResult) -> FieldResult<T>,
+    {
+        let strat = StrategyKey::from(&tk.t, &tk.id).ok_or_else(|| {
+            FieldError::new(
+                "Strategy type not found",
+                graphql_value!({ "not_found": "strategy type not found" }),
+            )
+        })?;
+        match self.strats.get(&strat) {
+            None => Err(FieldError::new(
+                "Strategy not found",
+                graphql_value!({ "not_found": "strategy not found" }),
+            )),
+            Some(strat) => {
+                let res = strat.1.send(q).await;
+                match res {
+                    Ok(Ok(Some(dr))) => f(dr),
+                    Err(_) => Err(FieldError::new(
+                        "Strategy mailbox was full",
+                        graphql_value!({ "unavailable": "strategy mailbox full" }),
+                    )),
+                    r => {
+                        error!("{:?}", r);
+                        Err(FieldError::new(
+                            "Unexpected error",
+                            graphql_value!({ "unavailable": "unexpected error" }),
+                        ))
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub struct QueryRoot;
 
 #[derive(juniper::GraphQLObject)]
@@ -82,6 +119,13 @@ pub struct OrderResult {
     pub identifier: String,
 }
 
+fn unhandled_data_result<T>() -> FieldResult<T> {
+    Err(FieldError::new(
+        "Unhandled result",
+        graphql_value!({ "unavailable": "wrong result for query" }),
+    ))
+}
+
 #[juniper::graphql_object(Context = Context)]
 impl QueryRoot {
     #[graphql(description = "List of all strats")]
@@ -98,65 +142,44 @@ impl QueryRoot {
 
     #[graphql(description = "Get all positions for this strat")]
     async fn dump_strat_db(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<String>> {
-        let strat = StrategyKey::from(&tk.t, &tk.id).ok_or_else(|| {
-            FieldError::new(
-                "Strategy type not found",
-                graphql_value!({ "not_found": "strategy type not found" }),
-            )
-        })?;
-        match context.strats.get(&strat) {
-            None => Err(FieldError::new(
-                "Strategy not found",
-                graphql_value!({ "not_found": "strategy not found" }),
-            )),
-            Some(strat) => {
-                let f = strat.1.send(DataQuery::Dump).await;
-                match f {
-                    Ok(Ok(Some(DataResult::Dump(pos_vec)))) => Ok(pos_vec),
-                    Err(_) => Err(FieldError::new(
-                        "Strategy mailbox was full",
-                        graphql_value!({ "unavailable": "strategy mailbox full" }),
-                    )),
-                    r => {
-                        error!("{:?}", r);
-                        Err(FieldError::new(
-                            "Unexpected error",
-                            graphql_value!({ "unavailable": "unexpected error" }),
-                        ))
-                    }
+        context
+            .with_strat(tk, DataQuery::Dump, |dr| {
+                if let DataResult::Dump(pos_vec) = dr {
+                    Ok(pos_vec)
+                } else {
+                    unhandled_data_result()
                 }
-            }
-        }
+            })
+            .await
     }
 
     #[graphql(description = "Get all positions for this strat")]
     async fn operations(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<Operation>> {
-        let strat = StrategyKey::from(&tk.t, &tk.id).ok_or_else(|| {
-            FieldError::new(
-                "Strategy type not found",
-                graphql_value!({ "not_found": "strategy type not found" }),
-            )
-        })?;
-        match context.strats.get(&strat) {
-            None => Err(FieldError::new(
-                "Strategy not found",
-                graphql_value!({ "not_found": "strategy not found" }),
-            )),
-            Some(strat) => {
-                let f = strat.1.send(DataQuery::Operations).await;
-                match f {
-                    Ok(Ok(Some(DataResult::Operations(pos_vec)))) => Ok(pos_vec),
-                    Err(_) => Err(FieldError::new(
-                        "Strategy mailbox was full",
-                        graphql_value!({ "unavailable": "strategy mailbox full" }),
-                    )),
-                    _ => Err(FieldError::new(
-                        "Unexpected error",
-                        graphql_value!({ "unavailable": "unexpected error" }),
-                    )),
+        context
+            .with_strat(tk, DataQuery::Operations, |dr| {
+                if let DataResult::Operations(pos_vec) = dr {
+                    Ok(pos_vec)
+                } else {
+                    unhandled_data_result()
                 }
-            }
-        }
+            })
+            .await
+    }
+
+    #[graphql(description = "Get the current operation")]
+    async fn current_operation(
+        context: &Context,
+        tk: TypeAndKeyInput,
+    ) -> FieldResult<Option<Operation>> {
+        context
+            .with_strat(tk, DataQuery::CurrentOperation, |dr| {
+                if let DataResult::Operation(op) = dr {
+                    Ok(op)
+                } else {
+                    unhandled_data_result()
+                }
+            })
+            .await
     }
 }
 

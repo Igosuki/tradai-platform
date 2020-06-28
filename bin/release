@@ -1,0 +1,4 @@
+#!/bin/zsh
+
+#rust-musl-builder-nightly cargo rustc --bin trader --manifest-path=/home/rust/src/server/Cargo.toml --release -- -Z time-passes
+rust-musl-builder-nightly cargo build --release

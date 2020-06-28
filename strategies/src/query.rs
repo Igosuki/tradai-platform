@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub enum DataResult {
     Operations(Vec<Operation>),
     Dump(Vec<String>),
+    Operation(Option<Operation>),
 }
 
 #[derive(Deserialize, Serialize, Message)]
@@ -14,6 +15,7 @@ pub enum DataResult {
 pub enum DataQuery {
     Operations,
     Dump,
+    CurrentOperation,
 }
 
 #[derive(Deserialize, Serialize, juniper::GraphQLEnum)]
