@@ -543,17 +543,13 @@ impl MovingState {
                                 &self.position,
                                 &o.kind,
                             ) {
-                                (Some(PositionKind::SHORT), OperationKind::OPEN) => {
+                                (Some(PositionKind::SHORT), OperationKind::OPEN)
+                                | (Some(PositionKind::LONG), OperationKind::CLOSE) => {
                                     (left_bp.ask, right_bp.bid)
                                 }
-                                (Some(PositionKind::SHORT), OperationKind::CLOSE) => {
+                                (Some(PositionKind::SHORT), OperationKind::CLOSE)
+                                | (Some(PositionKind::LONG), OperationKind::OPEN) => {
                                     (left_bp.bid, right_bp.ask)
-                                }
-                                (Some(PositionKind::LONG), OperationKind::OPEN) => {
-                                    (left_bp.bid, right_bp.ask)
-                                }
-                                (Some(PositionKind::LONG), OperationKind::CLOSE) => {
-                                    (left_bp.ask, right_bp.bid)
                                 }
                                 _ => {
                                     error!("Tried to determine new price for transactions when no position is taken");
