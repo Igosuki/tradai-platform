@@ -22,7 +22,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum Rejection {
-    BadRequest,
+    BadRequest(String),
     InsufficientFunds,
     Timeout,
     Cancelled(Option<String>),
@@ -64,6 +64,20 @@ impl Transaction {
     pub fn is_filled(&self) -> bool {
         match self.status {
             TransactionStatus::Filled(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_bad_request(&self) -> bool {
+        match self.status {
+            TransactionStatus::Rejected(Rejection::BadRequest(_)) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_rejected(&self) -> bool {
+        match self.status {
+            TransactionStatus::Rejected(_) => true,
             _ => false,
         }
     }
@@ -153,7 +167,7 @@ impl OrderManager {
             .map_err(|e| anyhow!("Coinnect error {0}", e));
         let written_transaction = match order_info {
             Ok(o) => TransactionStatus::New(o),
-            Err(_e) => TransactionStatus::Rejected(Rejection::BadRequest),
+            Err(e) => TransactionStatus::Rejected(Rejection::BadRequest(format!("{}", e))),
         };
         self.register(order_id.clone(), written_transaction.clone())
             .await?;
