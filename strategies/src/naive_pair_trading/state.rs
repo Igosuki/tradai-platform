@@ -1,7 +1,5 @@
 use crate::naive_pair_trading::data_table::BookPosition;
-use crate::order_manager::{
-    OrderId, OrderManager, Rejection, StagedOrder, Transaction, TransactionStatus,
-};
+use crate::order_manager::{OrderId, OrderManager, StagedOrder, Transaction};
 use crate::query::MutableField;
 use actix::Addr;
 use anyhow::Result;
@@ -55,6 +53,15 @@ pub struct TradeOperation {
     pair: String,
     qty: f64,
     price: f64,
+}
+
+impl TradeOperation {
+    pub fn with_new_price(&self, new_price: f64) -> TradeOperation {
+        TradeOperation {
+            price: new_price,
+            ..self.clone()
+        }
+    }
 }
 
 #[juniper::graphql_object]
@@ -466,18 +473,14 @@ impl MovingState {
         tr: Transaction,
         trade: &TradeOperation,
     ) -> anyhow::Result<Transaction> {
-        match tr {
+        if tr.is_rejected() {
             // Changed and rejected, retry transaction
             // TODO need to handle rejections in a finer grained way
             // TODO introduce a backoff
-            Transaction {
-                status: TransactionStatus::Rejected(_),
-                ..
-            } => self.stage_order(trade.clone()).await,
-            _ => {
-                // TODO: Timeout can be managed here
-                Err(anyhow!("Nor rejected nor filled"))
-            }
+            self.stage_order(trade.clone()).await
+        } else {
+            // TODO: Timeout can be managed here
+            Err(anyhow!("Nor rejected nor filled"))
         }
     }
 
@@ -522,39 +525,20 @@ impl MovingState {
                             new_op.right_transaction = Some(rts.clone());
                         }
                         // Both operations filled, clear position
-                        let result = if let (
-                            Transaction {
-                                status: TransactionStatus::Filled(_),
-                                ..
-                            },
-                            Transaction {
-                                status: TransactionStatus::Filled(_),
-                                ..
-                            },
-                        ) = (lts, rts)
-                        {
+                        let result = if lts.is_filled() && rts.is_filled() {
                             info!("Both transactions filled for {}", &o.id);
                             self.clear_ongoing_operation();
                             Ok(())
-                        } else if let (
+                        } else if lts.is_bad_request() && rts.is_bad_request() {
                             // In this case, our bot did something wrong and repeating the operation
                             // will always fail, so cancel the operation
-                            Transaction {
-                                status: TransactionStatus::Rejected(Rejection::BadRequest),
-                                ..
-                            },
-                            Transaction {
-                                status: TransactionStatus::Rejected(Rejection::BadRequest),
-                                ..
-                            },
-                        ) = (lts, rts)
-                        {
                             let oid = &o.id.clone();
                             self.ongoing_op = None;
                             info!("Both transactions rejected with bad request for {}", &oid);
                             self.clear_ongoing_operation();
                             Ok(())
                         } else {
+                            // Need to resolve the operation, potentially with a new price
                             let (current_price_left, current_price_right) = match (
                                 &self.position,
                                 &o.kind,
@@ -576,10 +560,7 @@ impl MovingState {
                                     (0.0, 0.0)
                                 }
                             };
-                            let new_left_trade = TradeOperation {
-                                price: current_price_left,
-                                ..o.left_trade.clone()
-                            };
+                            let new_left_trade = o.left_trade.with_new_price(current_price_left);
                             if let Err(e) = self
                                 .maybe_retry_trade(lts.clone(), &new_left_trade)
                                 .await
@@ -590,10 +571,7 @@ impl MovingState {
                                     &lts, &new_left_trade, e
                                 );
                             }
-                            let new_right_trade = TradeOperation {
-                                price: current_price_right,
-                                ..o.left_trade.clone()
-                            };
+                            let new_right_trade = o.right_trade.with_new_price(current_price_right);
                             if let Err(e) = self
                                 .maybe_retry_trade(rts.clone(), &new_right_trade)
                                 .await
@@ -753,17 +731,7 @@ impl MovingState {
     }
 
     pub fn dump_db(&self) -> Vec<String> {
-        self.db.with_db(|env, store| {
-            let reader = env.read().unwrap();
-            let mut strings: Vec<String> = Vec::new();
-            for r in store.iter_start(&reader).unwrap() {
-                if let Ok((kb, ov)) = r {
-                    let result: Option<&str> = std::str::from_utf8(kb).ok();
-                    strings.push(format!("{:?}:{:?}", result, ov))
-                }
-            }
-            strings
-        })
+        self.db.all()
     }
 
     #[allow(dead_code)]
