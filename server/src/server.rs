@@ -63,9 +63,9 @@ pub async fn httpserver(
     port: i32,
 ) -> std::io::Result<()> {
     // Make and start the api
+    let apis = build_exchanges(Arc::new(exchanges.clone()), keys_path.clone()).await;
+    let data = Arc::new(Mutex::new(apis));
     let app = move || {
-        let apis = build_exchanges(Arc::new(exchanges.clone()), keys_path.clone());
-        let data = Arc::new(Mutex::new(apis));
         let schema = create_schema();
 
         actix_web::App::new()
@@ -80,7 +80,7 @@ pub async fn httpserver(
                     .finish(),
             )
             .data(schema)
-            .data(data)
+            .data(data.clone())
             .data(strategies.clone())
             .configure(crate::api::config_app)
     };
