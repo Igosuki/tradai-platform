@@ -81,6 +81,20 @@ impl Db {
         process(env, store)
     }
 
+    pub fn all(&self) -> Vec<String> {
+        self.with_db(|env, store| {
+            let reader = env.read().unwrap();
+            let mut strings: Vec<String> = Vec::new();
+            for r in store.iter_start(&reader).unwrap() {
+                if let Ok((kb, ov)) = r {
+                    let result: Option<&str> = std::str::from_utf8(kb).ok();
+                    strings.push(format!("{:?}:{:?}", result, ov))
+                }
+            }
+            strings
+        })
+    }
+
     pub fn read_json_vec<T: DeserializeOwned>(&self, key: &str) -> Vec<T> {
         self.with_db(|env, store| {
             let reader = env.read().expect("reader");
