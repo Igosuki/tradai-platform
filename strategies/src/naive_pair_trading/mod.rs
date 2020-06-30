@@ -116,10 +116,10 @@ impl NaiveTradingStrategy {
     fn should_eval(&self, event_time: DateTime<Utc>) -> bool {
         let model_time = self.last_row_time_at_eval;
         let mt_obsolescence = if self.state.beta_lr() < 0.0 {
-            // Model obsolescence is defined here as event time being greater than the sample window
+            // When beta is negative the evaluation frequency is ten times lower
             model_time.add(self.beta_sample_freq.mul(self.beta_eval_freq / 10))
         } else {
-            // When beta is negative the evaluation frequency is ten times lower
+            // Model obsolescence is defined here as event time being greater than the sample window
             model_time.add(self.beta_sample_freq.mul(self.beta_eval_freq))
         };
         let is_model_obsolete = event_time.ge(&mt_obsolescence);
@@ -319,7 +319,7 @@ impl NaiveTradingStrategy {
         }
 
         // No model and there are enough samples
-        if !can_eval && self.data_table.len() == self.beta_eval_window_size as usize {
+        if !can_eval && self.data_table.len() >= self.beta_eval_window_size as usize {
             self.eval_linear_model();
             self.update_spread(row);
         }
