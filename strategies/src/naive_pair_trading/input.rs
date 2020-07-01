@@ -1,4 +1,4 @@
-use crate::naive_pair_trading::data_table::BookPosition;
+use crate::ob_linear_model::BookPosition;
 use chrono::prelude::*;
 use chrono::{DateTime, Utc};
 use glob::glob;

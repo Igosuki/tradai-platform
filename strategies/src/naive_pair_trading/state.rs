@@ -1,15 +1,14 @@
-use crate::naive_pair_trading::data_table::BookPosition;
+use crate::model::{OperationKind, PositionKind, TradeKind};
+use crate::ob_linear_model::BookPosition;
 use crate::order_manager::{OrderId, OrderManager, StagedOrder, Transaction};
 use crate::query::MutableField;
 use actix::Addr;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use coinnect_rt::types::TradeType;
 use db::Db;
 use log::Level::Info;
 use serde::{Deserialize, Serialize};
 use std::panic;
-use strum_macros::{AsRefStr, EnumString};
 use uuid::Uuid;
 
 const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
@@ -22,16 +21,6 @@ pub struct Position {
     pub time: DateTime<Utc>,
     pub right_pair: String,
     pub left_pair: String,
-}
-
-#[derive(
-    Eq, PartialEq, Clone, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
-)]
-pub enum PositionKind {
-    #[strum(serialize = "short")]
-    SHORT,
-    #[strum(serialize = "long")]
-    LONG,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -155,35 +144,6 @@ impl Operation {
                 price,
                 value
             );
-        }
-    }
-}
-
-#[derive(
-    Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
-)]
-pub enum OperationKind {
-    #[strum(serialize = "open")]
-    OPEN,
-    #[strum(serialize = "close")]
-    CLOSE,
-}
-
-#[derive(
-    Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
-)]
-pub enum TradeKind {
-    #[strum(serialize = "buy")]
-    BUY,
-    #[strum(serialize = "sell")]
-    SELL,
-}
-
-impl Into<TradeType> for TradeKind {
-    fn into(self) -> TradeType {
-        match self {
-            TradeKind::BUY => TradeType::Buy,
-            TradeKind::SELL => TradeType::Sell,
         }
     }
 }
