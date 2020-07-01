@@ -10,6 +10,8 @@ extern crate anyhow;
 extern crate async_trait;
 #[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate derivative;
 
 use actix::{Actor, Addr, Context, Handler, ResponseActFuture, Running, WrapFuture};
 use anyhow::Result;
@@ -30,7 +32,9 @@ use crate::query::{DataQuery, DataResult, FieldMutation};
 
 pub mod error;
 pub mod mean_reverting;
+mod model;
 pub mod naive_pair_trading;
+mod ob_linear_model;
 pub mod order_manager;
 pub mod query;
 mod wal;

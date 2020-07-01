@@ -1,19 +1,23 @@
+use super::covar_model::DataRow;
 use super::state::MovingState;
-use super::state::OperationKind;
-use crate::naive_pair_trading::data_table::DataRow;
-use crate::naive_pair_trading::state::Position;
+use super::state::Position;
+use crate::model::OperationKind;
 use prometheus::{GaugeVec, Opts, Registry};
 use std::collections::HashMap;
 
 type StateGauge = (String, fn(&MovingState) -> f64);
 
-pub struct StrategyMetrics {
+pub struct NaiveStrategyMetrics {
     gauges: HashMap<String, GaugeVec>,
     state_gauges: Vec<StateGauge>,
 }
 
-impl StrategyMetrics {
-    pub fn for_strat(registry: &Registry, left_pair: &str, right_pair: &str) -> StrategyMetrics {
+impl NaiveStrategyMetrics {
+    pub fn for_strat(
+        registry: &Registry,
+        left_pair: &str,
+        right_pair: &str,
+    ) -> NaiveStrategyMetrics {
         let mut gauges: HashMap<String, GaugeVec> = HashMap::new();
 
         {
@@ -62,7 +66,7 @@ impl StrategyMetrics {
                 registry.register(Box::new(gauge_vec.clone())).unwrap();
             }
         }
-        StrategyMetrics {
+        NaiveStrategyMetrics {
             gauges,
             state_gauges: state_gauges.clone(),
         }

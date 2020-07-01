@@ -1,4 +1,4 @@
-use crate::naive_pair_trading::state::TradeKind;
+use crate::model::TradeKind;
 use crate::wal::Wal;
 use actix::{
     Actor, AsyncContext, Context, Handler, Message, ResponseActFuture, Running, WrapFuture,

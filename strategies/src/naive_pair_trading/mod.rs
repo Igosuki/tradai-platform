@@ -5,23 +5,25 @@ use std::convert::TryInto;
 use std::ops::{Add, Mul, Sub};
 use std::sync::Arc;
 
-pub mod data_table;
+mod covar_model;
 pub mod input;
 pub mod metrics;
 pub mod options;
 pub mod state;
 
-use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
+use crate::model::PositionKind;
+use crate::naive_pair_trading::covar_model::DataRow;
 use crate::naive_pair_trading::state::Operation;
+use crate::ob_linear_model::{BookPosition, LinearModelTable};
 use crate::order_manager::OrderManager;
 use crate::query::{FieldMutation, MutableField};
 use crate::{DataQuery, DataResult, StrategyInterface};
 use actix::Addr;
 use coinnect_rt::types::LiveEvent;
 use db::Db;
-use metrics::StrategyMetrics;
+use metrics::NaiveStrategyMetrics;
 use options::Options;
-use state::{MovingState, Position, PositionKind};
+use state::{MovingState, Position};
 
 const LM_AGE_CUTOFF_RATIO: f64 = 0.0013;
 
@@ -35,10 +37,10 @@ pub struct NaiveTradingStrategy {
     beta_eval_freq: i32,
     beta_sample_freq: Duration,
     state: MovingState,
-    data_table: DataTable,
+    data_table: LinearModelTable<DataRow>,
     pub right_pair: String,
     pub left_pair: String,
-    metrics: Arc<StrategyMetrics>,
+    metrics: Arc<NaiveStrategyMetrics>,
     last_row_process_time: DateTime<Utc>,
     last_sample_time: DateTime<Utc>,
     last_row_time_at_eval: DateTime<Utc>,
@@ -48,7 +50,8 @@ pub struct NaiveTradingStrategy {
 
 impl NaiveTradingStrategy {
     pub fn new(db_path: &str, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
-        let metrics = StrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
+        let metrics =
+            NaiveStrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
         let strat_db_path = format!("{}/naive_pair_trading_{}_{}", db_path, n.left, n.right);
         let db_name = format!("{}_{}", n.left, n.right);
         let db = Db::new(&strat_db_path, db_name);
@@ -84,11 +87,13 @@ impl NaiveTradingStrategy {
         right_pair: &str,
         db_path: &str,
         window_size: usize,
-    ) -> DataTable {
-        DataTable::new(
+    ) -> LinearModelTable<DataRow> {
+        LinearModelTable::new(
             &format!("{}_{}", left_pair, right_pair),
             db_path,
             window_size,
+            Box::new(covar_model::beta),
+            Box::new(covar_model::alpha),
         )
     }
 
@@ -399,7 +404,7 @@ mod test {
 
     use super::input::CsvRecord;
     use super::state::MovingState;
-    use super::{DataRow, DataTable, NaiveTradingStrategy};
+    use super::{DataRow, NaiveTradingStrategy};
     use crate::naive_pair_trading::input::to_pos;
     use crate::naive_pair_trading::options::Options;
     use crate::order_manager::OrderManager;
@@ -557,7 +562,7 @@ mod test {
     #[tokio::test]
     async fn beta_val() {
         init();
-        let mut dt = DataTable::default();
+        let mut dt = NaiveTradingStrategy::make_lm_table("BTC_USDT", "ETH_USDT", "default", 500);
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 3, 25);
         let dt1 = Utc.ymd(2020, 3, 25);

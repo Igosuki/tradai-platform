@@ -8,8 +8,8 @@ use itertools::Itertools;
 use std::ops::Sub;
 use std::path::Path;
 use std::time::Instant;
-use strategies::naive_pair_trading::data_table::DataRow;
 use strategies::naive_pair_trading::input::{to_pos, CsvRecord};
+use strategies::naive_pair_trading::ob_linear_model::DataRow;
 use strategies::naive_pair_trading::NaiveTradingStrategy;
 use util::date::{DateRange, DurationRangeType};
 

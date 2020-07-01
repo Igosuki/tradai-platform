@@ -2,9 +2,10 @@ use chrono::{DateTime, Utc};
 use coinnect_rt::types::Orderbook;
 use db::{DataStoreError, Db};
 use itertools::Itertools;
-use math::iter::{CovarianceExt, MeanExt, VarianceExt};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
+use std::fmt::Debug;
 use std::iter::{Rev, Take};
 use std::slice::Iter;
 use thiserror::Error;
@@ -65,23 +66,23 @@ impl TryFrom<Orderbook> for BookPosition {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DataRow {
-    pub time: DateTime<Utc>,
-    pub left: BookPosition,
-    // crypto_1
-    pub right: BookPosition, // crypto_2
-}
+type BetaFn<T> = Fn(&LinearModelTable<T>) -> f64 + Send + 'static;
+type AlphaFn<T> = Fn(&LinearModelTable<T>, f64) -> f64 + Send + 'static;
 
-#[derive(Debug)]
-pub struct DataTable {
-    rows: Vec<DataRow>,
+#[derive(Derivative)]
+#[derivative(Debug)]
+pub struct LinearModelTable<T> {
+    rows: Vec<T>,
     window_size: usize,
     max_size: usize,
     db: Db,
     id: String,
     last_model: Option<LinearModelValue>,
     last_model_load_attempt: Option<DateTime<Utc>>,
+    #[derivative(Debug = "ignore")]
+    beta_fn: Box<BetaFn<T>>,
+    #[derivative(Debug = "ignore")]
+    alpha_fn: Box<AlphaFn<T>>,
 }
 
 static LINEAR_MODEL_KEY: &str = "linear_model";
@@ -93,27 +94,21 @@ pub struct LinearModelValue {
     pub at: DateTime<Utc>,
 }
 
-impl Default for DataTable {
-    fn default() -> Self {
-        DataTable {
-            db: Db::new("default", "default".to_string()),
-            id: "default".to_string(),
-            window_size: 500,
-            max_size: 1000,
-            rows: Vec::new(),
-            last_model: None,
-            last_model_load_attempt: None,
-        }
-    }
+pub trait LinearModel<T>: Debug + Send {
+    fn beta(&self, i: impl Iterator<Item = T>) -> f64;
+    fn alpha(&self, b: f64, i: impl Iterator<Item = T>) -> f64;
 }
 
-impl DataTable {
-    pub fn new(id: &str, db_path: &str, window_size: usize) -> Self {
-        let db = Db::new(
-            &format!("{}/naive_pair_trading_model_{}", db_path, id),
-            id.to_string(),
-        );
-        DataTable {
+impl<T: Serialize + DeserializeOwned + Clone> LinearModelTable<T> {
+    pub fn new(
+        id: &str,
+        db_path: &str,
+        window_size: usize,
+        beta_fn: Box<BetaFn<T>>,
+        alpha_fn: Box<AlphaFn<T>>,
+    ) -> Self {
+        let db = Db::new(&format!("{}/model_{}", db_path, id), id.to_string());
+        Self {
             id: id.to_string(),
             rows: Vec::new(),
             window_size,
@@ -121,6 +116,8 @@ impl DataTable {
             db,
             last_model: None,
             last_model_load_attempt: None,
+            beta_fn,
+            alpha_fn,
         }
     }
 
@@ -136,7 +133,7 @@ impl DataTable {
         self.last_model = Some(value);
         self.db.put_json(LINEAR_MODEL_KEY, &self.last_model)?;
         self.db.delete_all("row")?;
-        let x: Vec<&DataRow> = self.current_window().rev().collect();
+        let x: Vec<&T> = self.current_window().rev().collect();
         self.db.put_all_json("row", &x)?;
         Ok(())
     }
@@ -174,11 +171,11 @@ impl DataTable {
         self.last_model.is_some()
     }
 
-    fn current_window(&self) -> Take<Rev<Iter<DataRow>>> {
+    pub(crate) fn current_window(&self) -> Take<Rev<Iter<T>>> {
         self.rows.iter().rev().take(self.window_size)
     }
 
-    pub fn push(&mut self, row: &DataRow) {
+    pub fn push(&mut self, row: &T) {
         self.rows.push(row.clone());
         // Truncate the table by window_size once max_size is reached
         if let Err(e) = self
@@ -193,25 +190,11 @@ impl DataTable {
     }
 
     pub fn beta(&self) -> f64 {
-        let (var, covar) = self.current_window().tee();
-        let variance: f64 = var.map(|r| r.left.mid).variance();
-        trace!("variance {}", variance);
-        let covariance: f64 = covar
-            .map(|r| (r.left.mid, r.right.mid))
-            .covariance::<(f64, f64), f64>();
-        trace!("covariance {}", covariance);
-        let beta_val = covariance / variance;
-        trace!("beta_val {}", beta_val);
-        beta_val
+        (self.beta_fn)(&self)
     }
 
     pub fn alpha(&self, beta_val: f64) -> f64 {
-        let (left, right) = self.current_window().tee();
-        let mean_left: f64 = left.map(|l| l.left.mid).mean();
-        trace!("mean left {}", mean_left);
-        let mean_right: f64 = right.map(|l| l.right.mid).mean();
-        trace!("mean right {}", mean_right);
-        mean_right - beta_val * mean_left
+        (self.alpha_fn)(&self, beta_val)
     }
 
     pub fn predict(&self, alpha_val: f64, beta_val: f64, bp: &BookPosition) -> f64 {
@@ -227,24 +210,28 @@ impl DataTable {
     pub fn is_empty(&self) -> bool {
         self.rows.is_empty()
     }
-
-    #[allow(dead_code)]
-    pub fn records_after(&self, cutoff: DateTime<Utc>) -> usize {
-        self.rows.iter().filter(|r| r.time.gt(&cutoff)).count()
-    }
 }
 
 #[cfg(test)]
 mod test {
     extern crate test;
 
-    use crate::naive_pair_trading::data_table::{BookPosition, DataRow, DataTable};
     use db::Db;
     use tempfile::TempDir;
 
-    use chrono::{TimeZone, Utc};
+    use crate::ob_linear_model::{BookPosition, LinearModelTable};
+    use chrono::{DateTime, TimeZone, Utc};
     use quickcheck::{Arbitrary, Gen, StdThreadGen};
     use test::Bencher;
+
+    #[derive(Debug)]
+    struct MockLinearModel;
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct TestRow {
+        pub time: DateTime<Utc>,
+        pub pos: BookPosition, // crypto_1
+    }
 
     impl Arbitrary for BookPosition {
         fn arbitrary<G: Gen>(g: &mut G) -> BookPosition {
@@ -258,12 +245,11 @@ mod test {
         }
     }
 
-    impl Arbitrary for DataRow {
-        fn arbitrary<G: Gen>(g: &mut G) -> DataRow {
-            DataRow {
+    impl Arbitrary for TestRow {
+        fn arbitrary<G: Gen>(g: &mut G) -> TestRow {
+            TestRow {
                 time: Utc.timestamp_millis(f64::arbitrary(g) as i64),
-                left: BookPosition::arbitrary(g),
-                right: BookPosition::arbitrary(g),
+                pos: BookPosition::arbitrary(g),
             }
         }
     }
@@ -275,7 +261,7 @@ mod test {
 
     #[bench]
     fn test_save_load_model(b: &mut Bencher) {
-        let mut table = DataTable {
+        let mut table: LinearModelTable<TestRow> = LinearModelTable {
             db: test_db(),
             id: "default".to_string(),
             window_size: 500,
@@ -283,10 +269,14 @@ mod test {
             rows: Vec::new(),
             last_model: None,
             last_model_load_attempt: None,
+            beta_fn: Box::new(|lm| lm.current_window().map(|t| t.pos.mid).sum::<f64>()),
+            alpha_fn: Box::new(|lm, beta| {
+                lm.current_window().map(|t| t.pos.mid).sum::<f64>() * beta
+            }),
         };
         let mut gen = StdThreadGen::new(500);
         for _ in 0..table.max_size {
-            table.push(&DataRow::arbitrary(&mut gen))
+            table.push(&TestRow::arbitrary(&mut gen))
         }
         b.iter(|| {
             table.update_model().unwrap();
