@@ -6,15 +6,14 @@ use std::ops::{Add, Mul, Sub};
 use std::sync::Arc;
 
 mod covar_model;
-pub mod input;
 pub mod metrics;
 pub mod options;
 pub mod state;
 
-use crate::model::PositionKind;
+use crate::model::{BookPosition, PositionKind};
 use crate::naive_pair_trading::covar_model::DataRow;
 use crate::naive_pair_trading::state::Operation;
-use crate::ob_linear_model::{BookPosition, LinearModelTable};
+use crate::ob_linear_model::LinearModelTable;
 use crate::order_manager::OrderManager;
 use crate::query::{FieldMutation, MutableField};
 use crate::{DataQuery, DataResult, StrategyInterface};
@@ -398,23 +397,20 @@ impl StrategyInterface for NaiveTradingStrategy {
 #[cfg(test)]
 mod test {
     use chrono::{DateTime, TimeZone, Utc};
-    use itertools::Itertools;
     use plotters::prelude::*;
     use serde::Serialize;
 
-    use super::input::CsvRecord;
     use super::state::MovingState;
     use super::{DataRow, NaiveTradingStrategy};
-    use crate::naive_pair_trading::input::to_pos;
+    use crate::input::to_pos;
     use crate::naive_pair_trading::options::Options;
     use crate::order_manager::OrderManager;
     use actix::Actor;
     use coinnect_rt::exchange::{Exchange, ExchangeApi, MockApi};
+    use itertools::Itertools;
     use ordered_float::OrderedFloat;
     use std::error::Error;
-    use std::ops::Deref;
     use std::path::Path;
-    use std::process::Command;
     use std::sync::Arc;
     use std::time::Instant;
     use util::date::{DateRange, DurationRangeType};
@@ -439,46 +435,6 @@ mod test {
                 state,
             }
         }
-    }
-
-    async fn load_csv_dataset(dr: &DateRange) -> (Vec<CsvRecord>, Vec<CsvRecord>) {
-        let bp = std::env::var_os("BITCOINS_REPO")
-            .and_then(|oss| oss.into_string().ok())
-            .unwrap_or_else(|| "..".to_string());
-        let exchange_name = "Binance";
-        let channel = "order_books";
-
-        let base_path = Path::new(&bp)
-            .join("data")
-            .join(exchange_name)
-            .join(channel);
-        let bpc = Arc::new(bp);
-        let dl_test_data = async move |bpc: Arc<String>, pair: &'static str| {
-            let out_file_name = format!("{}.zip", pair);
-            let file = tempfile::tempdir().unwrap();
-            let out_file = file.into_path().join(out_file_name);
-            let s3_key = &format!("test_data/{}/{}/{}.zip", exchange_name, channel, pair);
-            util::s3::download_file(&s3_key.clone(), out_file.clone())
-                .await
-                .unwrap();
-
-            let bp = bpc.deref();
-
-            Command::new("unzip")
-                .arg(&out_file)
-                .arg("-d")
-                .arg(bp)
-                .output()
-                .expect("failed to unzip file");
-        };
-        for s in &[LEFT_PAIR, RIGHT_PAIR] {
-            if !base_path.exists() || !base_path.join(&format!("pr={}", s)).exists() {
-                //download dataset from spaces
-                std::fs::create_dir_all(&base_path).unwrap();
-                dl_test_data(bpc.clone(), s).await;
-            }
-        }
-        super::input::load_records_from_csv(dr, &base_path, LEFT_PAIR, RIGHT_PAIR, "*csv")
     }
 
     type StrategyEntry<'a> = (&'a str, Vec<fn(&StrategyLog) -> f64>);
@@ -559,6 +515,9 @@ mod test {
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
+    static exchange_name: &str = "Binance";
+    static channel: &str = "order_books";
+
     #[tokio::test]
     async fn beta_val() {
         init();
@@ -566,12 +525,17 @@ mod test {
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 3, 25);
         let dt1 = Utc.ymd(2020, 3, 25);
-        let (left_records, right_records) =
-            load_csv_dataset(&DateRange(dt0, dt1, DurationRangeType::Days, 1)).await;
+        let records = crate::input::load_csv_dataset(
+            &DateRange(dt0, dt1, DurationRangeType::Days, 1),
+            vec![LEFT_PAIR.to_string(), RIGHT_PAIR.to_string()],
+            exchange_name,
+            channel,
+        )
+        .await;
         // align data
-        left_records
+        records[0]
             .iter()
-            .zip(right_records.iter())
+            .zip(records[1].iter())
             .take(500)
             .for_each(|(l, r)| {
                 dt.push(&DataRow {
@@ -619,12 +583,19 @@ mod test {
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 3, 25);
         let dt1 = Utc.ymd(2020, 4, 8);
-        let (left_records, right_records) =
-            load_csv_dataset(&DateRange(dt0, dt1, DurationRangeType::Days, 1)).await;
+        let records = crate::input::load_csv_dataset(
+            &DateRange(dt0, dt1, DurationRangeType::Days, 1),
+            vec![LEFT_PAIR.to_string(), RIGHT_PAIR.to_string()],
+            exchange_name,
+            channel,
+        )
+        .await;
         println!("Dataset loaded in memory...");
         // align data
         let mut elapsed = 0 as u128;
         let mut iterations = 0 as u128;
+        let left_records = records[0].clone();
+        let right_records = records[1].clone();
         let (zip, other) = left_records.iter().zip(right_records.iter()).tee();
         let (left, right) = other.tee();
         let left_sum: f64 = left.map(|r| (r.0.a1 + r.0.b1) / 2.0).sum();

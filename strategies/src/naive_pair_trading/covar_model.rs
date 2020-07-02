@@ -1,4 +1,5 @@
-use crate::ob_linear_model::{BookPosition, LinearModelTable};
+use crate::model::BookPosition;
+use crate::ob_linear_model::LinearModelTable;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use math::iter::{CovarianceExt, MeanExt, VarianceExt};

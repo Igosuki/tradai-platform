@@ -31,9 +31,11 @@ use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation};
 
 pub mod error;
+pub mod input;
 pub mod mean_reverting;
 mod model;
 pub mod naive_pair_trading;
+mod ob_double_window_model;
 mod ob_linear_model;
 pub mod order_manager;
 pub mod query;

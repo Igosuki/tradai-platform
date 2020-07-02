@@ -1,4 +1,4 @@
-use crate::ob_linear_model::BookPosition;
+use crate::model::BookPosition;
 use chrono::prelude::*;
 use chrono::{DateTime, Utc};
 use glob::glob;
@@ -6,11 +6,14 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Result;
-use std::path::PathBuf;
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::Arc;
 use util::date::DateRange;
 use util::serdes::date_time_format;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CsvRecord {
     #[serde(with = "date_time_format")]
     #[serde(alias = "hourofday")]
@@ -65,10 +68,9 @@ pub fn partition_path(exchange: &str, ts: i64, channel: &str, pair: &str) -> Opt
 pub fn load_records_from_csv(
     dr: &DateRange,
     base_path: &PathBuf,
-    left_pair: &str,
-    right_pair: &str,
+    pairs: Vec<String>,
     glob_str: &str,
-) -> (Vec<CsvRecord>, Vec<CsvRecord>) {
+) -> Vec<Vec<CsvRecord>> {
     let get_records = move |p: String| {
         dr.clone()
             .flat_map(|dt| {
@@ -82,10 +84,7 @@ pub fn load_records_from_csv(
             })
             .collect()
     };
-    (
-        get_records(left_pair.to_string()),
-        get_records(right_pair.to_string()),
-    )
+    pairs.iter().map(|p| get_records(p.to_string())).collect()
 }
 
 fn load_records(path: &str) -> Vec<CsvRecord> {
@@ -108,4 +107,57 @@ pub fn to_pos(r: &CsvRecord) -> BookPosition {
         (r.b5, r.bq5),
     ];
     BookPosition::new(&asks, &bids)
+}
+
+pub async fn dl_test_data(
+    base_path: Arc<String>,
+    exchange_name: Arc<String>,
+    channel: Arc<String>,
+    pair: String,
+) {
+    let out_file_name = format!("{}.zip", pair);
+    let file = tempfile::tempdir().unwrap();
+    let out_file = file.into_path().join(out_file_name);
+    let s3_key = &format!("test_data/{}/{}/{}.zip", exchange_name, channel, pair);
+    util::s3::download_file(&s3_key.clone(), out_file.clone())
+        .await
+        .unwrap();
+
+    let bp = base_path.deref();
+
+    Command::new("unzip")
+        .arg(&out_file)
+        .arg("-d")
+        .arg(bp)
+        .output()
+        .expect("failed to unzip file");
+}
+
+pub async fn load_csv_dataset(
+    dr: &DateRange,
+    pairs: Vec<String>,
+    exchange_name: &str,
+    channel: &str,
+) -> Vec<Vec<CsvRecord>> {
+    let bp = std::env::var_os("BITCOINS_REPO")
+        .and_then(|oss| oss.into_string().ok())
+        .unwrap_or_else(|| "..".to_string());
+
+    let base_path = Path::new(&bp)
+        .join("data")
+        .join(exchange_name)
+        .join(channel.clone());
+    let bpc = Arc::new(bp);
+    let channelc = Arc::new(channel.to_string());
+    let exchange_namec = Arc::new(exchange_name.to_string());
+
+    for s in pairs.clone() {
+        if !base_path.exists() || !base_path.join(&format!("pr={}", s)).exists() {
+            //download dataset from spaces
+            std::fs::create_dir_all(&base_path).unwrap();
+            crate::input::dl_test_data(bpc.clone(), exchange_namec.clone(), channelc.clone(), s)
+                .await;
+        }
+    }
+    crate::input::load_records_from_csv(dr, &base_path, pairs, "*csv")
 }
