@@ -7,69 +7,68 @@ use std::fmt::Debug;
 use std::iter::{Rev, Take};
 use std::slice::Iter;
 
-type BetaFn<T> = dyn Fn(&LinearModelTable<T>) -> f64 + Send + 'static;
-type AlphaFn<T> = dyn Fn(&LinearModelTable<T>, f64) -> f64 + Send + 'static;
+type ShortWindowFn<T> = dyn Fn(&DoubleWindowTable<T>, usize) -> f64 + Send + 'static;
+type LongWindowFn<T> = dyn Fn(&DoubleWindowTable<T>, usize) -> f64 + Send + 'static;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub struct LinearModelTable<T> {
+pub struct DoubleWindowTable<T> {
     rows: Vec<T>,
-    window_size: usize,
+    short_window_size: usize,
+    long_window_size: usize,
     max_size: usize,
     db: Db,
     id: String,
-    last_model: Option<LinearModelValue>,
+    last_model: Option<DoubleWindowModelValue>,
     last_model_load_attempt: Option<DateTime<Utc>>,
     #[derivative(Debug = "ignore")]
-    beta_fn: Box<BetaFn<T>>,
-    #[derivative(Debug = "ignore")]
-    alpha_fn: Box<AlphaFn<T>>,
+    window_fn: Box<ShortWindowFn<T>>,
 }
 
 static LINEAR_MODEL_KEY: &str = "linear_model";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LinearModelValue {
-    pub beta: f64,
-    pub alpha: f64,
+pub struct DoubleWindowModelValue {
+    pub short_ema: f64,
+    pub long_ema: f64,
     pub at: DateTime<Utc>,
 }
 
-impl<T: Serialize + DeserializeOwned + Clone> LinearModelTable<T> {
+impl<T: Serialize + DeserializeOwned + Clone> DoubleWindowTable<T> {
     pub fn new(
         id: &str,
         db_path: &str,
-        window_size: usize,
-        beta_fn: Box<BetaFn<T>>,
-        alpha_fn: Box<AlphaFn<T>>,
+        short_window_size: usize,
+        long_window_size: usize,
+        window_fn: Box<ShortWindowFn<T>>,
     ) -> Self {
         let db = Db::new(&format!("{}/model_{}", db_path, id), id.to_string());
         Self {
             id: id.to_string(),
             rows: Vec::new(),
-            window_size,
-            max_size: window_size * 2, // Keep window_size * 2 elements
+            short_window_size,
+            long_window_size,
+            max_size: long_window_size * 2, // Keep window_size * 2 elements
             db,
             last_model: None,
             last_model_load_attempt: None,
-            beta_fn,
-            alpha_fn,
+            window_fn,
         }
     }
 
     pub fn update_model(&mut self) -> Result<(), DataStoreError> {
-        let beta = self.beta();
-        let alpha = self.alpha(beta);
+        let short_ema = (self.window_fn)(&self, self.short_window_size);
+        let long_ema = (self.window_fn)(&self, self.long_window_size);
         let now = Utc::now();
-        let value = LinearModelValue {
-            beta,
-            alpha,
+        let value = DoubleWindowModelValue {
+            short_ema,
+            long_ema,
             at: now,
         };
         self.last_model = Some(value);
         self.db.put_json(LINEAR_MODEL_KEY, &self.last_model)?;
         self.db.delete_all("row")?;
-        let x: Vec<&T> = self.current_window().rev().collect();
+        let x: Vec<&T> = self.window(self.long_window_size).rev().collect();
         self.db.put_all_json("row", &x)?;
         Ok(())
     }
@@ -91,7 +90,7 @@ impl<T: Serialize + DeserializeOwned + Clone> LinearModelTable<T> {
         Ok(())
     }
 
-    pub fn model(&self) -> Box<Option<LinearModelValue>> {
+    pub fn model(&self) -> Box<Option<DoubleWindowModelValue>> {
         Box::new(self.last_model.clone())
     }
 
@@ -107,8 +106,8 @@ impl<T: Serialize + DeserializeOwned + Clone> LinearModelTable<T> {
         self.last_model.is_some()
     }
 
-    pub(crate) fn current_window(&self) -> Take<Rev<Iter<T>>> {
-        self.rows.iter().rev().take(self.window_size)
+    pub(crate) fn window(&self, window_size: usize) -> Take<Rev<Iter<T>>> {
+        self.rows.iter().rev().take(window_size)
     }
 
     pub fn push(&mut self, row: &T) {
@@ -121,16 +120,8 @@ impl<T: Serialize + DeserializeOwned + Clone> LinearModelTable<T> {
             error!("Failed writing row : {:?}", e);
         }
         if self.rows.len() > self.max_size {
-            self.rows.drain(0..self.window_size);
+            self.rows.drain(0..self.long_window_size);
         }
-    }
-
-    pub fn beta(&self) -> f64 {
-        (self.beta_fn)(&self)
-    }
-
-    pub fn alpha(&self, beta_val: f64) -> f64 {
-        (self.alpha_fn)(&self, beta_val)
     }
 
     pub fn predict(&self, alpha_val: f64, beta_val: f64, bp: &BookPosition) -> f64 {
@@ -146,6 +137,10 @@ impl<T: Serialize + DeserializeOwned + Clone> LinearModelTable<T> {
     pub fn is_empty(&self) -> bool {
         self.rows.is_empty()
     }
+
+    pub fn moving_avg(&self) -> f64 {
+        0.0
+    }
 }
 
 #[cfg(test)]
@@ -156,7 +151,7 @@ mod test {
     use tempfile::TempDir;
 
     use crate::model::BookPosition;
-    use crate::ob_linear_model::LinearModelTable;
+    use crate::ob_double_window_model::DoubleWindowTable;
     use chrono::{DateTime, TimeZone, Utc};
     use quickcheck::{Arbitrary, Gen, StdThreadGen};
     use test::Bencher;
@@ -186,17 +181,17 @@ mod test {
 
     #[bench]
     fn test_save_load_model(b: &mut Bencher) {
-        let mut table: LinearModelTable<TestRow> = LinearModelTable {
+        let mut table: DoubleWindowTable<TestRow> = DoubleWindowTable {
             db: test_db(),
             id: "default".to_string(),
-            window_size: 500,
-            max_size: 1000,
+            short_window_size: 100,
+            long_window_size: 1000,
+            max_size: 2000,
             rows: Vec::new(),
             last_model: None,
             last_model_load_attempt: None,
-            beta_fn: Box::new(|lm| lm.current_window().map(|t| t.pos.mid).sum::<f64>()),
-            alpha_fn: Box::new(|lm, beta| {
-                lm.current_window().map(|t| t.pos.mid).sum::<f64>() * beta
+            window_fn: Box::new(|lm, window_size| {
+                lm.window(window_size).map(|t| t.pos.mid).sum::<f64>()
             }),
         };
         let mut gen = StdThreadGen::new(500);

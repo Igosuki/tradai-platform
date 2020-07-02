@@ -1,5 +1,5 @@
+use crate::model::BookPosition;
 use crate::model::{OperationKind, PositionKind, TradeKind};
-use crate::ob_linear_model::BookPosition;
 use crate::order_manager::{OrderId, OrderManager, StagedOrder, Transaction};
 use crate::query::MutableField;
 use actix::Addr;

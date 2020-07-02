@@ -8,7 +8,7 @@ use itertools::Itertools;
 use std::ops::Sub;
 use std::path::Path;
 use std::time::Instant;
-use strategies::naive_pair_trading::input::{to_pos, CsvRecord};
+use strategies::input::{to_pos, CsvRecord};
 use strategies::naive_pair_trading::ob_linear_model::DataRow;
 use strategies::naive_pair_trading::NaiveTradingStrategy;
 use util::date::{DateRange, DurationRangeType};
@@ -75,14 +75,12 @@ fn main() {
 
     Utc.timestamp(0, 0);
     let now = Instant::now();
-    let (left_records, right_records) =
-        strategies::naive_pair_trading::input::load_records_from_csv(
-            &DateRange(midnight.date(), end.date(), DurationRangeType::Days, 1),
-            &base_path,
-            &left_pair,
-            &right_pair,
-            "/*.csv",
-        );
+    let [left_records, right_records] = strategies::input::load_records_from_csv(
+        &DateRange(midnight.date(), end.date(), DurationRangeType::Days, 1),
+        &base_path,
+        vec![&left_pair, &right_pair],
+        "/*.csv",
+    );
     println!("Left records count : {}", left_records.len());
     println!("Right records count : {}", right_records.len());
 
