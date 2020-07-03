@@ -1,13 +1,17 @@
-use crate::naive_pair_trading::state::Operation;
+use crate::mean_reverting::state::Operation as MeanRevertingOperation;
+use crate::naive_pair_trading::state::Operation as NaiveOperation;
 use actix_derive::{Message, MessageResponse};
 use serde::{Deserialize, Serialize};
 
+// TODO: Refactor this ugly bit of code
 #[derive(Debug, Deserialize, Serialize, MessageResponse)]
 #[serde(tag = "type")]
 pub enum DataResult {
-    Operations(Vec<Operation>),
+    NaiveOperations(Vec<NaiveOperation>),
+    MeanRevertingOperations(Vec<MeanRevertingOperation>),
     Dump(Vec<String>),
-    Operation(Option<Operation>),
+    NaiveOperation(Option<NaiveOperation>),
+    MeanRevertingOperation(Option<MeanRevertingOperation>),
 }
 
 #[derive(Deserialize, Serialize, Message)]

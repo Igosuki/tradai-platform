@@ -330,3 +330,20 @@ impl Handler<Ping> for OrderManager {
 
     fn handle(&mut self, _msg: Ping, _ctx: &mut Context<Self>) {}
 }
+
+#[cfg(test)]
+pub mod test_util {
+    use crate::order_manager::OrderManager;
+    use actix::{Actor, Addr};
+    use coinnect_rt::exchange::ExchangeApi;
+    use coinnect_rt::exchange::MockApi;
+    use std::path::Path;
+    use std::sync::Arc;
+
+    pub fn mock_manager(path: &str) -> Addr<OrderManager> {
+        let capi: Box<dyn ExchangeApi> = Box::new(MockApi);
+        let api = Arc::new(capi);
+        let order_manager = OrderManager::new(api, Path::new(path));
+        OrderManager::start(order_manager)
+    }
+}

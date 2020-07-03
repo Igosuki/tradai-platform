@@ -7,30 +7,28 @@ use std::fmt::Debug;
 use std::iter::{Rev, Take};
 use std::slice::Iter;
 
-type ShortWindowFn<T> = dyn Fn(&DoubleWindowTable<T>, usize) -> f64 + Send + 'static;
-type LongWindowFn<T> = dyn Fn(&DoubleWindowTable<T>, usize) -> f64 + Send + 'static;
+type DoubleWindowFn<T> = dyn Fn(&DoubleWindowTable<T>) -> f64 + Send + 'static;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct DoubleWindowTable<T> {
     rows: Vec<T>,
-    short_window_size: usize,
-    long_window_size: usize,
+    pub short_window_size: usize,
+    pub long_window_size: usize,
     max_size: usize,
     db: Db,
     id: String,
     last_model: Option<DoubleWindowModelValue>,
     last_model_load_attempt: Option<DateTime<Utc>>,
     #[derivative(Debug = "ignore")]
-    window_fn: Box<ShortWindowFn<T>>,
+    window_fn: Box<DoubleWindowFn<T>>,
 }
 
 static LINEAR_MODEL_KEY: &str = "linear_model";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DoubleWindowModelValue {
-    pub short_ema: f64,
-    pub long_ema: f64,
+    pub value: f64,
     pub at: DateTime<Utc>,
 }
 
@@ -40,7 +38,7 @@ impl<T: Serialize + DeserializeOwned + Clone> DoubleWindowTable<T> {
         db_path: &str,
         short_window_size: usize,
         long_window_size: usize,
-        window_fn: Box<ShortWindowFn<T>>,
+        window_fn: Box<DoubleWindowFn<T>>,
     ) -> Self {
         let db = Db::new(&format!("{}/model_{}", db_path, id), id.to_string());
         Self {
@@ -57,14 +55,9 @@ impl<T: Serialize + DeserializeOwned + Clone> DoubleWindowTable<T> {
     }
 
     pub fn update_model(&mut self) -> Result<(), DataStoreError> {
-        let short_ema = (self.window_fn)(&self, self.short_window_size);
-        let long_ema = (self.window_fn)(&self, self.long_window_size);
+        let value = (self.window_fn)(&self);
         let now = Utc::now();
-        let value = DoubleWindowModelValue {
-            short_ema,
-            long_ema,
-            at: now,
-        };
+        let value = DoubleWindowModelValue { value, at: now };
         self.last_model = Some(value);
         self.db.put_json(LINEAR_MODEL_KEY, &self.last_model)?;
         self.db.delete_all("row")?;
@@ -137,10 +130,6 @@ impl<T: Serialize + DeserializeOwned + Clone> DoubleWindowTable<T> {
     pub fn is_empty(&self) -> bool {
         self.rows.is_empty()
     }
-
-    pub fn moving_avg(&self) -> f64 {
-        0.0
-    }
 }
 
 #[cfg(test)]
@@ -190,8 +179,10 @@ mod test {
             rows: Vec::new(),
             last_model: None,
             last_model_load_attempt: None,
-            window_fn: Box::new(|lm, window_size| {
-                lm.window(window_size).map(|t| t.pos.mid).sum::<f64>()
+            window_fn: Box::new(|lm| {
+                lm.window(lm.long_window_size)
+                    .map(|t| t.pos.mid)
+                    .sum::<f64>()
             }),
         };
         let mut gen = StdThreadGen::new(500);
