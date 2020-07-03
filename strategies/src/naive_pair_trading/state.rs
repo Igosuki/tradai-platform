@@ -1,3 +1,4 @@
+use crate::model;
 use crate::model::BookPosition;
 use crate::model::{OperationKind, PositionKind, TradeKind};
 use crate::order_manager::{OrderId, OrderManager, StagedOrder, Transaction};
@@ -10,8 +11,6 @@ use log::Level::Info;
 use serde::{Deserialize, Serialize};
 use std::panic;
 use uuid::Uuid;
-
-const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct Position {
@@ -103,48 +102,21 @@ impl Operation {
     }
 
     fn log(&self) {
-        self.log_pos(&self.kind, &self.pos.kind, self.pos.time);
-        self.log_trade(
+        model::log_pos(&self.kind, &self.pos.kind, self.pos.time);
+        model::log_trade(
             &self.right_trade.kind,
             self.right_trade.qty,
             &self.pos.right_pair,
             self.pos.right_price,
             self.right_value(),
         );
-        self.log_trade(
+        model::log_trade(
             &self.left_trade.kind,
             self.left_trade.qty,
             &self.pos.left_pair,
             self.pos.left_price,
             self.left_value(),
         );
-    }
-
-    fn log_pos(&self, op: &OperationKind, pos: &PositionKind, time: DateTime<Utc>) {
-        if log_enabled!(Info) {
-            info!(
-                "{} {} position at {}",
-                op.as_ref(),
-                match pos {
-                    PositionKind::SHORT => "short",
-                    PositionKind::LONG => "long",
-                },
-                time.format(TS_FORMAT)
-            );
-        }
-    }
-
-    fn log_trade(&self, op: &TradeKind, qty: f64, pair: &str, price: f64, value: f64) {
-        if log_enabled!(Info) {
-            info!(
-                "{} {:.2} {} at {} for {:.2}",
-                op.as_ref(),
-                qty,
-                pair,
-                price,
-                value
-            );
-        }
     }
 }
 

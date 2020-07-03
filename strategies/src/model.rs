@@ -1,5 +1,7 @@
+use chrono::{DateTime, Utc};
 use coinnect_rt::types::{Orderbook, TradeType};
 use itertools::Itertools;
+use log::Level::Info;
 use std::convert::TryFrom;
 use strum_macros::{AsRefStr, EnumString};
 use thiserror::Error;
@@ -40,6 +42,35 @@ impl Into<TradeType> for TradeKind {
             TradeKind::BUY => TradeType::Buy,
             TradeKind::SELL => TradeType::Sell,
         }
+    }
+}
+
+const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
+
+pub fn log_pos(op: &OperationKind, pos: &PositionKind, time: DateTime<Utc>) {
+    if log_enabled!(Info) {
+        info!(
+            "{} {} position at {}",
+            op.as_ref(),
+            match pos {
+                PositionKind::SHORT => "short",
+                PositionKind::LONG => "long",
+            },
+            time.format(TS_FORMAT)
+        );
+    }
+}
+
+pub fn log_trade(op: &TradeKind, qty: f64, pair: &str, price: f64, value: f64) {
+    if log_enabled!(Info) {
+        info!(
+            "{} {:.2} {} at {} for {:.2}",
+            op.as_ref(),
+            qty,
+            pair,
+            price,
+            value
+        );
     }
 }
 

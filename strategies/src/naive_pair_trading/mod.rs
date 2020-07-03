@@ -381,10 +381,10 @@ impl StrategyInterface for NaiveTradingStrategy {
 
     fn data(&self, q: DataQuery) -> Option<DataResult> {
         match q {
-            DataQuery::Operations => Some(DataResult::Operations(self.get_operations())),
+            DataQuery::Operations => Some(DataResult::NaiveOperations(self.get_operations())),
             DataQuery::Dump => Some(DataResult::Dump(self.dump_db())),
             DataQuery::CurrentOperation => {
-                Some(DataResult::Operation(self.get_ongoing_op().clone()))
+                Some(DataResult::NaiveOperation(self.get_ongoing_op().clone()))
             }
         }
     }
@@ -404,14 +404,11 @@ mod test {
     use super::{DataRow, NaiveTradingStrategy};
     use crate::input::to_pos;
     use crate::naive_pair_trading::options::Options;
-    use crate::order_manager::OrderManager;
-    use actix::Actor;
-    use coinnect_rt::exchange::{Exchange, ExchangeApi, MockApi};
+    use crate::order_manager::test_util;
+    use coinnect_rt::exchange::Exchange;
     use itertools::Itertools;
     use ordered_float::OrderedFloat;
     use std::error::Error;
-    use std::path::Path;
-    use std::sync::Arc;
     use std::time::Instant;
     use util::date::{DateRange, DurationRangeType};
 
@@ -515,8 +512,8 @@ mod test {
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
-    static exchange_name: &str = "Binance";
-    static channel: &str = "order_books";
+    static EXCHANGE: &str = "Binance";
+    static CHANNEL: &str = "order_books";
 
     #[tokio::test]
     async fn beta_val() {
@@ -528,8 +525,8 @@ mod test {
         let records = crate::input::load_csv_dataset(
             &DateRange(dt0, dt1, DurationRangeType::Days, 1),
             vec![LEFT_PAIR.to_string(), RIGHT_PAIR.to_string()],
-            exchange_name,
-            channel,
+            EXCHANGE,
+            CHANNEL,
         )
         .await;
         // align data
@@ -557,10 +554,7 @@ mod test {
         let window_size = 2000;
         let buf = root.into_path();
         let path = buf.to_str().unwrap();
-        let capi: Box<dyn ExchangeApi> = Box::new(MockApi);
-        let api = Arc::new(capi);
-        let order_manager = OrderManager::new(api, Path::new(path));
-        let order_manager_addr = OrderManager::start(order_manager);
+        let order_manager_addr = test_util::mock_manager(path);
         let mut strat = NaiveTradingStrategy::new(
             path,
             0.001,
@@ -586,8 +580,8 @@ mod test {
         let records = crate::input::load_csv_dataset(
             &DateRange(dt0, dt1, DurationRangeType::Days, 1),
             vec![LEFT_PAIR.to_string(), RIGHT_PAIR.to_string()],
-            exchange_name,
-            channel,
+            EXCHANGE,
+            CHANNEL,
         )
         .await;
         println!("Dataset loaded in memory...");

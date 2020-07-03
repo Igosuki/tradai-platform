@@ -157,10 +157,11 @@ impl QueryRoot {
     async fn operations(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<Operation>> {
         context
             .with_strat(tk, DataQuery::Operations, |dr| {
-                if let DataResult::Operations(pos_vec) = dr {
-                    Ok(pos_vec)
-                } else {
-                    unhandled_data_result()
+                match dr {
+                    DataResult::NaiveOperations(pos_vec) | DataResult::MeanRevertingOperations(pos_vec) {
+                        Ok(pos_vec)
+                    }
+                    _ => unhandled_data_result()
                 }
             })
             .await
@@ -173,10 +174,11 @@ impl QueryRoot {
     ) -> FieldResult<Option<Operation>> {
         context
             .with_strat(tk, DataQuery::CurrentOperation, |dr| {
-                if let DataResult::Operation(op) = dr {
-                    Ok(op)
-                } else {
-                    unhandled_data_result()
+                match dr {
+                    DataResult::NaiveOperation(op) | DataResult::MeanRevertingOperation(op) {
+                        Ok(op)
+                    }
+                    _ => unhandled_data_result()
                 }
             })
             .await

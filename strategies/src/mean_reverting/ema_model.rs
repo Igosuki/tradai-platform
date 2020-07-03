@@ -1,7 +1,7 @@
 use crate::model::BookPosition;
 use crate::ob_double_window_model::DoubleWindowTable;
 use chrono::{DateTime, Utc};
-use math::iter::MeanExt;
+use math::iter::{MovingAvgExt, MovingAvgType};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SinglePosRow {
@@ -9,8 +9,19 @@ pub struct SinglePosRow {
     pub pos: BookPosition, // crypto_1
 }
 
-pub fn moving_average(i: &DoubleWindowTable<SinglePosRow>, window_size: usize) -> f64 {
-    let mean = i.window(window_size).map(|l| l.pos.mid).mean();
-    trace!("mean {}", mean);
-    mean
+pub fn moving_average_apo(i: &DoubleWindowTable<SinglePosRow>) -> f64 {
+    let long_ema: f64 = i
+        .window(i.long_window_size)
+        .map(|spr| spr.pos.mid)
+        .moving_avg(MovingAvgType::Exponential(2));
+    let short_ema: f64 = i
+        .window(i.short_window_size)
+        .map(|spr| spr.pos.mid)
+        .moving_avg(MovingAvgType::Exponential(2));
+    let apo = (short_ema - long_ema) / long_ema;
+    debug!(
+        "moving average : short {} long {} apo {}",
+        short_ema, long_ema, apo
+    );
+    apo
 }
