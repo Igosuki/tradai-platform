@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use peroxide::statistics::stat::{OrderedStat, QType};
 
 pub trait MeanExt: Iterator {
     fn mean<M>(self) -> M
@@ -196,5 +197,42 @@ impl<'a> MovingAvg<&'a f64> for f64 {
         I: Iterator<Item = &'a f64>,
     {
         iter.cloned().moving_avg(t)
+    }
+}
+
+pub trait QuantileExt: Iterator {
+    fn quantile<M>(self, prob: f64) -> M
+    where
+        M: Quantile<Self::Item>,
+        Self: Sized,
+    {
+        M::quantile(self, prob)
+    }
+}
+
+impl<I: Iterator> QuantileExt for I {}
+
+pub trait Quantile<A = Self> {
+    fn quantile<I>(iter: I, prob: f64) -> Self
+    where
+        I: Iterator<Item = A>;
+}
+
+impl Quantile for f64 {
+    fn quantile<I>(iter: I, prob: f64) -> Self
+    where
+        I: Iterator<Item = f64>,
+    {
+        let v: Vec<f64> = iter.collect();
+        v.quantile(prob, QType::Type7)
+    }
+}
+
+impl<'a> Quantile<&'a f64> for f64 {
+    fn quantile<I>(iter: I, prob: f64) -> Self
+    where
+        I: Iterator<Item = &'a f64>,
+    {
+        iter.cloned().quantile(prob)
     }
 }

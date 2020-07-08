@@ -24,7 +24,8 @@ pub struct DoubleWindowTable<T> {
     window_fn: Box<DoubleWindowFn<T>>,
 }
 
-static LINEAR_MODEL_KEY: &str = "linear_model";
+static LAST_MODEL_KEY: &str = "last_model";
+static ROW_KEY: &str = "row";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DoubleWindowModelValue {
@@ -38,15 +39,17 @@ impl<T: Serialize + DeserializeOwned + Clone> DoubleWindowTable<T> {
         db_path: &str,
         short_window_size: usize,
         long_window_size: usize,
+        max_size_o: Option<usize>,
         window_fn: Box<DoubleWindowFn<T>>,
     ) -> Self {
         let db = Db::new(&format!("{}/model_{}", db_path, id), id.to_string());
+        let max_size = max_size_o.unwrap_or_else(|| 2 * long_window_size);
         Self {
             id: id.to_string(),
             rows: Vec::new(),
             short_window_size,
             long_window_size,
-            max_size: long_window_size * 2, // Keep window_size * 2 elements
+            max_size: max_size, // Keep max_size elements
             db,
             last_model: None,
             last_model_load_attempt: None,
@@ -59,17 +62,17 @@ impl<T: Serialize + DeserializeOwned + Clone> DoubleWindowTable<T> {
         let now = Utc::now();
         let value = DoubleWindowModelValue { value, at: now };
         self.last_model = Some(value);
-        self.db.put_json(LINEAR_MODEL_KEY, &self.last_model)?;
-        self.db.delete_all("row")?;
+        self.db.put_json(LAST_MODEL_KEY, &self.last_model)?;
+        self.db.delete_all(ROW_KEY)?;
         let x: Vec<&T> = self.window(self.long_window_size).rev().collect();
-        self.db.put_all_json("row", &x)?;
+        self.db.put_all_json(ROW_KEY, &x)?;
         Ok(())
     }
 
     pub fn load_model(&mut self) {
-        let lmv = self.db.read_json(LINEAR_MODEL_KEY);
+        let lmv = self.db.read_json(LAST_MODEL_KEY);
         self.last_model = lmv;
-        self.rows = self.db.read_json_vec("row");
+        self.rows = self.db.read_json_vec(ROW_KEY);
         self.last_model_load_attempt = Some(Utc::now());
     }
 
@@ -78,8 +81,8 @@ impl<T: Serialize + DeserializeOwned + Clone> DoubleWindowTable<T> {
     }
 
     pub fn wipe_model(&mut self) -> Result<(), DataStoreError> {
-        self.db.delete_all(LINEAR_MODEL_KEY)?;
-        self.db.delete_all("row")?;
+        self.db.delete_all(LAST_MODEL_KEY)?;
+        self.db.delete_all(ROW_KEY)?;
         Ok(())
     }
 
@@ -108,7 +111,7 @@ impl<T: Serialize + DeserializeOwned + Clone> DoubleWindowTable<T> {
         // Truncate the table by window_size once max_size is reached
         if let Err(e) = self
             .db
-            .put_json(&format!("row{}", self.rows.len() - 1), row)
+            .put_json(&format!("{}{}", ROW_KEY, self.rows.len() - 1), row)
         {
             error!("Failed writing row : {:?}", e);
         }

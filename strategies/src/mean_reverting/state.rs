@@ -1,3 +1,4 @@
+use crate::mean_reverting::options::Options;
 use crate::model;
 use crate::model::BookPosition;
 use crate::model::{OperationKind, PositionKind, TradeKind};
@@ -109,6 +110,8 @@ pub(super) struct MeanRevertingState {
     units_to_buy: f64,
     units_to_sell: f64,
     pnl: f64,
+    threshold_short: f64,
+    threshold_long: f64,
     #[serde(skip_serializing)]
     db: Db,
     #[serde(skip_serializing)]
@@ -127,18 +130,15 @@ struct TransientState {
     ongoing_op: Option<String>,
     units_to_buy: f64,
     units_to_sell: f64,
+    threshold_short: f64,
+    threshold_long: f64,
 }
 
 impl MeanRevertingState {
-    pub fn new(
-        initial_value: f64,
-        db: Db,
-        om: Addr<OrderManager>,
-        dry_mode: bool,
-    ) -> MeanRevertingState {
+    pub fn new(options: &Options, db: Db, om: Addr<OrderManager>) -> MeanRevertingState {
         let mut state = MeanRevertingState {
             position: None,
-            value_strat: initial_value,
+            value_strat: options.initial_cap,
             apo: 0.0,
             nominal_position: 0.0,
             traded_price: 0.0,
@@ -146,11 +146,13 @@ impl MeanRevertingState {
             long_position_return: 0.0,
             units_to_buy: 0.0,
             units_to_sell: 0.0,
-            pnl: initial_value,
+            pnl: options.initial_cap,
+            threshold_short: options.threshold_short,
+            threshold_long: options.threshold_long,
             db,
             om,
             ongoing_op: None,
-            dry_mode,
+            dry_mode: options.dry_mode(),
         };
         state.reload_state();
         state
@@ -168,6 +170,8 @@ impl MeanRevertingState {
         if let Some(ps) = previous_state {
             self.set_units_to_sell(ps.units_to_sell);
             self.set_units_to_buy(ps.units_to_buy);
+            self.set_threshold_short(ps.threshold_short);
+            self.set_threshold_long(ps.threshold_long);
             self.value_strat = ps.value_strat;
             self.pnl = ps.pnl;
             self.traded_price = ps.traded_price;
@@ -269,6 +273,22 @@ impl MeanRevertingState {
 
     fn set_units_to_sell(&mut self, v: f64) {
         self.units_to_sell = v;
+    }
+
+    pub fn set_threshold_short(&mut self, v: f64) {
+        self.threshold_short = v;
+    }
+
+    pub fn set_threshold_long(&mut self, v: f64) {
+        self.threshold_long = v;
+    }
+
+    pub fn threshold_short(&self) -> f64 {
+        self.threshold_short
+    }
+
+    pub fn threshold_long(&self) -> f64 {
+        self.threshold_long
     }
 
     fn make_operation(&self, pos: Position, op_kind: OperationKind, qty: f64) -> Operation {
@@ -488,6 +508,8 @@ impl MeanRevertingState {
                 units_to_buy: self.units_to_buy,
                 traded_price: self.traded_price,
                 units_to_sell: self.units_to_sell,
+                threshold_short: self.threshold_short,
+                threshold_long: self.threshold_long,
             },
         ) {
             error!("Error saving state: {:?}", e);

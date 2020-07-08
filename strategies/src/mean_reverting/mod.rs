@@ -3,8 +3,9 @@ use anyhow::Result;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use coinnect_rt::types::{LiveEvent, Pair};
 use db::Db;
+use itertools::Itertools;
 use std::convert::TryInto;
-use std::ops::Add;
+use std::ops::{Add, Mul};
 use std::path::PathBuf;
 
 use crate::mean_reverting::ema_model::SinglePosRow;
@@ -16,6 +17,9 @@ use crate::ob_double_window_model::DoubleWindowTable;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation, MutableField};
 use crate::StrategyInterface;
+use math::iter::QuantileExt;
+use ordered_float::OrderedFloat;
+use std::cmp::{max, min};
 use std::sync::Arc;
 
 mod ema_model;
@@ -23,18 +27,28 @@ mod metrics;
 mod options;
 pub mod state;
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PosAndApo {
+    apo: f64,
+    row: SinglePosRow,
+}
+
 pub struct MeanRevertingStrategy {
     pair: Pair,
     fees_rate: f64,
     sample_freq: Duration,
     last_sample_time: DateTime<Utc>,
     state: MeanRevertingState,
-    data_table: DoubleWindowTable<SinglePosRow>,
+    data_table: DoubleWindowTable<PosAndApo>,
     last_row_time_at_eval: DateTime<Utc>,
     last_row_process_time: DateTime<Utc>,
     metrics: Arc<MeanRevertingStrategyMetrics>,
-    threshold_short: f64,
-    threshold_long: f64,
+    threshold_eval_freq: Option<i32>,
+    threshold_eval_window_size: Option<usize>,
+    threshold_short_0: f64,
+    threshold_long_0: f64,
+    dynamic_threshold: bool,
+    last_threshold_time: DateTime<Utc>,
     stop_loss: f64,
     stop_gain: f64,
     long_window_size: usize,
@@ -51,6 +65,22 @@ impl MeanRevertingStrategy {
         pb.push(strat_db_path);
         let db_name = format!("{}", n.pair);
         let db = Db::new(&pb.to_str().unwrap(), db_name);
+        let state = MeanRevertingState::new(n, db, om);
+        let dynamic_threshold_enabled = n.dynamic_threshold();
+        let max_size = if dynamic_threshold_enabled {
+            n.threshold_window_size
+                .map(|t| max(t, 2 * n.long_window_size))
+        } else {
+            None
+        };
+
+        let data_table = Self::make_model_table(
+            n.pair.as_ref(),
+            pb.to_str().unwrap(),
+            n.short_window_size,
+            n.long_window_size,
+            max_size,
+        );
         Self {
             pair: n.pair.clone(),
             fees_rate,
@@ -58,15 +88,14 @@ impl MeanRevertingStrategy {
             last_sample_time: Utc.timestamp_millis(0),
             last_row_time_at_eval: Utc.timestamp_millis(0),
             last_row_process_time: Utc.timestamp_millis(0),
-            state: MeanRevertingState::new(n.initial_cap, db, om, n.dry_mode()),
-            data_table: Self::make_model_table(
-                n.pair.as_ref(),
-                pb.to_str().unwrap(),
-                n.short_window_size,
-                n.long_window_size,
-            ),
-            threshold_short: n.threshold_short,
-            threshold_long: n.threshold_long,
+            state,
+            data_table,
+            threshold_eval_freq: n.threshold_eval_freq,
+            threshold_eval_window_size: n.threshold_window_size,
+            threshold_short_0: n.threshold_short,
+            threshold_long_0: n.threshold_long,
+            dynamic_threshold: dynamic_threshold_enabled,
+            last_threshold_time: Utc.timestamp_millis(0),
             stop_loss: n.stop_loss,
             metrics: Arc::new(metrics),
             long_window_size: n.long_window_size,
@@ -79,12 +108,14 @@ impl MeanRevertingStrategy {
         db_path: &str,
         short_window_size: usize,
         long_window_size: usize,
-    ) -> DoubleWindowTable<SinglePosRow> {
+        max_size_factor: Option<usize>,
+    ) -> DoubleWindowTable<PosAndApo> {
         DoubleWindowTable::new(
             &pair,
             db_path,
             short_window_size,
             long_window_size,
+            max_size_factor,
             Box::new(ema_model::moving_average_apo),
         )
     }
@@ -142,7 +173,39 @@ impl MeanRevertingStrategy {
         }
     }
 
-    fn maybe_eval_threshold(&mut self, current_time: DateTime<Utc>) {}
+    fn maybe_eval_threshold(&mut self, current_time: DateTime<Utc>) {
+        if self.dynamic_threshold {
+            if let (Some(threshold_eval_freq), Some(threshold_window_size)) =
+                (self.threshold_eval_freq, self.threshold_eval_window_size)
+            {
+                // Threshold obsolescence is defined by sample_freq * threshold_eval_freq > now
+                let obsolete_threshold_time = self
+                    .last_threshold_time
+                    .add(self.sample_freq.mul(threshold_eval_freq));
+                if current_time.gt(&obsolete_threshold_time)
+                    && self.data_table.len() > threshold_window_size
+                {
+                    let wdw = self.data_table.window(threshold_window_size);
+                    let (threshold_short_iter, threshold_long_iter) = wdw.map(|r| r.apo).tee();
+                    self.state.set_threshold_short(
+                        max(
+                            OrderedFloat(self.threshold_short_0),
+                            OrderedFloat(threshold_short_iter.quantile(0.99)),
+                        )
+                        .into(),
+                    );
+                    self.state.set_threshold_long(
+                        min(
+                            OrderedFloat(self.threshold_long_0),
+                            OrderedFloat(threshold_long_iter.quantile(0.01)),
+                        )
+                        .into(),
+                    );
+                    self.metrics.log_thresholds(&self.state);
+                }
+            }
+        }
+    }
 
     async fn eval_latest(&mut self, lr: &SinglePosRow) {
         self.eval_model();
@@ -164,10 +227,10 @@ impl MeanRevertingStrategy {
         }
 
         // Possibly open a short position
-        if (self.state.apo() > self.threshold_short) && self.state.no_position_taken() {
+        if (self.state.apo() > self.state.threshold_short()) && self.state.no_position_taken() {
             info!(
                 "Entering short position with threshold {}",
-                self.threshold_short
+                self.state.threshold_short()
             );
             let position = self.short_position(lr.pos.bid, lr.time);
             let op = self.state.open(position, self.fees_rate).await;
@@ -187,10 +250,10 @@ impl MeanRevertingStrategy {
         }
 
         // Possibly open a long position
-        if (self.state.apo() > self.threshold_long) && self.state.no_position_taken() {
+        if (self.state.apo() > self.state.threshold_long()) && self.state.no_position_taken() {
             info!(
                 "Entering long position with threshold {}",
-                self.threshold_long
+                self.state.threshold_long()
             );
             let position = self.long_position(lr.pos.ask, lr.time);
             let op = self.state.open(position, self.fees_rate).await;
@@ -268,7 +331,10 @@ impl MeanRevertingStrategy {
         }
         // self.metrics.log_row(&row);
         if should_sample {
-            self.data_table.push(row);
+            self.data_table.push(&PosAndApo {
+                row: row.clone(),
+                apo: self.state.apo(),
+            });
         }
 
         // No model and there are enough samples
@@ -322,7 +388,7 @@ mod test {
     use crate::mean_reverting::ema_model::SinglePosRow;
     use crate::mean_reverting::options::Options;
     use crate::mean_reverting::state::MeanRevertingState;
-    use crate::mean_reverting::MeanRevertingStrategy;
+    use crate::mean_reverting::{MeanRevertingStrategy, PosAndApo};
     use crate::order_manager::test_util;
     use ordered_float::OrderedFloat;
 
@@ -425,7 +491,8 @@ mod test {
     #[tokio::test]
     async fn moving_average() {
         init();
-        let mut dt = MeanRevertingStrategy::make_model_table("BTC_USDT", "default", 100, 1000);
+        let mut dt =
+            MeanRevertingStrategy::make_model_table("BTC_USDT", "default", 100, 1000, None);
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 3, 25);
         let dt1 = Utc.ymd(2020, 3, 25);
@@ -442,9 +509,12 @@ mod test {
             .zip(records[1].iter())
             .take(500)
             .for_each(|(l, r)| {
-                dt.push(&SinglePosRow {
-                    time: l.event_ms,
-                    pos: to_pos(r),
+                dt.push(&PosAndApo {
+                    apo: 0.0,
+                    row: SinglePosRow {
+                        time: l.event_ms,
+                        pos: to_pos(r),
+                    },
                 })
             });
         dt.update_model().unwrap();
@@ -468,6 +538,9 @@ mod test {
                 pair: PAIR.into(),
                 threshold_long: -0.01,
                 threshold_short: 0.01,
+                threshold_eval_freq: None,
+                dynamic_threshold: None,
+                threshold_window_size: None,
                 stop_loss: -0.1,
                 stop_gain: 0.075,
                 initial_cap: 100.0,
