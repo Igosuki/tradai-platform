@@ -20,7 +20,7 @@ use std::time::Duration;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(tag = "type", content = "__field0")]
 pub enum Rejection {
     BadRequest(String),
     InsufficientFunds,
@@ -333,7 +333,7 @@ impl Handler<Ping> for OrderManager {
 
 #[cfg(test)]
 pub mod test_util {
-    use crate::order_manager::OrderManager;
+    use crate::order_manager::{OrderManager, Rejection, TransactionStatus};
     use actix::{Actor, Addr};
     use coinnect_rt::exchange::ExchangeApi;
     use coinnect_rt::exchange::MockApi;
@@ -345,5 +345,20 @@ pub mod test_util {
         let api = Arc::new(capi);
         let order_manager = OrderManager::new(api, Path::new(path));
         OrderManager::start(order_manager)
+    }
+
+    #[actix_rt::test]
+    async fn test_append_rejected() {
+        let path = "default";
+        let capi: Box<dyn ExchangeApi> = Box::new(MockApi);
+        let api = Arc::new(capi);
+        let mut order_manager = OrderManager::new(api, Path::new(path));
+        let registered = order_manager
+            .register(
+                "id".to_string(),
+                TransactionStatus::Rejected(Rejection::BadRequest("bad request".to_string())),
+            )
+            .await;
+        assert!(registered.is_ok(), registered);
     }
 }
