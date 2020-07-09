@@ -7,6 +7,7 @@ use juniper::{FieldError, FieldResult, RootNode};
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
+use strategies::mean_reverting::state::Operation as MeanOperation;
 use strategies::naive_pair_trading::state::Operation;
 use strategies::query::{DataQuery, DataResult, FieldMutation};
 use strategies::{Strategy, StrategyKey};
@@ -153,33 +154,54 @@ impl QueryRoot {
             .await
     }
 
-    #[graphql(description = "Get all positions for this strat")]
-    async fn operations(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<Operation>> {
+    #[graphql(description = "Get all positions for this naive strat")]
+    async fn naive_operations(
+        context: &Context,
+        tk: TypeAndKeyInput,
+    ) -> FieldResult<Vec<Operation>> {
         context
-            .with_strat(tk, DataQuery::Operations, |dr| {
-                match dr {
-                    DataResult::NaiveOperations(pos_vec) | DataResult::MeanRevertingOperations(pos_vec) {
-                        Ok(pos_vec)
-                    }
-                    _ => unhandled_data_result()
-                }
+            .with_strat(tk, DataQuery::Operations, |dr| match dr {
+                DataResult::NaiveOperations(pos_vec) => Ok(pos_vec),
+                _ => unhandled_data_result(),
             })
             .await
     }
 
-    #[graphql(description = "Get the current operation")]
-    async fn current_operation(
+    #[graphql(description = "Get all positions for this mean strat")]
+    async fn mean_operations(
+        context: &Context,
+        tk: TypeAndKeyInput,
+    ) -> FieldResult<Vec<MeanOperation>> {
+        context
+            .with_strat(tk, DataQuery::Operations, |dr| match dr {
+                DataResult::MeanRevertingOperations(pos_vec) => Ok(pos_vec),
+                _ => unhandled_data_result(),
+            })
+            .await
+    }
+
+    #[graphql(description = "Get the current naive strat operation")]
+    async fn current_naive_operation(
         context: &Context,
         tk: TypeAndKeyInput,
     ) -> FieldResult<Option<Operation>> {
         context
-            .with_strat(tk, DataQuery::CurrentOperation, |dr| {
-                match dr {
-                    DataResult::NaiveOperation(op) | DataResult::MeanRevertingOperation(op) {
-                        Ok(op)
-                    }
-                    _ => unhandled_data_result()
-                }
+            .with_strat(tk, DataQuery::CurrentOperation, |dr| match dr {
+                DataResult::NaiveOperation(op) => Ok(op),
+                _ => unhandled_data_result(),
+            })
+            .await
+    }
+
+    #[graphql(description = "Get the current naive strat operation")]
+    async fn current_mean_operation(
+        context: &Context,
+        tk: TypeAndKeyInput,
+    ) -> FieldResult<Option<MeanOperation>> {
+        context
+            .with_strat(tk, DataQuery::CurrentOperation, |dr| match dr {
+                DataResult::MeanRevertingOperation(op) => Ok(op),
+                _ => unhandled_data_result(),
             })
             .await
     }
