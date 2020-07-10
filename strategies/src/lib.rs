@@ -39,6 +39,7 @@ mod ob_double_window_model;
 mod ob_linear_model;
 pub mod order_manager;
 pub mod query;
+mod util;
 mod wal;
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display)]
@@ -159,7 +160,7 @@ impl Handler<DataQuery> for StrategyActor {
         let lock = self.inner.clone();
         Box::pin(
             async move {
-                let act = lock.read().await;
+                let mut act = lock.write().await;
                 Ok(act.data(msg))
             }
             .into_actor(self),
@@ -187,7 +188,7 @@ impl Handler<FieldMutation> for StrategyActor {
 pub trait StrategyInterface {
     async fn add_event(&mut self, le: LiveEvent) -> anyhow::Result<()>;
 
-    fn data(&self, q: DataQuery) -> Option<DataResult>;
+    fn data(&mut self, q: DataQuery) -> Option<DataResult>;
 
     fn mutate(&mut self, m: FieldMutation) -> Result<()>;
 }
@@ -238,7 +239,7 @@ mod test {
             Ok(())
         }
 
-        fn data(&self, _q: DataQuery) -> Option<DataResult> {
+        fn data(&mut self, _q: DataQuery) -> Option<DataResult> {
             unimplemented!()
         }
 
