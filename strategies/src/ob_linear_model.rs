@@ -76,6 +76,7 @@ impl<T: Serialize + DeserializeOwned + Clone> LinearModelTable<T> {
 
     pub fn load_model(&mut self) {
         let lmv = self.db.read_json(LINEAR_MODEL_KEY);
+        let _lmv_some = lmv.is_some();
         self.last_model = lmv;
         self.rows = self.db.read_json_vec("row");
         self.last_model_load_attempt = Some(Utc::now());

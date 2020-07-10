@@ -285,17 +285,19 @@ impl NaiveTradingStrategy {
     }
 
     fn can_eval(&self) -> bool {
-        self.data_table.has_model()
-            && (!self.state.no_position_taken()
-                || self
-                    .data_table
-                    .model()
-                    .map(|m| {
-                        m.at.gt(&Utc::now().sub(self.beta_sample_freq.mul(
-                            (self.beta_eval_freq as f64 * (1.0 + LM_AGE_CUTOFF_RATIO)) as i32,
-                        )))
-                    })
-                    .unwrap_or(false))
+        let has_model = self.data_table.has_model();
+        let has_position = !self.state.no_position_taken();
+        let is_model_obsolete = self
+            .data_table
+            .model()
+            .map(|m| {
+                m.at.gt(&Utc::now().sub(
+                    self.beta_sample_freq
+                        .mul((self.beta_eval_freq as f64 * (1.0 + LM_AGE_CUTOFF_RATIO)) as i32),
+                ))
+            })
+            .unwrap_or(false);
+        has_model && (has_position || is_model_obsolete)
     }
 
     async fn process_row(&mut self, row: &DataRow) {
@@ -341,6 +343,10 @@ impl NaiveTradingStrategy {
         self.state.ongoing_op()
     }
 
+    fn cancel_ongoing_op(&mut self) -> bool {
+        self.state.cancel_ongoing_op()
+    }
+
     fn dump_db(&self) -> Vec<String> {
         self.state.dump_db()
     }
@@ -379,13 +385,16 @@ impl StrategyInterface for NaiveTradingStrategy {
         Ok(())
     }
 
-    fn data(&self, q: DataQuery) -> Option<DataResult> {
+    fn data(&mut self, q: DataQuery) -> Option<DataResult> {
         match q {
             DataQuery::Operations => Some(DataResult::NaiveOperations(self.get_operations())),
             DataQuery::Dump => Some(DataResult::Dump(self.dump_db())),
             DataQuery::CurrentOperation => {
                 Some(DataResult::NaiveOperation(self.get_ongoing_op().clone()))
             }
+            DataQuery::CancelOngoingOp => Some(DataResult::OngongOperationCancelation(
+                self.cancel_ongoing_op(),
+            )),
         }
     }
 

@@ -12,6 +12,7 @@ pub enum DataResult {
     Dump(Vec<String>),
     NaiveOperation(Option<NaiveOperation>),
     MeanRevertingOperation(Option<MeanRevertingOperation>),
+    OngongOperationCancelation(bool),
 }
 
 #[derive(Deserialize, Serialize, Message)]
@@ -20,6 +21,7 @@ pub enum DataQuery {
     Operations,
     Dump,
     CurrentOperation,
+    CancelOngoingOp,
 }
 
 #[derive(Deserialize, Serialize, juniper::GraphQLEnum)]

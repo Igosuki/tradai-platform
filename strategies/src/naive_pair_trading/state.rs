@@ -243,6 +243,17 @@ impl MovingState {
         &self.ongoing_op
     }
 
+    pub fn cancel_ongoing_op(&mut self) -> bool {
+        match self.ongoing_op {
+            None => false,
+            _ => {
+                self.ongoing_op = None;
+                self.save();
+                true
+            }
+        }
+    }
+
     pub(super) fn set_predicted_right(&mut self, predicted_right: f64) {
         self.predicted_right = predicted_right;
     }

@@ -212,30 +212,36 @@ pub struct MutationRoot;
 #[juniper::graphql_object(Context = Context)]
 impl MutationRoot {
     #[graphql(description = "Get all positions for this strat")]
-    fn state(context: &Context, tk: TypeAndKeyInput, fm: FieldMutation) -> FieldResult<bool> {
-        StrategyKey::from(&tk.t, &tk.id)
-            .ok_or_else(|| {
-                FieldError::new(
-                    "Strategy type not found",
-                    graphql_value!({ "not_found": "strategy type not found" }),
-                )
-            })
-            .and_then(|strat| match context.strats.get(&strat) {
-                None => Err(FieldError::new(
-                    "Strategy not found",
-                    graphql_value!({ "not_found": "strategy not found" }),
+    async fn state(context: &Context, tk: TypeAndKeyInput, fm: FieldMutation) -> FieldResult<bool> {
+        let strat = StrategyKey::from(&tk.t, &tk.id).ok_or_else(|| {
+            FieldError::new(
+                "Strategy type not found",
+                graphql_value!({ "not_found": "strategy type not found" }),
+            )
+        })?;
+        match context.strats.get(&strat) {
+            None => Err(FieldError::new(
+                "Strategy not found",
+                graphql_value!({ "not_found": "strategy not found" }),
+            )),
+            Some(strat) => match strat.1.send(fm).await {
+                Ok(_) => Ok(true),
+                Err(MailboxError::Closed | MailboxError::Timeout) => Err(FieldError::new(
+                    "Strategy mailbox was full",
+                    graphql_value!({ "unavailable": "strategy mailbox full" }),
                 )),
-                Some(strat) => {
-                    let f = strat.1.send(fm);
-                    match futures::executor::block_on(f) {
-                        Ok(_) => Ok(true),
-                        Err(MailboxError::Closed | MailboxError::Timeout) => Err(FieldError::new(
-                            "Strategy mailbox was full",
-                            graphql_value!({ "unavailable": "strategy mailbox full" }),
-                        )),
-                    }
-                }
+            },
+        }
+    }
+
+    #[graphql(description = "Cancel the ongoing operation")]
+    async fn cancel_ongoing_op(context: &Context, tk: TypeAndKeyInput) -> FieldResult<bool> {
+        context
+            .with_strat(tk, DataQuery::CancelOngoingOp, |dr| match dr {
+                DataResult::OngongOperationCancelation(was_canceled) => Ok(was_canceled),
+                _ => unhandled_data_result(),
             })
+            .await
     }
 
     #[graphql(description = "Add an order (for testing)")]
