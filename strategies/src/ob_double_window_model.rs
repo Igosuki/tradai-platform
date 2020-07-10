@@ -1,4 +1,3 @@
-use crate::model::BookPosition;
 use chrono::{DateTime, Utc};
 use db::{DataStoreError, Db};
 use serde::de::DeserializeOwned;
@@ -118,12 +117,6 @@ impl<T: Serialize + DeserializeOwned + Clone> DoubleWindowTable<T> {
         if self.rows.len() > self.max_size {
             self.rows.drain(0..self.long_window_size);
         }
-    }
-
-    pub fn predict(&self, alpha_val: f64, beta_val: f64, bp: &BookPosition) -> f64 {
-        let p = alpha_val + beta_val * bp.mid;
-        trace!("predict {}", p);
-        p
     }
 
     pub fn len(&self) -> usize {

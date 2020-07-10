@@ -213,6 +213,17 @@ impl MeanRevertingState {
         &self.ongoing_op
     }
 
+    pub fn cancel_ongoing_op(&mut self) -> bool {
+        match self.ongoing_op {
+            None => false,
+            _ => {
+                self.ongoing_op = None;
+                self.save();
+                true
+            }
+        }
+    }
+
     #[cfg(test)]
     pub(super) fn traded_price(&self) -> f64 {
         self.traded_price

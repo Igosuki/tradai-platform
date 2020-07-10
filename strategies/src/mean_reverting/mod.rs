@@ -5,7 +5,6 @@ use coinnect_rt::types::{LiveEvent, Pair};
 use db::Db;
 use itertools::Itertools;
 use std::convert::TryInto;
-use std::ops::{Add, Mul};
 use std::path::PathBuf;
 
 use crate::mean_reverting::ema_model::SinglePosRow;
@@ -132,6 +131,10 @@ impl MeanRevertingStrategy {
         self.state.ongoing_op()
     }
 
+    fn cancel_ongoing_op(&mut self) -> bool {
+        self.state.cancel_ongoing_op()
+    }
+
     fn dump_db(&self) -> Vec<String> {
         self.state.dump_db()
     }
@@ -178,18 +181,18 @@ impl MeanRevertingStrategy {
             if let (Some(threshold_eval_freq), Some(threshold_window_size)) =
                 (self.threshold_eval_freq, self.threshold_eval_window_size)
             {
-                // Threshold obsolescence is defined by sample_freq * threshold_eval_freq > now
-                let obsolete_threshold_time = self
-                    .last_threshold_time
-                    .add(self.sample_freq.mul(threshold_eval_freq));
-                if current_time.gt(&obsolete_threshold_time)
-                    && self.data_table.len() > threshold_window_size
+                if crate::util::is_eval_time_reached(
+                    current_time,
+                    self.last_threshold_time,
+                    self.sample_freq,
+                    threshold_eval_freq,
+                ) && self.data_table.len() > threshold_window_size
                 {
                     let wdw = self.data_table.window(threshold_window_size);
                     let (threshold_short_iter, threshold_long_iter) = wdw.map(|r| r.apo).tee();
                     self.state.set_threshold_short(
                         max(
-                            OrderedFloat(self.threshold_short_0),
+                            self.threshold_short_0.into(),
                             OrderedFloat(threshold_short_iter.quantile(0.99)),
                         )
                         .into(),
@@ -234,7 +237,7 @@ impl MeanRevertingStrategy {
             );
             let position = self.short_position(lr.pos.bid, lr.time);
             let op = self.state.open(position, self.fees_rate).await;
-            // self.metrics.log_position(&op.pos, &op.kind);
+            self.metrics.log_position(&op.pos, &op.kind);
         }
 
         // Possibly close a short position
@@ -245,7 +248,7 @@ impl MeanRevertingStrategy {
                 self.maybe_log_stop_loss(PositionKind::SHORT);
                 let position = self.short_position(lr.pos.ask, lr.time);
                 let op = self.state.close(position, self.fees_rate).await;
-                // self.metrics.log_position(&op.pos, &op.kind);
+                self.metrics.log_position(&op.pos, &op.kind);
             }
         }
 
@@ -257,7 +260,7 @@ impl MeanRevertingStrategy {
             );
             let position = self.long_position(lr.pos.ask, lr.time);
             let op = self.state.open(position, self.fees_rate).await;
-            // self.metrics.log_position(&op.pos, &op.kind);
+            self.metrics.log_position(&op.pos, &op.kind);
         }
 
         // Possibly close a long position
@@ -268,7 +271,7 @@ impl MeanRevertingStrategy {
                 self.maybe_log_stop_loss(PositionKind::LONG);
                 let position = self.long_position(lr.pos.bid, lr.time);
                 let op = self.state.close(position, self.fees_rate).await;
-                // self.metrics.log_position(&op.pos, &op.kind);
+                self.metrics.log_position(&op.pos, &op.kind);
             }
         }
     }
@@ -318,8 +321,8 @@ impl MeanRevertingStrategy {
                 .last_model_time()
                 .unwrap_or_else(|| Utc.timestamp_millis(0));
         }
-        let time = self.last_sample_time.add(self.sample_freq);
-        let should_sample = row.time.gt(&time) || row.time == time;
+        let should_sample =
+            crate::util::is_eval_time_reached(row.time, self.last_sample_time, self.sample_freq, 1);
         // A model is available
         let can_eval = self.can_eval();
         if should_sample {
@@ -329,7 +332,7 @@ impl MeanRevertingStrategy {
             self.eval_latest(row).await;
             self.log_state();
         }
-        // self.metrics.log_row(&row);
+        self.metrics.log_row(&row);
         if should_sample {
             self.data_table.push(&PosAndApo {
                 row: row.clone(),
@@ -359,7 +362,7 @@ impl StrategyInterface for MeanRevertingStrategy {
         Ok(())
     }
 
-    fn data(&self, q: DataQuery) -> Option<DataResult> {
+    fn data(&mut self, q: DataQuery) -> Option<DataResult> {
         match q {
             DataQuery::Operations => {
                 Some(DataResult::MeanRevertingOperations(self.get_operations()))
@@ -367,6 +370,9 @@ impl StrategyInterface for MeanRevertingStrategy {
             DataQuery::Dump => Some(DataResult::Dump(self.dump_db())),
             DataQuery::CurrentOperation => Some(DataResult::MeanRevertingOperation(
                 self.get_ongoing_op().clone(),
+            )),
+            DataQuery::CancelOngoingOp => Some(DataResult::OngongOperationCancelation(
+                self.cancel_ongoing_op(),
             )),
         }
     }
