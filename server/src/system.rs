@@ -203,7 +203,7 @@ async fn exchange_bots(
                 let creds = Box::new(
                     BittrexCreds::new_from_file("account_bittrex", keys_path.clone()).unwrap(),
                 );
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone())
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), None)
                     .await
                     .unwrap()
             }
@@ -211,7 +211,7 @@ async fn exchange_bots(
                 let creds = Box::new(
                     BitstampCreds::new_from_file("account_bitstamp", keys_path.clone()).unwrap(),
                 );
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone())
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), None)
                     .await
                     .unwrap()
             }
@@ -223,7 +223,7 @@ async fn exchange_bots(
                     )
                     .unwrap(),
                 );
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone())
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), None)
                     .await
                     .unwrap()
             }

@@ -1,6 +1,8 @@
 #![deny(unused_must_use, unused_mut, unused_imports, unused_import_braces)]
 #![feature(test)]
 #![feature(async_closure)]
+#![feature(impl_trait_in_bindings)]
+#![feature(type_alias_impl_trait)]
 
 #[macro_use]
 extern crate log;
@@ -39,6 +41,7 @@ mod ob_double_window_model;
 mod ob_linear_model;
 pub mod order_manager;
 pub mod query;
+mod test_util;
 mod util;
 mod wal;
 
