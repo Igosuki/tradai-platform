@@ -14,6 +14,8 @@ extern crate async_trait;
 extern crate serde;
 #[macro_use]
 extern crate derivative;
+#[macro_use]
+extern crate matches;
 
 use actix::{Actor, Addr, Context, Handler, ResponseActFuture, Running, WrapFuture};
 use anyhow::Result;

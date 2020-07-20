@@ -250,12 +250,4 @@ mod test {
             panic!(format!("{:?}", drew));
         }
     }
-
-    #[actix_rt::test]
-    async fn test_trade_workflow() {
-        // Account stream
-        // Binance stream ?
-        // Order Manager
-        // Strategy
-    }
 }

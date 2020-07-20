@@ -16,7 +16,7 @@ pub mod http {
         dyn Fn(ws::Frame) -> Box<Future<Output = Result<ws::Message, io::Error>>> + Send + Sync,
     >;
 
-    async fn ws_it_server<F: Sized, R: Sized>(service: Box<F>) -> TestServer
+    pub async fn ws_it_server<F: Sized, R: Sized>(service: Box<F>) -> TestServer
     where
         F: Fn(ws::Frame) -> R + Send + Sync + Clone + Sized + 'static,
         R: Future<Output = Result<ws::Message, io::Error>> + Sized,

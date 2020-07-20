@@ -172,7 +172,6 @@ impl OrderManager {
         self.register(order_id.clone(), written_transaction.clone())
             .await?;
         // Dry mode simulates transactions as filled
-        // TODO: do this with a mocked account api instead
         if staged_order.dry_run {
             let filled_transaction = TransactionStatus::Filled(OrderUpdate::default());
             self.register(order_id.clone(), filled_transaction.clone())
@@ -344,6 +343,11 @@ pub mod test_util {
         let capi: Box<dyn ExchangeApi> = Box::new(MockApi);
         let api = Arc::new(capi);
         let order_manager = OrderManager::new(api, Path::new(path));
+        OrderManager::start(order_manager)
+    }
+
+    pub fn local_manager(path: &str, api: Box<dyn ExchangeApi>) -> Addr<OrderManager> {
+        let order_manager = OrderManager::new(Arc::new(api), Path::new(path));
         OrderManager::start(order_manager)
     }
 

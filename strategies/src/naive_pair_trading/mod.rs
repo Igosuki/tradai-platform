@@ -10,6 +10,7 @@ pub mod metrics;
 pub mod options;
 pub mod state;
 mod test_scenario;
+mod test_workflow;
 
 use crate::model::{BookPosition, PositionKind};
 use crate::naive_pair_trading::covar_model::DataRow;
