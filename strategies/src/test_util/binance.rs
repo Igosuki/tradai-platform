@@ -3,15 +3,23 @@ pub mod binance_test_util {
     use std::io;
 
     use actix_http::ws;
+    use coinnect_rt::binance::{BinanceApi, BinanceCreds};
+    use coinnect_rt::exchange::ExchangeApi;
     use futures::Future;
+    use httpmock::MockServer;
+
+    // use std::sync::mpsc::Receiver;
 
     type WSResponse = impl Future<Output = Result<ws::Message, io::Error>>;
 
-    type WSEndpoint = impl Fn(ws::Frame) -> WSResponse;
+    type WSEndpoint = impl Fn(ws::Frame) -> WSResponse + Clone;
 
-    fn binance_it_account_ws() -> Box<WSEndpoint> {
+    pub fn account_ws() -> Box<WSEndpoint> {
         let responses_vec = vec!["hello".to_string()];
+        // Create a channel to receive the events.
         let closure = async move |req: ws::Frame| {
+            // let input = input.to_owned();
+            // let msg = input.recv().unwrap();
             let result: Result<ws::Message, io::Error> = match req {
                 ws::Frame::Ping(msg) => Ok(ws::Message::Pong(msg)),
                 ws::Frame::Text(text) => Ok(ws::Message::Text(
@@ -24,5 +32,14 @@ pub mod binance_test_util {
             result
         };
         Box::new(closure)
+    }
+
+    pub async fn local_api() -> (MockServer, Box<dyn ExchangeApi>) {
+        let server = MockServer::start();
+        let creds = BinanceCreds::empty();
+        let api = BinanceApi::new_with_host(Box::new(creds), Some(format!("{}", server.address())))
+            .await
+            .unwrap();
+        (server, Box::new(api))
     }
 }
