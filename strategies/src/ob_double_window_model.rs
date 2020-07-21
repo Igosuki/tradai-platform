@@ -62,9 +62,6 @@ impl<T: Serialize + DeserializeOwned + Clone> DoubleWindowTable<T> {
         let value = DoubleWindowModelValue { value, at: now };
         self.last_model = Some(value);
         self.db.put_json(LAST_MODEL_KEY, &self.last_model)?;
-        self.db.delete_all(ROW_KEY)?;
-        let x: Vec<&T> = self.window(self.long_window_size).rev().collect();
-        self.db.put_all_json(ROW_KEY, &x)?;
         Ok(())
     }
 
