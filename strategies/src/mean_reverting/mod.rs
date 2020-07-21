@@ -384,10 +384,11 @@ impl StrategyInterface for MeanRevertingStrategy {
 
 #[cfg(test)]
 mod test {
+    use async_std::task;
     use chrono::{DateTime, TimeZone, Utc};
     use plotters::prelude::*;
     use std::error::Error;
-    use std::time::Instant;
+    use std::time::{Duration, Instant};
     use util::date::{DateRange, DurationRangeType};
 
     use crate::input::{self, to_pos};
@@ -532,13 +533,12 @@ mod test {
     #[actix_rt::test]
     async fn continuous_scenario() {
         init();
-        let root = tempdir::TempDir::new("test_data2").unwrap();
         let window_size = 1000;
-        let buf = root.into_path();
-        let path = buf.to_str().unwrap();
-        let order_manager_addr = test_util::mock_manager(path);
+        let path = crate::test_util::test_dir();
+        let order_manager_addr = test_util::mock_manager(&path);
+        task::sleep(Duration::from_secs(1)).await;
         let mut strat = MeanRevertingStrategy::new(
-            path,
+            &path,
             0.001,
             &Options {
                 pair: PAIR.into(),
@@ -576,6 +576,9 @@ mod test {
         let mut logs: Vec<StrategyLog> = Vec::new();
         for csvr in eval {
             iterations += 1;
+            if iterations % 1000 == 0 {
+                println!("Reached {} iterations", iterations);
+            }
             let now = Instant::now();
 
             let log = {
@@ -600,13 +603,14 @@ mod test {
 
         // let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
         // serde_json::to_writer(logs_f, &logs);
-        std::fs::create_dir_all("graphs").unwrap();
-        let drew = draw_line_plot(logs);
-        if let Ok(file) = drew {
-            let copied = std::fs::copy(&file, "graphs/naive_pair_trading_plot_latest.svg");
-            assert!(copied.is_ok(), format!("{:?}", copied));
-        } else {
-            panic!(format!("{:?}", drew));
-        }
+        // std::fs::create_dir_all("graphs").unwrap();
+        // let drew = draw_line_plot(logs);
+        // if let Ok(file) = drew {
+        //     let copied = std::fs::copy(&file, "graphs/naive_pair_trading_plot_latest.svg");
+        //     assert!(copied.is_ok(), format!("{:?}", copied));
+        // } else {
+        //     panic!(format!("{:?}", drew));
+        // }
+        drop(strat);
     }
 }
