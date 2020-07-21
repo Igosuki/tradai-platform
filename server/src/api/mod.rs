@@ -137,7 +137,7 @@ mod tests {
         exchanges: Vec<Exchange>,
     }
 
-    fn build_exchanges(cfg: ExchangeConfig) -> HashMap<Exchange, Box<dyn ExchangeApi>> {
+    async fn build_exchanges(cfg: ExchangeConfig) -> HashMap<Exchange, Box<dyn ExchangeApi>> {
         let path = PathBuf::from(cfg.key_file.as_str());
         let mut exchg_map: HashMap<Exchange, Box<dyn ExchangeApi>> = HashMap::new();
         for exchange in cfg.exchanges {
@@ -147,7 +147,9 @@ mod tests {
                         BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap();
                     exchg_map.insert(
                         exchange,
-                        Coinnect::new_exchange(exchange, Box::new(my_creds)).unwrap(),
+                        Coinnect::new_exchange(exchange, Box::new(my_creds))
+                            .await
+                            .unwrap(),
                     );
                 }
                 Exchange::Bittrex => {
@@ -155,7 +157,9 @@ mod tests {
                         BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap();
                     exchg_map.insert(
                         exchange,
-                        Coinnect::new_exchange(exchange, Box::new(my_creds)).unwrap(),
+                        Coinnect::new_exchange(exchange, Box::new(my_creds))
+                            .await
+                            .unwrap(),
                     );
                 }
                 Exchange::Binance => {
@@ -163,7 +167,9 @@ mod tests {
                         BinanceCreds::new_from_file("account_binance", path.clone()).unwrap();
                     exchg_map.insert(
                         exchange,
-                        Coinnect::new_exchange(exchange, Box::new(my_creds)).unwrap(),
+                        Coinnect::new_exchange(exchange, Box::new(my_creds))
+                            .await
+                            .unwrap(),
                     );
                 }
                 _ => (),
@@ -183,8 +189,9 @@ mod tests {
             key_file: "../keys_real_test.json".to_string(),
             exchanges: vec![Binance],
         };
+        let exchanges_map = build_exchanges(exchanges).await;
         let data: Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>> =
-            Arc::new(Mutex::new(build_exchanges(exchanges)));
+            Arc::new(Mutex::new(exchanges_map));
         let mut guard = data.lock().await;
         let binance_api: &mut Box<dyn ExchangeApi> = guard.get_mut(&Exchange::Binance).unwrap();
         let ob = binance_api.orderbook("BTC_USDT".into()).await.unwrap();
