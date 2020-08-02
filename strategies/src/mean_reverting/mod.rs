@@ -7,12 +7,13 @@ use itertools::Itertools;
 use std::convert::TryInto;
 use std::path::PathBuf;
 
-use crate::mean_reverting::ema_model::SinglePosRow;
+use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
 use crate::model::PositionKind;
-use crate::ob_double_window_model::DoubleWindowTable;
+use crate::ob_double_window_model::WindowTable;
+use crate::ob_indicator_model::IndicatorModel;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation, MutableField};
 use crate::StrategyInterface;
@@ -26,19 +27,14 @@ mod metrics;
 mod options;
 pub mod state;
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct PosAndApo {
-    apo: f64,
-    row: SinglePosRow,
-}
-
 pub struct MeanRevertingStrategy {
     pair: Pair,
     fees_rate: f64,
     sample_freq: Duration,
     last_sample_time: DateTime<Utc>,
     state: MeanRevertingState,
-    data_table: DoubleWindowTable<PosAndApo>,
+    model: IndicatorModel<MeanRevertingModelValue, SinglePosRow>,
+    threshold_table: Option<WindowTable<f64>>,
     last_row_time_at_eval: DateTime<Utc>,
     last_row_process_time: DateTime<Utc>,
     metrics: Arc<MeanRevertingStrategyMetrics>,
@@ -50,7 +46,7 @@ pub struct MeanRevertingStrategy {
     last_threshold_time: DateTime<Utc>,
     stop_loss: f64,
     stop_gain: f64,
-    long_window_size: usize,
+    long_window_size: u32,
 }
 
 static MEAN_REVERTING_DB_KEY: &str = "mean_reverting";
@@ -68,18 +64,21 @@ impl MeanRevertingStrategy {
         let dynamic_threshold_enabled = n.dynamic_threshold();
         let max_size = if dynamic_threshold_enabled {
             n.threshold_window_size
-                .map(|t| max(t, 2 * n.long_window_size))
+                .map(|t| max(t, 2 * n.long_window_size as usize))
         } else {
             None
         };
 
-        let data_table = Self::make_model_table(
+        let model = Self::make_model_table(
             n.pair.as_ref(),
             pb.to_str().unwrap(),
             n.short_window_size,
             n.long_window_size,
-            max_size,
         );
+        let threshold_table = n
+            .threshold_window_size
+            .map(|t| Self::make_window_table(n.pair.as_ref(), pb.to_str().unwrap(), t));
+
         Self {
             pair: n.pair.clone(),
             fees_rate,
@@ -88,7 +87,8 @@ impl MeanRevertingStrategy {
             last_row_time_at_eval: Utc.timestamp_millis(0),
             last_row_process_time: Utc.timestamp_millis(0),
             state,
-            data_table,
+            model,
+            threshold_table,
             threshold_eval_freq: n.threshold_eval_freq,
             threshold_eval_window_size: n.threshold_window_size,
             threshold_short_0: n.threshold_short,
@@ -105,18 +105,30 @@ impl MeanRevertingStrategy {
     pub fn make_model_table(
         pair: &str,
         db_path: &str,
-        short_window_size: usize,
-        long_window_size: usize,
-        max_size_factor: Option<usize>,
-    ) -> DoubleWindowTable<PosAndApo> {
-        DoubleWindowTable::new(
+        short_window_size: u32,
+        long_window_size: u32,
+    ) -> IndicatorModel<MeanRevertingModelValue, SinglePosRow> {
+        let init = MeanRevertingModelValue::new(long_window_size, short_window_size);
+        IndicatorModel::new(
             &pair,
             db_path,
-            short_window_size,
-            long_window_size,
-            max_size_factor,
+            init,
             Box::new(ema_model::moving_average_apo),
         )
+    }
+
+    pub fn make_window_table(pair: &str, db_path: &str, window_size: usize) -> WindowTable<f64> {
+        WindowTable::new(
+            &pair,
+            db_path,
+            window_size,
+            Some(window_size * 2),
+            Box::new(ema_model::threshold),
+        )
+    }
+
+    fn model_value(&self) -> Option<MeanRevertingModelValue> {
+        self.model.model().map(|m| m.value)
     }
 
     fn log_state(&self) {
@@ -143,21 +155,6 @@ impl MeanRevertingStrategy {
         self.state.change_state(field, v)
     }
 
-    fn set_model_from_table(&mut self) {
-        let lmb = self.data_table.model();
-        lmb.map(|lm| {
-            self.state.set_apo(lm.value);
-        });
-    }
-
-    fn eval_model(&mut self) {
-        if let Err(e) = self.data_table.update_model() {
-            error!("Error saving model : {:?}", e);
-        }
-        self.set_model_from_table();
-        self.last_row_time_at_eval = self.last_sample_time;
-    }
-
     fn short_position(&self, price: f64, time: DateTime<Utc>) -> Position {
         Position {
             kind: PositionKind::SHORT,
@@ -177,7 +174,7 @@ impl MeanRevertingStrategy {
     }
 
     fn maybe_eval_threshold(&mut self, current_time: DateTime<Utc>) {
-        if self.dynamic_threshold {
+        if let Some(threshold_table) = &self.threshold_table {
             if let (Some(threshold_eval_freq), Some(threshold_window_size)) =
                 (self.threshold_eval_freq, self.threshold_eval_window_size)
             {
@@ -186,10 +183,10 @@ impl MeanRevertingStrategy {
                     self.last_threshold_time,
                     self.sample_freq,
                     threshold_eval_freq,
-                ) && self.data_table.len() > threshold_window_size
+                ) && threshold_table.len() > threshold_window_size
                 {
-                    let wdw = self.data_table.window(threshold_window_size);
-                    let (threshold_short_iter, threshold_long_iter) = wdw.map(|r| r.apo).tee();
+                    let wdw = threshold_table.window(threshold_window_size);
+                    let (threshold_short_iter, threshold_long_iter) = wdw.tee();
                     self.state.set_threshold_short(
                         max(
                             self.threshold_short_0.into(),
@@ -211,7 +208,6 @@ impl MeanRevertingStrategy {
     }
 
     async fn eval_latest(&mut self, lr: &SinglePosRow) {
-        self.eval_model();
         self.maybe_eval_threshold(lr.time);
 
         if self.state.no_position_taken() {
@@ -253,7 +249,7 @@ impl MeanRevertingStrategy {
         }
 
         // Possibly open a long position
-        if (self.state.apo() > self.state.threshold_long()) && self.state.no_position_taken() {
+        if (self.state.apo() < self.state.threshold_long()) && self.state.no_position_taken() {
             info!(
                 "Entering long position with threshold {}",
                 self.state.threshold_long()
@@ -267,7 +263,7 @@ impl MeanRevertingStrategy {
         if self.state.is_long() {
             self.state
                 .set_long_position_return(self.fees_rate, lr.pos.bid);
-            if (self.state.apo() < 0.0) || self.should_stop(&PositionKind::LONG) {
+            if (self.state.apo() > 0.0) || self.should_stop(&PositionKind::LONG) {
                 self.maybe_log_stop_loss(PositionKind::LONG);
                 let position = self.long_position(lr.pos.bid, lr.time);
                 let op = self.state.close(position, self.fees_rate).await;
@@ -310,14 +306,13 @@ impl MeanRevertingStrategy {
     }
 
     fn can_eval(&self) -> bool {
-        self.data_table.has_model()
+        self.model.is_ready()
     }
 
     async fn process_row(&mut self, row: &SinglePosRow) {
-        if self.data_table.try_loading_model() {
-            self.set_model_from_table();
+        if self.model.model().is_some() {
             self.last_row_time_at_eval = self
-                .data_table
+                .model
                 .last_model_time()
                 .unwrap_or_else(|| Utc.timestamp_millis(0));
         }
@@ -327,23 +322,19 @@ impl MeanRevertingStrategy {
         let can_eval = self.can_eval();
         if should_sample {
             self.last_sample_time = row.time;
+            // TODO: log error
+            self.model.update_model(row).unwrap();
+            if let Some(m) = self.model.value() {
+                trace!("apo {}", m.apo);
+                self.state.set_apo(m.apo);
+            }
+            self.last_row_time_at_eval = self.last_sample_time;
         }
         if can_eval {
             self.eval_latest(row).await;
             self.log_state();
         }
         self.metrics.log_row(&row);
-        if should_sample {
-            self.data_table.push(&PosAndApo {
-                row: row.clone(),
-                apo: self.state.apo(),
-            });
-        }
-
-        // No model and there are enough samples
-        if !can_eval && self.data_table.len() >= self.long_window_size as usize {
-            self.eval_model();
-        }
     }
 }
 
@@ -392,10 +383,10 @@ mod test {
     use util::date::{DateRange, DurationRangeType};
 
     use crate::input::{self, to_pos};
-    use crate::mean_reverting::ema_model::SinglePosRow;
+    use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
     use crate::mean_reverting::options::Options;
     use crate::mean_reverting::state::MeanRevertingState;
-    use crate::mean_reverting::{MeanRevertingStrategy, PosAndApo};
+    use crate::mean_reverting::MeanRevertingStrategy;
     use crate::order_manager::test_util;
     use ordered_float::OrderedFloat;
 
@@ -404,6 +395,7 @@ mod test {
         time: DateTime<Utc>,
         mid: f64,
         state: MeanRevertingState,
+        value: MeanRevertingModelValue,
     }
 
     impl StrategyLog {
@@ -411,32 +403,41 @@ mod test {
             time: DateTime<Utc>,
             state: MeanRevertingState,
             last_row: &SinglePosRow,
+            value: MeanRevertingModelValue,
         ) -> StrategyLog {
             StrategyLog {
                 time,
                 mid: last_row.pos.mid,
                 state,
+                value,
             }
         }
     }
 
-    fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn Error>> {
+    fn now_str() -> String {
         let now = Utc::now();
-        let string = format!(
-            "graphs/mean_reverting_plot_{}.svg",
-            now.format("%Y%m%d%H:%M:%S")
-        );
+        now.format("%Y%m%d%H:%M:%S").to_string()
+    }
+
+    fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn Error>> {
+        let string = format!("graphs/mean_reverting_plot_{}.svg", now_str());
         let color_wheel = vec![&BLACK, &BLUE, &RED];
         let more_lines: Vec<StrategyEntry<'_>> = vec![
             (
-                "return",
-                vec![|x| x.state.short_position_return() + x.state.long_position_return()],
+                "Prices and EMA",
+                vec![|x| x.mid, |x| x.value.short_ema.current, |x| {
+                    x.value.long_ema.current
+                }],
             ),
+            (
+                "Open Position Return",
+                vec![|x| x.state.short_position_return(), |x| {
+                    x.state.long_position_return()
+                }],
+            ),
+            ("APO", vec![|x| x.state.apo()]),
             ("PnL", vec![|x| x.state.pnl()]),
-            ("Nominal Position", vec![|x| x.state.nominal_position()]),
-            ("apo", vec![|x| x.state.apo()]),
-            ("traded_left", vec![|x| x.state.traded_price()]),
-            ("value_strat", vec![|x| x.state.value_strat()]),
+            ("Nominal (units)", vec![|x| x.state.nominal_position()]),
         ];
         let height: u32 = 342 * more_lines.len() as u32;
         let root = SVGBackend::new(&string, (1724, height)).into_drawing_area();
@@ -498,8 +499,7 @@ mod test {
     #[tokio::test]
     async fn moving_average() {
         init();
-        let mut dt =
-            MeanRevertingStrategy::make_model_table("BTC_USDT", "default", 100, 1000, None);
+        let mut dt = MeanRevertingStrategy::make_model_table("BTC_USDT", "default", 100, 1000);
         // Read downsampled streams
         let dt0 = Utc.ymd(2020, 3, 25);
         let dt1 = Utc.ymd(2020, 3, 25);
@@ -516,27 +516,27 @@ mod test {
             .zip(records[1].iter())
             .take(500)
             .for_each(|(l, r)| {
-                dt.push(&PosAndApo {
-                    apo: 0.0,
-                    row: SinglePosRow {
-                        time: l.event_ms,
-                        pos: to_pos(r),
-                    },
+                dt.update_model(&SinglePosRow {
+                    time: l.event_ms,
+                    pos: to_pos(r),
                 })
+                .unwrap();
             });
-        dt.update_model().unwrap();
         let model_value = dt.model().unwrap().value;
-        println!("beta {}", model_value);
-        assert!(model_value > 0.0, model_value);
+        let apo = model_value.apo;
+        println!("apo {}", apo);
+        assert!(apo > 0.0, apo);
     }
 
     #[actix_rt::test]
     async fn continuous_scenario() {
         init();
-        let window_size = 1000;
+        let window_size = 10000;
         let path = crate::test_util::test_dir();
         let order_manager_addr = test_util::mock_manager(&path);
         task::sleep(Duration::from_secs(1)).await;
+        let test_results_dir = "test_results";
+        std::fs::create_dir_all(test_results_dir).unwrap();
         let mut strat = MeanRevertingStrategy::new(
             &path,
             0.001,
@@ -551,8 +551,8 @@ mod test {
                 stop_gain: 0.075,
                 initial_cap: 100.0,
                 dry_mode: Some(true),
-                short_window_size: window_size / 10,
-                long_window_size: window_size,
+                short_window_size: 100,
+                long_window_size: 1000,
                 sample_freq: "1min".to_string(),
             },
             order_manager_addr,
@@ -574,10 +574,16 @@ mod test {
         // align data
         let eval = records[0].iter();
         let mut logs: Vec<StrategyLog> = Vec::new();
+        let mut model_values: Vec<(DateTime<Utc>, MeanRevertingModelValue)> = Vec::new();
+        let mut wtr =
+            csv::Writer::from_path(format!("{}/ema_values_{}.csv", test_results_dir, now_str()))
+                .unwrap();
+
+        // Feed all csv records to the strat
         for csvr in eval {
             iterations += 1;
             if iterations % 1000 == 0 {
-                println!("Reached {} iterations", iterations);
+                info!("Reached {} iterations", iterations);
             }
             let now = Instant::now();
 
@@ -588,29 +594,46 @@ mod test {
                     pos: to_pos(csvr),
                 };
                 strat.process_row(&row).await;
-                StrategyLog::from_state(row_time, strat.state.clone(), &row)
+                let value = strat.model_value().unwrap();
+                model_values.push((row_time, value.clone()));
+                StrategyLog::from_state(row_time, strat.state.clone(), &row, value)
             };
             elapsed += now.elapsed().as_nanos();
             logs.push(log);
         }
         println!("Each iteration took {} on avg", elapsed / iterations);
 
+        // Write all model values to a csv file
+        for model_value in model_values {
+            wtr.write_record(&[
+                model_value.0.format("%Y%m%d%H:%M:%S").to_string(),
+                model_value.1.short_ema.current.to_string(),
+                model_value.1.long_ema.current.to_string(),
+                model_value.1.apo.to_string(),
+            ])
+            .unwrap();
+        }
+        wtr.flush().unwrap();
+
+        // Find that latest operations are correct
         let mut positions = strat.get_operations();
         positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
         let last_position = positions.last();
+
+        let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
+        serde_json::to_writer(logs_f, &logs).unwrap();
+        std::fs::create_dir_all("graphs").unwrap();
+        let drew = draw_line_plot(logs);
+        if let Ok(file) = drew {
+            let copied = std::fs::copy(&file, "graphs/mean_reverting_plot_latest.svg");
+            assert!(copied.is_ok(), format!("{:?}", copied));
+        } else {
+            panic!(format!("{:?}", drew));
+        }
+
         assert_eq!(Some(162.130004882813), last_position.map(|p| p.pos.price));
         assert_eq!(Some(33.33032942489664), last_position.map(|p| p.value()));
 
-        // let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
-        // serde_json::to_writer(logs_f, &logs);
-        // std::fs::create_dir_all("graphs").unwrap();
-        // let drew = draw_line_plot(logs);
-        // if let Ok(file) = drew {
-        //     let copied = std::fs::copy(&file, "graphs/naive_pair_trading_plot_latest.svg");
-        //     assert!(copied.is_ok(), format!("{:?}", copied));
-        // } else {
-        //     panic!(format!("{:?}", drew));
-        // }
         drop(strat);
     }
 }

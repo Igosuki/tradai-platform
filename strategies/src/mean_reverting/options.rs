@@ -5,8 +5,8 @@ use parse_duration::parse;
 #[derive(Clone, Debug, Deserialize)]
 pub struct Options {
     pub pair: Pair,
-    pub short_window_size: usize,
-    pub long_window_size: usize,
+    pub short_window_size: u32,
+    pub long_window_size: u32,
     pub dry_mode: Option<bool>,
     pub sample_freq: String,
     pub initial_cap: f64,

@@ -38,6 +38,7 @@ pub mod mean_reverting;
 mod model;
 pub mod naive_pair_trading;
 mod ob_double_window_model;
+mod ob_indicator_model;
 mod ob_linear_model;
 pub mod order_manager;
 pub mod query;

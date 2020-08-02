@@ -6,49 +6,46 @@ use std::fmt::Debug;
 use std::iter::{Rev, Take};
 use std::slice::Iter;
 
-type DoubleWindowFn<T> = dyn Fn(&DoubleWindowTable<T>) -> f64 + Send + 'static;
+type WindowFn<T> = dyn Fn(&WindowTable<T>) -> f64 + Send + 'static;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub struct DoubleWindowTable<T> {
+pub struct WindowTable<T> {
     rows: Vec<T>,
-    pub short_window_size: usize,
-    pub long_window_size: usize,
+    pub window_size: usize,
     max_size: usize,
     db: Db,
     id: String,
-    last_model: Option<DoubleWindowModelValue>,
+    last_model: Option<WindowModelValue>,
     last_model_load_attempt: Option<DateTime<Utc>>,
     #[derivative(Debug = "ignore")]
-    window_fn: Box<DoubleWindowFn<T>>,
+    window_fn: Box<WindowFn<T>>,
 }
 
 static LAST_MODEL_KEY: &str = "last_model";
 static ROW_KEY: &str = "row";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DoubleWindowModelValue {
+pub struct WindowModelValue {
     pub value: f64,
     pub at: DateTime<Utc>,
 }
 
-impl<T: Serialize + DeserializeOwned + Clone> DoubleWindowTable<T> {
+impl<T: Serialize + DeserializeOwned + Clone> WindowTable<T> {
     pub fn new(
         id: &str,
         db_path: &str,
-        short_window_size: usize,
-        long_window_size: usize,
+        window_size: usize,
         max_size_o: Option<usize>,
-        window_fn: Box<DoubleWindowFn<T>>,
+        window_fn: Box<WindowFn<T>>,
     ) -> Self {
         let db = Db::new(&format!("{}/model_{}", db_path, id), id.to_string());
-        let max_size = max_size_o.unwrap_or_else(|| 2 * long_window_size);
+        let max_size = max_size_o.unwrap_or_else(|| 2 * window_size);
         Self {
             id: id.to_string(),
             rows: Vec::new(),
-            short_window_size,
-            long_window_size,
-            max_size: max_size, // Keep max_size elements
+            window_size,
+            max_size, // Keep max_size elements
             db,
             last_model: None,
             last_model_load_attempt: None,
@@ -59,7 +56,7 @@ impl<T: Serialize + DeserializeOwned + Clone> DoubleWindowTable<T> {
     pub fn update_model(&mut self) -> Result<(), DataStoreError> {
         let value = (self.window_fn)(&self);
         let now = Utc::now();
-        let value = DoubleWindowModelValue { value, at: now };
+        let value = WindowModelValue { value, at: now };
         self.last_model = Some(value);
         self.db.put_json(LAST_MODEL_KEY, &self.last_model)?;
         Ok(())
@@ -82,7 +79,7 @@ impl<T: Serialize + DeserializeOwned + Clone> DoubleWindowTable<T> {
         Ok(())
     }
 
-    pub fn model(&self) -> Box<Option<DoubleWindowModelValue>> {
+    pub fn model(&self) -> Box<Option<WindowModelValue>> {
         Box::new(self.last_model.clone())
     }
 
@@ -112,7 +109,15 @@ impl<T: Serialize + DeserializeOwned + Clone> DoubleWindowTable<T> {
             error!("Failed writing row : {:?}", e);
         }
         if self.rows.len() > self.max_size {
-            self.rows.drain(0..self.long_window_size);
+            self.rows.drain(0..self.window_size);
+            if let Err(e) = self.db.delete_all(ROW_KEY) {
+                error!("Failed to delete rows : {:?}", e);
+            } else {
+                let x: Vec<&T> = self.window(self.window_size).rev().collect();
+                if let Err(e) = self.db.put_all_json(ROW_KEY, &x) {
+                    error!("Failed to write all rows : {:?}", e);
+                }
+            }
         }
     }
 
@@ -133,7 +138,7 @@ mod test {
     use tempfile::TempDir;
 
     use crate::model::BookPosition;
-    use crate::ob_double_window_model::DoubleWindowTable;
+    use crate::ob_double_window_model::WindowTable;
     use chrono::{DateTime, TimeZone, Utc};
     use quickcheck::{Arbitrary, Gen, StdThreadGen};
     use test::Bencher;
@@ -163,20 +168,15 @@ mod test {
 
     #[bench]
     fn test_save_load_model(b: &mut Bencher) {
-        let mut table: DoubleWindowTable<TestRow> = DoubleWindowTable {
+        let mut table: WindowTable<TestRow> = WindowTable {
             db: test_db(),
             id: "default".to_string(),
-            short_window_size: 100,
-            long_window_size: 1000,
+            window_size: 1000,
             max_size: 2000,
             rows: Vec::new(),
             last_model: None,
             last_model_load_attempt: None,
-            window_fn: Box::new(|lm| {
-                lm.window(lm.long_window_size)
-                    .map(|t| t.pos.mid)
-                    .sum::<f64>()
-            }),
+            window_fn: Box::new(|lm| lm.window(lm.window_size).map(|t| t.pos.mid).sum::<f64>()),
         };
         let mut gen = StdThreadGen::new(500);
         for _ in 0..table.max_size {

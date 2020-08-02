@@ -1,8 +1,8 @@
-use crate::mean_reverting::PosAndApo;
 use crate::model::BookPosition;
-use crate::ob_double_window_model::DoubleWindowTable;
+use crate::ob_double_window_model::WindowTable;
 use chrono::{DateTime, Utc};
-use math::iter::{MovingAvgExt, MovingAvgType};
+use math::moving_average::ExponentialMovingAverage;
+use math::Next;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SinglePosRow {
@@ -10,19 +10,37 @@ pub struct SinglePosRow {
     pub pos: BookPosition, // crypto_1
 }
 
-pub fn moving_average_apo(i: &DoubleWindowTable<PosAndApo>) -> f64 {
-    let long_ema: f64 = i
-        .window(i.long_window_size)
-        .map(|spr| spr.row.pos.mid)
-        .moving_avg(MovingAvgType::Exponential(2));
-    let short_ema: f64 = i
-        .window(i.short_window_size)
-        .map(|spr| spr.row.pos.mid)
-        .moving_avg(MovingAvgType::Exponential(2));
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MeanRevertingModelValue {
+    pub long_ema: ExponentialMovingAverage,
+    pub short_ema: ExponentialMovingAverage,
+    pub apo: f64,
+}
+
+impl MeanRevertingModelValue {
+    pub fn new(long_window: u32, short_window: u32) -> MeanRevertingModelValue {
+        MeanRevertingModelValue {
+            long_ema: ExponentialMovingAverage::new(2.0, long_window).unwrap(),
+            short_ema: ExponentialMovingAverage::new(2.0, short_window).unwrap(),
+            apo: 0.0,
+        }
+    }
+}
+
+pub fn moving_average_apo(m: &mut MeanRevertingModelValue, row: &SinglePosRow) {
+    let long_ema = m.long_ema.next(row.pos.mid);
+    let short_ema = m.short_ema.next(row.pos.mid);
     let apo = (short_ema - long_ema) / long_ema;
-    debug!(
+    trace!("short_ema={},long_ema={}", short_ema, long_ema);
+    trace!(
         "moving average : short {} long {} apo {}",
-        short_ema, long_ema, apo
+        short_ema,
+        long_ema,
+        apo
     );
-    apo
+    m.apo = apo;
+}
+
+pub fn threshold(_t: &WindowTable<f64>) -> f64 {
+    0.0
 }
