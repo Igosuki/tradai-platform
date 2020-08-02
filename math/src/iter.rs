@@ -149,57 +149,6 @@ impl Covariance<f64, (f64, f64)> for (f64, f64) {
 //     }
 // }
 
-pub enum MovingAvgType {
-    Exponential(usize),
-}
-
-pub trait MovingAvgExt: Iterator {
-    fn moving_avg<M>(self, t: MovingAvgType) -> M
-    where
-        M: MovingAvg<Self::Item>,
-        Self: Sized,
-    {
-        M::moving_avg(self, t)
-    }
-}
-
-impl<I: Iterator> MovingAvgExt for I {}
-
-pub trait MovingAvg<A = Self> {
-    fn moving_avg<I>(iter: I, t: MovingAvgType) -> Self
-    where
-        I: Iterator<Item = A>;
-}
-
-impl MovingAvg for f64 {
-    fn moving_avg<I>(iter: I, t: MovingAvgType) -> Self
-    where
-        I: Iterator<Item = f64>,
-    {
-        match t {
-            MovingAvgType::Exponential(smoothing) => {
-                let mut ema = 0.0;
-                let (for_ema, for_count) = iter.tee();
-                let count = for_count.count();
-                let k: f64 = (smoothing as f64) / (count + 1) as f64;
-                for v in for_ema {
-                    ema += v * k + ema * (1.0 - k);
-                }
-                ema
-            }
-        }
-    }
-}
-
-impl<'a> MovingAvg<&'a f64> for f64 {
-    fn moving_avg<I>(iter: I, t: MovingAvgType) -> Self
-    where
-        I: Iterator<Item = &'a f64>,
-    {
-        iter.cloned().moving_avg(t)
-    }
-}
-
 pub trait QuantileExt: Iterator {
     fn quantile<M>(self, prob: f64) -> M
     where
