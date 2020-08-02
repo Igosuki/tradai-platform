@@ -8,6 +8,10 @@ edition = "2018"
 
 [dependencies]
 itertools = "0.9"
+anyhow = "1.0"
+thiserror = "1.0"
+serde = "1.0"
+serde_derive = "1.0"
 
 # Math
 num-traits = "0.2"
@@ -15,3 +19,4 @@ peroxide = "0.24"
 #streaming-stats = "0.2.3"
 #average = "0.10.4"
 #nalgebra = "0.21.0"
+log = "0.4"
