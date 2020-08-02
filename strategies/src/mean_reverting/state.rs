@@ -66,13 +66,13 @@ impl Operation {
 
     #[graphql(description = "value")]
     pub fn value(&self) -> f64 {
-        self.trade.qty
+        self.trade.qty * self.trade.price
     }
 }
 
 impl Operation {
     pub fn value(&self) -> f64 {
-        self.trade.qty
+        self.trade.qty * self.trade.price
     }
 
     pub fn is_resolved(&self) -> bool {
@@ -132,6 +132,7 @@ struct TransientState {
     units_to_sell: f64,
     threshold_short: f64,
     threshold_long: f64,
+    apo: f64,
 }
 
 impl MeanRevertingState {
@@ -175,6 +176,7 @@ impl MeanRevertingState {
             self.value_strat = ps.value_strat;
             self.pnl = ps.pnl;
             self.traded_price = ps.traded_price;
+            self.apo = ps.apo;
             if let Some(np) = ps.nominal_position {
                 self.nominal_position = np;
             }
@@ -433,14 +435,15 @@ impl MeanRevertingState {
     pub(super) async fn open(&mut self, pos: Position, fees: f64) -> Operation {
         let position_kind = pos.kind.clone();
         self.set_position(position_kind.clone());
-        self.nominal_position = self.units_to_sell;
         self.traded_price = pos.price;
         match position_kind {
             PositionKind::SHORT => {
+                self.nominal_position = self.units_to_sell;
                 self.value_strat += self.units_to_sell * pos.price;
             }
             PositionKind::LONG => {
-                self.value_strat -= self.units_to_buy * pos.price * (1.0 + fees);
+                self.nominal_position = self.units_to_buy;
+                self.value_strat = self.value_strat - self.units_to_buy * pos.price * (1.0 + fees);
             }
         };
         let mut op = self.make_operation(pos, OperationKind::OPEN, self.nominal_position);
@@ -456,10 +459,11 @@ impl MeanRevertingState {
         let kind: PositionKind = pos.kind.clone();
         match kind {
             PositionKind::SHORT => {
-                self.value_strat -= self.nominal_position * pos.price;
+                self.value_strat = self.value_strat - self.nominal_position * pos.price;
             }
             PositionKind::LONG => {
-                self.value_strat += self.nominal_position * pos.price * (1.0 - fees);
+                self.value_strat =
+                    self.value_strat + self.nominal_position * pos.price * (1.0 - fees);
             }
         };
         let mut op = self.make_operation(pos, OperationKind::CLOSE, self.nominal_position);
@@ -521,6 +525,7 @@ impl MeanRevertingState {
                 units_to_sell: self.units_to_sell,
                 threshold_short: self.threshold_short,
                 threshold_long: self.threshold_long,
+                apo: self.apo,
             },
         ) {
             error!("Error saving state: {:?}", e);
@@ -553,7 +558,7 @@ impl MeanRevertingState {
     fn log_indicators(&self, pos: &PositionKind) {
         if log_enabled!(Info) {
             info!(
-                "Additional info : units to buy {:.2} units to sell {:.2} apo {:.2} value strat {}, return {}, pnl {}",
+                "Additional info : units to buy {:.2} units to sell {:.2} apo {:.2} value strat {}, return {}, pnl {}, nominal_position {}",
                 self.units_to_buy,
                 self.units_to_sell,
                 self.apo(),
@@ -563,6 +568,7 @@ impl MeanRevertingState {
                     PositionKind::LONG => self.long_position_return,
                 },
                 self.pnl(),
+                self.nominal_position,
             );
             info!("--------------------------------")
         }

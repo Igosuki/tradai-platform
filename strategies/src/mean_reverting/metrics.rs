@@ -17,7 +17,7 @@ impl MeanRevertingStrategyMetrics {
         let mut gauges: HashMap<String, GaugeVec> = HashMap::new();
 
         {
-            let pos_labels = &["pair", "pos", "op"];
+            let pos_labels = &["pos", "op"];
             let pos_gauge_names = vec!["mr_position"];
             for gauge_name in pos_gauge_names {
                 let gauge_vec_opts = Opts::new(gauge_name, &format!("gauge for {}", gauge_name))
@@ -81,7 +81,7 @@ impl MeanRevertingStrategyMetrics {
 
     pub(super) fn log_position(&self, pos: &Position, op: &OperationKind) {
         if let Some(g) = self.common_gauges.get("mr_position") {
-            g.with_label_values(&[&pos.pair, "pair", pos.kind.as_ref(), op.as_ref()])
+            g.with_label_values(&[pos.kind.as_ref(), op.as_ref()])
                 .set(pos.price);
         }
     }
