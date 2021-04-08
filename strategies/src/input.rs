@@ -153,7 +153,7 @@ pub async fn load_csv_dataset(
 
     for s in pairs.clone() {
         if !base_path.exists() || !base_path.join(&format!("pr={}", s)).exists() {
-            //download dataset from spaces
+            println!("download dataset from spaces");
             std::fs::create_dir_all(&base_path).unwrap();
             crate::input::dl_test_data(bpc.clone(), exchange_namec.clone(), channelc.clone(), s)
                 .await;
