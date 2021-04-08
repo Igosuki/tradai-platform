@@ -23,6 +23,7 @@ use std::sync::{Arc, RwLock};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use structopt::StructOpt;
 
+
 #[cfg(feature = "gprof")]
 use gperftools::heap_profiler::HEAP_PROFILER;
 use trader::settings;

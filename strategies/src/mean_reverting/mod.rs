@@ -562,7 +562,7 @@ mod test {
         let dt1 = Utc.ymd(2020, 4, 8);
         // align data
         let mut elapsed = 0 as u128;
-        let mut iterations = 0 as u128;
+        let mut iterations = 1 as u128;
         let records = input::load_csv_dataset(
             &DateRange(dt0, dt1, DurationRangeType::Days, 1),
             vec![PAIR.to_string()],
@@ -570,6 +570,7 @@ mod test {
             CHANNEL,
         )
         .await;
+        println!("{}", records[0].len());
         println!("Dataset loaded in memory...");
         // align data
         let eval = records[0].iter();

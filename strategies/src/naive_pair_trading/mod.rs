@@ -5,7 +5,7 @@ use std::convert::TryInto;
 use std::ops::{Add, Mul, Sub};
 use std::sync::Arc;
 
-mod covar_model;
+pub mod covar_model;
 pub mod metrics;
 pub mod options;
 pub mod state;

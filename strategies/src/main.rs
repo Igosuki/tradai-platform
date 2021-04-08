@@ -9,7 +9,7 @@ use std::ops::Sub;
 use std::path::Path;
 use std::time::Instant;
 use strategies::input::{to_pos, CsvRecord};
-use strategies::naive_pair_trading::ob_linear_model::DataRow;
+use strategies::naive_pair_trading::covar_model::DataRow;
 use strategies::naive_pair_trading::NaiveTradingStrategy;
 use util::date::{DateRange, DurationRangeType};
 
@@ -53,11 +53,11 @@ fn main() {
                 .takes_value(true),
         )
         .get_matches();
-    let left_pair = value_t_or_exit!(matches, "left-pair", String);
-    let right_pair = value_t_or_exit!(matches, "right-pair", String);
-    let data_dir = value_t_or_exit!(matches, "data-dir", String);
-    let exchange = value_t_or_exit!(matches, "exchange", String);
-    let db_storage_path = value_t_or_exit!(matches, "db-storage-path", String);
+    let left_pair = value_t!(matches, "left-pair", String).unwrap_or_else(|e| e.exit());
+    let right_pair = value_t!(matches, "right-pair", String).unwrap_or_else(|e| e.exit());
+    let data_dir = value_t!(matches, "data-dir", String).unwrap_or_else(|e| e.exit());
+    let exchange = value_t!(matches, "exchange", String).unwrap_or_else(|e| e.exit());
+    let db_storage_path = value_t!(matches, "db-storage-path", String).unwrap_or_else(|e| e.exit());
     let channel = "order_books";
 
     let base_path = Path::new(&data_dir).join(exchange).join(channel);
@@ -75,13 +75,15 @@ fn main() {
 
     Utc.timestamp(0, 0);
     let now = Instant::now();
-    let [left_records, right_records] = strategies::input::load_records_from_csv(
+    let records = strategies::input::load_records_from_csv(
         &DateRange(midnight.date(), end.date(), DurationRangeType::Days, 1),
         &base_path,
-        vec![&left_pair, &right_pair],
+        vec![left_pair.clone(), right_pair.clone()],
         "/*.csv",
     );
+    let left_records = &records[0];
     println!("Left records count : {}", left_records.len());
+    let right_records = &records[1];
     println!("Right records count : {}", right_records.len());
 
     let mut data_table =

@@ -2,11 +2,12 @@ use std::collections::{HashMap, HashSet};
 
 use byte_unit::Byte;
 use chrono::Duration;
+use config::{Config, ConfigError, Environment, File};
+use serde::{Deserialize, Deserializer};
+use serde::de;
+
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::types::Pair;
-use config::{Config, ConfigError, Environment, File};
-use serde::de;
-use serde::{Deserialize, Deserializer};
 use strategies::StrategySettings;
 
 fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
