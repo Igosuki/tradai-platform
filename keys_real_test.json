@@ -13,11 +13,6 @@
   },
   "account_binance": {
     "exchange": "binance",
-    "api_key"    : "mI7GzF3pe0JIstXBlhZZJ57auPLCnFP11yirbj6c8yjXRTNKnsjQhul08cpB4LPx",
-    "api_secret" : "gfIXkpTrlRBuTnXws4oCW9vOcFysP2OtwtjuS7qEeMZJ0lWCvbGUMY6cpAxV2AGk"
-  },
-  "account_binance_test": {
-    "exchange": "binance",
     "api_key": "j1fIpgnlKNfZoJIdAlK7piJoMoIgwl83GHdYkIzJEcRI6408UrFH9xmIDNLsZCqy",
     "api_secret": "etKEw5HUml0JRJHZdxQuW3fM6KFPsvj58yBqCl4gLIGMkYg443fXJp534qvSHFZw"
   }

@@ -790,24 +790,6 @@ dependencies = [
 [[package]]
 name = "binance-async"
 version = "0.1.1"
-source = "git+https://github.com/Igosuki/binance-rs-async.git?branch=master#f37bf5dcf2430320ae5bbf128241c6a26f3ccb28"
-dependencies = [
- "chrono",
- "error-chain",
- "futures",
- "hex",
- "reqwest",
- "ring",
- "serde 1.0.125",
- "serde_json",
- "serde_qs",
- "tungstenite",
- "url",
-]
-
-[[package]]
-name = "binance-async"
-version = "0.1.1"
 dependencies = [
  "chrono",
  "csv",
@@ -1134,7 +1116,7 @@ dependencies = [
  "backoff",
  "base64",
  "bimap",
- "binance-async 0.1.1 (git+https://github.com/Igosuki/binance-rs-async.git?branch=master)",
+ "binance-async",
  "bstr",
  "bytes 1.0.1",
  "chrono",
