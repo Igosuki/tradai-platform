@@ -42,11 +42,7 @@ Check the LICENSE file for details.
 
 // use futures::{FutureExt as _};
 use super::playground_source::playground_source;
-use actix_web::{
-    error::{ErrorBadRequest, ErrorMethodNotAllowed, ErrorUnsupportedMediaType},
-    http::{header::CONTENT_TYPE, Method},
-    web, Error, FromRequest, HttpRequest, HttpResponse,
-};
+use actix_web::{error::{ErrorBadRequest, ErrorMethodNotAllowed, ErrorUnsupportedMediaType}, http::Method, web, Error, FromRequest, HttpRequest, HttpResponse, HttpMessage};
 use juniper::{
     http::{graphiql::graphiql_source, GraphQLBatchRequest, GraphQLRequest},
     ScalarValue,
@@ -124,7 +120,7 @@ where
     let get_req = web::Query::<GetGraphQLRequest>::from_query(req.query_string())?;
     let req = GraphQLRequest::from(get_req.into_inner());
     let gql_response = req.execute(schema, context).await;
-    let body_response = serde_json::to_string(&gql_response)?;
+    let body_response = serde_json::to_string(&gql_response).map_err(|_e| actix_web::web::HttpResponse::internal_server_error())?;
     let mut response = match gql_response.is_ok() {
         true => HttpResponse::Ok(),
         false => HttpResponse::BadRequest(),
@@ -151,16 +147,12 @@ where
     Subscription: juniper::GraphQLSubscriptionType<S, Context = Context> + Send + Sync + 'static,
     Subscription::TypeInfo: Send + Sync,
 {
-    let content_type_header = req
-        .headers()
-        .get(CONTENT_TYPE)
-        .and_then(|hv| hv.to_str().ok());
-    let req = match content_type_header {
-        Some("application/json") => {
+    let req = match req.content_type() {
+        "application/json" => {
             let body = String::from_request(&req, &mut payload.into_inner()).await?;
             serde_json::from_str::<GraphQLBatchRequest<S>>(&body).map_err(ErrorBadRequest)
         }
-        Some("application/graphql") => {
+        "application/graphql" => {
             let body = String::from_request(&req, &mut payload.into_inner()).await?;
             Ok(GraphQLBatchRequest::Single(GraphQLRequest::new(
                 body, None, None,
@@ -171,7 +163,8 @@ where
         )),
     }?;
     let gql_batch_response = req.execute(schema, context).await;
-    let gql_response = serde_json::to_string(&gql_batch_response)?;
+    let gql_response = serde_json::to_string(&gql_batch_response)
+        .map_err(|_e| actix_web::web::HttpResponse::internal_server_error())?;
     let mut response = match gql_batch_response.is_ok() {
         true => HttpResponse::Ok(),
         false => HttpResponse::BadRequest(),

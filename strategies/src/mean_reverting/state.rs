@@ -227,6 +227,7 @@ impl MeanRevertingState {
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     pub(super) fn traded_price(&self) -> f64 {
         self.traded_price
     }
@@ -239,6 +240,7 @@ impl MeanRevertingState {
         self.pnl
     }
 
+    #[allow(dead_code)]
     pub(super) fn value_strat(&self) -> f64 {
         self.value_strat
     }
@@ -251,6 +253,7 @@ impl MeanRevertingState {
         self.apo
     }
 
+    #[allow(dead_code)]
     pub(super) fn nominal_position(&self) -> f64 {
         self.nominal_position
     }

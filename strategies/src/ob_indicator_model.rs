@@ -109,7 +109,7 @@ mod test {
     use crate::model::BookPosition;
     use crate::ob_indicator_model::IndicatorModel;
     use chrono::{DateTime, TimeZone, Utc};
-    use quickcheck::{Arbitrary, Gen, StdThreadGen};
+    use quickcheck::{Arbitrary, Gen};
     use test::Bencher;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,7 +122,7 @@ mod test {
     }
 
     impl Arbitrary for TestRow {
-        fn arbitrary<G: Gen>(g: &mut G) -> TestRow {
+        fn arbitrary(g: &mut Gen) -> TestRow {
             TestRow {
                 time: Utc.timestamp_millis(f64::arbitrary(g) as i64),
                 pos: BookPosition::arbitrary(g),
@@ -136,15 +136,15 @@ mod test {
     }
 
     #[bench]
-    fn test_save_load_model(b: &mut Bencher) {
+    fn test_save_load_model(_b: &mut Bencher) {
         let mut table: IndicatorModel<MockLinearModel, TestRow> = IndicatorModel {
             db: test_db(),
             id: "default".to_string(),
             last_model: None,
             last_model_load_attempt: None,
-            update_fn: Box::new(|m, r| ()),
+            update_fn: Box::new(|_m, _r| ()),
         };
-        let mut gen = StdThreadGen::new(500);
+        let mut gen = Gen::new(500);
         for _ in 0..500 {
             table.update_model(&TestRow::arbitrary(&mut gen)).unwrap();
         }

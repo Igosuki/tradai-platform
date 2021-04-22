@@ -5,6 +5,7 @@ mod test {
     use crate::test_util::{binance_account_ws, local_api};
     use coinnect_rt::types::Pair;
 
+    #[allow(dead_code)]
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();
     }
@@ -13,10 +14,10 @@ mod test {
     async fn test_trade_workflow() {
         // System
         // Account stream
-        let account_server = crate::test_util::ws_it_server(binance_account_ws()).await;
+        let _account_server = crate::test_util::ws_it_server(binance_account_ws()).await;
         // Binance stream ?
         // Binance API
-        let (server, binance_api) = local_api().await;
+        let (_server, binance_api) = local_api().await;
         // Order Manager
         let test_dir = crate::test_util::test_dir();
         let om = crate::order_manager::test_util::local_manager(&test_dir, binance_api);

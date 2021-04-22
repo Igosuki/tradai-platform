@@ -12,9 +12,9 @@ pub mod http {
     use futures::Future;
     use std::ops::Deref;
 
-    type WebsocketClosure = Box<
-        dyn Fn(ws::Frame) -> Box<Future<Output = Result<ws::Message, io::Error>>> + Send + Sync,
-    >;
+    /*type WebsocketClosure = Box<
+        dyn Fn(ws::Frame) -> Box<dyn Future<Output = Result<ws::Message, io::Error>>> + Send + Sync,
+    >;*/
 
     pub async fn ws_it_server<F: Sized, R: Sized>(service: Box<F>) -> TestServer
     where
@@ -34,13 +34,13 @@ pub mod http {
                             .await?;
 
                         // start websocket service
-                        let framed = framed.into_framed(ws::Codec::new());
+                        let framed = framed.replace_codec(ws::Codec::new());
                         let x = service.clone().deref().to_owned();
                         let service_fn = x.clone();
                         ws::Dispatcher::with(framed, service_fn).await
                     }
                 })
-                .finish(|_| ok::<_, Error>(Response::NotFound()))
+                .finish(|_| ok::<_, Error>(Response::not_found()))
                 .tcp()
         })
         .await

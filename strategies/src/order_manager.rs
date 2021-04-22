@@ -363,6 +363,6 @@ pub mod test_util {
                 TransactionStatus::Rejected(Rejection::BadRequest("bad request".to_string())),
             )
             .await;
-        assert!(registered.is_ok(), registered);
+        assert!(registered.is_ok(), "{:?}", registered);
     }
 }

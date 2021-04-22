@@ -116,7 +116,7 @@ fn main() {
     zip.iter().rev().take(window_size).for_each(|(l, r)| {
         let row_time = l.event_ms;
         if l.event_ms != r.event_ms {
-            panic!(format!(
+            panic!("{}", format!(
                 "left and right time not aligned in stream !! {} {}",
                 l.event_ms, r.event_ms
             ));
@@ -128,7 +128,7 @@ fn main() {
         });
     });
     println!("Saving Model...");
-    data_table.update_model();
+    data_table.update_model().unwrap();
     data_table.load_model();
     assert!(data_table.has_model());
     println!("{:?}", data_table.model());

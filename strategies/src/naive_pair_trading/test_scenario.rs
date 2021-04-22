@@ -99,8 +99,8 @@ mod test {
                 .x_label_area_size(60)
                 .y_label_area_size(60)
                 .caption(line_specs.0, ("sans-serif", 50.0).into_font())
-                .build_ranged(x_range.clone(), y_range)?;
-            chart.configure_mesh().line_style_2(&WHITE).draw()?;
+                .build_cartesian_2d(x_range.clone(), y_range)?;
+            chart.configure_mesh().bold_line_style(&WHITE).draw()?;
             for (j, line_spec) in line_specs.1.iter().enumerate() {
                 chart.draw_series(LineSeries::new(
                     skipped_data.clone().map(|x| (x.time, line_spec(x))),
@@ -147,7 +147,7 @@ mod test {
             });
         let x = dt.beta();
         println!("beta {}", x);
-        assert!(x > 0.0, x);
+        assert!(x > 0.0, "{:?}", x);
     }
 
     #[actix_rt::test]
@@ -245,9 +245,9 @@ mod test {
         let drew = draw_line_plot(logs);
         if let Ok(file) = drew {
             let copied = std::fs::copy(&file, "graphs/naive_pair_trading_plot_latest.svg");
-            assert!(copied.is_ok(), format!("{:?}", copied));
+            assert!(copied.is_ok(), "{}", format!("{:?}", copied));
         } else {
-            panic!(format!("{:?}", drew));
+            panic!("{}", format!("{:?}", drew));
         }
     }
 }
