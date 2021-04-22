@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::api::ApiError::ExchangeNotFound;
 use crate::graphql_schemas::root::{Context, Schema};
-use actix_web::{web, Error, HttpResponse, ResponseError};
+use actix_web::{web::{self, HttpResponse as HttpResponse2}, Error, ResponseError, body::Body, HttpResponse};
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{OrderType, Pair, Price, Volume};
 use derive_more::Display;
@@ -30,16 +30,18 @@ pub struct Order {
 pub enum ApiError {
     #[display(fmt = "Exchange not found")]
     ExchangeNotFound(Exchange),
+    #[display(fmt = "Coinnect error {}", _0)]
     Coinnect(coinnect_rt::error::Error),
+    #[display(fmt = "Std Io Error {}", _0)]
     IoError(std::io::Error),
 }
 
 impl ResponseError for ApiError {
-    fn error_response(&self) -> HttpResponse {
+    fn error_response(&self) -> HttpResponse2<Body> {
         match self {
-            ExchangeNotFound(_e) => HttpResponse::NotFound().finish(),
-            ApiError::Coinnect(e) => HttpResponse::InternalServerError().body(e.to_string()),
-            ApiError::IoError(e) => HttpResponse::InternalServerError().body(e.to_string()),
+            ExchangeNotFound(_e) => HttpResponse2::not_found(),
+            ApiError::Coinnect(e) => HttpResponse2::internal_server_error().set_body(e.to_string().into()),
+            ApiError::IoError(e) => HttpResponse2::internal_server_error().set_body(e.to_string().into()),
             // _ => HttpResponse::InternalServerError().finish()
         }
     }
@@ -112,7 +114,6 @@ mod tests {
         http::{header, StatusCode},
         test, App,
     };
-    use bytes::Buf;
     use futures::lock::Mutex;
     use std::collections::HashMap;
     use std::path::PathBuf;
@@ -218,11 +219,11 @@ mod tests {
             r##"{{"variables": null, "query": "mutation {{ addOrder(input:{{exchg:\"Binance\", orderType: LIMIT,side: SELL, pair:\"BTC_USDT\", quantity: 0.0015, dryRun: true, price: {} }}) {{ identifier }} }}" }}"##,
             price
         );
-        let payload = string.as_bytes();
+        let _payload = string.as_bytes();
 
         let req = test::TestRequest::post()
             .uri("/")
-            .header(header::CONTENT_TYPE, "application/json")
+            .append_header((header::CONTENT_TYPE, "application/json"))
             .set_payload(string)
             .to_request();
         let resp = timeout(Duration::from_secs(10), test::call_service(&mut app, req)).await;
@@ -230,7 +231,7 @@ mod tests {
         let resp = resp.unwrap();
         let status = resp.status();
         let body = test::read_body(resp).await;
-        let body_string = std::str::from_utf8(body.bytes()).unwrap();
+        let body_string = std::str::from_utf8(body.as_ref()).unwrap();
         let res: serde_json::error::Result<serde_json::Value> = serde_json::from_str(body_string);
         assert!(res.is_ok(), "failed to deserialize json: {:?}", body_string);
         let v = res.unwrap();

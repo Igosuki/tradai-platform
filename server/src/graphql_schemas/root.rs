@@ -284,7 +284,7 @@ type StringStream = Pin<Box<dyn Stream<Item = Result<String, FieldError>> + Send
 impl Subscription {
     async fn hello_world() -> StringStream {
         let stream =
-            tokio::stream::iter(vec![Ok(String::from("Hello")), Ok(String::from("World!"))]);
+        tokio_stream::iter(vec![Ok(String::from("Hello")), Ok(String::from("World!"))]);
         Box::pin(stream)
     }
 }

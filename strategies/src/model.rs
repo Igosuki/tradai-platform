@@ -1,10 +1,12 @@
+use std::convert::TryFrom;
+
 use chrono::{DateTime, Utc};
-use coinnect_rt::types::{Orderbook, TradeType};
 use itertools::Itertools;
 use log::Level::Info;
-use std::convert::TryFrom;
 use strum_macros::{AsRefStr, EnumString};
 use thiserror::Error;
+
+use coinnect_rt::types::{Orderbook, TradeType};
 
 #[derive(
     Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
@@ -132,11 +134,12 @@ impl TryFrom<Orderbook> for BookPosition {
 
 #[cfg(test)]
 mod test {
-    use crate::model::BookPosition;
     use quickcheck::{Arbitrary, Gen};
 
+    use crate::model::BookPosition;
+
     impl Arbitrary for BookPosition {
-        fn arbitrary<G: Gen>(g: &mut G) -> BookPosition {
+        fn arbitrary(g: &mut Gen) -> BookPosition {
             BookPosition {
                 ask: f64::arbitrary(g),
                 ask_q: f64::arbitrary(g),

@@ -4,19 +4,23 @@ extern crate log;
 #[macro_use]
 extern crate serde;
 
-use rkv::error::StoreError::LmdbError;
-use rkv::{Manager, Rkv, SingleStore, StoreError, StoreOptions, Value, Writer};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use std::fs;
 use std::path::Path;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
+
+use rkv::{Manager, Rkv, SingleStore, StoreError, StoreOptions, Value, Writer};
+use rkv::backend::{BackendEnvironmentBuilder, BackendRwTransaction, Lmdb, LmdbDatabase, LmdbEnvironment};
+use rkv::StoreError::LmdbError;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use thiserror::Error;
+
+type RkvLmdb = Rkv<LmdbEnvironment>;
 
 #[derive(Error, Debug)]
 pub enum DataStoreError {
     #[error("rkv error")]
-    StoreError(rkv::error::StoreError),
+    StoreError(rkv::StoreError),
     #[error("expected a json value")]
     ExpectedJson,
     #[error("json error")]
@@ -27,7 +31,7 @@ pub enum DataStoreError {
 pub struct Db {
     pub name: String,
     pub root: Box<Path>,
-    rwl: Arc<RwLock<Rkv>>,
+    rwl: Arc<RwLock<RkvLmdb>>,
 }
 
 pub type WriteResult = Result<(), DataStoreError>;
@@ -47,7 +51,7 @@ impl Db {
         // at most once by caching a handle to each environment that it opens.
         // Use it to retrieve the handle to an opened environment—or create one
         // if it hasn't already been opened:
-        let created_arc = Manager::singleton()
+        let created_arc = Manager::<LmdbEnvironment>::singleton()
             .write()
             .unwrap()
             .get_or_create(root.as_ref(), Self::new_rkv)
@@ -59,20 +63,20 @@ impl Db {
         }
     }
 
-    fn new_rkv(path: &Path) -> Result<Rkv, StoreError> {
+    fn new_rkv(path: &Path) -> Result<RkvLmdb, StoreError> {
         if !path.is_dir() {
-            return Err(StoreError::DirectoryDoesNotExistError(path.into()));
+            return Err(StoreError::UnsuitableEnvironmentPath(path.into()));
         }
 
-        let mut builder = Rkv::environment_builder();
+        let mut builder = Rkv::environment_builder::<Lmdb>();
         builder.set_max_dbs(5);
         builder.set_map_size((10 as i32).pow(8) as usize);
-        Rkv::from_env(path, builder)
+        Rkv::from_builder(path, builder)
     }
 
     pub fn with_db<F, B>(&self, process: F) -> B
     where
-        F: Fn(RwLockReadGuard<Rkv>, SingleStore) -> B,
+        F: Fn(RwLockReadGuard<RkvLmdb>, SingleStore<LmdbDatabase>) -> B,
     {
         let env = self.rwl.read().unwrap();
         // Then you can use the environment handle to get a handle to a datastore:
@@ -103,7 +107,7 @@ impl Db {
                 .flat_map(|r| {
                     r.map_err(DataStoreError::StoreError)
                         .and_then(|v| match v.1 {
-                            Some(rkv::value::Value::Json(json_str)) => {
+                            rkv::value::Value::Json(json_str) => {
                                 serde_json::from_str::<T>(json_str)
                                     .map_err(DataStoreError::JsonError)
                             }
@@ -122,7 +126,7 @@ impl Db {
             iter.map(|r| {
                 r.map_err(DataStoreError::StoreError)
                     .and_then(|v| match v.1 {
-                        Some(rkv::value::Value::Json(json_str)) => {
+                        rkv::value::Value::Json(json_str) => {
                             let t = serde_json::from_str::<T>(json_str)
                                 .map_err(DataStoreError::JsonError);
                             t.map(|record| (std::str::from_utf8(v.0).unwrap().to_string(), record))
@@ -199,14 +203,14 @@ impl Db {
         })
     }
 
-    fn commit(w: Writer, key: &str) {
+    fn commit<I: BackendRwTransaction>(w: Writer<I>, key: &str) {
         match w.commit() {
             Ok(_) => {}
             Err(e) => error!("Failed to commit key {} for {}", key, e),
         }
     }
 
-    fn maybe_commit<T>(r: Result<T, StoreError>, w: Writer, key: &str) -> WriteResult {
+    fn maybe_commit<T, I: BackendRwTransaction>(r: Result<T, StoreError>, w: Writer<I>, key: &str) -> WriteResult {
         match r {
             Ok(_) => {
                 Self::commit(w, key);
@@ -219,11 +223,14 @@ impl Db {
 
 #[cfg(test)]
 mod test {
-    use crate::Db;
-    use rkv::{Rkv, SingleStore, Value};
     use std::sync::RwLockReadGuard;
 
-    fn make_db_test(env: RwLockReadGuard<Rkv>, store: SingleStore) {
+    use rkv::{SingleStore, Value};
+    use rkv::backend::LmdbDatabase;
+
+    use crate::{Db, RkvLmdb};
+
+    fn make_db_test(env: RwLockReadGuard<RkvLmdb>, store: SingleStore<LmdbDatabase>) {
         {
             // Use a write transaction to mutate the store via a `Writer`.
             // There can be only one writer for a given environment, so opening
@@ -402,7 +409,7 @@ mod test {
         number: i32,
     }
 
-    fn insert_json(env: RwLockReadGuard<Rkv>, store: SingleStore) {
+    fn insert_json(env: RwLockReadGuard<RkvLmdb>, store: SingleStore<LmdbDatabase>) {
         let mut writer = env.write().unwrap();
         store
             .put(

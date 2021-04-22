@@ -284,7 +284,7 @@ mod test {
         let x = dir.path();
         let dir_str = String::from(x.as_os_str().to_str().unwrap());
         let new_dir = dir_str;
-        System::run(move || {
+        System::new().block_on(async move {
             let addr = SyncArbiter::start(1, move || actor(new_dir.clone().as_str()));
             let order_book_event = LiveEventEnveloppe(
                 Exchange::Binance,
@@ -308,8 +308,7 @@ mod test {
                 addr.do_send(order_book_event.clone());
             }
             System::current().stop();
-        })
-        .unwrap();
+        });
         let content = get_dir_content(x).unwrap();
         assert_eq!(content.files.len(), 2)
     }

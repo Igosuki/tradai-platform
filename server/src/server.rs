@@ -45,7 +45,7 @@ pub async fn build_exchange_api(
                     coinnect_rt::binance::credentials::ACCOUNT_KEY,
                     keys_path,
                 )
-                .unwrap(),
+                    .unwrap(),
             );
             Coinnect::new_exchange(*xch, creds).await
         }
@@ -68,17 +68,15 @@ pub async fn httpserver(
     let app = move || {
         let schema = create_schema();
 
+        let cors = Cors::default()
+            .allowed_origin("http://localhost:8180")
+            .allowed_methods(vec!["GET", "POST"])
+            .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+            .allowed_header(http::header::CONTENT_TYPE)
+            .supports_credentials()
+            .max_age(3600);
         actix_web::App::new()
-            .wrap(
-                Cors::new()
-                    .allowed_origin("http://localhost:8180")
-                    .allowed_methods(vec!["GET", "POST"])
-                    .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
-                    .allowed_header(http::header::CONTENT_TYPE)
-                    .supports_credentials()
-                    .max_age(3600)
-                    .finish(),
-            )
+            .wrap(cors)
             .data(schema)
             .data(data.clone())
             .data(strategies.clone())

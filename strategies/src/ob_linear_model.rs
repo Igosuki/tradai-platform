@@ -159,7 +159,7 @@ mod test {
     use crate::model::BookPosition;
     use crate::ob_linear_model::LinearModelTable;
     use chrono::{DateTime, TimeZone, Utc};
-    use quickcheck::{Arbitrary, Gen, StdThreadGen};
+    use quickcheck::{Arbitrary, Gen};
     use test::Bencher;
 
     #[derive(Debug)]
@@ -172,7 +172,7 @@ mod test {
     }
 
     impl Arbitrary for TestRow {
-        fn arbitrary<G: Gen>(g: &mut G) -> TestRow {
+        fn arbitrary(g: &mut Gen) -> TestRow {
             TestRow {
                 time: Utc.timestamp_millis(f64::arbitrary(g) as i64),
                 pos: BookPosition::arbitrary(g),
@@ -200,7 +200,7 @@ mod test {
                 lm.current_window().map(|t| t.pos.mid).sum::<f64>() * beta
             }),
         };
-        let mut gen = StdThreadGen::new(500);
+        let mut gen = Gen::new(500);
         for _ in 0..table.max_size {
             table.push(&TestRow::arbitrary(&mut gen))
         }

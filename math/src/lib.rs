@@ -1,6 +1,3 @@
-#![feature(iterator_fold_self)]
-
-#[macro_use]
 extern crate log;
 #[macro_use]
 extern crate thiserror;

@@ -29,7 +29,7 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 derive_more = "0.99"
 data-encoding = "2.2"
-bytes = "0.5"
+bytes = "1.0"
 avro-rs = { git = "https://github.com/Igosuki/avro-rs.git" }
 
 # Data structures
@@ -43,39 +43,40 @@ anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 url = "2.1"
 uuid = { version = "0.8", features = ["v4"] }
-byte-unit = "3.0"
+byte-unit = "4.0"
 error-chain = "0.12"
-config = { version = "0.10", features = ["yaml"] }
-rand = "0.7"
-itertools = "0.9"
+config = { version = "0.11", features = ["yaml"] }
+rand = "0.8"
+itertools = "0.10"
 fs_extra = "1.1"
 parse_duration = "2.1"
 tempdir = "0.3"
 
 # SSL
-sha2 = "0.8"
-hmac = "0.7"
+sha2 = "0.9"
+hmac = "0.10"
 openssl = "0.10"
 native-tls = "0.2"
 
 # Logging
 log = "0.4"
-env_logger = "0.7"
+env_logger = "0.8"
 
 # Futures
 async-std = "1.5"
 futures = { version ="0.3", features = ["thread-pool"] }
 futures-util = "0.3"
-tokio = { version = "0.2", features = ["full", "time"] }
+tokio = { version = "1.5", features = ["full", "time"] }
+tokio-stream = "0.1.5"
 
 # Actix
-awc = "2.0.0-alpha.2"
-actix-web = { version = "3.0.0-alpha.3", features = ["openssl"] }
-actix-rt = "1.1"
-actix_derive = "0.5"
-actix = "0.10.0-alpha.3"
-actix-codec = "0.2"
-actix-cors = "0.3.0-alpha.1"
+awc = "3.0.0-beta.5"
+actix-web = { version = "4.0.0-beta.6", features = ["openssl"] }
+actix-rt = "2.2"
+actix_derive = "0.6"
+actix = "0.11"
+actix-codec = "0.4"
+actix-cors = { git = "https://github.com/Igosuki/actix-extras.git" }
 
 # Juniper
 juniper = { git = "https://github.com/graphql-rust/juniper", features = ["expose-test-schema"] }
@@ -91,10 +92,10 @@ libc = "0.2"
 gperftools = { version = "0.2", optional = true, features = ["heap"] }
 
 # Monitoring
-prometheus = { version = "0.9", features = ["nightly", "push", "process", "gen"] }
+prometheus = { version = "0.12", features = ["nightly", "push", "process", "gen"] }
 
 # DB
-rkv = "0.10"
+rkv = "0.17"
 db = { path = "../db" }
 
 # Strategies

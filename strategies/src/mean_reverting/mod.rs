@@ -35,17 +35,21 @@ pub struct MeanRevertingStrategy {
     state: MeanRevertingState,
     model: IndicatorModel<MeanRevertingModelValue, SinglePosRow>,
     threshold_table: Option<WindowTable<f64>>,
+    #[allow(dead_code)]
     last_row_time_at_eval: DateTime<Utc>,
+    #[allow(dead_code)]
     last_row_process_time: DateTime<Utc>,
     metrics: Arc<MeanRevertingStrategyMetrics>,
     threshold_eval_freq: Option<i32>,
     threshold_eval_window_size: Option<usize>,
     threshold_short_0: f64,
     threshold_long_0: f64,
+    #[allow(dead_code)]
     dynamic_threshold: bool,
     last_threshold_time: DateTime<Utc>,
     stop_loss: f64,
     stop_gain: f64,
+    #[allow(dead_code)]
     long_window_size: u32,
 }
 
@@ -62,7 +66,7 @@ impl MeanRevertingStrategy {
         let db = Db::new(&pb.to_str().unwrap(), db_name);
         let state = MeanRevertingState::new(n, db, om);
         let dynamic_threshold_enabled = n.dynamic_threshold();
-        let max_size = if dynamic_threshold_enabled {
+        let _max_size = if dynamic_threshold_enabled {
             n.threshold_window_size
                 .map(|t| max(t, 2 * n.long_window_size as usize))
         } else {
@@ -127,6 +131,7 @@ impl MeanRevertingStrategy {
         )
     }
 
+    #[allow(dead_code)]
     fn model_value(&self) -> Option<MeanRevertingModelValue> {
         self.model.model().map(|m| m.value)
     }
@@ -473,8 +478,8 @@ mod test {
                 .x_label_area_size(60)
                 .y_label_area_size(60)
                 .caption(line_specs.0, ("sans-serif", 50.0).into_font())
-                .build_ranged(x_range.clone(), y_range)?;
-            chart.configure_mesh().line_style_2(&WHITE).draw()?;
+                .build_cartesian_2d(x_range.clone(), y_range)?;
+            chart.configure_mesh().bold_line_style(&WHITE).draw()?;
             for (j, line_spec) in line_specs.1.iter().enumerate() {
                 chart.draw_series(LineSeries::new(
                     skipped_data.clone().map(|x| (x.time, line_spec(x))),
@@ -525,13 +530,13 @@ mod test {
         let model_value = dt.model().unwrap().value;
         let apo = model_value.apo;
         println!("apo {}", apo);
-        assert!(apo > 0.0, apo);
+        assert!(apo > 0.0, "{}", apo);
     }
 
     #[actix_rt::test]
     async fn continuous_scenario() {
         init();
-        let window_size = 10000;
+        let _window_size = 10000;
         let path = crate::test_util::test_dir();
         let order_manager_addr = test_util::mock_manager(&path);
         task::sleep(Duration::from_secs(1)).await;
@@ -627,9 +632,9 @@ mod test {
         let drew = draw_line_plot(logs);
         if let Ok(file) = drew {
             let copied = std::fs::copy(&file, "graphs/mean_reverting_plot_latest.svg");
-            assert!(copied.is_ok(), format!("{:?}", copied));
+            assert!(copied.is_ok(), "{}", format!("{:?}", copied));
         } else {
-            panic!(format!("{:?}", drew));
+            panic!("{}", format!("{:?}", drew));
         }
 
         assert_eq!(Some(162.130004882813), last_position.map(|p| p.pos.price));

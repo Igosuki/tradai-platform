@@ -1,8 +1,10 @@
 #![deny(unused_must_use, unused_mut, unused_imports, unused_import_braces)]
+#![allow(incomplete_features)]
 #![feature(test)]
 #![feature(async_closure)]
 #![feature(impl_trait_in_bindings)]
 #![feature(type_alias_impl_trait)]
+#![feature(min_type_alias_impl_trait)]
 
 #[macro_use]
 extern crate log;
@@ -255,7 +257,7 @@ mod test {
     #[test]
     fn test_workflow() {
         init();
-        System::run(move || {
+        System::new().block_on(async move {
             let addr = StrategyActor::start(actor(Box::new(DummyStrat)));
             let order_book_event = LiveEventEnveloppe(
                 Exchange::Binance,
@@ -279,8 +281,7 @@ mod test {
                 addr.do_send(order_book_event.clone());
             }
             System::current().stop();
-        })
-        .unwrap();
+        });
         assert_eq!(true, true);
     }
 }

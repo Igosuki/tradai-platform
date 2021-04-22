@@ -43,3 +43,11 @@ cargo flamegraph --bin=trader -- [args]
 - https://github.com/flamegraph-rs/flamegraph
 - https://github.com/jonhoo/inferno
 - https://github.com/bheisler/criterion.rs 
+
+#### Linux specifics 
+
+##### Dependencies
+
+```
+sudo apt-get install libfontconfig libfontconfig1-dev google-perftools libgoogle-perftools-dev
+```
