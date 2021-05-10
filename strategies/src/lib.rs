@@ -44,9 +44,10 @@ mod ob_indicator_model;
 mod ob_linear_model;
 pub mod order_manager;
 pub mod query;
-mod test_util;
 mod util;
 mod wal;
+mod tests;
+
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display)]
 pub enum StrategyType {
