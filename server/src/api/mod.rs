@@ -1,17 +1,19 @@
 use std::collections::HashMap;
-
-use crate::api::ApiError::ExchangeNotFound;
-use crate::graphql_schemas::root::{Context, Schema};
-use actix_web::{web::{self, HttpResponse as HttpResponse2}, Error, ResponseError, body::Body, HttpResponse};
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
-use coinnect_rt::types::{OrderType, Pair, Price, Volume};
-use derive_more::Display;
-use futures::lock::Mutex;
-use serde::{Deserialize, Serialize};
 #[cfg(feature = "flame_it")]
 use std::fs::File;
 use std::sync::Arc;
+
+use actix_web::{body::Body, Error, HttpResponse, ResponseError, web::{self, HttpResponse as HttpResponse2}};
+use derive_more::Display;
+use futures::lock::Mutex;
+use serde::{Deserialize, Serialize};
+
+use coinnect_rt::exchange::{Exchange, ExchangeApi};
+use coinnect_rt::types::{OrderType, Pair, Price, Volume};
 use strategies::{Strategy, StrategyKey};
+
+use crate::api::ApiError::ExchangeNotFound;
+use crate::graphql_schemas::root::{Context, Schema};
 
 mod graphql;
 mod playground_source;
@@ -102,7 +104,7 @@ pub fn config_app(cfg: &mut web::ServiceConfig) {
     cfg.service(web::resource("/playground").route(web::get().to(playground_handler)));
     cfg.service(web::resource("/graphiql").route(web::get().to(graphiql_handler)));
     #[cfg(feature = "flame_it")]
-    cfg.service(
+        cfg.service(
         web::scope("/profiling")
             .service(web::resource("dump").route(web::post().to(dump_profiler))),
     );
@@ -110,74 +112,26 @@ pub fn config_app(cfg: &mut web::ServiceConfig) {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use std::time::Duration;
+
     use actix_web::{
-        http::{header, StatusCode},
-        test, App,
+        App,
+        http::StatusCode, test,
     };
     use futures::lock::Mutex;
-    use std::collections::HashMap;
-    use std::path::PathBuf;
     use tokio::time::timeout;
 
-    use coinnect_rt::bitstamp::BitstampCreds;
-    use coinnect_rt::bittrex::BittrexCreds;
-    use coinnect_rt::coinnect::Coinnect;
-    use coinnect_rt::exchange::Exchange::Binance;
+    use coinnect_rt::coinnect;
     use coinnect_rt::exchange::{Exchange, ExchangeApi};
+    use coinnect_rt::exchange::Exchange::Binance;
     use coinnect_rt::types::OrderType;
+    use strategies::{Strategy, StrategyKey};
 
     use crate::api::config_app;
     use crate::graphql_schemas::root::create_schema;
-    use coinnect_rt::binance::BinanceCreds;
-    use std::sync::Arc;
-    use std::time::Duration;
-    use strategies::{Strategy, StrategyKey};
-
-    pub struct ExchangeConfig {
-        key_file: String,
-        exchanges: Vec<Exchange>,
-    }
-
-    async fn build_exchanges(cfg: ExchangeConfig) -> HashMap<Exchange, Box<dyn ExchangeApi>> {
-        let path = PathBuf::from(cfg.key_file.as_str());
-        let mut exchg_map: HashMap<Exchange, Box<dyn ExchangeApi>> = HashMap::new();
-        for exchange in cfg.exchanges {
-            match exchange {
-                Exchange::Bitstamp => {
-                    let my_creds =
-                        BitstampCreds::new_from_file("account_bitstamp", path.clone()).unwrap();
-                    exchg_map.insert(
-                        exchange,
-                        Coinnect::new_exchange(exchange, Box::new(my_creds))
-                            .await
-                            .unwrap(),
-                    );
-                }
-                Exchange::Bittrex => {
-                    let my_creds =
-                        BittrexCreds::new_from_file("account_bittrex", path.clone()).unwrap();
-                    exchg_map.insert(
-                        exchange,
-                        Coinnect::new_exchange(exchange, Box::new(my_creds))
-                            .await
-                            .unwrap(),
-                    );
-                }
-                Exchange::Binance => {
-                    let my_creds =
-                        BinanceCreds::new_from_file("account_binance", path.clone()).unwrap();
-                    exchg_map.insert(
-                        exchange,
-                        Coinnect::new_exchange(exchange, Box::new(my_creds))
-                            .await
-                            .unwrap(),
-                    );
-                }
-                _ => (),
-            }
-        }
-        exchg_map
-    }
+    use actix_web::http::header::ContentType;
 
     fn strats() -> HashMap<StrategyKey, Strategy> {
         HashMap::new()
@@ -186,18 +140,15 @@ mod tests {
     #[actix_rt::test]
     async fn test_add_order() {
         let schema = create_schema();
-        let exchanges = ExchangeConfig {
-            key_file: "../keys_real_test.json".to_string(),
-            exchanges: vec![Binance],
-        };
-        let exchanges_map = build_exchanges(exchanges).await;
+        let exchanges = coinnect::ExchangeConfig::new("../keys_real_test.json".to_string(), vec![Binance]);
+        let exchanges_map = coinnect::build_exchanges(exchanges).await;
         let data: Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>> =
             Arc::new(Mutex::new(exchanges_map));
         let mut guard = data.lock().await;
         let binance_api: &mut Box<dyn ExchangeApi> = guard.get_mut(&Exchange::Binance).unwrap();
         let ob = binance_api.orderbook("BTC_USDT".into()).await.unwrap();
         drop(guard);
-        let price = ob.bids.first().unwrap().0;
+        let price = 35000.02000000;
         let strats: Arc<HashMap<StrategyKey, Strategy>> = Arc::new(strats());
         let mut app = test::init_service(
             App::new()
@@ -206,24 +157,23 @@ mod tests {
                 .data(strats)
                 .configure(config_app),
         )
-        .await;
+            .await;
 
         let _o = crate::api::Order {
             exchg: Binance,
             t: OrderType::Limit,
             pair: "BTC_USD".into(),
-            qty: 0.000001,
+            qty: 0.00000100,
             price,
         };
         let string = format!(
             r##"{{"variables": null, "query": "mutation {{ addOrder(input:{{exchg:\"Binance\", orderType: LIMIT,side: SELL, pair:\"BTC_USDT\", quantity: 0.0015, dryRun: true, price: {} }}) {{ identifier }} }}" }}"##,
             price
         );
-        let _payload = string.as_bytes();
-
+        println!("{}", string);
         let req = test::TestRequest::post()
             .uri("/")
-            .append_header((header::CONTENT_TYPE, "application/json"))
+            .insert_header(ContentType::json())
             .set_payload(string)
             .to_request();
         let resp = timeout(Duration::from_secs(10), test::call_service(&mut app, req)).await;
@@ -246,8 +196,8 @@ mod tests {
         assert!(option.is_some(), "data should exist: {:?}", &option);
         assert!(
             option.unwrap() != &serde_json::Value::Null,
-            "data should not be null : {:?}",
-            v
+            "data should not be null : {}",
+            serde_json::to_string_pretty(&v).unwrap()
         );
     }
 }
