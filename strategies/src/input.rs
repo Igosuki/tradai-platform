@@ -40,6 +40,32 @@ pub struct CsvRecord {
     pub bq5: f64,
 }
 
+impl Into<BookPosition> for CsvRecord {
+    fn into(self) -> BookPosition {
+        let asks = [
+            (self.a1, self.aq1),
+            (self.a2, self.aq2),
+            (self.a3, self.aq3),
+            (self.a4, self.aq4),
+            (self.a5, self.aq5),
+        ];
+        let bids = [
+            (self.b1, self.bq1),
+            (self.b2, self.bq2),
+            (self.b3, self.bq3),
+            (self.b4, self.bq4),
+            (self.b5, self.bq5),
+        ];
+        BookPosition::new(&asks, &bids)
+    }
+}
+
+impl<'a> Into<BookPosition> for &'a CsvRecord {
+    fn into(self) -> BookPosition {
+        self.clone().into()
+    }
+}
+
 pub fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
     let f = File::open(path)?;
     let mut rdr = csv::Reader::from_reader(f);
@@ -91,25 +117,7 @@ fn load_records(path: &str) -> Vec<CsvRecord> {
     read_csv(path).unwrap()
 }
 
-pub fn to_pos(r: &CsvRecord) -> BookPosition {
-    let asks = [
-        (r.a1, r.aq1),
-        (r.a2, r.aq2),
-        (r.a3, r.aq3),
-        (r.a4, r.aq4),
-        (r.a5, r.aq5),
-    ];
-    let bids = [
-        (r.b1, r.bq1),
-        (r.b2, r.bq2),
-        (r.b3, r.bq3),
-        (r.b4, r.bq4),
-        (r.b5, r.bq5),
-    ];
-    BookPosition::new(&asks, &bids)
-}
-
-pub async fn dl_test_data(
+async fn dl_test_data(
     base_path: Arc<String>,
     exchange_name: Arc<String>,
     channel: Arc<String>,
@@ -133,6 +141,9 @@ pub async fn dl_test_data(
         .expect("failed to unzip file");
 }
 
+// Loads the relevant csv dataset
+// These csv datasets are downsampled feeds generated from avro data by spark the spark_flattener function (see the spark files in the parent project)
+// If the files are missing from $BITCOINS_REPO/data, they will be downloaded from s3 / spaces
 pub async fn load_csv_dataset(
     dr: &DateRange,
     pairs: Vec<String>,
