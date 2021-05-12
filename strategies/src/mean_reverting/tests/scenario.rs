@@ -5,7 +5,7 @@ use std::error::Error;
 use std::time::{Duration, Instant};
 use util::date::{DateRange, DurationRangeType};
 
-use crate::input::{self, to_pos};
+use crate::input;
 use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::MeanRevertingState;
@@ -141,7 +141,7 @@ async fn moving_average() {
         .for_each(|(l, r)| {
             dt.update_model(&SinglePosRow {
                 time: l.event_ms,
-                pos: to_pos(r),
+                pos: r.into(),
             })
                 .unwrap();
         });
@@ -215,7 +215,7 @@ async fn continuous_scenario() {
             let row_time = csvr.event_ms;
             let row = SinglePosRow {
                 time: row_time,
-                pos: to_pos(csvr),
+                pos: csvr.into(),
             };
             strat.process_row(&row).await;
             let value = strat.model_value().unwrap();

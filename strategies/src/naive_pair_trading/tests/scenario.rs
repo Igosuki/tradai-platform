@@ -4,7 +4,6 @@ use serde::Serialize;
 
 use crate::naive_pair_trading::state::MovingState;
 use crate::naive_pair_trading::{DataRow, NaiveTradingStrategy};
-use crate::input::to_pos;
 use crate::naive_pair_trading::options::Options;
 use crate::order_manager::test_util;
 use coinnect_rt::exchange::Exchange;
@@ -139,8 +138,8 @@ async fn beta_val() {
         .for_each(|(l, r)| {
             dt.push(&DataRow {
                 time: l.event_ms,
-                left: to_pos(l),
-                right: to_pos(r),
+                left: l.into(),
+                right: r.into(),
             })
         });
     let x = dt.beta();
@@ -214,8 +213,8 @@ async fn continuous_scenario() {
             let row_time = l.event_ms;
             let row = DataRow {
                 time: row_time,
-                left: to_pos(l),
-                right: to_pos(r),
+                left: l.into(),
+                right: r.into(),
             };
             strat.process_row(&row).await;
             StrategyLog::from_state(row_time, strat.state.clone(), &row)
