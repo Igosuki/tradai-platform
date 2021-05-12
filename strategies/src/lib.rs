@@ -46,7 +46,7 @@ pub mod order_manager;
 pub mod query;
 mod util;
 mod wal;
-mod tests;
+mod test_util;
 
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display)]
