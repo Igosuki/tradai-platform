@@ -1,6 +1,7 @@
 use chrono::{DateTime, TimeZone, Utc};
 use plotters::prelude::*;
 use serde::Serialize;
+use async_std::task;
 
 use crate::naive_pair_trading::state::MovingState;
 use crate::naive_pair_trading::{DataRow, NaiveTradingStrategy};
@@ -10,7 +11,7 @@ use coinnect_rt::exchange::Exchange;
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use std::error::Error;
-use std::time::Instant;
+use std::time::{Instant, Duration};
 use util::date::{DateRange, DurationRangeType};
 
 static LEFT_PAIR: &str = "ETH_USDT";
@@ -156,6 +157,7 @@ async fn continuous_scenario() {
     let buf = root.into_path();
     let path = buf.to_str().unwrap();
     let order_manager_addr = test_util::mock_manager(path);
+    task::sleep(Duration::from_millis(20)).await;
     let mut strat = NaiveTradingStrategy::new(
         path,
         0.001,

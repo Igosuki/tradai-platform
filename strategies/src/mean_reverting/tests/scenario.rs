@@ -12,6 +12,7 @@ use crate::mean_reverting::state::MeanRevertingState;
 use crate::mean_reverting::MeanRevertingStrategy;
 use crate::order_manager::test_util;
 use ordered_float::OrderedFloat;
+use serde::{Serializer, ser::SerializeSeq};
 
 #[derive(Debug, Serialize)]
 struct StrategyLog {
@@ -122,10 +123,11 @@ static PAIR: &str = "BTC_USDT";
 #[tokio::test]
 async fn moving_average() {
     init();
-    let mut dt = MeanRevertingStrategy::make_model_table("BTC_USDT", "default", 100, 1000);
+    let path = crate::test_util::test_dir();
+    let mut dt = MeanRevertingStrategy::make_model_table("BTC_USDT", &path, 100, 1000);
     // Read downsampled streams
     let dt0 = Utc.ymd(2020, 3, 25);
-    let dt1 = Utc.ymd(2020, 3, 25);
+    let dt1 = Utc.ymd(2020, 4, 8);
     let records = input::load_csv_dataset(
         &DateRange(dt0, dt1, DurationRangeType::Days, 1),
         vec![PAIR.to_string()],
@@ -136,19 +138,17 @@ async fn moving_average() {
     // align data
     records[0]
         .iter()
-        .zip(records[1].iter())
         .take(500)
-        .for_each(|(l, r)| {
+        .for_each(|l| {
             dt.update_model(&SinglePosRow {
                 time: l.event_ms,
-                pos: r.into(),
+                pos: l.into(),
             })
                 .unwrap();
         });
     let model_value = dt.model().unwrap().value;
     let apo = model_value.apo;
-    println!("apo {}", apo);
-    assert!(apo > 0.0, "{}", apo);
+    assert!(apo > 0.0, "apo {}", apo);
 }
 
 #[actix_rt::test]
@@ -157,7 +157,7 @@ async fn continuous_scenario() {
     let _window_size = 10000;
     let path = crate::test_util::test_dir();
     let order_manager_addr = test_util::mock_manager(&path);
-    task::sleep(Duration::from_secs(1)).await;
+    task::sleep(Duration::from_millis(20)).await;
     let test_results_dir = "test_results";
     std::fs::create_dir_all(test_results_dir).unwrap();
     let mut strat = MeanRevertingStrategy::new(
@@ -186,6 +186,7 @@ async fn continuous_scenario() {
     // align data
     let mut elapsed = 0 as u128;
     let mut iterations = 1 as u128;
+    let now = Instant::now();
     let records = input::load_csv_dataset(
         &DateRange(dt0, dt1, DurationRangeType::Days, 1),
         vec![PAIR.to_string()],
@@ -193,8 +194,7 @@ async fn continuous_scenario() {
         CHANNEL,
     )
         .await;
-    println!("{}", records[0].len());
-    println!("Dataset loaded in memory...");
+    debug!("Loaded {} csv records in {:.6} s", records[0].len(), now.elapsed().as_millis());
     // align data
     let eval = records[0].iter();
     let mut logs: Vec<StrategyLog> = Vec::new();
@@ -202,22 +202,21 @@ async fn continuous_scenario() {
     let mut wtr =
         csv::Writer::from_path(format!("{}/ema_values_{}.csv", test_results_dir, now_str()))
             .unwrap();
-
     // Feed all csv records to the strat
     for csvr in eval {
         iterations += 1;
         if iterations % 1000 == 0 {
             info!("Reached {} iterations", iterations);
         }
-        let now = Instant::now();
 
+        let now = Instant::now();
+        let row_time = csvr.event_ms;
+        let row = SinglePosRow {
+            time: row_time,
+            pos: csvr.into(),
+        };
+        strat.process_row(&row).await;
         let log = {
-            let row_time = csvr.event_ms;
-            let row = SinglePosRow {
-                time: row_time,
-                pos: csvr.into(),
-            };
-            strat.process_row(&row).await;
             let value = strat.model_value().unwrap();
             model_values.push((row_time, value.clone()));
             StrategyLog::from_state(row_time, strat.state.clone(), &row, value)
@@ -225,7 +224,7 @@ async fn continuous_scenario() {
         elapsed += now.elapsed().as_nanos();
         logs.push(log);
     }
-    println!("Each iteration took {} on avg", elapsed / iterations);
+    println!("For {} records, each iteration took {} on avg", records[0].len(), elapsed / records[0].len() as u128);
 
     // Write all model values to a csv file
     for model_value in model_values {
@@ -245,18 +244,20 @@ async fn continuous_scenario() {
     let last_position = positions.last();
 
     let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
-    serde_json::to_writer(logs_f, &logs).unwrap();
-    std::fs::create_dir_all("graphs").unwrap();
-    let drew = draw_line_plot(logs);
-    if let Ok(file) = drew {
-        let copied = std::fs::copy(&file, "graphs/mean_reverting_plot_latest.svg");
-        assert!(copied.is_ok(), "{}", format!("{:?}", copied));
-    } else {
-        panic!("{}", format!("{:?}", drew));
+    let mut ser = serde_json::Serializer::new(logs_f);
+    let mut seq = ser.serialize_seq(None).unwrap();
+    for log in logs {
+        seq.serialize_element(&log).unwrap();
     }
+    std::fs::create_dir_all("graphs").unwrap();
+    //let drew = draw_line_plot(logs);
+    // if let Ok(file) = drew {
+    //     let copied = std::fs::copy(&file, "graphs/mean_reverting_plot_latest.svg");
+    //     assert!(copied.is_ok(), "{}", format!("{:?}", copied));
+    // } else {
+    //     panic!("{}", format!("{:?}", drew));
+    // }
 
     assert_eq!(Some(162.130004882813), last_position.map(|p| p.pos.price));
     assert_eq!(Some(33.33032942489664), last_position.map(|p| p.value()));
-
-    drop(strat);
 }

@@ -12,6 +12,7 @@ use std::process::Command;
 use std::sync::Arc;
 use util::date::DateRange;
 use util::serdes::date_time_format;
+use std::iter::FromIterator;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CsvRecord {
@@ -91,12 +92,12 @@ pub fn partition_path(exchange: &str, ts: i64, channel: &str, pair: &str) -> Opt
     )
 }
 
-pub fn load_records_from_csv(
+pub fn load_records_from_csv<R>(
     dr: &DateRange,
     base_path: &PathBuf,
     pairs: Vec<String>,
     glob_str: &str,
-) -> Vec<Vec<CsvRecord>> {
+) -> Vec<Vec<R>> where Vec<R>: FromIterator<CsvRecord> {
     let get_records = move |p: String| {
         dr.clone()
             .flat_map(|dt| {
