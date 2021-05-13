@@ -6,7 +6,7 @@ keys_real.json
 local.yaml
 cargo-git
 cargo-target
-cargo-registry
+cargo-registry/*
 binance-rs
 flame-graph.html
 .DS_Store
