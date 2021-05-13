@@ -5,7 +5,7 @@ pub mod http {
     use actix_http::{h1, ws, HttpService, Request, Response};
     use actix_http_test::{test_server, TestServer};
     use futures::future::ok;
-    use futures_util::SinkExt;
+    use futures::sink::SinkExt;
     use std::io;
 
     use actix_codec::Framed;
