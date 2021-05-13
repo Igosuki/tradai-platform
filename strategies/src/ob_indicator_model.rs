@@ -56,7 +56,7 @@ impl<T: Serialize + DeserializeOwned + Clone, R> IndicatorModel<T, R> {
         if let Some(model) = &self.last_model {
             let mut model_value = model.value.clone();
             (self.update_fn)(&mut model_value, row);
-            self.last_model(model_value);
+            self.set_last_model(model_value);
 
             self.db.put_json(LAST_MODEL_KEY, &self.last_model)?;
         }
@@ -151,7 +151,7 @@ mod test {
                 at: Utc::now(),
             }),
             last_model_load_attempt: None,
-            update_fn: Box::new(|m, _r| m.clone()),
+            update_fn: Box::new(|m, _r| ()),
         };
         let mut gen = Gen::new(500);
         b.iter(|| table.update_model(&TestRow::arbitrary(&mut gen)).unwrap());
