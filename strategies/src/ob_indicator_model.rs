@@ -45,14 +45,18 @@ impl<T: Serialize + DeserializeOwned + Clone, R> IndicatorModel<T, R> {
         }
     }
 
+    fn set_last_model(&mut self, new_model: T) {
+        self.last_model = Some(ModelValue {
+            value: new_model,
+            at: Utc::now(),
+        });
+    }
+
     pub fn update_model(&mut self, row: &R) -> Result<(), DataStoreError> {
         if let Some(model) = &self.last_model {
             let mut model_value = model.value.clone();
             (self.update_fn)(&mut model_value, row);
-            self.last_model = Some(ModelValue {
-                value: model_value,
-                at: Utc::now(),
-            });
+            self.last_model(model_value);
 
             self.db.put_json(LAST_MODEL_KEY, &self.last_model)?;
         }
@@ -107,10 +111,11 @@ mod test {
     use tempfile::TempDir;
 
     use crate::model::BookPosition;
-    use crate::ob_indicator_model::IndicatorModel;
-    use chrono::{DateTime, TimeZone, Utc};
+    use crate::ob_indicator_model::{IndicatorModel, ModelValue};
+    use chrono::{DateTime, Utc};
     use quickcheck::{Arbitrary, Gen};
     use test::Bencher;
+    use fake::Fake;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct MockLinearModel;
@@ -123,8 +128,9 @@ mod test {
 
     impl Arbitrary for TestRow {
         fn arbitrary(g: &mut Gen) -> TestRow {
+            let time: chrono::DateTime<Utc> = fake::faker::chrono::en::DateTime().fake();
             TestRow {
-                time: Utc.timestamp_millis(f64::arbitrary(g) as i64),
+                time,
                 pos: BookPosition::arbitrary(g),
             }
         }
@@ -136,18 +142,19 @@ mod test {
     }
 
     #[bench]
-    fn test_save_load_model(_b: &mut Bencher) {
+    fn test_save_load_model(b: &mut Bencher) {
         let mut table: IndicatorModel<MockLinearModel, TestRow> = IndicatorModel {
             db: test_db(),
             id: "default".to_string(),
-            last_model: None,
+            last_model: Some(ModelValue {
+                value: MockLinearModel{},
+                at: Utc::now(),
+            }),
             last_model_load_attempt: None,
-            update_fn: Box::new(|_m, _r| ()),
+            update_fn: Box::new(|m, _r| m.clone()),
         };
         let mut gen = Gen::new(500);
-        for _ in 0..500 {
-            table.update_model(&TestRow::arbitrary(&mut gen)).unwrap();
-        }
+        b.iter(|| table.update_model(&TestRow::arbitrary(&mut gen)).unwrap());
         table.load_model();
     }
 }

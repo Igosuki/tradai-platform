@@ -39,3 +39,11 @@ profile:
 ## alias rust-musl-builder-nightly='docker run --cpus=3 --rm -it --user rust $MUSL_FLAGS -v "$HOME/.cargo/git":/home/rust/.cargo/git -v "$(pwd)/cargo-registry":/home/rust/.cargo/registry -v "$(pwd)/cargo-target":/home/rust/src/target -v "$(pwd)":/home/rust/src ekidd/rust-musl-builder:nightly-2020-04-17'
 release:
 	rust-musl-builder-nightly cargo build --release
+
+build_test:
+	@$(CARGO_BIN) test --message-format=json-diagnostic-rendered-ansi --color=always --no-run --lib $(TEST_NAME) --manifest-path $(MANIFEST_PATH)
+
+flamegraph:
+	perf script | inferno-collapse-perf > stacks.folded
+	inferno-flamegraph stacks.folded > flamegraph.svg
+	firefox flamegraph.svg
