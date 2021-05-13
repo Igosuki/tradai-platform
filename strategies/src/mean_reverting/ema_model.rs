@@ -3,6 +3,7 @@ use crate::ob_double_window_model::WindowTable;
 use chrono::{DateTime, Utc};
 use math::moving_average::ExponentialMovingAverage;
 use math::Next;
+use log::Level::Trace;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SinglePosRow {
@@ -31,13 +32,15 @@ pub fn moving_average_apo(m: &mut MeanRevertingModelValue, row: &SinglePosRow) {
     let long_ema = m.long_ema.next(row.pos.mid);
     let short_ema = m.short_ema.next(row.pos.mid);
     let apo = (short_ema - long_ema) / long_ema;
-    trace!("short_ema={},long_ema={}", short_ema, long_ema);
-    trace!(
-        "moving average : short {} long {} apo {}",
-        short_ema,
-        long_ema,
-        apo
-    );
+    if log_enabled!(Trace) {
+        trace!("short_ema={},long_ema={}", short_ema, long_ema);
+        trace!(
+            "moving average : short {} long {} apo {}",
+            short_ema,
+            long_ema,
+            apo
+        );
+    }
     m.apo = apo;
 }
 
