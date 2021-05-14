@@ -5,7 +5,7 @@ use glob::glob;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::Result;
+use std::io::{Result, BufReader};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -69,7 +69,7 @@ impl<'a> Into<BookPosition> for &'a CsvRecord {
 
 pub fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
     let f = File::open(path)?;
-    let mut rdr = csv::Reader::from_reader(f);
+    let mut rdr = csv::Reader::from_reader(BufReader::new(f));
     let vec: Vec<CsvRecord> = rdr
         .deserialize()
         .map(|r| {

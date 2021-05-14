@@ -1,5 +1,4 @@
-use crate::model;
-use crate::model::BookPosition;
+use crate::model::{BookPosition, StratEvent, OperationEvent, TradeEvent};
 use crate::model::{OperationKind, PositionKind, TradeKind};
 use crate::order_manager::{OrderId, OrderManager, StagedOrder, Transaction};
 use crate::query::MutableField;
@@ -102,21 +101,27 @@ impl Operation {
     }
 
     fn log(&self) {
-        model::log_pos(&self.kind, &self.pos.kind, self.pos.time);
-        model::log_trade(
-            &self.right_trade.kind,
-            self.right_trade.qty,
-            &self.pos.right_pair,
-            self.pos.right_price,
-            self.right_value(),
-        );
-        model::log_trade(
-            &self.left_trade.kind,
-            self.left_trade.qty,
-            &self.pos.left_pair,
-            self.pos.left_price,
-            self.left_value(),
-        );
+        StratEvent::Operation(OperationEvent {
+            op: self.kind.clone(),
+            pos: self.pos.kind.clone(),
+            at: self.pos.time
+        }).log();
+        StratEvent::Trade(TradeEvent {
+            op: self.right_trade.kind.clone(),
+            qty: self.right_trade.qty,
+            pair: self.pos.right_pair.clone(),
+            price: self.pos.right_price,
+            strat_value: self.right_value(),
+            at: self.pos.time,
+        }).log();
+        StratEvent::Trade(TradeEvent {
+            op: self.left_trade.kind.clone(),
+            qty: self.left_trade.qty,
+            pair: self.pos.left_pair.clone(),
+            price: self.pos.left_price,
+            strat_value: self.left_value(),
+            at: self.pos.time,
+        }).log();
     }
 }
 
@@ -695,7 +700,6 @@ impl MovingState {
                 self.res(),
                 self.pnl(),
             );
-            info!("--------------------------------")
         }
     }
 }

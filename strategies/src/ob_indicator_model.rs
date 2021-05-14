@@ -151,7 +151,7 @@ mod test {
                 at: Utc::now(),
             }),
             last_model_load_attempt: None,
-            update_fn: Box::new(|m, _r| ()),
+            update_fn: Box::new(|_m, _r| ()),
         };
         let mut gen = Gen::new(500);
         b.iter(|| table.update_model(&TestRow::arbitrary(&mut gen)).unwrap());
