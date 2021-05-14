@@ -18,6 +18,13 @@ make build_all
 
 ### Tests and benchmarks
 
+#### Requirements
+
+The env var BITCOINS_TEST_RAMFS_DIR set to a ramfs disk, example : 
+
+```sudo mount -t tmpfs -o size=2048M tmpfs /media/ramdisk```
+
+#### Run
 ```
 make test
 make bench
