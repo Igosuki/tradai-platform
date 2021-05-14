@@ -10,9 +10,11 @@ use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::MeanRevertingState;
 use crate::mean_reverting::MeanRevertingStrategy;
-use crate::order_manager::test_util;
+use crate::order_manager::test_util::mock_manager;
 use ordered_float::OrderedFloat;
 use serde::{Serializer, ser::SerializeSeq};
+use std::io::BufWriter;
+use crate::test_util::now_str;
 
 #[derive(Debug, Serialize)]
 struct StrategyLog {
@@ -36,11 +38,6 @@ impl StrategyLog {
             value,
         }
     }
-}
-
-fn now_str() -> String {
-    let now = Utc::now();
-    now.format("%Y%m%d%H:%M:%S").to_string()
 }
 
 fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn Error>> {
@@ -156,10 +153,13 @@ async fn continuous_scenario() {
     init();
     let _window_size = 10000;
     let path = crate::test_util::test_dir();
-    let order_manager_addr = test_util::mock_manager(&path);
+    let order_manager_addr = mock_manager(&path);
     task::sleep(Duration::from_millis(20)).await;
-    let test_results_dir = "test_results";
+    let module_path = module_path!().replace("::", "_");
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let test_results_dir = &format!("{}/test_results/{}", manifest_dir, module_path);
     std::fs::create_dir_all(test_results_dir).unwrap();
+
     let mut strat = MeanRevertingStrategy::new(
         &path,
         0.001,
@@ -185,69 +185,72 @@ async fn continuous_scenario() {
     let dt1 = Utc.ymd(2020, 4, 8);
     // align data
     let mut elapsed = 0 as u128;
-    let mut iterations = 1 as u128;
     let now = Instant::now();
-    let records = input::load_csv_dataset(
+    let csv_records = input::load_csv_dataset(
         &DateRange(dt0, dt1, DurationRangeType::Days, 1),
         vec![PAIR.to_string()],
         EXCHANGE,
         CHANNEL,
     )
         .await;
-    debug!("Loaded {} csv records in {:.6} s", records[0].len(), now.elapsed().as_millis());
+    info!("Loaded {} csv records in {:.6} ms", csv_records[0].len(), now.elapsed().as_millis());
     // align data
-    let eval = records[0].iter();
-    let mut logs: Vec<StrategyLog> = Vec::new();
-    let mut model_values: Vec<(DateTime<Utc>, MeanRevertingModelValue)> = Vec::new();
-    let mut wtr =
-        csv::Writer::from_path(format!("{}/ema_values_{}.csv", test_results_dir, now_str()))
-            .unwrap();
-    // Feed all csv records to the strat
-    for csvr in eval {
-        iterations += 1;
-        if iterations % 1000 == 0 {
-            info!("Reached {} iterations", iterations);
-        }
+    let pair_csv_records = csv_records[0].iter();
+    let mut strategy_logs: Vec<StrategyLog> = Vec::new();
+    let mut model_values: Vec<(DateTime<Utc>, MeanRevertingModelValue, f64)> = Vec::new();
 
+    // Feed all csv records to the strat
+    let before_evals = Instant::now();
+    for csvr in pair_csv_records {
         let now = Instant::now();
         let row_time = csvr.event_ms;
         let row = SinglePosRow {
             time: row_time,
             pos: csvr.into(),
         };
+
         strat.process_row(&row).await;
+
         let log = {
             let value = strat.model_value().unwrap();
-            model_values.push((row_time, value.clone()));
+            model_values.push((row_time, value.clone(), strat.state.value_strat()));
             StrategyLog::from_state(row_time, strat.state.clone(), &row, value)
         };
         elapsed += now.elapsed().as_nanos();
-        logs.push(log);
+        strategy_logs.push(log);
     }
-    println!("For {} records, each iteration took {} on avg", records[0].len(), elapsed / records[0].len() as u128);
+    info!("For {} records, evals took {}ms, each iteration took {} ns on avg", csv_records[0].len(), before_evals.elapsed().as_millis(), elapsed / csv_records[0].len() as u128);
 
     // Write all model values to a csv file
+    let mut ema_values_wtr =
+        csv::Writer::from_path(format!("{}/{}_ema_values.csv", test_results_dir, PAIR))
+            .unwrap();
+    ema_values_wtr.write_record(&["ts", "short_ema", "long_ema", "apo", "value_strat"]).unwrap();
     for model_value in model_values {
-        wtr.write_record(&[
-            model_value.0.format("%Y%m%d%H:%M:%S").to_string(),
+        ema_values_wtr.write_record(&[
+            model_value.0.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
             model_value.1.short_ema.current.to_string(),
             model_value.1.long_ema.current.to_string(),
             model_value.1.apo.to_string(),
-        ])
-            .unwrap();
+            model_value.2.to_string(),
+        ]).unwrap();
     }
-    wtr.flush().unwrap();
+    ema_values_wtr.flush().unwrap();
 
     // Find that latest operations are correct
     let mut positions = strat.get_operations();
     positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
     let last_position = positions.last();
 
-    let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
-    let mut ser = serde_json::Serializer::new(logs_f);
-    let mut seq = ser.serialize_seq(None).unwrap();
-    for log in logs {
-        seq.serialize_element(&log).unwrap();
+    {
+        info_time!("Write strategy logs");
+        let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
+        let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
+        let mut seq = ser.serialize_seq(None).unwrap();
+        for log in strategy_logs {
+            seq.serialize_element(&log).unwrap();
+        }
+        seq.end().unwrap();
     }
     std::fs::create_dir_all("graphs").unwrap();
     //let drew = draw_line_plot(logs);

@@ -69,8 +69,10 @@ util = { path = "../util" }
 
 # bin
 clap = { version = "2.33", optional = true }
-
 tempfile = "3.1"
+
+# Macros
+measure_time = "0.6"
 
 [dev-dependencies]
 util = { path = "../util" }

@@ -1,6 +1,5 @@
 use crate::mean_reverting::options::Options;
-use crate::model;
-use crate::model::BookPosition;
+use crate::model::{BookPosition, StratEvent, OperationEvent, TradeEvent};
 use crate::model::{OperationKind, PositionKind, TradeKind};
 use crate::order_manager::{OrderId, OrderManager, StagedOrder, Transaction};
 use crate::query::MutableField;
@@ -9,7 +8,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use db::Db;
 use log::Level::Info;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use std::panic;
 use uuid::Uuid;
 
@@ -83,14 +82,19 @@ impl Operation {
     }
 
     fn log(&self) {
-        model::log_pos(&self.kind, &self.pos.kind, self.pos.time);
-        model::log_trade(
-            &self.trade.kind,
-            self.trade.qty,
-            &self.pos.pair,
-            self.pos.price,
-            self.value(),
-        );
+        StratEvent::Operation(OperationEvent {
+            op: self.kind.clone(),
+            pos: self.pos.kind.clone(),
+            at: self.pos.time
+        }).log();
+        StratEvent::Trade(TradeEvent {
+            op: self.trade.kind.clone(),
+            qty: self.trade.qty,
+            pair: self.pos.pair.clone(),
+            price: self.pos.price,
+            strat_value: self.value(),
+            at: self.pos.time,
+        }).log();
     }
 }
 
@@ -362,9 +366,6 @@ impl MeanRevertingState {
         {
             self.set_pnl();
             self.clear_position();
-            info!("--------------------------------");
-            info!("portfolio value {}", self.value_strat);
-            info!("--------------------------------");
         }
         self.set_ongoing_op(None);
         self.save();
@@ -386,7 +387,7 @@ impl MeanRevertingState {
                         }
                         // Operation filled, clear position
                         let result = if transaction.is_filled() {
-                            info!("Transactions filled for {}", &o.id);
+                            debug!("Transactions filled for {}", &o.id);
                             self.clear_ongoing_operation();
                             Ok(())
                         } else if transaction.is_bad_request() {
@@ -394,7 +395,7 @@ impl MeanRevertingState {
                             // will always fail, so cancel the operation
                             let oid = &o.id.clone();
                             self.ongoing_op = None;
-                            info!("Both transactions rejected with bad request for {}", &oid);
+                            debug!("Both transactions rejected with bad request for {}", &oid);
                             self.clear_ongoing_operation();
                             Ok(())
                         } else {
@@ -560,20 +561,42 @@ impl MeanRevertingState {
 
     fn log_indicators(&self, pos: &PositionKind) {
         if log_enabled!(Info) {
-            info!(
-                "Additional info : units to buy {:.2} units to sell {:.2} apo {:.2} value strat {}, return {}, pnl {}, nominal_position {}",
-                self.units_to_buy,
-                self.units_to_sell,
-                self.apo(),
-                self.value_strat,
-                match pos {
+            let indicator = MeanRevertingStateIndicator {
+                units_to_buy: self.units_to_buy,
+                units_to_sell: self.units_to_sell,
+                apo: self.apo(),
+                value_strat: self.value_strat,
+                pos_return: match pos {
                     PositionKind::SHORT => self.short_position_return,
                     PositionKind::LONG => self.long_position_return,
                 },
-                self.pnl(),
-                self.nominal_position,
-            );
-            info!("--------------------------------")
+                pnl: self.pnl(),
+                nominal_position: self.nominal_position
+            };
+            info!("{}", serde_json::to_string(&indicator).unwrap());
         }
     }
+}
+
+fn round_serialize<S>(x: &f64, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+{
+    s.serialize_str(&format!("{:.2}", x))
+}
+
+#[derive(
+    Serialize
+)]
+struct MeanRevertingStateIndicator {
+    #[serde(serialize_with = "round_serialize")]
+    units_to_buy: f64,
+    #[serde(serialize_with = "round_serialize")]
+    units_to_sell: f64,
+    #[serde(serialize_with = "round_serialize")]
+    apo: f64,
+    value_strat: f64,
+    pos_return: f64,
+    pnl: f64,
+    nominal_position: f64,
 }

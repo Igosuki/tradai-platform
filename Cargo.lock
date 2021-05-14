@@ -1424,6 +1424,7 @@ dependencies = [
  "itertools",
  "lmdb-rkv",
  "log",
+ "measure_time",
  "rkv",
  "serde 1.0.125",
  "serde_json",
@@ -2831,6 +2832,15 @@ dependencies = [
  "once_cell",
  "rawpointer",
  "thread-tree",
+]
+
+[[package]]
+name = "measure_time"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "391eefb9cadd906954709b2291ee487eb233e67e32b9db8e27996cabce454b06"
+dependencies = [
+ "log",
 ]
 
 [[package]]
@@ -4558,6 +4568,7 @@ dependencies = [
  "log",
  "matches",
  "math",
+ "measure_time",
  "openssl",
  "ordered-float 2.2.0",
  "parse_duration",

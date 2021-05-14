@@ -18,9 +18,19 @@ pub enum TradeKind {
     SELL,
 }
 
+impl Into<TradeType> for TradeKind {
+    fn into(self) -> TradeType {
+        match self {
+            TradeKind::BUY => TradeType::Buy,
+            TradeKind::SELL => TradeType::Sell,
+        }
+    }
+}
+
 #[derive(
     Eq, PartialEq, Clone, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
 )]
+#[serde(rename_all = "lowercase")]
 pub enum PositionKind {
     #[strum(serialize = "short")]
     SHORT,
@@ -38,41 +48,61 @@ pub enum OperationKind {
     CLOSE,
 }
 
-impl Into<TradeType> for TradeKind {
-    fn into(self) -> TradeType {
-        match self {
-            TradeKind::BUY => TradeType::Buy,
-            TradeKind::SELL => TradeType::Sell,
+#[derive(
+    Clone, PartialEq, Eq, Debug, Deserialize, Serialize
+)]
+pub enum StopEventType {
+    GAIN,
+    LOSS,
+    NA
+}
+
+#[derive(
+    Clone, Debug, Deserialize, Serialize
+)]
+pub struct StopEvent {
+    pub(crate) ty: StopEventType,
+    pub(crate) pos: PositionKind
+}
+
+#[derive(
+    Clone, Debug, Deserialize, Serialize
+)]
+pub struct OperationEvent {
+    pub(crate) op: OperationKind,
+    pub(crate) pos: PositionKind,
+    pub(crate) at: DateTime<Utc>
+}
+
+#[derive(
+Clone, Debug, Deserialize, Serialize
+)]
+pub struct TradeEvent {
+    pub(crate) op: TradeKind,
+    pub(crate) qty: f64,
+    pub(crate) pair: String,
+    pub(crate) price: f64,
+    pub(crate) strat_value: f64,
+    pub(crate) at: DateTime<Utc>
+}
+
+#[derive(
+    Clone, Debug, Deserialize, Serialize
+)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "event")]
+pub enum StratEvent {
+    Stop(StopEvent),
+    Operation(OperationEvent),
+    Trade(TradeEvent)
+}
+
+impl StratEvent {
+    pub fn log(&self) {
+        if log_enabled!(Info) {
+            let s = serde_json::to_string(self).unwrap();
+            info!("{}", s);
         }
-    }
-}
-
-const TS_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
-
-pub fn log_pos(op: &OperationKind, pos: &PositionKind, time: DateTime<Utc>) {
-    if log_enabled!(Info) {
-        info!(
-            "{} {} position at {}",
-            op.as_ref(),
-            match pos {
-                PositionKind::SHORT => "short",
-                PositionKind::LONG => "long",
-            },
-            time.format(TS_FORMAT)
-        );
-    }
-}
-
-pub fn log_trade(op: &TradeKind, qty: f64, pair: &str, price: f64, value: f64) {
-    if log_enabled!(Info) {
-        info!(
-            "{} {:.2} {} at {} for {:.2}",
-            op.as_ref(),
-            qty,
-            pair,
-            price,
-            value
-        );
     }
 }
 

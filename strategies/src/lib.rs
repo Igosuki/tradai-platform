@@ -6,7 +6,6 @@
 #![feature(type_alias_impl_trait)]
 #![feature(min_type_alias_impl_trait)]
 
-#[macro_use]
 extern crate log;
 #[macro_use]
 extern crate anyhow;
@@ -16,6 +15,8 @@ extern crate async_trait;
 extern crate serde;
 #[macro_use]
 extern crate derivative;
+#[macro_use]
+extern crate measure_time;
 
 use actix::{Actor, Addr, Context, Handler, ResponseActFuture, Running, WrapFuture};
 use anyhow::Result;

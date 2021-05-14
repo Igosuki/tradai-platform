@@ -11,7 +11,7 @@ use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
-use crate::model::PositionKind;
+use crate::model::{PositionKind, StopEventType, StratEvent, StopEvent};
 use crate::ob_double_window_model::WindowTable;
 use crate::ob_indicator_model::IndicatorModel;
 use crate::order_manager::OrderManager;
@@ -282,21 +282,18 @@ impl MeanRevertingStrategy {
     fn maybe_log_stop_loss(&self, pk: PositionKind) {
         if self.should_stop(&pk) {
             let ret = self.return_value(&pk);
-            let expr = if ret > self.stop_gain {
-                "gain"
+            let stop_type = if ret > self.stop_gain {
+                StopEventType::GAIN
             } else if ret < self.stop_loss {
-                "loss"
+                StopEventType::LOSS
             } else {
-                "n/a"
+                StopEventType::NA
             };
-            info!(
-                "---- Stop-{} executed ({} position) ----",
-                expr,
-                match pk {
-                    PositionKind::SHORT => "short",
-                    PositionKind::LONG => "long",
-                },
-            )
+            let event = StratEvent::Stop(StopEvent {
+                ty: stop_type,
+                pos: pk,
+            });
+            info!("{}", serde_json::to_string(&event).unwrap());
         }
     }
 
