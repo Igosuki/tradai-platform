@@ -127,15 +127,15 @@ async fn strategies(
         .strategies
         .clone()
         .into_iter()
-        .map(move |strategy| {
+        .map(move |strategy_settings| {
             let db_path_a = db_path_str.clone();
             let exchanges_conf = exchanges.clone();
-            let fees = exchanges_conf.get(&strategy.exchange()).unwrap().fees;
-            let order_manager = oms.get(&strategy.exchange());
+            let fees = exchanges_conf.get(&strategy_settings.exchange()).unwrap().fees;
+            let order_manager = oms.get(&strategy_settings.exchange());
             Strategy::new(
                 db_path_a,
                 fees,
-                strategy,
+                strategy_settings,
                 order_manager.map(|sys| sys.om.clone()),
             )
         })

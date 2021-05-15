@@ -15,6 +15,7 @@ use ordered_float::OrderedFloat;
 use serde::{Serializer, ser::SerializeSeq};
 use std::io::BufWriter;
 use crate::test_util::now_str;
+use coinnect_rt::exchange::Exchange;
 
 #[derive(Debug, Serialize)]
 struct StrategyLog {
@@ -177,6 +178,7 @@ async fn continuous_scenario() {
             short_window_size: 100,
             long_window_size: 1000,
             sample_freq: "1min".to_string(),
+            exchange: Exchange::Binance
         },
         order_manager_addr,
     );
