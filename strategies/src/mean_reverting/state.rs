@@ -118,20 +118,28 @@ impl Operation {
         }
     }
 
-    fn log(&self) {
-        StratEvent::Operation(OperationEvent {
+    pub fn operation_event(&self) -> OperationEvent {
+        OperationEvent {
             op: self.kind.clone(),
             pos: self.pos.kind.clone(),
             at: self.pos.time
-        }).log();
-        StratEvent::Trade(TradeEvent {
+        }
+    }
+
+    pub fn trade_event(&self) -> TradeEvent {
+        TradeEvent {
             op: self.trade.kind.clone(),
             qty: self.trade.qty,
             pair: self.pos.pair.clone(),
             price: self.pos.price,
             strat_value: self.value(),
             at: self.pos.time,
-        }).log();
+        }
+    }
+
+    fn log(&self) {
+        StratEvent::Operation(self.operation_event()).log();
+        StratEvent::Trade(self.trade_event()).log();
     }
 }
 

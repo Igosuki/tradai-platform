@@ -16,6 +16,7 @@ use serde::{Serializer, ser::SerializeSeq};
 use std::io::BufWriter;
 use crate::test_util::now_str;
 use coinnect_rt::exchange::Exchange;
+use crate::model::TradeEvent;
 
 #[derive(Debug, Serialize)]
 struct StrategyLog {
@@ -168,9 +169,9 @@ async fn continuous_scenario() {
             pair: PAIR.into(),
             threshold_long: -0.01,
             threshold_short: 0.01,
-            threshold_eval_freq: None,
-            dynamic_threshold: None,
-            threshold_window_size: None,
+            threshold_eval_freq: Some(1),
+            dynamic_threshold: Some(true),
+            threshold_window_size: Some(10000),
             stop_loss: -0.1,
             stop_gain: 0.075,
             initial_cap: 100.0,
@@ -200,7 +201,7 @@ async fn continuous_scenario() {
     let pair_csv_records = csv_records[0].iter();
     let mut strategy_logs: Vec<StrategyLog> = Vec::new();
     let mut model_values: Vec<(DateTime<Utc>, MeanRevertingModelValue, f64)> = Vec::new();
-
+    let mut trade_events: Vec<TradeEvent> = Vec::new();
     // Feed all csv records to the strat
     let before_evals = Instant::now();
     for csvr in pair_csv_records {
@@ -213,13 +214,14 @@ async fn continuous_scenario() {
 
         strat.process_row(&row).await;
 
-        let log = {
-            let value = strat.model_value().unwrap();
-            model_values.push((row_time, value.clone(), strat.state.value_strat()));
-            StrategyLog::from_state(row_time, strat.state.clone(), &row, value)
-        };
+        let value = strat.model_value().unwrap();
+        model_values.push((row_time, value.clone(), strat.state.value_strat()));
+        strategy_logs.push(StrategyLog::from_state(row_time, strat.state.clone(), &row, value));
+        match strat.state.ongoing_op() {
+            Some(op) => trade_events.push(op.trade_event()),
+            None => ()
+        }
         elapsed += now.elapsed().as_nanos();
-        strategy_logs.push(log);
     }
     info!("For {} records, evals took {}ms, each iteration took {} ns on avg", csv_records[0].len(), before_evals.elapsed().as_millis(), elapsed / csv_records[0].len() as u128);
 
@@ -238,6 +240,23 @@ async fn continuous_scenario() {
         ]).unwrap();
     }
     ema_values_wtr.flush().unwrap();
+
+    // Write all trade events to a csv file
+    let mut trade_events_wtr =
+        csv::Writer::from_path(format!("{}/{}_trade_events.csv", test_results_dir, PAIR))
+            .unwrap();
+    trade_events_wtr.write_record(&["ts", "trade_kind", "price", "qty", "value_strat"]).unwrap();
+    for trade_event in trade_events {
+        let trade_kind_i: i32 = trade_event.op.into();
+        trade_events_wtr.write_record(&[
+            trade_event.at.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
+            trade_kind_i.to_string(),
+            trade_event.price.to_string(),
+            trade_event.qty.to_string(),
+            trade_event.strat_value.to_string(),
+        ]).unwrap();
+    }
+    trade_events_wtr.flush().unwrap();
 
     // Find that latest operations are correct
     let mut positions = strat.get_operations();
