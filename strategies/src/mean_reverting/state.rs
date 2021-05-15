@@ -409,7 +409,7 @@ impl MeanRevertingState {
         }
     }
 
-    pub(super) async fn open(&mut self, pos: Position, fees: f64) -> Operation {
+    pub(super) async fn open(&mut self, pos: Position, fees: f64) -> Result<Operation> {
         let position_kind = pos.kind.clone();
         self.set_position(position_kind.clone());
         self.traded_price = pos.price;
@@ -424,13 +424,14 @@ impl MeanRevertingState {
             }
         };
         let mut op = Operation::new(pos, OperationKind::OPEN, self.nominal_position, self.dry_mode);
-        self.stage_operation(&mut op).await;
-        op
+        self.stage_operation(&mut op).await?;
+        Ok(op)
     }
 
-    pub(super) async fn close(&mut self, pos: Position, fees: f64) -> Operation {
-        let kind: PositionKind = pos.kind.clone();
-        match kind {
+    pub(super) async fn close(&mut self, pos: Position, fees: f64) -> Result<Operation> {
+        let position_kind: PositionKind = pos.kind.clone();
+        self.set_position(position_kind.clone());
+        match position_kind {
             PositionKind::SHORT => {
                 self.value_strat = self.value_strat - self.nominal_position * pos.price;
             }
@@ -439,9 +440,9 @@ impl MeanRevertingState {
                     self.value_strat + self.nominal_position * pos.price * (1.0 - fees);
             }
         };
-        let mut op = Operation::new(pos, OperationKind::CLOSE, self.nominal_position);
-        self.stage_operation(&mut op).await;
-        op
+        let mut op = Operation::new(pos, OperationKind::CLOSE, self.nominal_position, self.dry_mode);
+        self.stage_operation(&mut op).await?;
+        Ok(op)
     }
 
     fn clear_position(&mut self) {
@@ -457,21 +458,22 @@ impl MeanRevertingState {
         }
     }
 
-    async fn stage_operation(&mut self, op: &mut Operation) {
+    async fn stage_operation(&mut self, op: &mut Operation) -> Result<()> {
         self.save_operation(op);
         let reqs = self.ts.stage_order(op.trade.clone().into()).await;
 
         op.transaction = reqs.ok();
         self.save_operation(&op);
-        match &op.transaction {
-            None => error!("Failed transaction"),
-            _ => trace!("Transaction ok"),
-        }
+        let transaction_result = match &op.transaction {
+            None => Err(anyhow!("Failed transaction")),
+            _ => Ok(()),
+        };
 
         self.set_ongoing_op(Some(op.clone()));
         op.log();
         self.save();
         self.log_indicators(&op.pos.kind);
+        transaction_result
     }
 
     fn save(&self) {
