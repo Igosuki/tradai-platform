@@ -1,7 +1,7 @@
 use crate::mean_reverting::options::Options;
 use crate::model::{BookPosition, StratEvent, OperationEvent, TradeEvent};
 use crate::model::{OperationKind, PositionKind, TradeKind};
-use crate::order_manager::{OrderId, OrderManager, StagedOrder, Transaction};
+use crate::order_manager::{OrderManager, StagedOrder, Transaction, TransactionService};
 use crate::query::MutableField;
 use actix::Addr;
 use anyhow::Result;
@@ -29,12 +29,37 @@ pub struct Operation {
     pub trade: TradeOperation,
 }
 
+impl Operation {
+    fn new(pos: Position, op_kind: OperationKind, qty: f64, dry_mode: bool) -> Self {
+        let trade_kind = match (&pos.kind, &op_kind) {
+            (PositionKind::SHORT, OperationKind::OPEN)
+            | (PositionKind::LONG, OperationKind::CLOSE) => TradeKind::SELL,
+            (PositionKind::LONG, OperationKind::OPEN)
+            | (PositionKind::SHORT, OperationKind::CLOSE) => TradeKind::BUY,
+        };
+        Operation {
+            id: format!("{}:{}", OPERATIONS_KEY, Uuid::new_v4()),
+            pos: pos.clone(),
+            kind: op_kind,
+            transaction: None,
+            trade: TradeOperation {
+                price: pos.price,
+                qty,
+                pair: pos.pair,
+                kind: trade_kind,
+                dry_mode,
+            },
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct TradeOperation {
     kind: TradeKind,
     pair: String,
     qty: f64,
     price: f64,
+    dry_mode: bool,
 }
 
 impl TradeOperation {
@@ -42,6 +67,18 @@ impl TradeOperation {
         TradeOperation {
             price: new_price,
             ..self.clone()
+        }
+    }
+}
+
+impl Into<StagedOrder> for TradeOperation {
+    fn into(self) -> StagedOrder {
+        StagedOrder {
+            op_kind: self.kind,
+            pair: self.pair.into(),
+            qty: self.qty,
+            price: self.price,
+            dry_run: self.dry_mode,
         }
     }
 }
@@ -119,7 +156,7 @@ pub(super) struct MeanRevertingState {
     #[serde(skip_serializing)]
     db: Db,
     #[serde(skip_serializing)]
-    om: Addr<OrderManager>,
+    ts: TransactionService,
     ongoing_op: Option<Operation>,
     /// Remote operations are ran dry, meaning no actual action will be performed when possible
     dry_mode: bool,
@@ -155,7 +192,7 @@ impl MeanRevertingState {
             threshold_short: options.threshold_short,
             threshold_long: options.threshold_long,
             db,
-            om,
+            ts: TransactionService::new(om),
             ongoing_op: None,
             dry_mode: options.dry_mode(),
         };
@@ -311,53 +348,6 @@ impl MeanRevertingState {
         self.threshold_long
     }
 
-    fn make_operation(&self, pos: Position, op_kind: OperationKind, qty: f64) -> Operation {
-        let trade_kind = match (&pos.kind, &op_kind) {
-            (PositionKind::SHORT, OperationKind::OPEN)
-            | (PositionKind::LONG, OperationKind::CLOSE) => TradeKind::SELL,
-            (PositionKind::LONG, OperationKind::OPEN)
-            | (PositionKind::SHORT, OperationKind::CLOSE) => TradeKind::BUY,
-        };
-        Operation {
-            id: format!("{}:{}", OPERATIONS_KEY, Uuid::new_v4()),
-            pos: pos.clone(),
-            kind: op_kind,
-            transaction: None,
-            trade: TradeOperation {
-                price: pos.price,
-                qty,
-                pair: pos.pair,
-                kind: trade_kind,
-            },
-        }
-    }
-
-    /// Fetches the latest version of this transaction for the order id
-    /// Returns whether it changed, and the latest transaction retrieved
-    async fn latest_transaction_change(
-        &self,
-        tr: &Transaction,
-    ) -> anyhow::Result<(bool, Transaction)> {
-        let new_tr = self.om.send(OrderId(tr.id.clone())).await??;
-        Ok((!new_tr.variant_eq(&tr), new_tr))
-    }
-
-    async fn maybe_retry_trade(
-        &self,
-        tr: Transaction,
-        trade: &TradeOperation,
-    ) -> anyhow::Result<Transaction> {
-        if tr.is_rejected() {
-            // Changed and rejected, retry transaction
-            // TODO need to handle rejections in a finer grained way
-            // TODO introduce a backoff
-            self.stage_order(trade.clone()).await
-        } else {
-            // TODO: Timeout can be managed here
-            Err(anyhow!("Nor rejected nor filled"))
-        }
-    }
-
     fn clear_ongoing_operation(&mut self) {
         if let Some(Operation {
             kind: OperationKind::CLOSE,
@@ -371,48 +361,31 @@ impl MeanRevertingState {
         self.save();
     }
 
-    pub(super) async fn resolve_pending_operations(&mut self, bp: &BookPosition) -> Result<()> {
+    pub(super) async fn resolve_pending_operations(&mut self, current_bp: &BookPosition) -> Result<()> {
         match self.ongoing_op.as_ref() {
             // There is an ongoing operation
             Some(o) => {
                 match &o.transaction {
                     Some(olt) => {
-                        let pending_tr = self.latest_transaction_change(olt).await?;
+                        let pending_transaction = self.ts.latest_transaction_change(olt).await?;
                         // One of the operations has changed, update the ongoing operation
-                        let transaction = &pending_tr.1;
                         let mut new_op = o.clone();
+                        let transaction = &pending_transaction.1;
                         // Transaction changed
-                        if pending_tr.0 {
+                        if pending_transaction.0 {
                             new_op.transaction = Some(transaction.clone());
                         }
                         // Operation filled, clear position
-                        let result = if transaction.is_filled() {
-                            debug!("Transactions filled for {}", &o.id);
-                            self.clear_ongoing_operation();
-                            Ok(())
-                        } else if transaction.is_bad_request() {
-                            // In this case, our bot did something wrong and repeating the operation
-                            // will always fail, so cancel the operation
-                            let oid = &o.id.clone();
-                            self.ongoing_op = None;
-                            debug!("Both transactions rejected with bad request for {}", &oid);
+                        let result = if transaction.is_filled() || transaction.is_bad_request() {
+                            debug!("Transaction is {} for operation {}", transaction.status, &o.id);
                             self.clear_ongoing_operation();
                             Ok(())
                         } else {
                             // Need to resolve the operation, potentially with a new price
-                            let current_price = match (&self.position, &o.kind) {
-                                (Some(PositionKind::SHORT), OperationKind::OPEN)
-                                | (Some(PositionKind::LONG), OperationKind::CLOSE) => bp.ask,
-                                (Some(PositionKind::SHORT), OperationKind::CLOSE)
-                                | (Some(PositionKind::LONG), OperationKind::OPEN) => bp.bid,
-                                _ => {
-                                    error!("Tried to determine new price for transaction when no position is taken");
-                                    0.0
-                                }
-                            };
+                            let current_price = self.new_price(&current_bp, &o.kind)?;
                             let new_trade = o.trade.with_new_price(current_price);
                             if let Err(e) = self
-                                .maybe_retry_trade(transaction.clone(), &new_trade)
+                                .ts.maybe_retry_trade(transaction.clone(), new_trade.clone().into())
                                 .await
                                 .map(|tr| new_op.transaction = Some(tr))
                             {
@@ -429,7 +402,7 @@ impl MeanRevertingState {
                         self.save_operation(&new_op);
                         result
                     }
-                    _ => Err(anyhow!("One of the transactions didn't go through")),
+                    _ => Err(anyhow!("No transaction to resolve in operation")),
                 }
             }
             None => Ok(()),
@@ -450,12 +423,8 @@ impl MeanRevertingState {
                 self.value_strat = self.value_strat - self.units_to_buy * pos.price * (1.0 + fees);
             }
         };
-        let mut op = self.make_operation(pos, OperationKind::OPEN, self.nominal_position);
-        op.log();
+        let mut op = Operation::new(pos, OperationKind::OPEN, self.nominal_position, self.dry_mode);
         self.stage_operation(&mut op).await;
-        self.set_ongoing_op(Some(op.clone()));
-        self.save();
-        self.log_indicators(&position_kind);
         op
     }
 
@@ -470,12 +439,8 @@ impl MeanRevertingState {
                     self.value_strat + self.nominal_position * pos.price * (1.0 - fees);
             }
         };
-        let mut op = self.make_operation(pos, OperationKind::CLOSE, self.nominal_position);
+        let mut op = Operation::new(pos, OperationKind::CLOSE, self.nominal_position);
         self.stage_operation(&mut op).await;
-        self.set_ongoing_op(Some(op.clone()));
-        op.log();
-        self.save();
-        self.log_indicators(&kind);
         op
     }
 
@@ -486,27 +451,15 @@ impl MeanRevertingState {
         self.nominal_position = 0.0;
     }
 
-    async fn stage_order(&self, trade_op: TradeOperation) -> Result<Transaction> {
-        self.om
-            .send(StagedOrder {
-                op_kind: trade_op.kind,
-                pair: trade_op.pair.into(),
-                qty: trade_op.qty,
-                price: trade_op.price,
-                dry_run: self.dry_mode,
-            })
-            .await?
-            .map_err(|e| anyhow!("mailbox error {}", e))
-    }
-
     fn save_operation(&mut self, op: &Operation) {
         if let Err(e) = self.db.put_json(&op.id, op.clone()) {
             error!("Error saving operation: {:?}", e);
         }
     }
+
     async fn stage_operation(&mut self, op: &mut Operation) {
         self.save_operation(op);
-        let reqs = self.stage_order(op.trade.clone()).await;
+        let reqs = self.ts.stage_order(op.trade.clone().into()).await;
 
         op.transaction = reqs.ok();
         self.save_operation(&op);
@@ -514,6 +467,11 @@ impl MeanRevertingState {
             None => error!("Failed transaction"),
             _ => trace!("Transaction ok"),
         }
+
+        self.set_ongoing_op(Some(op.clone()));
+        op.log();
+        self.save();
+        self.log_indicators(&op.pos.kind);
     }
 
     fn save(&self) {
@@ -574,6 +532,18 @@ impl MeanRevertingState {
                 nominal_position: self.nominal_position
             };
             info!("{}", serde_json::to_string(&indicator).unwrap());
+        }
+    }
+    fn new_price(&self, bp: &BookPosition, operation_kind: &OperationKind) -> Result<f64> {
+        match (&self.position, operation_kind) {
+            (Some(PositionKind::SHORT), OperationKind::OPEN)
+            | (Some(PositionKind::LONG), OperationKind::CLOSE) => Ok(bp.ask),
+            (Some(PositionKind::SHORT), OperationKind::CLOSE)
+            | (Some(PositionKind::LONG), OperationKind::OPEN) => Ok(bp.bid),
+            _ => {
+                // Return early as there is nothing to be done, this should never happen
+                Err(anyhow!("Tried to determine new price for transaction when no position is taken"))
+            }
         }
     }
 }

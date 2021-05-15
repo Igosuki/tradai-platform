@@ -5,6 +5,7 @@
 #![feature(impl_trait_in_bindings)]
 #![feature(type_alias_impl_trait)]
 #![feature(min_type_alias_impl_trait)]
+#![feature(in_band_lifetimes)]
 
 extern crate log;
 #[macro_use]
@@ -55,7 +56,7 @@ mod test_util;
 pub enum StrategyType {
     #[strum(serialize = "naive")]
     Naive,
-    #[strum(serialize = "naive")]
+    #[strum(serialize = "mean_reverting")]
     MeanReverting,
 }
 

@@ -1,8 +1,6 @@
 use crate::model::TradeKind;
 use crate::wal::Wal;
-use actix::{
-    Actor, AsyncContext, Context, Handler, Message, ResponseActFuture, Running, WrapFuture,
-};
+use actix::{Actor, AsyncContext, Context, Handler, Message, ResponseActFuture, Running, WrapFuture, Addr};
 use anyhow::Result;
 use async_std::sync::RwLock;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
@@ -18,6 +16,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
+use derive_more::Display;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "__field0")]
@@ -44,13 +43,18 @@ impl Rejection {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Display)]
 #[serde(tag = "type")]
 pub enum TransactionStatus {
+    #[display(fmt = "staged")]
     Staged(OrderQuery),
+    #[display(fmt = "new")]
     New(OrderInfo),
+    #[display(fmt = "filled")]
     Filled(OrderUpdate),
+    #[display(fmt = "partially_filled")]
     PartiallyFilled(OrderUpdate),
+    #[display(fmt = "rejected")]
     Rejected(Rejection),
 }
 
@@ -95,6 +99,50 @@ pub(crate) struct StagedOrder {
     pub qty: f64,
     pub price: f64,
     pub dry_run: bool,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TransactionService {
+    om: Addr<OrderManager>
+}
+
+impl TransactionService {
+    pub fn new(om: Addr<OrderManager>) -> Self {
+        Self { om }
+    }
+
+    pub async fn stage_order(&self, staged_order: StagedOrder) -> Result<Transaction> {
+        self.om
+            .send(staged_order)
+            .await?
+            .map_err(|e| anyhow!("mailbox error {}", e))
+    }
+
+    /// Fetches the latest version of this transaction for the order id
+    /// Returns whether it changed, and the latest transaction retrieved
+    pub async fn latest_transaction_change(
+        &self,
+        tr: &Transaction,
+    ) -> anyhow::Result<(bool, Transaction)> {
+        let new_tr = self.om.send(OrderId(tr.id.clone())).await??;
+        Ok((!new_tr.variant_eq(&tr), new_tr))
+    }
+
+    pub async fn maybe_retry_trade(
+        &self,
+        tr: Transaction,
+        order: StagedOrder,
+    ) -> anyhow::Result<Transaction> {
+        if tr.is_rejected() {
+            // Changed and rejected, retry transaction
+            // TODO need to handle rejections in a finer grained way
+            // TODO introduce a backoff
+            self.stage_order(order).await
+        } else {
+            // TODO: Timeout can be managed here
+            Err(anyhow!("Nor rejected nor filled"))
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

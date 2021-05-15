@@ -149,6 +149,16 @@ impl Db {
         })
     }
 
+    pub fn read_string(&self, key: &str) -> Option<String> {
+        self.with_db(|env, store| {
+            let reader = env.read().expect("reader");
+            store.get(&reader, key).unwrap().and_then(|v| match v {
+                rkv::value::Value::Str(s) => Some(s.to_string()),
+                _ => None,
+            })
+        })
+    }
+
     pub fn delete_all(&self, key: &str) -> WriteResult {
         self.with_db(|env, store| {
             let mut writer = env.write().unwrap();
