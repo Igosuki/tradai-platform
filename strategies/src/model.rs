@@ -27,6 +27,15 @@ impl Into<TradeType> for TradeKind {
     }
 }
 
+impl Into<i32> for TradeKind {
+    fn into(self) -> i32 {
+        match self {
+            TradeKind::BUY => 0,
+            TradeKind::SELL => 1
+        }
+    }
+}
+
 #[derive(
     Eq, PartialEq, Clone, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
 )]
