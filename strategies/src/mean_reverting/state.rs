@@ -430,7 +430,6 @@ impl MeanRevertingState {
 
     pub(super) async fn close(&mut self, pos: Position, fees: f64) -> Result<Operation> {
         let position_kind: PositionKind = pos.kind.clone();
-        self.set_position(position_kind.clone());
         match position_kind {
             PositionKind::SHORT => {
                 self.value_strat = self.value_strat - self.nominal_position * pos.price;
