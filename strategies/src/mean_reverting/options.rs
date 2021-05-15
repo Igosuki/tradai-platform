@@ -1,6 +1,7 @@
 use chrono::Duration;
 use coinnect_rt::types::Pair;
 use parse_duration::parse;
+use coinnect_rt::exchange::Exchange;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Options {
@@ -17,6 +18,7 @@ pub struct Options {
     pub threshold_window_size: Option<usize>,
     pub stop_loss: f64,
     pub stop_gain: f64,
+    pub exchange: Exchange,
 }
 
 impl Options {

@@ -32,6 +32,7 @@ use strum_macros::EnumString;
 use uuid::Uuid;
 
 use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
+use crate::mean_reverting::options::Options as MeanRevertingStrategyOptions;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation};
 
@@ -54,6 +55,8 @@ mod test_util;
 pub enum StrategyType {
     #[strum(serialize = "naive")]
     Naive,
+    #[strum(serialize = "naive")]
+    MeanReverting,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -89,12 +92,14 @@ impl Strategy {
 #[serde(tag = "type")]
 pub enum StrategySettings {
     Naive(NaiveStrategyOptions),
+    MeanReverting(MeanRevertingStrategyOptions)
 }
 
 impl StrategySettings {
     pub fn exchange(&self) -> Exchange {
         match self {
             Self::Naive(s) => s.exchange,
+            Self::MeanReverting(s) => s.exchange,
         }
     }
 
@@ -102,6 +107,9 @@ impl StrategySettings {
         match &self {
             StrategySettings::Naive(n) => {
                 StrategyKey(StrategyType::Naive, format!("{}_{}", n.left, n.right))
+            },
+            StrategySettings::MeanReverting(n) => {
+                StrategyKey(StrategyType::MeanReverting, format!("{}", n.pair))
             }
         }
     }
@@ -207,17 +215,24 @@ pub fn from_settings(
     s: &StrategySettings,
     om: Option<Addr<OrderManager>>,
 ) -> Box<dyn StrategyInterface> {
-    let s = match s {
+    match s {
         StrategySettings::Naive(n) => {
             if let Some(o) = om {
-                crate::naive_pair_trading::NaiveTradingStrategy::new(db_path, fees, n, o)
+                Box::new(crate::naive_pair_trading::NaiveTradingStrategy::new(db_path, fees, n, o))
             } else {
                 error!("Expected an order manager to be available for the targeted exchange of this NaiveStrategy");
                 panic!();
             }
-        }
-    };
-    Box::new(s)
+        },
+        StrategySettings::MeanReverting(n) => {
+            if let Some(o) = om {
+                Box::new(crate::mean_reverting::MeanRevertingStrategy::new(db_path, fees, n, o))
+            } else {
+                error!("Expected an order manager to be available for the targeted exchange of this MeanRevertingStrategy");
+                panic!();
+            }
+        },
+    }
 }
 
 #[cfg(test)]

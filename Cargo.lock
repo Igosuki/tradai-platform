@@ -1424,7 +1424,6 @@ dependencies = [
  "itertools",
  "lmdb-rkv",
  "log",
- "measure_time",
  "rkv",
  "serde 1.0.125",
  "serde_json",

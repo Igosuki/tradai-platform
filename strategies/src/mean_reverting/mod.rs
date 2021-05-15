@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 mod ema_model;
 mod metrics;
-mod options;
+pub mod options;
 pub mod state;
 #[cfg(test)]
 mod tests;
