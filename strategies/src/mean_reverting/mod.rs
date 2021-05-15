@@ -183,7 +183,7 @@ impl MeanRevertingStrategy {
     fn maybe_eval_threshold(&mut self, current_time: DateTime<Utc>) {
         if let Some(threshold_table) = &self.threshold_table {
             if let (Some(threshold_eval_freq), Some(threshold_window_size)) =
-                (self.threshold_eval_freq, self.threshold_eval_window_size)
+            (self.threshold_eval_freq, self.threshold_eval_window_size)
             {
                 if crate::util::is_eval_time_reached(
                     current_time,
@@ -199,14 +199,14 @@ impl MeanRevertingStrategy {
                             self.threshold_short_0.into(),
                             OrderedFloat(threshold_short_iter.quantile(0.99)),
                         )
-                        .into(),
+                            .into(),
                     );
                     self.state.set_threshold_long(
                         min(
                             OrderedFloat(self.threshold_long_0),
                             OrderedFloat(threshold_long_iter.quantile(0.01)),
                         )
-                        .into(),
+                            .into(),
                     );
                     self.metrics.log_thresholds(&self.state);
                 }
@@ -214,7 +214,7 @@ impl MeanRevertingStrategy {
         }
     }
 
-    async fn eval_latest(&mut self, lr: &SinglePosRow) {
+    async fn eval_latest(&mut self, lr: &SinglePosRow) -> Result<Operation> {
         self.maybe_eval_threshold(lr.time);
 
         if self.state.no_position_taken() {
@@ -223,14 +223,9 @@ impl MeanRevertingStrategy {
 
         // If a position is taken, resolve pending operations
         // In case of error return immediately as no trades can be made until the position is resolved
-        if self
-            .state
+        self.state
             .resolve_pending_operations(&lr.pos)
-            .await
-            .is_err()
-        {
-            return;
-        }
+            .await?;
 
         // Possibly open a short position
         if (self.state.apo() > self.state.threshold_short()) && self.state.no_position_taken() {
@@ -239,8 +234,7 @@ impl MeanRevertingStrategy {
                 self.state.threshold_short()
             );
             let position = self.short_position(lr.pos.bid, lr.time);
-            let op = self.state.open(position, self.fees_rate).await;
-            self.metrics.log_position(&op.pos, &op.kind);
+            self.state.open(position, self.fees_rate).await?;
         }
 
         // Possibly close a short position
@@ -250,8 +244,7 @@ impl MeanRevertingStrategy {
             if (self.state.apo() < 0.0) || self.should_stop(&PositionKind::SHORT) {
                 self.maybe_log_stop_loss(PositionKind::SHORT);
                 let position = self.short_position(lr.pos.ask, lr.time);
-                let op = self.state.close(position, self.fees_rate).await;
-                self.metrics.log_position(&op.pos, &op.kind);
+                self.state.close(position, self.fees_rate).await?;
             }
         }
 
@@ -262,8 +255,7 @@ impl MeanRevertingStrategy {
                 self.state.threshold_long()
             );
             let position = self.long_position(lr.pos.ask, lr.time);
-            let op = self.state.open(position, self.fees_rate).await;
-            self.metrics.log_position(&op.pos, &op.kind);
+            self.state.open(position, self.fees_rate).await?;
         }
 
         // Possibly close a long position
@@ -273,10 +265,11 @@ impl MeanRevertingStrategy {
             if (self.state.apo() > 0.0) || self.should_stop(&PositionKind::LONG) {
                 self.maybe_log_stop_loss(PositionKind::LONG);
                 let position = self.long_position(lr.pos.bid, lr.time);
-                let op = self.state.close(position, self.fees_rate).await;
-                self.metrics.log_position(&op.pos, &op.kind);
+                self.state.close(position, self.fees_rate).await?;
             }
         }
+
+        Err(anyhow!("Evaluation led to nothing"))
     }
 
     fn maybe_log_stop_loss(&self, pk: PositionKind) {
@@ -335,7 +328,10 @@ impl MeanRevertingStrategy {
             self.last_row_time_at_eval = self.last_sample_time;
         }
         if can_eval {
-            self.eval_latest(row).await;
+            match self.eval_latest(row).await {
+                Ok(op) => self.metrics.log_position(&op.pos, &op.kind),
+                Err(e) => trace!("Evaluation failed {}", e)
+            }
             self.log_state();
         }
         self.metrics.log_row(&row);
