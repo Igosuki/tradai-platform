@@ -4,7 +4,7 @@ use serde::Serialize;
 use async_std::task;
 
 use crate::naive_pair_trading::state::MovingState;
-use crate::naive_pair_trading::{DataRow, NaiveTradingStrategy};
+use crate::naive_pair_trading::{DataRow, NaiveTradingStrategy, covar_model};
 use crate::naive_pair_trading::options::Options;
 use crate::order_manager::test_util;
 use coinnect_rt::exchange::Exchange;
@@ -144,23 +144,21 @@ async fn beta_val() {
                 right: r.into(),
             })
         });
-    let x = dt.model().unwrap().value.beta;
-    println!("beta {}", x);
-    assert!(x > 0.0, "{:?}", x);
+
+    let beta = covar_model::beta(dt.window());
+    assert!(beta > 0.0, "beta {:?} should be positive", beta);
 }
 
 #[actix_rt::test]
 async fn continuous_scenario() {
     init();
-    let root = tempdir::TempDir::new("test_data2").unwrap();
+    let path = crate::test_util::test_dir();
     let beta_eval_freq = 1000;
     let window_size = 2000;
-    let buf = root.into_path();
-    let path = buf.to_str().unwrap();
-    let order_manager_addr = test_util::mock_manager(path);
+    let order_manager_addr = test_util::mock_manager(&path);
     task::sleep(Duration::from_millis(20)).await;
     let mut strat = NaiveTradingStrategy::new(
-        path,
+        &path,
         0.001,
         &Options {
             left: LEFT_PAIR.into(),
