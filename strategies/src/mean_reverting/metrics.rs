@@ -1,6 +1,6 @@
 use crate::mean_reverting::ema_model::SinglePosRow;
 use crate::mean_reverting::state::{MeanRevertingState, Position};
-use crate::model::OperationKind;
+use crate::types::OperationKind;
 use prometheus::{GaugeVec, Opts, Registry};
 use std::collections::HashMap;
 

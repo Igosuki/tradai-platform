@@ -6,6 +6,8 @@
 #![feature(type_alias_impl_trait)]
 #![feature(min_type_alias_impl_trait)]
 #![feature(in_band_lifetimes)]
+#![feature(inherent_associated_types)]
+#![feature(fn_traits)]
 
 extern crate log;
 #[macro_use]
@@ -40,17 +42,15 @@ use crate::query::{DataQuery, DataResult, FieldMutation};
 pub mod error;
 pub mod input;
 pub mod mean_reverting;
-mod model;
+mod types;
 pub mod naive_pair_trading;
-mod ob_double_window_model;
-mod ob_indicator_model;
-mod ob_linear_model;
+mod models;
 pub mod order_manager;
 pub mod query;
 mod util;
 mod wal;
+#[cfg(test)]
 mod test_util;
-
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display)]
 pub enum StrategyType {

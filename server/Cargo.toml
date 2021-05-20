@@ -95,7 +95,7 @@ gperftools = { version = "0.2", optional = true, features = ["heap"] }
 prometheus = { version = "0.12", features = ["nightly", "push", "process", "gen"] }
 
 # DB
-rkv = "0.17"
+rkv = { version = "0.17", features = ["db-int-key"] }
 db = { path = "../db" }
 
 # Strategies

@@ -120,7 +120,8 @@ static CHANNEL: &str = "order_books";
 #[tokio::test]
 async fn beta_val() {
     init();
-    let mut dt = NaiveTradingStrategy::make_lm_table("BTC_USDT", "ETH_USDT", "default", 500);
+    let path = crate::test_util::test_dir();
+    let mut dt = NaiveTradingStrategy::make_lm_table("BTC_USDT", "ETH_USDT", &path, 500);
     // Read downsampled streams
     let dt0 = Utc.ymd(2020, 3, 25);
     let dt1 = Utc.ymd(2020, 3, 25);
@@ -143,7 +144,7 @@ async fn beta_val() {
                 right: r.into(),
             })
         });
-    let x = dt.beta();
+    let x = dt.model().unwrap().value.beta;
     println!("beta {}", x);
     assert!(x > 0.0, "{:?}", x);
 }

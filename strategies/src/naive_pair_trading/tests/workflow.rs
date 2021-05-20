@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod test {
-    use crate::model::TradeKind;
+    use crate::types::TradeKind;
     use crate::order_manager::{StagedOrder, TransactionStatus};
     use crate::test_util::{binance_account_ws, local_api};
     use coinnect_rt::types::Pair;

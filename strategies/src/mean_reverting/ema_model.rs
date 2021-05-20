@@ -1,9 +1,9 @@
-use crate::model::BookPosition;
-use crate::ob_double_window_model::WindowTable;
+use crate::types::BookPosition;
 use chrono::{DateTime, Utc};
 use math::moving_average::ExponentialMovingAverage;
 use math::Next;
 use log::Level::Trace;
+use crate::models::Window;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SinglePosRow {
@@ -28,7 +28,8 @@ impl MeanRevertingModelValue {
     }
 }
 
-pub fn moving_average_apo(m: &mut MeanRevertingModelValue, row: &SinglePosRow) {
+pub fn moving_average_apo(m: &MeanRevertingModelValue, row: &SinglePosRow) -> MeanRevertingModelValue {
+    let mut m = m.clone();
     let long_ema = m.long_ema.next(row.pos.mid);
     let short_ema = m.short_ema.next(row.pos.mid);
     let apo = (short_ema - long_ema) / long_ema;
@@ -42,8 +43,9 @@ pub fn moving_average_apo(m: &mut MeanRevertingModelValue, row: &SinglePosRow) {
         );
     }
     m.apo = apo;
+    m
 }
 
-pub fn threshold(_t: &WindowTable<f64>) -> f64 {
+pub fn threshold(_m: &f64, _rows: Window<f64>) -> f64 {
     0.0
 }

@@ -1,6 +1,6 @@
 use crate::mean_reverting::options::Options;
-use crate::model::{BookPosition, StratEvent, OperationEvent, TradeEvent};
-use crate::model::{OperationKind, PositionKind, TradeKind};
+use crate::types::{BookPosition, StratEvent, OperationEvent, TradeEvent};
+use crate::types::{OperationKind, PositionKind, TradeKind};
 use crate::order_manager::{OrderManager, StagedOrder, Transaction, TransactionService};
 use crate::query::MutableField;
 use actix::Addr;

@@ -1,4 +1,4 @@
-use crate::model::BookPosition;
+use crate::types::BookPosition;
 use chrono::prelude::*;
 use chrono::{DateTime, Utc};
 use glob::glob;

@@ -1,7 +1,7 @@
 use super::covar_model::DataRow;
 use super::state::MovingState;
 use super::state::Position;
-use crate::model::OperationKind;
+use crate::types::OperationKind;
 use prometheus::{GaugeVec, Opts, Registry};
 use std::collections::HashMap;
 
