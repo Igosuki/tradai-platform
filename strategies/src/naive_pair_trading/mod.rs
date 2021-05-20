@@ -13,10 +13,10 @@ pub mod state;
 #[cfg(test)]
 mod tests;
 
-use crate::model::{BookPosition, PositionKind};
-use crate::naive_pair_trading::covar_model::DataRow;
+use crate::types::{BookPosition, PositionKind};
+use crate::naive_pair_trading::covar_model::{DataRow, LinearModelValue};
 use crate::naive_pair_trading::state::Operation;
-use crate::ob_linear_model::LinearModelTable;
+use crate::models::WindowedModel;
 use crate::order_manager::OrderManager;
 use crate::query::{FieldMutation, MutableField};
 use crate::{DataQuery, DataResult, StrategyInterface};
@@ -39,7 +39,7 @@ pub struct NaiveTradingStrategy {
     beta_eval_freq: i32,
     beta_sample_freq: Duration,
     state: MovingState,
-    data_table: LinearModelTable<DataRow>,
+    data_table: WindowedModel<DataRow, LinearModelValue>,
     pub right_pair: String,
     pub left_pair: String,
     metrics: Arc<NaiveStrategyMetrics>,
@@ -89,13 +89,13 @@ impl NaiveTradingStrategy {
         right_pair: &str,
         db_path: &str,
         window_size: usize,
-    ) -> LinearModelTable<DataRow> {
-        LinearModelTable::new(
+    ) -> WindowedModel<DataRow, LinearModelValue> {
+        WindowedModel::new(
             &format!("{}_{}", left_pair, right_pair),
             db_path,
             window_size,
-            Box::new(covar_model::beta),
-            Box::new(covar_model::alpha),
+            None,
+            covar_model::linear_model,
         )
     }
 
@@ -145,8 +145,8 @@ impl NaiveTradingStrategy {
     fn set_model_from_table(&mut self) {
         let lmb = self.data_table.model();
         lmb.map(|lm| {
-            self.state.set_beta(lm.beta);
-            self.state.set_alpha(lm.alpha);
+            self.state.set_beta(lm.value.beta);
+            self.state.set_alpha(lm.value.alpha);
         });
     }
 
@@ -159,8 +159,7 @@ impl NaiveTradingStrategy {
     }
 
     fn predict(&self, bp: &BookPosition) -> f64 {
-        self.data_table
-            .predict(self.state.alpha(), self.state.beta(), bp)
+        covar_model::predict(self.state.alpha(), self.state.beta(), bp.mid)
     }
 
     fn update_spread(&mut self, row: &DataRow) {
@@ -290,6 +289,7 @@ impl NaiveTradingStrategy {
     fn can_eval(&self) -> bool {
         let has_model = self.data_table.has_model();
         let has_position = !self.state.no_position_taken();
+        // Check that model is more recent than sample freq * (eval frequency + CUTOFF_RATIO%)
         let is_model_obsolete = self
             .data_table
             .model()

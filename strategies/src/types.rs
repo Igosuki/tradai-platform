@@ -60,18 +60,10 @@ pub enum OperationKind {
 #[derive(
     Clone, PartialEq, Eq, Debug, Deserialize, Serialize
 )]
-pub enum StopEventType {
+pub enum StopEvent {
     GAIN,
     LOSS,
     NA
-}
-
-#[derive(
-    Clone, Debug, Deserialize, Serialize
-)]
-pub struct StopEvent {
-    pub(crate) ty: StopEventType,
-    pub(crate) pos: PositionKind
 }
 
 #[derive(
@@ -175,7 +167,7 @@ impl TryFrom<Orderbook> for BookPosition {
 mod test {
     use quickcheck::{Arbitrary, Gen};
 
-    use crate::model::BookPosition;
+    use crate::types::BookPosition;
 
     impl Arbitrary for BookPosition {
         fn arbitrary(g: &mut Gen) -> BookPosition {

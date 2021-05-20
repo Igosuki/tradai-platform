@@ -1,4 +1,4 @@
-use crate::model::TradeKind;
+use crate::types::TradeKind;
 use crate::wal::Wal;
 use actix::{Actor, AsyncContext, Context, Handler, Message, ResponseActFuture, Running, WrapFuture, Addr};
 use anyhow::Result;

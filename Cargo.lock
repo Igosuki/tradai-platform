@@ -1421,9 +1421,11 @@ name = "db"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "itertools",
  "lmdb-rkv",
  "log",
+ "rand 0.8.3",
  "rkv",
  "serde 1.0.125",
  "serde_json",

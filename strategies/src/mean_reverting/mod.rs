@@ -11,9 +11,9 @@ use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
-use crate::model::{PositionKind, StopEventType, StratEvent, StopEvent};
-use crate::ob_double_window_model::WindowTable;
-use crate::ob_indicator_model::IndicatorModel;
+use crate::types::PositionKind;
+use crate::models::WindowedModel;
+use crate::models::IndicatorModel;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation, MutableField};
 use crate::StrategyInterface;
@@ -21,6 +21,7 @@ use math::iter::QuantileExt;
 use ordered_float::OrderedFloat;
 use std::cmp::{max, min};
 use std::sync::Arc;
+use crate::util::Stopper;
 
 mod ema_model;
 mod metrics;
@@ -36,7 +37,7 @@ pub struct MeanRevertingStrategy {
     last_sample_time: DateTime<Utc>,
     state: MeanRevertingState,
     model: IndicatorModel<MeanRevertingModelValue, SinglePosRow>,
-    threshold_table: Option<WindowTable<f64>>,
+    threshold_table: Option<WindowedModel<f64, f64>>,
     #[allow(dead_code)]
     last_row_time_at_eval: DateTime<Utc>,
     #[allow(dead_code)]
@@ -49,8 +50,7 @@ pub struct MeanRevertingStrategy {
     #[allow(dead_code)]
     dynamic_threshold: bool,
     last_threshold_time: DateTime<Utc>,
-    stop_loss: f64,
-    stop_gain: f64,
+    stopper: Stopper<f64>,
     #[allow(dead_code)]
     long_window_size: u32,
 }
@@ -83,7 +83,14 @@ impl MeanRevertingStrategy {
         );
         let threshold_table = n
             .threshold_window_size
-            .map(|t| Self::make_window_table(n.pair.as_ref(), pb.to_str().unwrap(), t));
+            .map(|thresold_window_size| {
+                WindowedModel::new(
+                    n.pair.as_ref(),
+                    pb.to_str().unwrap(), thresold_window_size,
+                    Some(thresold_window_size * 2),
+                    ema_model::threshold,
+                )
+            });
 
         Self {
             pair: n.pair.clone(),
@@ -101,10 +108,9 @@ impl MeanRevertingStrategy {
             threshold_long_0: n.threshold_long,
             dynamic_threshold: dynamic_threshold_enabled,
             last_threshold_time: Utc.timestamp_millis(0),
-            stop_loss: n.stop_loss,
+            stopper: Stopper::new(n.stop_gain, n.stop_loss),
             metrics: Arc::new(metrics),
             long_window_size: n.long_window_size,
-            stop_gain: n.stop_gain,
         }
     }
 
@@ -119,23 +125,13 @@ impl MeanRevertingStrategy {
             &pair,
             db_path,
             init,
-            Box::new(ema_model::moving_average_apo),
-        )
-    }
-
-    pub fn make_window_table(pair: &str, db_path: &str, window_size: usize) -> WindowTable<f64> {
-        WindowTable::new(
-            &pair,
-            db_path,
-            window_size,
-            Some(window_size * 2),
-            Box::new(ema_model::threshold),
+            ema_model::moving_average_apo,
         )
     }
 
     #[allow(dead_code)]
     fn model_value(&self) -> Option<MeanRevertingModelValue> {
-        self.model.model().map(|m| m.value)
+        self.model.value()
     }
 
     fn log_state(&self) {
@@ -182,7 +178,7 @@ impl MeanRevertingStrategy {
 
     fn maybe_eval_threshold(&mut self, current_time: DateTime<Utc>) {
         if let Some(threshold_table) = &self.threshold_table {
-            if let (Some(threshold_eval_freq), Some(threshold_window_size)) =
+            if let (Some(threshold_eval_freq), Some(_threshold_window_size)) =
             (self.threshold_eval_freq, self.threshold_eval_window_size)
             {
                 if crate::util::is_eval_time_reached(
@@ -190,9 +186,9 @@ impl MeanRevertingStrategy {
                     self.last_threshold_time,
                     self.sample_freq,
                     threshold_eval_freq,
-                ) && threshold_table.len() > threshold_window_size
+                ) && threshold_table.is_filled()
                 {
-                    let wdw = threshold_table.window(threshold_window_size);
+                    let wdw = threshold_table.window();
                     let (threshold_short_iter, threshold_long_iter) = wdw.tee();
                     self.state.set_threshold_short(
                         max(
@@ -241,8 +237,7 @@ impl MeanRevertingStrategy {
         if self.state.is_short() {
             self.state
                 .set_short_position_return(self.fees_rate, lr.pos.ask);
-            if (self.state.apo() < 0.0) || self.should_stop(&PositionKind::SHORT) {
-                self.maybe_log_stop_loss(PositionKind::SHORT);
+            if (self.state.apo() < 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::LONG)) {
                 let position = self.short_position(lr.pos.ask, lr.time);
                 return self.state.close(position, self.fees_rate).await
             }
@@ -262,32 +257,13 @@ impl MeanRevertingStrategy {
         if self.state.is_long() {
             self.state
                 .set_long_position_return(self.fees_rate, lr.pos.bid);
-            if (self.state.apo() > 0.0) || self.should_stop(&PositionKind::LONG) {
-                self.maybe_log_stop_loss(PositionKind::LONG);
+            if (self.state.apo() > 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::LONG)) {
                 let position = self.long_position(lr.pos.bid, lr.time);
                 return self.state.close(position, self.fees_rate).await
             }
         }
 
         Err(anyhow!("Evaluation led to nothing"))
-    }
-
-    fn maybe_log_stop_loss(&self, pk: PositionKind) {
-        if self.should_stop(&pk) {
-            let ret = self.return_value(&pk);
-            let stop_type = if ret > self.stop_gain {
-                StopEventType::GAIN
-            } else if ret < self.stop_loss {
-                StopEventType::LOSS
-            } else {
-                StopEventType::NA
-            };
-            let event = StratEvent::Stop(StopEvent {
-                ty: stop_type,
-                pos: pk,
-            });
-            info!("{}", serde_json::to_string(&event).unwrap());
-        }
     }
 
     fn return_value(&self, pk: &PositionKind) -> f64 {
@@ -297,37 +273,31 @@ impl MeanRevertingStrategy {
         }
     }
 
-    fn should_stop(&self, pk: &PositionKind) -> bool {
-        let ret = self.return_value(pk);
-        ret > self.stop_gain || ret < self.stop_loss
-    }
-
     fn can_eval(&self) -> bool {
-        self.model.is_ready()
+        self.model.value().is_some()
     }
 
     async fn process_row(&mut self, row: &SinglePosRow) {
-        if self.model.model().is_some() {
-            self.last_row_time_at_eval = self
-                .model
-                .last_model_time()
-                .unwrap_or_else(|| Utc.timestamp_millis(0));
-        }
+        self.last_row_time_at_eval = self
+            .model
+            .last_model_time()
+            .unwrap_or_else(|| Utc.timestamp_millis(0));
         let should_sample =
             crate::util::is_eval_time_reached(row.time, self.last_sample_time, self.sample_freq, 1);
         // A model is available
-        let can_eval = self.can_eval();
         if should_sample {
             self.last_sample_time = row.time;
             // TODO: log error
-            self.model.update_model(row).unwrap();
-            if let Some(m) = self.model.value() {
-                trace!("apo {}", m.apo);
-                self.state.set_apo(m.apo);
-            }
+            self.model.update_model(row.clone()).map(|_| {
+                if let Some(m) = self.model.value() {
+                    trace!("apo {}", m.apo);
+                    self.state.set_apo(m.apo);
+                }
+            }).unwrap();
+
             self.last_row_time_at_eval = self.last_sample_time;
         }
-        if can_eval {
+        if self.can_eval() {
             match self.eval_latest(row).await {
                 Ok(op) => self.metrics.log_position(&op.pos, &op.kind),
                 Err(e) => trace!("{}", e)

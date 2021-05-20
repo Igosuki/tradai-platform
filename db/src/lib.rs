@@ -1,3 +1,6 @@
+#![feature(test)]
+#![allow(incomplete_features)]
+
 #[macro_use]
 extern crate log;
 #[cfg(test)]
@@ -8,8 +11,8 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
-use rkv::{Manager, Rkv, SingleStore, StoreError, StoreOptions, Value, Writer};
-use rkv::backend::{BackendEnvironmentBuilder, BackendRwTransaction, Lmdb, LmdbDatabase, LmdbEnvironment};
+use rkv::{Manager, Rkv, SingleStore, StoreError, StoreOptions, Value, Writer, OwnedValue};
+use rkv::backend::{BackendEnvironmentBuilder, BackendRwTransaction, Lmdb, LmdbDatabase, LmdbEnvironment, LmdbRwTransaction, BackendDatabase};
 use rkv::StoreError::LmdbError;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -25,6 +28,14 @@ pub enum DataStoreError {
     ExpectedJson,
     #[error("json error")]
     JsonError(#[from] serde_json::error::Error),
+    #[error("blob error")]
+    BlobError(#[from] bincode::Error),
+}
+
+impl From<rkv::StoreError> for DataStoreError {
+    fn from(e: StoreError) -> Self {
+        Self::StoreError(e)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -75,8 +86,8 @@ impl Db {
     }
 
     pub fn with_db<F, B>(&self, process: F) -> B
-    where
-        F: Fn(RwLockReadGuard<RkvLmdb>, SingleStore<LmdbDatabase>) -> B,
+        where
+            F: Fn(RwLockReadGuard<RkvLmdb>, SingleStore<LmdbDatabase>) -> B,
     {
         let env = self.rwl.read().unwrap();
         // Then you can use the environment handle to get a handle to a datastore:
@@ -84,6 +95,18 @@ impl Db {
         let store = env.open_single(x, StoreOptions::create()).unwrap();
         process(env, store)
     }
+
+    fn write<F, E>(&self, process: F) -> WriteResult
+        where
+            F: Fn(&mut Writer<LmdbRwTransaction>, SingleStore<LmdbDatabase>) -> Result<(), E>, E: Into<DataStoreError>
+    {
+        self.with_db(|env, store| {
+            let mut w = env.write().unwrap();
+            process(&mut w, store).map_err(|e| e.into())?;
+            w.commit().map_err(|e| e.into())
+        })
+    }
+
 
     pub fn all(&self) -> Vec<String> {
         self.with_db(|env, store| {
@@ -110,6 +133,10 @@ impl Db {
                             rkv::value::Value::Json(json_str) => {
                                 serde_json::from_str::<T>(json_str)
                                     .map_err(DataStoreError::JsonError)
+                            },
+                            rkv::value::Value::Blob(str) => {
+                                bincode::deserialize::<T>(str)
+                                    .map_err(DataStoreError::BlobError)
                             }
                             _ => Err(DataStoreError::ExpectedJson),
                         })
@@ -130,12 +157,17 @@ impl Db {
                             let t = serde_json::from_str::<T>(json_str)
                                 .map_err(DataStoreError::JsonError);
                             t.map(|record| (std::str::from_utf8(v.0).unwrap().to_string(), record))
+                        },
+                        rkv::value::Value::Blob(str) => {
+                            let t = bincode::deserialize::<T>(str)
+                                .map_err(DataStoreError::BlobError);
+                            t.map(|record| (std::str::from_utf8(v.0).unwrap().to_string(), record))
                         }
                         _ => Err(DataStoreError::ExpectedJson),
                     })
             })
-            .filter_map(|r| r.ok())
-            .collect()
+                .filter_map(|r| r.ok())
+                .collect()
         })
     }
 
@@ -160,85 +192,90 @@ impl Db {
     }
 
     pub fn delete_all(&self, key: &str) -> WriteResult {
-        self.with_db(|env, store| {
-            let mut writer = env.write().unwrap();
-            let result = match store.delete(&mut writer, key) {
-                Ok(()) => Ok(()),
-                Err(e) => match e {
-                    LmdbError(lmdb::Error::NotFound) => Ok(()),
-                    e => {
-                        error!("Failed to delete key {} for {}", key, e);
-                        Err(e)
-                    }
-                },
-            };
-            Self::maybe_commit(result, writer, key)
+        self.write(|writer, store| {
+            Self::safe_delete(store, writer, key)
         })
     }
 
     pub fn put_json<T: Serialize>(&self, key: &str, v: T) -> WriteResult {
-        self.with_db(|env, store| {
+        self.write(|writer, store| {
             let result = serde_json::to_string(&v).unwrap();
-            let mut writer = env.write().unwrap();
-
-            let result = store.put(&mut writer, &key, &Value::Json(&result));
-            Self::maybe_commit(result, writer, key)
+            store.put(writer, &key, &Value::Json(&result))
         })
     }
 
     pub fn put_all_json<T: Serialize>(&self, key: &str, v: &[T]) -> WriteResult {
-        self.with_db(|env, store| {
-            let mut writer = env.write().unwrap();
-            let results: Result<Vec<()>, StoreError> = v
+        self.write::<_, rkv::StoreError>(|writer, store| {
+            v
                 .iter()
                 .enumerate()
                 .map(|(i, v)| {
                     let result = serde_json::to_string(&v).unwrap();
-                    store.put(&mut writer, &format!("{}{}", key, i), &Value::Json(&result))
+                    store.put(writer, &format!("{}{}", key, i), &Value::Json(&result))
                 })
-                .collect();
-            Self::maybe_commit(results, writer, key)
+                .collect::<Result<Vec<()>, rkv::StoreError>>()?;
+            Ok(())
         })
+    }
+
+    fn safe_delete<T: BackendDatabase, I: BackendRwTransaction<Database=T>>(store: SingleStore<T>, writer: &mut Writer<I>, key: &str) -> Result<(), StoreError> {
+        match store.delete(writer, key) {
+            Ok(()) => Ok(()),
+            Err(e) => match e {
+                LmdbError(lmdb::Error::NotFound) => Ok(()),
+                e => {
+                    error!("Failed to delete key {} for {}", key, e);
+                    Err(e)
+                }
+            },
+        }
+    }
+
+    pub fn replace_all<T: Serialize>(&self, key: &str, v: &[T]) -> WriteResult {
+        self.write::<_, rkv::StoreError>(|writer, store| {
+            Self::safe_delete(store, writer, key)?;
+            v.iter()
+                .enumerate()
+                .map(|(i, v)| {
+                    let encoded: Vec<u8> = bincode::serialize(&v).unwrap();
+                    store.put(writer, &format!("{}{}", key, i), &Value::Blob(&encoded))
+                })
+                .collect::<Result<Vec<()>, rkv::StoreError>>()?;
+            Ok(())
+        })
+    }
+
+    pub fn put_b<T: Serialize>(&self, key: &str, v: &T) -> WriteResult
+    {
+        let encoded: Vec<u8> = bincode::serialize(&v).unwrap();
+        self.put(key, &OwnedValue::Blob(encoded))
     }
 
     pub fn put<'a, T: 'a>(&self, key: &str, v: &'a T) -> WriteResult
-    where
-        Value<'a>: From<&'a T>,
+        where
+            Value<'a>: From<&'a T>,
     {
-        self.with_db(|env, store| {
-            let mut writer = env.write().unwrap();
-            let _value: Value = v.into();
-            let result = store.put(&mut writer, &key, &v.into());
-            Self::maybe_commit(result, writer, key)
+        self.write(|writer, store| {
+            store.put(writer, &key, &v.into())
         })
     }
 
-    fn commit<I: BackendRwTransaction>(w: Writer<I>, key: &str) {
-        match w.commit() {
-            Ok(_) => {}
-            Err(e) => error!("Failed to commit key {} for {}", key, e),
-        }
-    }
-
-    fn maybe_commit<T, I: BackendRwTransaction>(r: Result<T, StoreError>, w: Writer<I>, key: &str) -> WriteResult {
-        match r {
-            Ok(_) => {
-                Self::commit(w, key);
-                Ok(())
-            }
-            Err(e) => Err(DataStoreError::StoreError(e)),
-        }
-    }
+    // fn commit<I: BackendRwTransaction>(w: Writer<I>) -> WriteResult {
+    //     w.commit().map_err(|e| e.into())
+    // }
 }
 
 #[cfg(test)]
 mod test {
+    extern crate test;
+
     use std::sync::RwLockReadGuard;
 
     use rkv::{SingleStore, Value};
     use rkv::backend::LmdbDatabase;
 
     use crate::{Db, RkvLmdb};
+    use test::Bencher;
 
     fn make_db_test(env: RwLockReadGuard<RkvLmdb>, store: SingleStore<LmdbDatabase>) {
         {
@@ -477,5 +514,47 @@ mod test {
     fn db_test_basics() {
         let db = db();
         db.with_db(make_db_test);
+    }
+
+    #[test]
+    fn db_replace_all() {
+        let db = db();
+        let size = 10000;
+        let mut vals: Vec<(f64, f64)> = Vec::with_capacity(size);
+        for i in 0..100 {
+            let v = (rand::random::<f64>(), rand::random::<f64>());
+            vals.push(v);
+            db.put_b("row", &v);
+        }
+        let mut vals: Vec<(f64, f64)> = Vec::with_capacity(size);
+        for i in 0..size {
+            let v = (rand::random::<f64>(), rand::random::<f64>());
+            vals.push(v);
+        }
+
+        db.replace_all("row", vals.as_slice());
+
+        let read_values : Vec<(f64, f64)> = db.read_json_vec("row");
+        assert_eq!(read_values.len(), size)
+    }
+
+    #[bench]
+    fn db_replace_all_10k(b: &mut Bencher) {
+        let db = db();
+        let size = 10000;
+        let mut vals: Vec<(f64, f64)> = Vec::with_capacity(size);
+        for i in 0..100 {
+            let v = (rand::random::<f64>(), rand::random::<f64>());
+            vals.push(v);
+            db.put_b("row", &v);
+        }
+        for i in 0..size {
+            let v = (rand::random::<f64>(), rand::random::<f64>());
+            vals.push(v);
+        }
+
+        b.iter(|| {
+            db.replace_all("row", vals.as_slice());
+        });
     }
 }

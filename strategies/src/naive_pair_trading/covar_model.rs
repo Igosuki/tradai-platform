@@ -1,5 +1,5 @@
-use crate::model::BookPosition;
-use crate::ob_linear_model::LinearModelTable;
+use crate::types::BookPosition;
+use crate::models::Window;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use math::iter::{CovarianceExt, MeanExt, VarianceExt};
@@ -11,8 +11,8 @@ pub struct DataRow {
     pub right: BookPosition, // crypto_2
 }
 
-pub fn beta(i: &LinearModelTable<DataRow>) -> f64 {
-    let (var, covar) = i.current_window().tee();
+pub fn beta(i: Window<DataRow>) -> f64 {
+    let (var, covar) = i.tee();
     let variance: f64 = var.map(|r| r.left.mid).variance();
     trace!("variance {}", variance);
     let covariance: f64 = covar
@@ -24,11 +24,29 @@ pub fn beta(i: &LinearModelTable<DataRow>) -> f64 {
     beta_val
 }
 
-pub fn alpha(i: &LinearModelTable<DataRow>, beta_val: f64) -> f64 {
-    let (left, right) = i.current_window().tee();
+pub fn alpha(i: Window<DataRow>, beta_val: f64) -> f64 {
+    let (left, right) = i.tee();
     let mean_left: f64 = left.map(|l| l.left.mid).mean();
     trace!("mean left {}", mean_left);
     let mean_right: f64 = right.map(|l| l.right.mid).mean();
     trace!("mean right {}", mean_right);
     mean_right - beta_val * mean_left
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct LinearModelValue {
+    pub beta: f64,
+    pub alpha: f64,
+}
+
+pub fn linear_model(_m: &LinearModelValue, i: Window<DataRow>) -> LinearModelValue {
+    let beta = beta(i.clone());
+    let alpha = alpha(i.clone(), beta);
+    LinearModelValue {
+        beta, alpha
+    }
+}
+
+pub fn predict(alpha: f64, beta: f64, value: f64) -> f64 {
+    alpha + beta * value
 }

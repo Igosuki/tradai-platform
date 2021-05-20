@@ -16,9 +16,9 @@ use serde::{Serializer, ser::SerializeSeq};
 use std::io::BufWriter;
 use crate::test_util::now_str;
 use coinnect_rt::exchange::Exchange;
-use crate::model::TradeEvent;
+use crate::types::TradeEvent;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 struct StrategyLog {
     time: DateTime<Utc>,
     mid: f64,
@@ -123,7 +123,7 @@ static PAIR: &str = "BTC_USDT";
 async fn moving_average() {
     init();
     let path = crate::test_util::test_dir();
-    let mut dt = MeanRevertingStrategy::make_model_table("BTC_USDT", &path, 100, 1000);
+    let mut model = MeanRevertingStrategy::make_model_table("BTC_USDT", &path, 100, 1000);
     // Read downsampled streams
     let dt0 = Utc.ymd(2020, 3, 25);
     let dt1 = Utc.ymd(2020, 4, 8);
@@ -139,14 +139,13 @@ async fn moving_average() {
         .iter()
         .take(500)
         .for_each(|l| {
-            dt.update_model(&SinglePosRow {
+            model.update_model(SinglePosRow {
                 time: l.event_ms,
                 pos: l.into(),
             })
                 .unwrap();
         });
-    let model_value = dt.model().unwrap().value;
-    let apo = model_value.apo;
+    let apo = model.value().unwrap().apo;
     assert!(apo > 0.0, "apo {}", apo);
 }
 
@@ -268,19 +267,19 @@ async fn continuous_scenario() {
         let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
         let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
         let mut seq = ser.serialize_seq(None).unwrap();
-        for log in strategy_logs {
+        for log in strategy_logs.clone() {
             seq.serialize_element(&log).unwrap();
         }
         seq.end().unwrap();
     }
     std::fs::create_dir_all("graphs").unwrap();
-    //let drew = draw_line_plot(logs);
-    // if let Ok(file) = drew {
-    //     let copied = std::fs::copy(&file, "graphs/mean_reverting_plot_latest.svg");
-    //     assert!(copied.is_ok(), "{}", format!("{:?}", copied));
-    // } else {
-    //     panic!("{}", format!("{:?}", drew));
-    // }
+    let drew = draw_line_plot(strategy_logs);
+    if let Ok(file) = drew {
+        let copied = std::fs::copy(&file, "graphs/mean_reverting_plot_latest.svg");
+        assert!(copied.is_ok(), "{}", format!("{:?}", copied));
+    } else {
+        panic!("{}", format!("{:?}", drew));
+    }
 
     assert_eq!(Some(162.130004882813), last_position.map(|p| p.pos.price));
     assert_eq!(Some(33.33032942489664), last_position.map(|p| p.value()));
