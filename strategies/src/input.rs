@@ -129,8 +129,7 @@ async fn dl_test_data(
     let out_file = file.into_path().join(out_file_name);
     let s3_key = &format!("test_data/{}/{}/{}.zip", exchange_name, channel, pair);
     util::s3::download_file(&s3_key.clone(), out_file.clone())
-        .await
-        .unwrap();
+        .await.expect("s3 file downloaded");
 
     let bp = base_path.deref();
 
