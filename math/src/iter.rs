@@ -173,7 +173,7 @@ impl Quantile for f64 {
         I: Iterator<Item = f64>,
     {
         let v: Vec<f64> = iter.collect();
-        v.quantile(prob, QType::Type7)
+        v.quantile(prob, QType::Type2)
     }
 }
 

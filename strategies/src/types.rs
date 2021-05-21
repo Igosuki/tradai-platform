@@ -93,7 +93,7 @@ pub struct TradeEvent {
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "event")]
 pub enum StratEvent {
-    Stop(StopEvent),
+    Stop { stop: StopEvent },
     Operation(OperationEvent),
     Trade(TradeEvent)
 }

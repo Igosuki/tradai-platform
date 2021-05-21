@@ -17,6 +17,7 @@ use rkv::StoreError::LmdbError;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use thiserror::Error;
+use std::time::Instant;
 
 type RkvLmdb = Rkv<LmdbEnvironment>;
 
@@ -191,6 +192,19 @@ impl Db {
         })
     }
 
+    pub fn read_b<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
+        self.with_db(|env, store| {
+            let reader = env.read().expect("reader");
+            store.get(&reader, key).unwrap().and_then(|v| match v {
+                rkv::value::Value::Blob(s) => {
+                    let v: T = bincode::deserialize(s).unwrap();
+                    Some(v)
+                },
+                _ => None,
+            })
+        })
+    }
+
     pub fn delete_all(&self, key: &str) -> WriteResult {
         self.write(|writer, store| {
             Self::safe_delete(store, writer, key)
@@ -224,7 +238,7 @@ impl Db {
             Err(e) => match e {
                 LmdbError(lmdb::Error::NotFound) => Ok(()),
                 e => {
-                    error!("Failed to delete key {} for {}", key, e);
+                    error!("Failed to delete key '{}' for {}", key, e);
                     Err(e)
                 }
             },
@@ -232,16 +246,23 @@ impl Db {
     }
 
     pub fn replace_all<T: Serialize>(&self, key: &str, v: &[T]) -> WriteResult {
-        self.write::<_, rkv::StoreError>(|writer, store| {
-            Self::safe_delete(store, writer, key)?;
+        self.with_db(|env, store| {
+            let reader = env.read().unwrap();
+            let mut iter = store.iter_from(&reader, key).unwrap();
+            let mut writer = env.write().unwrap();
+            let now = Instant::now();
+            while let Some(Ok((k, _v))) = iter.next() {
+                store.delete(&mut writer, std::str::from_utf8(k).unwrap()).unwrap();
+                //Self::safe_delete(store, writer, str::from_utf8(k).unwrap())?;
+            }
             v.iter()
                 .enumerate()
                 .map(|(i, v)| {
                     let encoded: Vec<u8> = bincode::serialize(&v).unwrap();
-                    store.put(writer, &format!("{}{}", key, i), &Value::Blob(&encoded))
+                    store.put(&mut writer, &format!("{}{}", key, i), &Value::Blob(&encoded))
                 })
-                .collect::<Result<Vec<()>, rkv::StoreError>>()?;
-            Ok(())
+                .collect::<Result<Vec<()>, rkv::StoreError>>().unwrap();
+            writer.commit().map_err(|e| e.into())
         })
     }
 
@@ -276,6 +297,7 @@ mod test {
 
     use crate::{Db, RkvLmdb};
     use test::Bencher;
+    use std::time::Instant;
 
     fn make_db_test(env: RwLockReadGuard<RkvLmdb>, store: SingleStore<LmdbDatabase>) {
         {
@@ -445,9 +467,17 @@ mod test {
         }
     }
 
+    pub fn test_dir() -> String {
+        let basedir = std::env::var("BITCOINS_TEST_RAMFS_DIR").unwrap_or_else(|_| "/media/ramdisk".to_string());
+        let root = tempdir::TempDir::new(&format!("{}/test_data", basedir)).unwrap();
+        let buf = root.into_path();
+        let path = buf.to_str().unwrap();
+        path.to_string()
+    }
+
     fn db() -> Db {
         let dir = tempdir::TempDir::new("s").unwrap();
-        Db::new(dir.into_path().to_str().unwrap(), "mydb".to_string())
+        Db::new(&test_dir(), "mydb".to_string())
     }
 
     #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -517,26 +547,59 @@ mod test {
     }
 
     #[test]
-    fn db_replace_all() {
+    fn db_insert_large_array() {
         let db = db();
-        let size = 10000;
+        let size = 100000;
         let mut vals: Vec<(f64, f64)> = Vec::with_capacity(size);
-        for i in 0..100 {
+        let now = Instant::now();
+        for i in 0..10000 {
             let v = (rand::random::<f64>(), rand::random::<f64>());
             vals.push(v);
-            db.put_b("row", &v);
         }
+        db.put_b("row", &vals);
+        println!("inserted array in {}", now.elapsed().as_millis());
         let mut vals: Vec<(f64, f64)> = Vec::with_capacity(size);
         for i in 0..size {
             let v = (rand::random::<f64>(), rand::random::<f64>());
             vals.push(v);
         }
+        let now = Instant::now();
+        db.delete_all("row");
+        println!("deleted array in {}", now.elapsed().as_millis());
+        let now = Instant::now();
+        db.put_b("row", &vals);
+        println!("inserted larger array in {}", now.elapsed().as_millis());
+        //db.replace_all("row", vals.as_slice());
 
-        db.replace_all("row", vals.as_slice());
-
-        let read_values : Vec<(f64, f64)> = db.read_json_vec("row");
+        let now = Instant::now();
+        let read_values : Vec<(f64, f64)> = db.read_b("row").unwrap();
+        println!("read larger array in {}", now.elapsed().as_millis());
         assert_eq!(read_values.len(), size)
     }
+
+    // #[test]
+    // fn db_replace_all() {
+    //     let db = db();
+    //     let size = 100000;
+    //     let mut vals: Vec<(f64, f64)> = Vec::with_capacity(size);
+    //     let now = Instant::now();
+    //     for i in 0..10000 {
+    //         let v = (rand::random::<f64>(), rand::random::<f64>());
+    //         vals.push(v);
+    //         db.put_b(&format!("row{}", i), &v);
+    //     }
+    //     println!("inserted rows in {}", now.elapsed().as_millis());
+    //     let mut vals: Vec<(f64, f64)> = Vec::with_capacity(size);
+    //     for i in 0..size {
+    //         let v = (rand::random::<f64>(), rand::random::<f64>());
+    //         vals.push(v);
+    //     }
+    //
+    //     db.replace_all("row", vals.as_slice());
+    //
+    //     let read_values : Vec<(f64, f64)> = db.read_json_vec("row");
+    //     assert_eq!(read_values.len(), size)
+    // }
 
     #[bench]
     fn db_replace_all_10k(b: &mut Bencher) {

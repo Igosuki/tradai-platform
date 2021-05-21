@@ -114,7 +114,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
         // Truncate the table by window_size once max_size is reached
         if let Err(e) = self
             .db
-            .put_json(&format!("{}{}", ROW_KEY, self.rows.len() - 1), row)
+            .put_b(&format!("{}{}", ROW_KEY, self.rows.len() - 1), row)
         {
             error!("Failed writing row : {:?}", e);
         }
