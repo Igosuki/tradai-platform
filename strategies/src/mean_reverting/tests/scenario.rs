@@ -16,7 +16,7 @@ use serde::{Serializer, ser::SerializeSeq};
 use std::io::BufWriter;
 use crate::test_util::now_str;
 use coinnect_rt::exchange::Exchange;
-use crate::types::TradeEvent;
+use crate::types::{TradeEvent, OperationEvent};
 
 #[derive(Debug, Serialize, Clone)]
 struct StrategyLog {
@@ -200,7 +200,7 @@ async fn continuous_scenario() {
     let pair_csv_records = csv_records[0].iter();
     let mut strategy_logs: Vec<StrategyLog> = Vec::new();
     let mut model_values: Vec<(DateTime<Utc>, MeanRevertingModelValue, f64)> = Vec::new();
-    let mut trade_events: Vec<TradeEvent> = Vec::new();
+    let mut trade_events: Vec<(OperationEvent, TradeEvent)> = Vec::new();
     // Feed all csv records to the strat
     let before_evals = Instant::now();
     for csvr in pair_csv_records {
@@ -217,7 +217,7 @@ async fn continuous_scenario() {
         model_values.push((row_time, value.clone(), strat.state.value_strat()));
         strategy_logs.push(StrategyLog::from_state(row_time, strat.state.clone(), &row, value));
         match strat.state.ongoing_op() {
-            Some(op) => trade_events.push(op.trade_event()),
+            Some(op) => trade_events.push((op.operation_event().clone(), op.trade_event())),
             None => ()
         }
         elapsed += now.elapsed().as_nanos();
@@ -244,12 +244,13 @@ async fn continuous_scenario() {
     let mut trade_events_wtr =
         csv::Writer::from_path(format!("{}/{}_trade_events.csv", test_results_dir, PAIR))
             .unwrap();
-    trade_events_wtr.write_record(&["ts", "trade_kind", "price", "qty", "value_strat"]).unwrap();
-    for trade_event in trade_events {
-        let trade_kind_i: i32 = trade_event.op.into();
+    trade_events_wtr.write_record(&["ts", "op", "pos", "trade_kind", "price", "qty", "value_strat"]).unwrap();
+    for (op_event, trade_event) in trade_events {
         trade_events_wtr.write_record(&[
             trade_event.at.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
-            trade_kind_i.to_string(),
+            op_event.op.as_ref().to_string(),
+            op_event.pos.as_ref().to_string(),
+            trade_event.op.as_ref().to_string(),
             trade_event.price.to_string(),
             trade_event.qty.to_string(),
             trade_event.strat_value.to_string(),
