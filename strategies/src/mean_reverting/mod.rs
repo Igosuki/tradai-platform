@@ -44,7 +44,6 @@ pub struct MeanRevertingStrategy {
     last_row_process_time: DateTime<Utc>,
     metrics: Arc<MeanRevertingStrategyMetrics>,
     threshold_eval_freq: Option<i32>,
-    threshold_eval_window_size: Option<usize>,
     threshold_short_0: f64,
     threshold_long_0: f64,
     #[allow(dead_code)]
@@ -67,26 +66,22 @@ impl MeanRevertingStrategy {
         let db_name = format!("{}", n.pair);
         let db = Db::new(&pb.to_str().unwrap(), db_name);
         let state = MeanRevertingState::new(n, db, om);
-        let dynamic_threshold_enabled = n.dynamic_threshold();
-        let _max_size = if dynamic_threshold_enabled {
-            n.threshold_window_size
-                .map(|t| max(t, 2 * n.long_window_size as usize))
-        } else {
-            None
-        };
 
-        let model = Self::make_model_table(
+        // EMA Model
+        let model = Self::make_model(
             n.pair.as_ref(),
             pb.to_str().unwrap(),
             n.short_window_size,
             n.long_window_size,
         );
+        // Threshold model
         let threshold_table = n
             .threshold_window_size
             .map(|thresold_window_size| {
                 WindowedModel::new(
                     n.pair.as_ref(),
-                    pb.to_str().unwrap(), thresold_window_size,
+                    pb.to_str().unwrap(),
+                    thresold_window_size,
                     Some(thresold_window_size * 2),
                     ema_model::threshold,
                 )
@@ -103,10 +98,9 @@ impl MeanRevertingStrategy {
             model,
             threshold_table,
             threshold_eval_freq: n.threshold_eval_freq,
-            threshold_eval_window_size: n.threshold_window_size,
             threshold_short_0: n.threshold_short,
             threshold_long_0: n.threshold_long,
-            dynamic_threshold: dynamic_threshold_enabled,
+            dynamic_threshold: n.dynamic_threshold(),
             last_threshold_time: Utc.timestamp_millis(0),
             stopper: Stopper::new(n.stop_gain, n.stop_loss),
             metrics: Arc::new(metrics),
@@ -114,7 +108,7 @@ impl MeanRevertingStrategy {
         }
     }
 
-    pub fn make_model_table(
+    pub fn make_model(
         pair: &str,
         db_path: &str,
         short_window_size: u32,
@@ -177,35 +171,37 @@ impl MeanRevertingStrategy {
     }
 
     fn maybe_eval_threshold(&mut self, current_time: DateTime<Utc>) {
-        if let Some(threshold_table) = &self.threshold_table {
-            if let (Some(threshold_eval_freq), Some(_threshold_window_size)) =
-            (self.threshold_eval_freq, self.threshold_eval_window_size)
+        if !self.dynamic_threshold {
+            return;
+        }
+        if let (Some(threshold_table), Some(threshold_eval_freq)) =
+        (&self.threshold_table, self.threshold_eval_freq)
+        {
+            if crate::util::is_eval_time_reached(
+                current_time,
+                self.last_threshold_time,
+                self.sample_freq,
+                threshold_eval_freq,
+            ) && threshold_table.is_filled()
             {
-                if crate::util::is_eval_time_reached(
-                    current_time,
-                    self.last_threshold_time,
-                    self.sample_freq,
-                    threshold_eval_freq,
-                ) && threshold_table.is_filled()
-                {
-                    let wdw = threshold_table.window();
-                    let (threshold_short_iter, threshold_long_iter) = wdw.tee();
-                    self.state.set_threshold_short(
-                        max(
-                            self.threshold_short_0.into(),
-                            OrderedFloat(threshold_short_iter.quantile(0.99)),
-                        )
-                            .into(),
-                    );
-                    self.state.set_threshold_long(
-                        min(
-                            OrderedFloat(self.threshold_long_0),
-                            OrderedFloat(threshold_long_iter.quantile(0.01)),
-                        )
-                            .into(),
-                    );
-                    self.metrics.log_thresholds(&self.state);
-                }
+                let wdw = threshold_table.window();
+                let (threshold_short_iter, threshold_long_iter) = wdw.tee();
+                self.state.set_threshold_short(
+                    max(
+                        self.threshold_short_0.into(),
+                        OrderedFloat(threshold_short_iter.quantile(0.99)),
+                    )
+                        .into(),
+                );
+                self.state.set_threshold_long(
+                    min(
+                        OrderedFloat(self.threshold_long_0),
+                        OrderedFloat(threshold_long_iter.quantile(0.01)),
+                    )
+                        .into(),
+                );
+                self.metrics.log_thresholds(&self.state);
+                self.last_threshold_time = current_time;
             }
         }
     }
@@ -230,16 +226,16 @@ impl MeanRevertingStrategy {
                 self.state.threshold_short()
             );
             let position = self.short_position(lr.pos.bid, lr.time);
-            return self.state.open(position, self.fees_rate).await
+            return self.state.open(position, self.fees_rate).await;
         }
 
         // Possibly close a short position
         if self.state.is_short() {
             self.state
                 .set_short_position_return(self.fees_rate, lr.pos.ask);
-            if (self.state.apo() < 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::LONG)) {
+            if (self.state.apo() < 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::SHORT)) {
                 let position = self.short_position(lr.pos.ask, lr.time);
-                return self.state.close(position, self.fees_rate).await
+                return self.state.close(position, self.fees_rate).await;
             }
         }
 
@@ -250,7 +246,7 @@ impl MeanRevertingStrategy {
                 self.state.threshold_long()
             );
             let position = self.long_position(lr.pos.ask, lr.time);
-            return self.state.open(position, self.fees_rate).await
+            return self.state.open(position, self.fees_rate).await;
         }
 
         // Possibly close a long position
@@ -259,7 +255,7 @@ impl MeanRevertingStrategy {
                 .set_long_position_return(self.fees_rate, lr.pos.bid);
             if (self.state.apo() > 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::LONG)) {
                 let position = self.long_position(lr.pos.bid, lr.time);
-                return self.state.close(position, self.fees_rate).await
+                return self.state.close(position, self.fees_rate).await;
             }
         }
 
@@ -288,13 +284,14 @@ impl MeanRevertingStrategy {
         if should_sample {
             self.last_sample_time = row.time;
             // TODO: log error
+            let last_apo = self.state.apo();
+            self.threshold_table.as_mut().map(|t| t.push(&last_apo));
             self.model.update_model(row.clone()).map(|_| {
                 if let Some(m) = self.model.value() {
                     trace!("apo {}", m.apo);
                     self.state.set_apo(m.apo);
                 }
             }).unwrap();
-
             self.last_row_time_at_eval = self.last_sample_time;
         }
         if self.can_eval() {

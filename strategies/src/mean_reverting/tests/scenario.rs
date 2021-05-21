@@ -123,7 +123,7 @@ static PAIR: &str = "BTC_USDT";
 async fn moving_average() {
     init();
     let path = crate::test_util::test_dir();
-    let mut model = MeanRevertingStrategy::make_model_table("BTC_USDT", &path, 100, 1000);
+    let mut model = MeanRevertingStrategy::make_model("BTC_USDT", &path, 100, 1000);
     // Read downsampled streams
     let dt0 = Utc.ymd(2020, 3, 25);
     let dt1 = Utc.ymd(2020, 4, 8);
@@ -178,7 +178,7 @@ async fn continuous_scenario() {
             short_window_size: 100,
             long_window_size: 1000,
             sample_freq: "1min".to_string(),
-            exchange: Exchange::Binance
+            exchange: Exchange::Binance,
         },
         order_manager_addr,
     );
@@ -255,6 +255,7 @@ async fn continuous_scenario() {
             trade_event.strat_value.to_string(),
         ]).unwrap();
     }
+
     trade_events_wtr.flush().unwrap();
 
     // Find that latest operations are correct
@@ -262,16 +263,29 @@ async fn continuous_scenario() {
     positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
     let last_position = positions.last();
 
+    // Write strategy logs
     {
         info_time!("Write strategy logs");
+        let mut thresholds_wtr =
+            csv::Writer::from_path(format!("{}/{}_thresholds.csv", test_results_dir, PAIR))
+                .unwrap();
+        thresholds_wtr.write_record(&["ts", "threshold_short", "threshold_long"]).unwrap();
         let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
         let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
         let mut seq = ser.serialize_seq(None).unwrap();
         for log in strategy_logs.clone() {
             seq.serialize_element(&log).unwrap();
+            thresholds_wtr.write_record(&[
+                log.time.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
+                log.state.threshold_short().to_string(),
+                log.state.threshold_long().to_string()
+            ]).unwrap();
         }
         seq.end().unwrap();
+        thresholds_wtr.flush().unwrap();
     }
+
+    // Output SVG graphs
     std::fs::create_dir_all("graphs").unwrap();
     let drew = draw_line_plot(strategy_logs);
     if let Ok(file) = drew {

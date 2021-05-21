@@ -40,7 +40,7 @@ impl<T: std::cmp::PartialOrd + Copy> Stopper<T> {
             } else {
                 StopEvent::NA
             };
-            StratEvent::Stop(stop_type).log();
+            StratEvent::Stop {stop: stop_type}.log();
             return true
         }
         false
