@@ -296,6 +296,6 @@ async fn continuous_scenario() {
         panic!("{}", format!("{:?}", drew));
     }
 
-    assert_eq!(Some(162.130004882813), last_position.map(|p| p.pos.price));
-    assert_eq!(Some(33.33032942489664), last_position.map(|p| p.value()));
+    assert_eq!(Some(7308.47998046875), last_position.map(|p| p.pos.price));
+    assert_eq!(Some(78767.08484500754), last_position.map(|p| p.value()));
 }
