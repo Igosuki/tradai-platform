@@ -38,7 +38,6 @@ Check the LICENSE file for details.
 
 #![deny(missing_docs)]
 #![deny(warnings)]
-#![doc(html_root_url = "https://docs.rs/juniper_actix/0.1.0")]
 
 // use futures::{FutureExt as _};
 use super::playground_source::playground_source;

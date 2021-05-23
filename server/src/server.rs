@@ -1,60 +1,13 @@
 use crate::graphql_schemas::root::create_schema;
 use actix_cors::Cors;
 use actix_web::{http, HttpServer};
-use coinnect_rt::binance::BinanceCreds;
-use coinnect_rt::bitstamp::BitstampCreds;
-use coinnect_rt::bittrex::BittrexCreds;
-use coinnect_rt::coinnect::Coinnect;
-use coinnect_rt::exchange::{Exchange, ExchangeApi, ExchangeSettings};
+use coinnect_rt::coinnect::build_exchanges;
+use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use futures::lock::Mutex;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use strategies::{Strategy, StrategyKey};
-
-pub async fn build_exchanges(
-    exchanges: Arc<HashMap<Exchange, ExchangeSettings>>,
-    keys_path: PathBuf,
-) -> HashMap<Exchange, Box<dyn ExchangeApi>> {
-    let mut apis: HashMap<Exchange, Box<dyn ExchangeApi>> = HashMap::new();
-    for xch in exchanges.as_ref().keys() {
-        let xch_api = build_exchange_api(keys_path.clone(), xch).await.unwrap();
-        apis.insert(*xch, xch_api);
-    }
-    apis
-}
-
-pub async fn build_exchange_api(
-    keys_path: PathBuf,
-    xch: &Exchange,
-) -> Result<Box<dyn ExchangeApi>, coinnect_rt::error::Error> {
-    match xch {
-        Exchange::Bittrex => {
-            let creds =
-                Box::new(BittrexCreds::new_from_file("account_bittrex", keys_path).unwrap());
-            Coinnect::new_exchange(*xch, creds).await
-        }
-        Exchange::Bitstamp => {
-            let creds =
-                Box::new(BitstampCreds::new_from_file("account_bitstamp", keys_path).unwrap());
-            Coinnect::new_exchange(*xch, creds).await
-        }
-        Exchange::Binance => {
-            let creds = Box::new(
-                BinanceCreds::new_from_file(
-                    coinnect_rt::binance::credentials::ACCOUNT_KEY,
-                    keys_path,
-                )
-                    .unwrap(),
-            );
-            Coinnect::new_exchange(*xch, creds).await
-        }
-        _ => {
-            info!("Unknown exchange when building Exchange Apis : {:?}", *xch);
-            unimplemented!()
-        }
-    }
-}
 
 pub async fn httpserver(
     exchanges: HashMap<Exchange, ExchangeSettings>,
