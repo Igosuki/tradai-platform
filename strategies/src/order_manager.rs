@@ -9,6 +9,7 @@ use coinnect_rt::types::{
     AccountEvent, AccountEventEnveloppe, AddOrderRequest, OrderEnforcement, OrderInfo, OrderQuery,
     OrderStatus, OrderType, OrderUpdate, Pair, TradeType,
 };
+use coinnect_rt::error::Error as CoinnectError;
 use db::Db;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -17,6 +18,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 use derive_more::Display;
+
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "__field0")]
@@ -27,6 +30,7 @@ pub enum Rejection {
     Cancelled(Option<String>),
     Other(String),
     Unknown(String),
+    InvalidPrice,
 }
 
 impl Rejection {
@@ -208,14 +212,18 @@ impl OrderManager {
         let staged_transaction = TransactionStatus::Staged(add_order.clone());
         self.transactions_wal
             .append(order_id.clone(), staged_transaction)?;
-        let order_info: Result<OrderInfo> = self
+        let order_info = self
             .api
             .order(add_order)
-            .await
-            .map_err(|e| anyhow!("Coinnect error {0}", e));
+            .await;
         let written_transaction = match order_info {
             Ok(o) => TransactionStatus::New(o),
-            Err(e) => TransactionStatus::Rejected(Rejection::BadRequest(format!("{}", e))),
+            Err(e) => {
+                TransactionStatus::Rejected(match e {
+                    CoinnectError::InvalidPrice => Rejection::InvalidPrice,
+                    _ => Rejection::BadRequest(format!("{}", e))
+                })
+            },
         };
         self.register(order_id.clone(), written_transaction.clone())
             .await?;
@@ -380,7 +388,7 @@ impl Handler<Ping> for OrderManager {
 
 #[cfg(test)]
 pub mod test_util {
-    use crate::order_manager::{OrderManager, Rejection, TransactionStatus};
+    use crate::order_manager::OrderManager;
     use actix::{Actor, Addr};
     use coinnect_rt::exchange::ExchangeApi;
     use coinnect_rt::exchange::MockApi;
@@ -398,6 +406,19 @@ pub mod test_util {
         let order_manager = OrderManager::new(Arc::new(api), Path::new(path));
         OrderManager::start(order_manager)
     }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::order_manager::{OrderManager, Rejection, TransactionStatus, StagedOrder};
+    use coinnect_rt::exchange::{ExchangeApi, Exchange};
+    use coinnect_rt::exchange::MockApi;
+    use std::path::Path;
+    use std::sync::Arc;
+    use coinnect_rt::exchange::Exchange::Binance;
+    use coinnect_rt::coinnect;
+    use crate::types::TradeKind;
+    use crate::test_util::test_dir;
 
     #[actix_rt::test]
     async fn test_append_rejected() {
@@ -411,6 +432,37 @@ pub mod test_util {
                 TransactionStatus::Rejected(Rejection::BadRequest("bad request".to_string())),
             )
             .await;
+        assert!(registered.is_ok(), "{:?}", registered);
+    }
+
+    fn test_keys() -> String {
+        "../config/keys_real_test.json".to_string()
+    }
+
+    fn test_pair() -> String {
+        "BTC_USDT".to_string()
+    }
+
+    async fn it_order_manager(exchange: Exchange) -> OrderManager {
+        let api = coinnect::build_exchange_api(test_keys().into(), &exchange, true)
+            .await
+            .unwrap();
+        let om_path = format!("{}/om_{}", test_dir(), exchange);
+        OrderManager::new(Arc::new(api), Path::new(&om_path))
+    }
+
+    #[actix_rt::test]
+    async fn test_binance_stage_order_invalid() {
+        let mut order_manager = it_order_manager(Binance).await;
+        let registered = order_manager
+            .stage_order(StagedOrder{
+                op_kind: TradeKind::BUY,
+                pair: test_pair().into(),
+                qty: 0.0,
+                price: 0.0,
+                dry_run: false
+            }).await;
+        println!("{:?}", registered);
         assert!(registered.is_ok(), "{:?}", registered);
     }
 }
