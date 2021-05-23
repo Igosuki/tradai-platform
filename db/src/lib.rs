@@ -250,7 +250,6 @@ impl Db {
             let reader = env.read().unwrap();
             let mut iter = store.iter_from(&reader, key).unwrap();
             let mut writer = env.write().unwrap();
-            let now = Instant::now();
             while let Some(Ok((k, _v))) = iter.next() {
                 store.delete(&mut writer, std::str::from_utf8(k).unwrap()).unwrap();
                 //Self::safe_delete(store, writer, str::from_utf8(k).unwrap())?;

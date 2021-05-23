@@ -140,8 +140,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_add_order() {
         let schema = create_schema();
-        let exchanges = coinnect::ExchangeConfig::new("../keys_real_test.json".to_string(), vec![Binance]);
-        let exchanges_map = coinnect::build_exchanges(exchanges).await;
+        let exchanges = coinnect::ExchangeConfig::new("../config/keys_real_test.json".to_string(), vec![Binance]);
+        let exchanges_map = coinnect::build_test_exchanges(exchanges).await;
         let data: Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>> =
             Arc::new(Mutex::new(exchanges_map));
         let mut guard = data.lock().await;

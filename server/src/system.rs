@@ -143,6 +143,7 @@ async fn strategies(
 }
 
 /// Get an order manager for each exchange
+/// N.B.: Does not currently use test mode
 async fn order_managers(
     keys_path: PathBuf,
     db_path: &str,
@@ -153,7 +154,7 @@ async fn order_managers(
         if !conf.use_account {
             continue;
         }
-        let api = server::build_exchange_api(keys_path.clone(), &xch)
+        let api = coinnect_rt::coinnect::build_exchange_api(keys_path.clone(), &xch, true)
             .await
             .unwrap();
         let om_path = format!("{}/om_{}", db_path, xch);
