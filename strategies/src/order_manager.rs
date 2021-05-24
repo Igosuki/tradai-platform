@@ -1,105 +1,23 @@
-use crate::types::TradeKind;
-use crate::wal::Wal;
-use actix::{Actor, Addr, AsyncContext, Context, Handler, Message, ResponseActFuture, Running, WrapFuture};
-use anyhow::Result;
-use async_std::sync::RwLock;
-use coinnect_rt::error::Error as CoinnectError;
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
-use coinnect_rt::exchange_bot::Ping;
-use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, OrderEnforcement, OrderInfo,
-                         OrderQuery, OrderStatus, OrderType, OrderUpdate, Pair, TradeType};
-use db::Db;
-use derive_more::Display;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
+
+use actix::{Actor, Addr, AsyncContext, Context, Handler, ResponseActFuture, Running, WrapFuture};
+use anyhow::Result;
+use async_std::sync::RwLock;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", content = "__field0")]
-pub enum Rejection {
-    BadRequest(String),
-    InsufficientFunds,
-    Timeout,
-    Cancelled(Option<String>),
-    Other(String),
-    Unknown(String),
-    InvalidPrice,
-}
+use coinnect_rt::error::Error as CoinnectError;
+use coinnect_rt::exchange::{Exchange, ExchangeApi};
+use coinnect_rt::exchange_bot::Ping;
+use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, OrderEnforcement, OrderQuery,
+                         OrderStatus, OrderType, OrderUpdate, TradeType};
+use db::Db;
 
-impl Rejection {
-    fn from_status(os: OrderStatus, reason: Option<String>) -> Self {
-        match os {
-            OrderStatus::Rejected => match reason {
-                Some(reason) => Rejection::Other(reason),
-                None => Rejection::Other("".to_string()),
-            },
-            OrderStatus::Expired => Rejection::Timeout,
-            OrderStatus::Canceled | OrderStatus::PendingCancel => Rejection::Cancelled(reason),
-            _ => Rejection::Unknown("".to_string()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Display)]
-#[serde(tag = "type")]
-pub enum TransactionStatus {
-    #[display(fmt = "staged")]
-    Staged(OrderQuery),
-    #[display(fmt = "new")]
-    New(OrderInfo),
-    #[display(fmt = "filled")]
-    Filled(OrderUpdate),
-    #[display(fmt = "partially_filled")]
-    PartiallyFilled(OrderUpdate),
-    #[display(fmt = "rejected")]
-    Rejected(Rejection),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Transaction {
-    pub id: String,
-    pub status: TransactionStatus,
-}
-
-impl Transaction {
-    pub fn is_filled(&self) -> bool {
-        match self.status {
-            TransactionStatus::Filled(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_bad_request(&self) -> bool {
-        match self.status {
-            TransactionStatus::Rejected(Rejection::BadRequest(_)) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_rejected(&self) -> bool {
-        match self.status {
-            TransactionStatus::Rejected(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn variant_eq(&self, b: &Transaction) -> bool {
-        std::mem::discriminant(&self.status) == std::mem::discriminant(&b.status)
-    }
-}
-
-#[derive(Message)]
-#[rtype(result = "Result<Transaction>")]
-pub(crate) struct StagedOrder {
-    pub op_kind: TradeKind,
-    pub pair: Pair,
-    pub qty: f64,
-    pub price: f64,
-    pub dry_run: bool,
-}
+use crate::order_types::{OrderId, Rejection, StagedOrder, Transaction, TransactionStatus};
+use crate::types::TradeKind;
+use crate::wal::Wal;
 
 #[derive(Debug, Clone)]
 pub(crate) struct TransactionService {
@@ -331,10 +249,6 @@ impl Handler<StagedOrder> for OrderManager {
     }
 }
 
-#[derive(Message)]
-#[rtype(result = "Result<Transaction>")]
-pub struct OrderId(pub String);
-
 impl Handler<OrderId> for OrderManager {
     type Result = ResponseActFuture<Self, Result<Transaction>>;
 
@@ -361,12 +275,15 @@ impl Handler<Ping> for OrderManager {
 
 #[cfg(test)]
 pub mod test_util {
-    use crate::order_manager::OrderManager;
-    use actix::{Actor, Addr};
-    use coinnect_rt::exchange::ExchangeApi;
-    use coinnect_rt::exchange::MockApi;
     use std::path::Path;
     use std::sync::Arc;
+
+    use actix::{Actor, Addr};
+
+    use coinnect_rt::exchange::ExchangeApi;
+    use coinnect_rt::exchange::MockApi;
+
+    use crate::order_manager::OrderManager;
 
     pub fn mock_manager(path: &str) -> Addr<OrderManager> {
         let capi: Box<dyn ExchangeApi> = Box::new(MockApi);
@@ -383,15 +300,18 @@ pub mod test_util {
 
 #[cfg(test)]
 mod test {
-    use crate::order_manager::{OrderManager, Rejection, StagedOrder, TransactionStatus};
-    use crate::test_util::test_dir;
-    use crate::types::TradeKind;
+    use std::path::Path;
+    use std::sync::Arc;
+
     use coinnect_rt::coinnect;
     use coinnect_rt::exchange::Exchange::Binance;
     use coinnect_rt::exchange::MockApi;
     use coinnect_rt::exchange::{Exchange, ExchangeApi};
-    use std::path::Path;
-    use std::sync::Arc;
+
+    use crate::order_manager::OrderManager;
+    use crate::order_types::{Rejection, StagedOrder, TransactionStatus};
+    use crate::test_util::test_dir;
+    use crate::types::TradeKind;
 
     #[actix_rt::test]
     async fn test_append_rejected() {

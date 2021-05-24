@@ -1,9 +1,10 @@
 #[cfg(test)]
 mod test {
-    use crate::order_manager::{StagedOrder, TransactionStatus};
+    use coinnect_rt::types::Pair;
+
+    use crate::order_types::{StagedOrder, TransactionStatus};
     use crate::test_util::{binance_account_ws, local_api};
     use crate::types::TradeKind;
-    use coinnect_rt::types::Pair;
 
     #[allow(dead_code)]
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }

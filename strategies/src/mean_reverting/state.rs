@@ -1,16 +1,20 @@
-use crate::mean_reverting::options::Options;
-use crate::order_manager::{OrderManager, StagedOrder, Transaction, TransactionService};
-use crate::query::MutableField;
-use crate::types::{BookPosition, OperationEvent, StratEvent, TradeEvent};
-use crate::types::{OperationKind, PositionKind, TradeKind};
+use std::panic;
+
 use actix::Addr;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use db::Db;
 use log::Level::Info;
 use serde::{Deserialize, Serialize, Serializer};
-use std::panic;
 use uuid::Uuid;
+
+use db::Db;
+
+use crate::mean_reverting::options::Options;
+use crate::order_manager::{OrderManager, TransactionService};
+use crate::order_types::{StagedOrder, Transaction};
+use crate::query::MutableField;
+use crate::types::{BookPosition, OperationEvent, StratEvent, TradeEvent};
+use crate::types::{OperationKind, PositionKind, TradeKind};
 
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct Position {
