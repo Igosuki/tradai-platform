@@ -132,7 +132,7 @@ mod tests {
         let data: Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>> = Arc::new(Mutex::new(exchanges_map));
         let mut guard = data.lock().await;
         let binance_api: &mut Box<dyn ExchangeApi> = guard.get_mut(&Exchange::Binance).unwrap();
-        let ob = binance_api.orderbook("BTC_USDT".into()).await.unwrap();
+        let _ob = binance_api.orderbook("BTC_USDT".into()).await.unwrap();
         drop(guard);
         let price = 35000.02000000;
         let strats: Arc<HashMap<StrategyKey, Strategy>> = Arc::new(strats());
