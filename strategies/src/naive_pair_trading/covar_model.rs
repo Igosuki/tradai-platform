@@ -31,7 +31,7 @@ pub fn alpha(i: Window<DataRow>, beta_val: f64) -> f64 {
     mean_right - beta_val * mean_left
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct LinearModelValue {
     pub beta: f64,
     pub alpha: f64,

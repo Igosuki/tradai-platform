@@ -8,7 +8,7 @@ use itertools::Itertools;
 use std::ops::Sub;
 use std::path::Path;
 use std::time::Instant;
-use strategies::input::{to_pos, CsvRecord};
+use strategies::input::CsvRecord;
 use strategies::naive_pair_trading::covar_model::DataRow;
 use strategies::naive_pair_trading::NaiveTradingStrategy;
 use util::date::{DateRange, DurationRangeType};
@@ -125,14 +125,14 @@ fn main() {
         }
         data_table.push(&DataRow {
             time: row_time,
-            left: to_pos(l),
-            right: to_pos(r),
+            left: l.clone().into(),
+            right: r.clone().into(),
         });
     });
     println!("Saving Model...");
     data_table.update_model().unwrap();
     data_table.load_model();
     assert!(data_table.has_model());
-    println!("{:?}", data_table.model());
+    println!("{:?}", data_table.model().unwrap());
     println!("Execution took {} seconds", now.elapsed().as_secs());
 }
