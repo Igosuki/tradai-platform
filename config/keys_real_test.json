@@ -1,0 +1,19 @@
+{
+  "account_bitstamp": {
+    "exchange": "bitstamp",
+    "api_key"    : "a",
+    "api_secret" : "b",
+    "customer_id": "c"
+  },
+  "account_bittrex": {
+    "exchange": "bitstamp",
+    "api_key"    : "a",
+    "api_secret" : "b",
+    "customer_id": "c"
+  },
+  "account_binance": {
+    "exchange": "binance",
+    "api_key": "1l693qTjMjQBbt9IcYAnvHIakr4fOqDLOOKUHrNBlyhaTTqhv94JpQXxGRP2CUS4",
+    "api_secret": "tao3RGbb406VUXZ484rFcFQQrsuoPbql5V6EFvnlMPD9eRcW7DrlqwIETScnENIb"
+  }
+}

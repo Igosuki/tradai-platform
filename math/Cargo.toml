@@ -20,3 +20,6 @@ peroxide = "0.30"
 #average = "0.10.4"
 #nalgebra = "0.21.0"
 log = "0.4"
+
+# Optional dependencies to be used later
+# tensorflow = "0.16"
