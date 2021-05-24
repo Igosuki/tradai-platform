@@ -6,6 +6,7 @@ exchanges:
       symbols: ['BTC_USDT', 'ETH_USDT']
     trades:
       symbols: ['BTC_USDT', 'ETH_USDT']
+    use_test: true
 strategies:
   - type: naive
     left: 'ETH_USDT'
