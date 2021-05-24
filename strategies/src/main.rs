@@ -86,8 +86,7 @@ fn main() {
     let right_records = &records[1];
     println!("Right records count : {}", right_records.len());
 
-    let mut data_table =
-        NaiveTradingStrategy::make_lm_table(&left_pair, &right_pair, &db_storage_path, window_size);
+    let mut data_table = NaiveTradingStrategy::make_lm_table(&left_pair, &right_pair, &db_storage_path, window_size);
     let mut right_only: i32 = 0;
     let mut left_only: i32 = 0;
     let mut both: i32 = 0;
@@ -116,10 +115,13 @@ fn main() {
     zip.iter().rev().take(window_size).for_each(|(l, r)| {
         let row_time = l.event_ms;
         if l.event_ms != r.event_ms {
-            panic!("{}", format!(
-                "left and right time not aligned in stream !! {} {}",
-                l.event_ms, r.event_ms
-            ));
+            panic!(
+                "{}",
+                format!(
+                    "left and right time not aligned in stream !! {} {}",
+                    l.event_ms, r.event_ms
+                )
+            );
         }
         data_table.push(&DataRow {
             time: row_time,

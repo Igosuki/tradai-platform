@@ -11,17 +11,17 @@ use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
-use crate::types::PositionKind;
-use crate::models::WindowedModel;
 use crate::models::IndicatorModel;
+use crate::models::WindowedModel;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation, MutableField};
+use crate::types::PositionKind;
+use crate::util::Stopper;
 use crate::StrategyInterface;
 use math::iter::QuantileExt;
 use ordered_float::OrderedFloat;
 use std::cmp::{max, min};
 use std::sync::Arc;
-use crate::util::Stopper;
 
 mod ema_model;
 mod metrics;
@@ -58,8 +58,7 @@ static MEAN_REVERTING_DB_KEY: &str = "mean_reverting";
 
 impl MeanRevertingStrategy {
     pub fn new(db_path: &str, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
-        let metrics =
-            MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
+        let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
         let mut pb = PathBuf::from(db_path);
         let strat_db_path = format!("{}_{}", MEAN_REVERTING_DB_KEY, n.pair);
         pb.push(strat_db_path);
@@ -75,17 +74,15 @@ impl MeanRevertingStrategy {
             n.long_window_size,
         );
         // Threshold model
-        let threshold_table = n
-            .threshold_window_size
-            .map(|thresold_window_size| {
-                WindowedModel::new(
-                    n.pair.as_ref(),
-                    pb.to_str().unwrap(),
-                    thresold_window_size,
-                    Some(thresold_window_size * 2),
-                    ema_model::threshold,
-                )
-            });
+        let threshold_table = n.threshold_window_size.map(|thresold_window_size| {
+            WindowedModel::new(
+                n.pair.as_ref(),
+                pb.to_str().unwrap(),
+                thresold_window_size,
+                Some(thresold_window_size * 2),
+                ema_model::threshold,
+            )
+        });
 
         Self {
             pair: n.pair.clone(),
@@ -115,42 +112,23 @@ impl MeanRevertingStrategy {
         long_window_size: u32,
     ) -> IndicatorModel<MeanRevertingModelValue, SinglePosRow> {
         let init = MeanRevertingModelValue::new(long_window_size, short_window_size);
-        IndicatorModel::new(
-            &pair,
-            db_path,
-            init,
-            ema_model::moving_average_apo,
-        )
+        IndicatorModel::new(&pair, db_path, init, ema_model::moving_average_apo)
     }
 
     #[allow(dead_code)]
-    fn model_value(&self) -> Option<MeanRevertingModelValue> {
-        self.model.value()
-    }
+    fn model_value(&self) -> Option<MeanRevertingModelValue> { self.model.value() }
 
-    fn log_state(&self) {
-        self.metrics.log_state(&self.state);
-    }
+    fn log_state(&self) { self.metrics.log_state(&self.state); }
 
-    fn get_operations(&self) -> Vec<Operation> {
-        self.state.get_operations()
-    }
+    fn get_operations(&self) -> Vec<Operation> { self.state.get_operations() }
 
-    fn get_ongoing_op(&self) -> &Option<Operation> {
-        self.state.ongoing_op()
-    }
+    fn get_ongoing_op(&self) -> &Option<Operation> { self.state.ongoing_op() }
 
-    fn cancel_ongoing_op(&mut self) -> bool {
-        self.state.cancel_ongoing_op()
-    }
+    fn cancel_ongoing_op(&mut self) -> bool { self.state.cancel_ongoing_op() }
 
-    fn dump_db(&self) -> Vec<String> {
-        self.state.dump_db()
-    }
+    fn dump_db(&self) -> Vec<String> { self.state.dump_db() }
 
-    fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> {
-        self.state.change_state(field, v)
-    }
+    fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> { self.state.change_state(field, v) }
 
     fn short_position(&self, price: f64, time: DateTime<Utc>) -> Position {
         Position {
@@ -174,9 +152,7 @@ impl MeanRevertingStrategy {
         if !self.dynamic_threshold {
             return;
         }
-        if let (Some(threshold_table), Some(threshold_eval_freq)) =
-        (&self.threshold_table, self.threshold_eval_freq)
-        {
+        if let (Some(threshold_table), Some(threshold_eval_freq)) = (&self.threshold_table, self.threshold_eval_freq) {
             if crate::util::is_eval_time_reached(
                 current_time,
                 self.last_threshold_time,
@@ -191,14 +167,14 @@ impl MeanRevertingStrategy {
                         self.threshold_short_0.into(),
                         OrderedFloat(threshold_short_iter.quantile(0.99)),
                     )
-                        .into(),
+                    .into(),
                 );
                 self.state.set_threshold_long(
                     min(
                         OrderedFloat(self.threshold_long_0),
                         OrderedFloat(threshold_long_iter.quantile(0.01)),
                     )
-                        .into(),
+                    .into(),
                 );
                 self.metrics.log_thresholds(&self.state);
                 self.last_threshold_time = current_time;
@@ -215,9 +191,7 @@ impl MeanRevertingStrategy {
 
         // If a position is taken, resolve pending operations
         // In case of error return immediately as no trades can be made until the position is resolved
-        self.state
-            .resolve_pending_operations(&lr.pos)
-            .await?;
+        self.state.resolve_pending_operations(&lr.pos).await?;
 
         // Possibly open a short position
         if (self.state.apo() > self.state.threshold_short()) && self.state.no_position_taken() {
@@ -231,8 +205,7 @@ impl MeanRevertingStrategy {
 
         // Possibly close a short position
         if self.state.is_short() {
-            self.state
-                .set_short_position_return(self.fees_rate, lr.pos.ask);
+            self.state.set_short_position_return(self.fees_rate, lr.pos.ask);
             if (self.state.apo() < 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::SHORT)) {
                 let position = self.short_position(lr.pos.ask, lr.time);
                 return self.state.close(position, self.fees_rate).await;
@@ -241,18 +214,14 @@ impl MeanRevertingStrategy {
 
         // Possibly open a long position
         if (self.state.apo() < self.state.threshold_long()) && self.state.no_position_taken() {
-            info!(
-                "Entering long position with threshold {}",
-                self.state.threshold_long()
-            );
+            info!("Entering long position with threshold {}", self.state.threshold_long());
             let position = self.long_position(lr.pos.ask, lr.time);
             return self.state.open(position, self.fees_rate).await;
         }
 
         // Possibly close a long position
         if self.state.is_long() {
-            self.state
-                .set_long_position_return(self.fees_rate, lr.pos.bid);
+            self.state.set_long_position_return(self.fees_rate, lr.pos.bid);
             if (self.state.apo() > 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::LONG)) {
                 let position = self.long_position(lr.pos.bid, lr.time);
                 return self.state.close(position, self.fees_rate).await;
@@ -269,35 +238,32 @@ impl MeanRevertingStrategy {
         }
     }
 
-    fn can_eval(&self) -> bool {
-        self.model.value().is_some()
-    }
+    fn can_eval(&self) -> bool { self.model.value().is_some() }
 
     async fn process_row(&mut self, row: &SinglePosRow) {
-        self.last_row_time_at_eval = self
-            .model
-            .last_model_time()
-            .unwrap_or_else(|| Utc.timestamp_millis(0));
-        let should_sample =
-            crate::util::is_eval_time_reached(row.time, self.last_sample_time, self.sample_freq, 1);
+        self.last_row_time_at_eval = self.model.last_model_time().unwrap_or_else(|| Utc.timestamp_millis(0));
+        let should_sample = crate::util::is_eval_time_reached(row.time, self.last_sample_time, self.sample_freq, 1);
         // A model is available
         if should_sample {
             self.last_sample_time = row.time;
             // TODO: log error
             let last_apo = self.state.apo();
             self.threshold_table.as_mut().map(|t| t.push(&last_apo));
-            self.model.update_model(row.clone()).map(|_| {
-                if let Some(m) = self.model.value() {
-                    trace!("apo {}", m.apo);
-                    self.state.set_apo(m.apo);
-                }
-            }).unwrap();
+            self.model
+                .update_model(row.clone())
+                .map(|_| {
+                    if let Some(m) = self.model.value() {
+                        trace!("apo {}", m.apo);
+                        self.state.set_apo(m.apo);
+                    }
+                })
+                .unwrap();
             self.last_row_time_at_eval = self.last_sample_time;
         }
         if self.can_eval() {
             match self.eval_latest(row).await {
                 Ok(op) => self.metrics.log_position(&op.pos, &op.kind),
-                Err(e) => trace!("{}", e)
+                Err(e) => trace!("{}", e),
             }
             self.log_state();
         }
@@ -322,20 +288,12 @@ impl StrategyInterface for MeanRevertingStrategy {
 
     fn data(&mut self, q: DataQuery) -> Option<DataResult> {
         match q {
-            DataQuery::Operations => {
-                Some(DataResult::MeanRevertingOperations(self.get_operations()))
-            }
+            DataQuery::Operations => Some(DataResult::MeanRevertingOperations(self.get_operations())),
             DataQuery::Dump => Some(DataResult::Dump(self.dump_db())),
-            DataQuery::CurrentOperation => Some(DataResult::MeanRevertingOperation(
-                self.get_ongoing_op().clone(),
-            )),
-            DataQuery::CancelOngoingOp => Some(DataResult::OngongOperationCancelation(
-                self.cancel_ongoing_op(),
-            )),
+            DataQuery::CurrentOperation => Some(DataResult::MeanRevertingOperation(self.get_ongoing_op().clone())),
+            DataQuery::CancelOngoingOp => Some(DataResult::OngongOperationCancelation(self.cancel_ongoing_op())),
         }
     }
 
-    fn mutate(&mut self, m: FieldMutation) -> Result<()> {
-        self.change_state(m.field, m.value)
-    }
+    fn mutate(&mut self, m: FieldMutation) -> Result<()> { self.change_state(m.field, m.value) }
 }

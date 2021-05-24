@@ -1,7 +1,7 @@
 use chrono::Duration;
+use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::Pair;
 use parse_duration::parse;
-use coinnect_rt::exchange::Exchange;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Options {
@@ -22,15 +22,9 @@ pub struct Options {
 }
 
 impl Options {
-    pub(super) fn dry_mode(&self) -> bool {
-        self.dry_mode.unwrap_or(true)
-    }
+    pub(super) fn dry_mode(&self) -> bool { self.dry_mode.unwrap_or(true) }
 
-    pub(super) fn dynamic_threshold(&self) -> bool {
-        self.dynamic_threshold.unwrap_or(true)
-    }
+    pub(super) fn dynamic_threshold(&self) -> bool { self.dynamic_threshold.unwrap_or(true) }
 
-    pub(super) fn sample_freq(&self) -> Duration {
-        Duration::from_std(parse(&self.sample_freq).unwrap()).unwrap()
-    }
+    pub(super) fn sample_freq(&self) -> Duration { Duration::from_std(parse(&self.sample_freq).unwrap()).unwrap() }
 }

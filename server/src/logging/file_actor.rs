@@ -1,18 +1,14 @@
 use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
 use actix::{Actor, Handler, Running, SyncContext};
 use avro_rs::encode::encode;
-use avro_rs::{
-    types::{ToAvro, Value},
-    Codec, Schema, Writer,
-};
+use avro_rs::{types::{ToAvro, Value},
+              Codec, Schema, Writer};
 use chrono::Duration;
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use derive_more::Display;
 use log::Level::*;
-use models::avro_gen::{
-    self,
-    models::{LiveTrade as LT, Orderbook as OB},
-};
+use models::avro_gen::{self,
+                       models::{LiveTrade as LT, Orderbook as OB}};
 use rand::random;
 use serde::Serialize;
 use std::cell::{RefCell, RefMut};
@@ -80,12 +76,7 @@ impl AvroFileActor {
         let previous_name = previous.file_stem().and_then(|os_str| os_str.to_str())?;
         let i = previous_name.rfind('-')?;
         let (stem, num) = previous_name.split_at(i + 1);
-        let next_name = format!(
-            "{}{:04}.{}",
-            stem,
-            num.parse::<i32>().ok()? + 1,
-            AVRO_EXTENSION
-        );
+        let next_name = format!("{}{:04}.{}", stem, num.parse::<i32>().ok()? + 1, AVRO_EXTENSION);
         let mut next = previous.clone();
         next.set_file_name(next_name);
         next.set_extension(AVRO_EXTENSION);
@@ -105,8 +96,7 @@ impl AvroFileActor {
                 let schema = self.schema_for(&e.1).ok_or(Error::NoSchemaError)?;
 
                 // Rotating file
-                let file_path =
-                    buf.join(format!("{}-{:04}.{}", self.session_uuid, 0, AVRO_EXTENSION));
+                let file_path = buf.join(format!("{}-{:04}.{}", self.session_uuid, 0, AVRO_EXTENSION));
 
                 let mut marker = Vec::with_capacity(16);
                 for _ in 0..16 {
@@ -241,11 +231,7 @@ fn avro_header(schema: &Schema, marker: Vec<u8>) -> Result<Vec<u8>, Error> {
 
     let mut header = Vec::new();
     header.extend_from_slice(AVRO_OBJECT_HEADER);
-    encode(
-        &metadata.avro(),
-        &Schema::Map(Box::new(Schema::Bytes)),
-        &mut header,
-    );
+    encode(&metadata.avro(), &Schema::Map(Box::new(Schema::Bytes)), &mut header);
     header.extend_from_slice(&marker);
 
     Ok(header)
@@ -264,9 +250,7 @@ mod test {
 
     use super::*;
 
-    fn init() {
-        let _ = env_logger::builder().is_test(true).try_init();
-    }
+    fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
     fn actor(base_dir: &str) -> AvroFileActor {
         AvroFileActor::new(&FileActorOptions {

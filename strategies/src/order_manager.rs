@@ -1,25 +1,21 @@
 use crate::types::TradeKind;
 use crate::wal::Wal;
-use actix::{Actor, AsyncContext, Context, Handler, Message, ResponseActFuture, Running, WrapFuture, Addr};
+use actix::{Actor, Addr, AsyncContext, Context, Handler, Message, ResponseActFuture, Running, WrapFuture};
 use anyhow::Result;
 use async_std::sync::RwLock;
+use coinnect_rt::error::Error as CoinnectError;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::exchange_bot::Ping;
-use coinnect_rt::types::{
-    AccountEvent, AccountEventEnveloppe, AddOrderRequest, OrderEnforcement, OrderInfo, OrderQuery,
-    OrderStatus, OrderType, OrderUpdate, Pair, TradeType,
-};
-use coinnect_rt::error::Error as CoinnectError;
+use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, OrderEnforcement, OrderInfo,
+                         OrderQuery, OrderStatus, OrderType, OrderUpdate, Pair, TradeType};
 use db::Db;
+use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
-use derive_more::Display;
-
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "__field0")]
@@ -107,13 +103,11 @@ pub(crate) struct StagedOrder {
 
 #[derive(Debug, Clone)]
 pub(crate) struct TransactionService {
-    om: Addr<OrderManager>
+    om: Addr<OrderManager>,
 }
 
 impl TransactionService {
-    pub fn new(om: Addr<OrderManager>) -> Self {
-        Self { om }
-    }
+    pub fn new(om: Addr<OrderManager>) -> Self { Self { om } }
 
     pub async fn stage_order(&self, staged_order: StagedOrder) -> Result<Transaction> {
         self.om
@@ -124,19 +118,12 @@ impl TransactionService {
 
     /// Fetches the latest version of this transaction for the order id
     /// Returns whether it changed, and the latest transaction retrieved
-    pub async fn latest_transaction_change(
-        &self,
-        tr: &Transaction,
-    ) -> anyhow::Result<(bool, Transaction)> {
+    pub async fn latest_transaction_change(&self, tr: &Transaction) -> anyhow::Result<(bool, Transaction)> {
         let new_tr = self.om.send(OrderId(tr.id.clone())).await??;
         Ok((!new_tr.variant_eq(&tr), new_tr))
     }
 
-    pub async fn maybe_retry_trade(
-        &self,
-        tr: Transaction,
-        order: StagedOrder,
-    ) -> anyhow::Result<Transaction> {
+    pub async fn maybe_retry_trade(&self, tr: Transaction, order: StagedOrder) -> anyhow::Result<Transaction> {
         if tr.is_rejected() {
             // Changed and rejected, retry transaction
             // TODO need to handle rejections in a finer grained way
@@ -210,28 +197,20 @@ impl OrderManager {
             ..AddOrderRequest::default()
         });
         let staged_transaction = TransactionStatus::Staged(add_order.clone());
-        self.transactions_wal
-            .append(order_id.clone(), staged_transaction)?;
-        let order_info = self
-            .api
-            .order(add_order)
-            .await;
+        self.transactions_wal.append(order_id.clone(), staged_transaction)?;
+        let order_info = self.api.order(add_order).await;
         let written_transaction = match order_info {
             Ok(o) => TransactionStatus::New(o),
-            Err(e) => {
-                TransactionStatus::Rejected(match e {
-                    CoinnectError::InvalidPrice => Rejection::InvalidPrice,
-                    _ => Rejection::BadRequest(format!("{}", e))
-                })
-            },
+            Err(e) => TransactionStatus::Rejected(match e {
+                CoinnectError::InvalidPrice => Rejection::InvalidPrice,
+                _ => Rejection::BadRequest(format!("{}", e)),
+            }),
         };
-        self.register(order_id.clone(), written_transaction.clone())
-            .await?;
+        self.register(order_id.clone(), written_transaction.clone()).await?;
         // Dry mode simulates transactions as filled
         if staged_order.dry_run {
             let filled_transaction = TransactionStatus::Filled(OrderUpdate::default());
-            self.register(order_id.clone(), filled_transaction.clone())
-                .await?;
+            self.register(order_id.clone(), filled_transaction.clone()).await?;
         }
         Ok(Transaction {
             id: order_id.clone(),
@@ -243,9 +222,7 @@ impl OrderManager {
     pub(crate) async fn cancel_order(&mut self, order_id: String) -> Result<()> {
         self.register(
             order_id,
-            TransactionStatus::Rejected(Rejection::Cancelled(Some(
-                "Order canceled directly".to_string(),
-            ))),
+            TransactionStatus::Rejected(Rejection::Cancelled(Some("Order canceled directly".to_string()))),
         )
         .await
     }
@@ -290,8 +267,7 @@ impl Actor for OrderManager {
                     orders_read_lock
                         .iter()
                         .filter(|(_k, v)| match v {
-                            TransactionStatus::PartiallyFilled(_)
-                            | TransactionStatus::Staged(_) => true,
+                            TransactionStatus::PartiallyFilled(_) | TransactionStatus::Staged(_) => true,
                             _ => false,
                         })
                         .map(|(tr_id, _tr_status)| act.api.get_order(tr_id.clone())),
@@ -369,10 +345,7 @@ impl Handler<OrderId> for OrderManager {
                 let order_id = order.0.clone();
                 zis.get_order(order_id.clone())
                     .await
-                    .map(move |status| Transaction {
-                        id: order_id,
-                        status,
-                    })
+                    .map(move |status| Transaction { id: order_id, status })
                     .ok_or_else(|| anyhow!("No order found"))
             }
             .into_actor(self),
@@ -410,15 +383,15 @@ pub mod test_util {
 
 #[cfg(test)]
 mod test {
-    use crate::order_manager::{OrderManager, Rejection, TransactionStatus, StagedOrder};
-    use coinnect_rt::exchange::{ExchangeApi, Exchange};
+    use crate::order_manager::{OrderManager, Rejection, StagedOrder, TransactionStatus};
+    use crate::test_util::test_dir;
+    use crate::types::TradeKind;
+    use coinnect_rt::coinnect;
+    use coinnect_rt::exchange::Exchange::Binance;
     use coinnect_rt::exchange::MockApi;
+    use coinnect_rt::exchange::{Exchange, ExchangeApi};
     use std::path::Path;
     use std::sync::Arc;
-    use coinnect_rt::exchange::Exchange::Binance;
-    use coinnect_rt::coinnect;
-    use crate::types::TradeKind;
-    use crate::test_util::test_dir;
 
     #[actix_rt::test]
     async fn test_append_rejected() {
@@ -435,13 +408,9 @@ mod test {
         assert!(registered.is_ok(), "{:?}", registered);
     }
 
-    fn test_keys() -> String {
-        "../config/keys_real_test.json".to_string()
-    }
+    fn test_keys() -> String { "../config/keys_real_test.json".to_string() }
 
-    fn test_pair() -> String {
-        "BTC_USDT".to_string()
-    }
+    fn test_pair() -> String { "BTC_USDT".to_string() }
 
     async fn it_order_manager(exchange: Exchange) -> OrderManager {
         let api = coinnect::build_exchange_api(test_keys().into(), &exchange, true)
@@ -455,13 +424,14 @@ mod test {
     async fn test_binance_stage_order_invalid() {
         let mut order_manager = it_order_manager(Binance).await;
         let registered = order_manager
-            .stage_order(StagedOrder{
+            .stage_order(StagedOrder {
                 op_kind: TradeKind::BUY,
                 pair: test_pair().into(),
                 qty: 0.0,
                 price: 0.0,
-                dry_run: false
-            }).await;
+                dry_run: false,
+            })
+            .await;
         println!("{:?}", registered);
         assert!(registered.is_ok(), "{:?}", registered);
     }

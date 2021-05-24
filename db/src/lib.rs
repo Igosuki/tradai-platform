@@ -11,13 +11,14 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
-use rkv::{Manager, Rkv, SingleStore, StoreError, StoreOptions, Value, Writer, OwnedValue};
-use rkv::backend::{BackendEnvironmentBuilder, BackendRwTransaction, Lmdb, LmdbDatabase, LmdbEnvironment, LmdbRwTransaction, BackendDatabase};
+use rkv::backend::{BackendDatabase, BackendEnvironmentBuilder, BackendRwTransaction, Lmdb, LmdbDatabase,
+                   LmdbEnvironment, LmdbRwTransaction};
 use rkv::StoreError::LmdbError;
+use rkv::{Manager, OwnedValue, Rkv, SingleStore, StoreError, StoreOptions, Value, Writer};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use thiserror::Error;
 use std::time::Instant;
+use thiserror::Error;
 
 type RkvLmdb = Rkv<LmdbEnvironment>;
 
@@ -34,9 +35,7 @@ pub enum DataStoreError {
 }
 
 impl From<rkv::StoreError> for DataStoreError {
-    fn from(e: StoreError) -> Self {
-        Self::StoreError(e)
-    }
+    fn from(e: StoreError) -> Self { Self::StoreError(e) }
 }
 
 #[derive(Debug, Clone)]
@@ -87,8 +86,8 @@ impl Db {
     }
 
     pub fn with_db<F, B>(&self, process: F) -> B
-        where
-            F: Fn(RwLockReadGuard<RkvLmdb>, SingleStore<LmdbDatabase>) -> B,
+    where
+        F: Fn(RwLockReadGuard<RkvLmdb>, SingleStore<LmdbDatabase>) -> B,
     {
         let env = self.rwl.read().unwrap();
         // Then you can use the environment handle to get a handle to a datastore:
@@ -98,8 +97,9 @@ impl Db {
     }
 
     fn write<F, E>(&self, process: F) -> WriteResult
-        where
-            F: Fn(&mut Writer<LmdbRwTransaction>, SingleStore<LmdbDatabase>) -> Result<(), E>, E: Into<DataStoreError>
+    where
+        F: Fn(&mut Writer<LmdbRwTransaction>, SingleStore<LmdbDatabase>) -> Result<(), E>,
+        E: Into<DataStoreError>,
     {
         self.with_db(|env, store| {
             let mut w = env.write().unwrap();
@@ -107,7 +107,6 @@ impl Db {
             w.commit().map_err(|e| e.into())
         })
     }
-
 
     pub fn all(&self) -> Vec<String> {
         self.with_db(|env, store| {
@@ -129,18 +128,15 @@ impl Db {
             let iter = store.iter_from(&reader, key).unwrap();
             let x: Vec<T> = iter
                 .flat_map(|r| {
-                    r.map_err(DataStoreError::StoreError)
-                        .and_then(|v| match v.1 {
-                            rkv::value::Value::Json(json_str) => {
-                                serde_json::from_str::<T>(json_str)
-                                    .map_err(DataStoreError::JsonError)
-                            },
-                            rkv::value::Value::Blob(str) => {
-                                bincode::deserialize::<T>(str)
-                                    .map_err(DataStoreError::BlobError)
-                            }
-                            _ => Err(DataStoreError::ExpectedJson),
-                        })
+                    r.map_err(DataStoreError::StoreError).and_then(|v| match v.1 {
+                        rkv::value::Value::Json(json_str) => {
+                            serde_json::from_str::<T>(json_str).map_err(DataStoreError::JsonError)
+                        }
+                        rkv::value::Value::Blob(str) => {
+                            bincode::deserialize::<T>(str).map_err(DataStoreError::BlobError)
+                        }
+                        _ => Err(DataStoreError::ExpectedJson),
+                    })
                 })
                 .collect();
             x
@@ -152,23 +148,20 @@ impl Db {
             let reader = env.read().expect("reader");
             let iter = store.iter_start(&reader).unwrap();
             iter.map(|r| {
-                r.map_err(DataStoreError::StoreError)
-                    .and_then(|v| match v.1 {
-                        rkv::value::Value::Json(json_str) => {
-                            let t = serde_json::from_str::<T>(json_str)
-                                .map_err(DataStoreError::JsonError);
-                            t.map(|record| (std::str::from_utf8(v.0).unwrap().to_string(), record))
-                        },
-                        rkv::value::Value::Blob(str) => {
-                            let t = bincode::deserialize::<T>(str)
-                                .map_err(DataStoreError::BlobError);
-                            t.map(|record| (std::str::from_utf8(v.0).unwrap().to_string(), record))
-                        }
-                        _ => Err(DataStoreError::ExpectedJson),
-                    })
+                r.map_err(DataStoreError::StoreError).and_then(|v| match v.1 {
+                    rkv::value::Value::Json(json_str) => {
+                        let t = serde_json::from_str::<T>(json_str).map_err(DataStoreError::JsonError);
+                        t.map(|record| (std::str::from_utf8(v.0).unwrap().to_string(), record))
+                    }
+                    rkv::value::Value::Blob(str) => {
+                        let t = bincode::deserialize::<T>(str).map_err(DataStoreError::BlobError);
+                        t.map(|record| (std::str::from_utf8(v.0).unwrap().to_string(), record))
+                    }
+                    _ => Err(DataStoreError::ExpectedJson),
+                })
             })
-                .filter_map(|r| r.ok())
-                .collect()
+            .filter_map(|r| r.ok())
+            .collect()
         })
     }
 
@@ -199,16 +192,14 @@ impl Db {
                 rkv::value::Value::Blob(s) => {
                     let v: T = bincode::deserialize(s).unwrap();
                     Some(v)
-                },
+                }
                 _ => None,
             })
         })
     }
 
     pub fn delete_all(&self, key: &str) -> WriteResult {
-        self.write(|writer, store| {
-            Self::safe_delete(store, writer, key)
-        })
+        self.write(|writer, store| Self::safe_delete(store, writer, key))
     }
 
     pub fn put_json<T: Serialize>(&self, key: &str, v: T) -> WriteResult {
@@ -220,8 +211,7 @@ impl Db {
 
     pub fn put_all_json<T: Serialize>(&self, key: &str, v: &[T]) -> WriteResult {
         self.write::<_, rkv::StoreError>(|writer, store| {
-            v
-                .iter()
+            v.iter()
                 .enumerate()
                 .map(|(i, v)| {
                     let result = serde_json::to_string(&v).unwrap();
@@ -232,7 +222,11 @@ impl Db {
         })
     }
 
-    fn safe_delete<T: BackendDatabase, I: BackendRwTransaction<Database=T>>(store: SingleStore<T>, writer: &mut Writer<I>, key: &str) -> Result<(), StoreError> {
+    fn safe_delete<T: BackendDatabase, I: BackendRwTransaction<Database = T>>(
+        store: SingleStore<T>,
+        writer: &mut Writer<I>,
+        key: &str,
+    ) -> Result<(), StoreError> {
         match store.delete(writer, key) {
             Ok(()) => Ok(()),
             Err(e) => match e {
@@ -260,24 +254,22 @@ impl Db {
                     let encoded: Vec<u8> = bincode::serialize(&v).unwrap();
                     store.put(&mut writer, &format!("{}{}", key, i), &Value::Blob(&encoded))
                 })
-                .collect::<Result<Vec<()>, rkv::StoreError>>().unwrap();
+                .collect::<Result<Vec<()>, rkv::StoreError>>()
+                .unwrap();
             writer.commit().map_err(|e| e.into())
         })
     }
 
-    pub fn put_b<T: Serialize>(&self, key: &str, v: &T) -> WriteResult
-    {
+    pub fn put_b<T: Serialize>(&self, key: &str, v: &T) -> WriteResult {
         let encoded: Vec<u8> = bincode::serialize(&v).unwrap();
         self.put(key, &OwnedValue::Blob(encoded))
     }
 
     pub fn put<'a, T: 'a>(&self, key: &str, v: &'a T) -> WriteResult
-        where
-            Value<'a>: From<&'a T>,
+    where
+        Value<'a>: From<&'a T>,
     {
-        self.write(|writer, store| {
-            store.put(writer, &key, &v.into())
-        })
+        self.write(|writer, store| store.put(writer, &key, &v.into()))
     }
 
     // fn commit<I: BackendRwTransaction>(w: Writer<I>) -> WriteResult {
@@ -291,12 +283,12 @@ mod test {
 
     use std::sync::RwLockReadGuard;
 
-    use rkv::{SingleStore, Value};
     use rkv::backend::LmdbDatabase;
+    use rkv::{SingleStore, Value};
 
     use crate::{Db, RkvLmdb};
-    use test::Bencher;
     use std::time::Instant;
+    use test::Bencher;
 
     fn make_db_test(env: RwLockReadGuard<RkvLmdb>, store: SingleStore<LmdbDatabase>) {
         {
@@ -310,31 +302,17 @@ mod test {
             // Putting data returns a `Result<(), StoreError>`, where StoreError
             // is an enum identifying the reason for a failure.
             store.put(&mut writer, "int", &Value::I64(1234)).unwrap();
-            store
-                .put(&mut writer, "uint", &Value::U64(1234_u64))
-                .unwrap();
-            store
-                .put(&mut writer, "float", &Value::F64(1234.0.into()))
-                .unwrap();
+            store.put(&mut writer, "uint", &Value::U64(1234_u64)).unwrap();
+            store.put(&mut writer, "float", &Value::F64(1234.0.into())).unwrap();
             store
                 .put(&mut writer, "instant", &Value::Instant(1528318073700))
                 .unwrap();
+            store.put(&mut writer, "boolean", &Value::Bool(true)).unwrap();
+            store.put(&mut writer, "string", &Value::Str("Héllo, wörld!")).unwrap();
             store
-                .put(&mut writer, "boolean", &Value::Bool(true))
+                .put(&mut writer, "json", &Value::Json(r#"{"foo":"bar", "number": 1}"#))
                 .unwrap();
-            store
-                .put(&mut writer, "string", &Value::Str("Héllo, wörld!"))
-                .unwrap();
-            store
-                .put(
-                    &mut writer,
-                    "json",
-                    &Value::Json(r#"{"foo":"bar", "number": 1}"#),
-                )
-                .unwrap();
-            store
-                .put(&mut writer, "blob", &Value::Blob(b"blob"))
-                .unwrap();
+            store.put(&mut writer, "blob", &Value::Blob(b"blob")).unwrap();
 
             // You must commit a write transaction before the writer goes out
             // of scope, or the transaction will abort and the data won't persist.
@@ -374,10 +352,7 @@ mod test {
             store.put(&mut writer, "foo", &Value::Str("bar")).unwrap();
             writer.abort();
             let reader = env.read().expect("reader");
-            println!(
-                "It should be None! ({:?})",
-                store.get(&reader, "foo").unwrap()
-            );
+            println!("It should be None! ({:?})", store.get(&reader, "foo").unwrap());
         }
 
         {
@@ -389,10 +364,7 @@ mod test {
                 store.put(&mut writer, "foo", &Value::Str("bar")).unwrap();
             }
             let reader = env.read().expect("reader");
-            println!(
-                "It should be None! ({:?})",
-                store.get(&reader, "foo").unwrap()
-            );
+            println!("It should be None! ({:?})", store.get(&reader, "foo").unwrap());
         }
 
         {
@@ -408,10 +380,7 @@ mod test {
             // In the code above, "foo" and "bar" were put into the store,
             // then "foo" was deleted so only "bar" will return a result when the
             // database is queried via the writer.
-            println!(
-                "It should be None! ({:?})",
-                store.get(&writer, "foo").unwrap()
-            );
+            println!("It should be None! ({:?})", store.get(&writer, "foo").unwrap());
             println!("Get bar ({:?})", store.get(&writer, "bar").unwrap());
 
             // But a reader won't see that change until the write transaction
@@ -424,10 +393,7 @@ mod test {
             writer.commit().unwrap();
             {
                 let reader = env.read().expect("reader");
-                println!(
-                    "It should be None! ({:?})",
-                    store.get(&reader, "foo").unwrap()
-                );
+                println!("It should be None! ({:?})", store.get(&reader, "foo").unwrap());
                 println!("Get bar {:?}", store.get(&reader, "bar").unwrap());
             }
 
@@ -454,14 +420,8 @@ mod test {
 
             {
                 let reader = env.read().expect("reader");
-                println!(
-                    "It should be None! ({:?})",
-                    store.get(&reader, "foo").unwrap()
-                );
-                println!(
-                    "It should be None! ({:?})",
-                    store.get(&reader, "bar").unwrap()
-                );
+                println!("It should be None! ({:?})", store.get(&reader, "foo").unwrap());
+                println!("It should be None! ({:?})", store.get(&reader, "bar").unwrap());
             }
         }
     }
@@ -488,18 +448,10 @@ mod test {
     fn insert_json(env: RwLockReadGuard<RkvLmdb>, store: SingleStore<LmdbDatabase>) {
         let mut writer = env.write().unwrap();
         store
-            .put(
-                &mut writer,
-                "jsona",
-                &Value::Json(r#"{"foo":"bar", "number": 1}"#),
-            )
+            .put(&mut writer, "jsona", &Value::Json(r#"{"foo":"bar", "number": 1}"#))
             .unwrap();
         store
-            .put(
-                &mut writer,
-                "jsonb",
-                &Value::Json(r#"{"foo":"bar", "number": 2}"#),
-            )
+            .put(&mut writer, "jsonb", &Value::Json(r#"{"foo":"bar", "number": 2}"#))
             .unwrap();
         writer.commit().unwrap();
     }
@@ -509,19 +461,16 @@ mod test {
         let db = db();
         db.with_db(insert_json);
         let vec: Vec<Foobar> = db.read_json_vec("json");
-        assert_eq!(
-            vec,
-            [
-                Foobar {
-                    foo: "bar".to_string(),
-                    number: 1,
-                },
-                Foobar {
-                    foo: "bar".to_string(),
-                    number: 2,
-                }
-            ]
-        )
+        assert_eq!(vec, [
+            Foobar {
+                foo: "bar".to_string(),
+                number: 1,
+            },
+            Foobar {
+                foo: "bar".to_string(),
+                number: 2,
+            }
+        ])
     }
 
     #[test]
@@ -571,7 +520,7 @@ mod test {
         //db.replace_all("row", vals.as_slice());
 
         let now = Instant::now();
-        let read_values : Vec<(f64, f64)> = db.read_b("row").unwrap();
+        let read_values: Vec<(f64, f64)> = db.read_b("row").unwrap();
         println!("read larger array in {}", now.elapsed().as_millis());
         assert_eq!(read_values.len(), size)
     }

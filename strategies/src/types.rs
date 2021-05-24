@@ -8,9 +8,7 @@ use thiserror::Error;
 
 use coinnect_rt::types::{Orderbook, TradeType};
 
-#[derive(
-    Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
-)]
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
 pub enum TradeKind {
     #[strum(serialize = "buy")]
     BUY,
@@ -31,14 +29,12 @@ impl Into<i32> for TradeKind {
     fn into(self) -> i32 {
         match self {
             TradeKind::BUY => 0,
-            TradeKind::SELL => 1
+            TradeKind::SELL => 1,
         }
     }
 }
 
-#[derive(
-    Eq, PartialEq, Clone, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
-)]
+#[derive(Eq, PartialEq, Clone, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum PositionKind {
     #[strum(serialize = "short")]
@@ -47,9 +43,7 @@ pub enum PositionKind {
     LONG,
 }
 
-#[derive(
-    Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
-)]
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
 pub enum OperationKind {
     #[strum(serialize = "open")]
     OPEN,
@@ -57,45 +51,37 @@ pub enum OperationKind {
     CLOSE,
 }
 
-#[derive(
-    Clone, PartialEq, Eq, Debug, Deserialize, Serialize
-)]
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
 pub enum StopEvent {
     GAIN,
     LOSS,
-    NA
+    NA,
 }
 
-#[derive(
-    Clone, Debug, Deserialize, Serialize
-)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct OperationEvent {
     pub(crate) op: OperationKind,
     pub(crate) pos: PositionKind,
-    pub(crate) at: DateTime<Utc>
+    pub(crate) at: DateTime<Utc>,
 }
 
-#[derive(
-Clone, Debug, Deserialize, Serialize
-)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TradeEvent {
     pub(crate) op: TradeKind,
     pub(crate) qty: f64,
     pub(crate) pair: String,
     pub(crate) price: f64,
     pub(crate) strat_value: f64,
-    pub(crate) at: DateTime<Utc>
+    pub(crate) at: DateTime<Utc>,
 }
 
-#[derive(
-    Clone, Debug, Deserialize, Serialize
-)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "event")]
 pub enum StratEvent {
     Stop { stop: StopEvent },
     Operation(OperationEvent),
-    Trade(TradeEvent)
+    Trade(TradeEvent),
 }
 
 impl StratEvent {

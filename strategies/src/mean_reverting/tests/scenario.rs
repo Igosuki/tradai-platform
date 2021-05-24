@@ -11,12 +11,12 @@ use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::MeanRevertingState;
 use crate::mean_reverting::MeanRevertingStrategy;
 use crate::order_manager::test_util::mock_manager;
-use ordered_float::OrderedFloat;
-use serde::{Serializer, ser::SerializeSeq};
-use std::io::BufWriter;
 use crate::test_util::now_str;
+use crate::types::{OperationEvent, TradeEvent};
 use coinnect_rt::exchange::Exchange;
-use crate::types::{TradeEvent, OperationEvent};
+use ordered_float::OrderedFloat;
+use serde::{ser::SerializeSeq, Serializer};
+use std::io::BufWriter;
 
 #[derive(Debug, Serialize, Clone)]
 struct StrategyLog {
@@ -46,18 +46,12 @@ fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn
     let string = format!("graphs/mean_reverting_plot_{}.svg", now_str());
     let color_wheel = vec![&BLACK, &BLUE, &RED];
     let more_lines: Vec<StrategyEntry<'_>> = vec![
-        (
-            "Prices and EMA",
-            vec![|x| x.mid, |x| x.value.short_ema.current, |x| {
-                x.value.long_ema.current
-            }],
-        ),
-        (
-            "Open Position Return",
-            vec![|x| x.state.short_position_return(), |x| {
-                x.state.long_position_return()
-            }],
-        ),
+        ("Prices and EMA", vec![|x| x.mid, |x| x.value.short_ema.current, |x| {
+            x.value.long_ema.current
+        }]),
+        ("Open Position Return", vec![|x| x.state.short_position_return(), |x| {
+            x.state.long_position_return()
+        }]),
         ("APO", vec![|x| x.state.apo()]),
         ("PnL", vec![|x| x.state.pnl()]),
         ("Nominal (units)", vec![|x| x.state.nominal_position()]),
@@ -111,9 +105,7 @@ fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn
 
 type StrategyEntry<'a> = (&'a str, Vec<fn(&StrategyLog) -> f64>);
 
-fn init() {
-    let _ = env_logger::builder().is_test(true).try_init();
-}
+fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
 static EXCHANGE: &str = "Binance";
 static CHANNEL: &str = "order_books";
@@ -133,18 +125,16 @@ async fn moving_average() {
         EXCHANGE,
         CHANNEL,
     )
-        .await;
+    .await;
     // align data
-    records[0]
-        .iter()
-        .take(500)
-        .for_each(|l| {
-            model.update_model(SinglePosRow {
+    records[0].iter().take(500).for_each(|l| {
+        model
+            .update_model(SinglePosRow {
                 time: l.event_ms,
                 pos: l.into(),
             })
-                .unwrap();
-        });
+            .unwrap();
+    });
     let apo = model.value().unwrap().apo;
     assert!(apo > 0.0, "apo {}", apo);
 }
@@ -194,8 +184,12 @@ async fn continuous_scenario() {
         EXCHANGE,
         CHANNEL,
     )
-        .await;
-    info!("Loaded {} csv records in {:.6} ms", csv_records[0].len(), now.elapsed().as_millis());
+    .await;
+    info!(
+        "Loaded {} csv records in {:.6} ms",
+        csv_records[0].len(),
+        now.elapsed().as_millis()
+    );
     // align data
     let pair_csv_records = csv_records[0].iter();
     let mut strategy_logs: Vec<StrategyLog> = Vec::new();
@@ -218,43 +212,53 @@ async fn continuous_scenario() {
         strategy_logs.push(StrategyLog::from_state(row_time, strat.state.clone(), &row, value));
         match strat.state.ongoing_op() {
             Some(op) => trade_events.push((op.operation_event().clone(), op.trade_event())),
-            None => ()
+            None => (),
         }
         elapsed += now.elapsed().as_nanos();
     }
-    info!("For {} records, evals took {}ms, each iteration took {} ns on avg", csv_records[0].len(), before_evals.elapsed().as_millis(), elapsed / csv_records[0].len() as u128);
+    info!(
+        "For {} records, evals took {}ms, each iteration took {} ns on avg",
+        csv_records[0].len(),
+        before_evals.elapsed().as_millis(),
+        elapsed / csv_records[0].len() as u128
+    );
 
     // Write all model values to a csv file
-    let mut ema_values_wtr =
-        csv::Writer::from_path(format!("{}/{}_ema_values.csv", test_results_dir, PAIR))
-            .unwrap();
-    ema_values_wtr.write_record(&["ts", "short_ema", "long_ema", "apo", "value_strat"]).unwrap();
+    let mut ema_values_wtr = csv::Writer::from_path(format!("{}/{}_ema_values.csv", test_results_dir, PAIR)).unwrap();
+    ema_values_wtr
+        .write_record(&["ts", "short_ema", "long_ema", "apo", "value_strat"])
+        .unwrap();
     for model_value in model_values {
-        ema_values_wtr.write_record(&[
-            model_value.0.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
-            model_value.1.short_ema.current.to_string(),
-            model_value.1.long_ema.current.to_string(),
-            model_value.1.apo.to_string(),
-            model_value.2.to_string(),
-        ]).unwrap();
+        ema_values_wtr
+            .write_record(&[
+                model_value.0.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
+                model_value.1.short_ema.current.to_string(),
+                model_value.1.long_ema.current.to_string(),
+                model_value.1.apo.to_string(),
+                model_value.2.to_string(),
+            ])
+            .unwrap();
     }
     ema_values_wtr.flush().unwrap();
 
     // Write all trade events to a csv file
     let mut trade_events_wtr =
-        csv::Writer::from_path(format!("{}/{}_trade_events.csv", test_results_dir, PAIR))
-            .unwrap();
-    trade_events_wtr.write_record(&["ts", "op", "pos", "trade_kind", "price", "qty", "value_strat"]).unwrap();
+        csv::Writer::from_path(format!("{}/{}_trade_events.csv", test_results_dir, PAIR)).unwrap();
+    trade_events_wtr
+        .write_record(&["ts", "op", "pos", "trade_kind", "price", "qty", "value_strat"])
+        .unwrap();
     for (op_event, trade_event) in trade_events {
-        trade_events_wtr.write_record(&[
-            trade_event.at.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
-            op_event.op.as_ref().to_string(),
-            op_event.pos.as_ref().to_string(),
-            trade_event.op.as_ref().to_string(),
-            trade_event.price.to_string(),
-            trade_event.qty.to_string(),
-            trade_event.strat_value.to_string(),
-        ]).unwrap();
+        trade_events_wtr
+            .write_record(&[
+                trade_event.at.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
+                op_event.op.as_ref().to_string(),
+                op_event.pos.as_ref().to_string(),
+                trade_event.op.as_ref().to_string(),
+                trade_event.price.to_string(),
+                trade_event.qty.to_string(),
+                trade_event.strat_value.to_string(),
+            ])
+            .unwrap();
     }
 
     trade_events_wtr.flush().unwrap();
@@ -268,19 +272,22 @@ async fn continuous_scenario() {
     {
         info_time!("Write strategy logs");
         let mut thresholds_wtr =
-            csv::Writer::from_path(format!("{}/{}_thresholds.csv", test_results_dir, PAIR))
-                .unwrap();
-        thresholds_wtr.write_record(&["ts", "threshold_short", "threshold_long"]).unwrap();
+            csv::Writer::from_path(format!("{}/{}_thresholds.csv", test_results_dir, PAIR)).unwrap();
+        thresholds_wtr
+            .write_record(&["ts", "threshold_short", "threshold_long"])
+            .unwrap();
         let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
         let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
         let mut seq = ser.serialize_seq(None).unwrap();
         for log in strategy_logs.clone() {
             seq.serialize_element(&log).unwrap();
-            thresholds_wtr.write_record(&[
-                log.time.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
-                log.state.threshold_short().to_string(),
-                log.state.threshold_long().to_string()
-            ]).unwrap();
+            thresholds_wtr
+                .write_record(&[
+                    log.time.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
+                    log.state.threshold_short().to_string(),
+                    log.state.threshold_long().to_string(),
+                ])
+                .unwrap();
         }
         seq.end().unwrap();
         thresholds_wtr.flush().unwrap();

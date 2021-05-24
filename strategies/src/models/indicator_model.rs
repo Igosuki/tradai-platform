@@ -1,8 +1,8 @@
+use super::persist::{ModelValue, PersistentModel};
 use chrono::{DateTime, Utc};
 use db::DataStoreError;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use super::persist::{PersistentModel, ModelValue};
 
 type ModelUpdateFn<T, R> = fn(&T, &R) -> T;
 
@@ -15,17 +15,16 @@ pub struct IndicatorModel<T, R> {
 }
 
 impl<T: Serialize + DeserializeOwned + Clone, R: Clone> IndicatorModel<T, R> {
-    pub fn new(
-        id: &str,
-        db_path: &str,
-        initial_value: T,
-        update_fn: ModelUpdateFn<T, R>,
-    ) -> Self {
+    pub fn new(id: &str, db_path: &str, initial_value: T, update_fn: ModelUpdateFn<T, R>) -> Self {
         Self {
-            model: PersistentModel::new(db_path, id.to_string(), Some(ModelValue {
-                value: initial_value,
-                at: Utc::now()
-            })),
+            model: PersistentModel::new(
+                db_path,
+                id.to_string(),
+                Some(ModelValue {
+                    value: initial_value,
+                    at: Utc::now(),
+                }),
+            ),
             update_fn,
         }
     }
@@ -35,16 +34,10 @@ impl<T: Serialize + DeserializeOwned + Clone, R: Clone> IndicatorModel<T, R> {
         self.model.update_model(x, &row)
     }
 
-    pub fn last_model_time(&self) -> Option<DateTime<Utc>> {
-        self.model.last_model_time()
-    }
+    pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }
 
-    pub fn value(&self) -> Option<T> {
-        self.model.value()
-    }
+    pub fn value(&self) -> Option<T> { self.model.value() }
 }
 
 #[cfg(test)]
-mod test {
-
-}
+mod test {}

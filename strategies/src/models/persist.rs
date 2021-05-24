@@ -1,8 +1,8 @@
-use chrono::{Utc, DateTime};
+use chrono::{DateTime, Utc};
 use db::{DataStoreError, Db};
-use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
-use std::iter::{Take, Rev};
+use serde::{Deserialize, Serialize};
+use std::iter::{Rev, Take};
 use std::slice::Iter;
 
 static LAST_MODEL_KEY: &str = "last_model";
@@ -54,9 +54,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
         Ok(())
     }
 
-    pub fn last_model_time(&self) -> Option<DateTime<Utc>> {
-        self.last_model.as_ref().map(|m| m.at)
-    }
+    pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.last_model.as_ref().map(|m| m.at) }
 
     #[allow(dead_code)]
     pub fn wipe_model(&mut self) -> Result<(), DataStoreError> {
@@ -64,17 +62,11 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
         Ok(())
     }
 
-    pub fn has_model(&self) -> bool {
-        self.last_model.is_some()
-    }
+    pub fn has_model(&self) -> bool { self.last_model.is_some() }
 
-    pub fn model(&self) -> Option<ModelValue<T>> {
-        self.last_model.clone()
-    }
+    pub fn model(&self) -> Option<ModelValue<T>> { self.last_model.clone() }
 
-    pub fn value(&self) -> Option<T> {
-        self.last_model.clone().map(|s| s.value)
-    }
+    pub fn value(&self) -> Option<T> { self.last_model.clone().map(|s| s.value) }
 
     pub fn try_loading_model(&mut self) -> bool {
         if self.last_model_load_attempt.is_some() || self.has_model() {
@@ -112,10 +104,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
     pub fn push(&mut self, row: &T) {
         self.rows.push(row.clone());
         // Truncate the table by window_size once max_size is reached
-        if let Err(e) = self
-            .db
-            .put_b(&format!("{}{}", ROW_KEY, self.rows.len() - 1), row)
-        {
+        if let Err(e) = self.db.put_b(&format!("{}{}", ROW_KEY, self.rows.len() - 1), row) {
             error!("Failed writing row : {:?}", e);
         }
         if self.rows.len() > self.max_size {
@@ -126,21 +115,13 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
         }
     }
 
-    pub(crate) fn window(&self) -> Window<T> {
-        self.rows.iter().rev().take(self.window_size)
-    }
+    pub(crate) fn window(&self) -> Window<T> { self.rows.iter().rev().take(self.window_size) }
 
-    pub fn len(&self) -> usize {
-        self.rows.len()
-    }
+    pub fn len(&self) -> usize { self.rows.len() }
 
-    pub fn load(&mut self) {
-        self.rows = self.db.read_json_vec(ROW_KEY);
-    }
+    pub fn load(&mut self) { self.rows = self.db.read_json_vec(ROW_KEY); }
 
-    pub fn is_filled(&self) -> bool {
-        self.len() > self.window_size
-    }
+    pub fn is_filled(&self) -> bool { self.len() > self.window_size }
 }
 
 #[cfg(test)]
@@ -149,13 +130,13 @@ mod test {
 
     use tempfile::TempDir;
 
-    use crate::types::BookPosition;
     use super::ModelValue;
+    use super::PersistentModel;
+    use crate::types::BookPosition;
     use chrono::{DateTime, Utc};
+    use fake::Fake;
     use quickcheck::{Arbitrary, Gen};
     use test::Bencher;
-    use fake::Fake;
-    use super::PersistentModel;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct MockLinearModel;
@@ -188,9 +169,9 @@ mod test {
             tempdir.into_path().to_str().unwrap(),
             "default".to_string(),
             Some(ModelValue {
-                value: MockLinearModel{},
+                value: MockLinearModel {},
                 at: Utc::now(),
-            })
+            }),
         );
         let _gen = Gen::new(500);
         b.iter(|| table.update_model(|m, _a| m.clone(), ()).unwrap());

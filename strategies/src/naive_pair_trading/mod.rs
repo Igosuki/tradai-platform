@@ -13,12 +13,12 @@ pub mod state;
 #[cfg(test)]
 mod tests;
 
-use crate::types::{BookPosition, PositionKind};
+use crate::models::WindowedModel;
 use crate::naive_pair_trading::covar_model::{DataRow, LinearModelValue};
 use crate::naive_pair_trading::state::Operation;
-use crate::models::WindowedModel;
 use crate::order_manager::OrderManager;
 use crate::query::{FieldMutation, MutableField};
+use crate::types::{BookPosition, PositionKind};
 use crate::{DataQuery, DataResult, StrategyInterface};
 use actix::Addr;
 use coinnect_rt::types::LiveEvent;
@@ -52,8 +52,7 @@ pub struct NaiveTradingStrategy {
 
 impl NaiveTradingStrategy {
     pub fn new(db_path: &str, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
-        let metrics =
-            NaiveStrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
+        let metrics = NaiveStrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
         let strat_db_path = format!("{}/naive_pair_trading_{}_{}", db_path, n.left, n.right);
         let db_name = format!("{}_{}", n.left, n.right);
         let db = Db::new(&strat_db_path, db_name);
@@ -66,12 +65,7 @@ impl NaiveTradingStrategy {
             beta_eval_window_size: n.window_size,
             beta_eval_freq: n.beta_eval_freq,
             state: MovingState::new(n.initial_cap, db, om, n.dry_mode()),
-            data_table: Self::make_lm_table(
-                &n.left,
-                &n.right,
-                &strat_db_path,
-                n.window_size as usize,
-            ),
+            data_table: Self::make_lm_table(&n.left, &n.right, &strat_db_path, n.window_size as usize),
             right_pair: n.right.to_string(),
             left_pair: n.left.to_string(),
             last_row_process_time: Utc.timestamp_millis(0),
@@ -109,14 +103,10 @@ impl NaiveTradingStrategy {
             } else {
                 "n/a"
             };
-            info!(
-                "---- Stop-{} executed ({} position) ----",
-                expr,
-                match pk {
-                    PositionKind::SHORT => "short",
-                    PositionKind::LONG => "long",
-                },
-            )
+            info!("---- Stop-{} executed ({} position) ----", expr, match pk {
+                PositionKind::SHORT => "short",
+                PositionKind::LONG => "long",
+            },)
         }
     }
 
@@ -158,9 +148,7 @@ impl NaiveTradingStrategy {
         self.last_row_time_at_eval = self.last_sample_time;
     }
 
-    fn predict(&self, bp: &BookPosition) -> f64 {
-        covar_model::predict(self.state.alpha(), self.state.beta(), bp.mid)
-    }
+    fn predict(&self, bp: &BookPosition) -> f64 { covar_model::predict(self.state.alpha(), self.state.beta(), bp.mid) }
 
     fn update_spread(&mut self, row: &DataRow) {
         self.set_long_spread(row.right.ask);
@@ -168,9 +156,8 @@ impl NaiveTradingStrategy {
     }
 
     fn set_long_spread(&mut self, traded_price: f64) {
-        self.state.set_units_to_buy_long_spread(
-            self.state.value_strat() / (traded_price * (1.0 + self.fees_rate)),
-        );
+        self.state
+            .set_units_to_buy_long_spread(self.state.value_strat() / (traded_price * (1.0 + self.fees_rate)));
     }
 
     fn set_short_spread(&mut self, traded_price: f64) {
@@ -334,29 +321,17 @@ impl NaiveTradingStrategy {
         }
     }
 
-    fn log_state(&self) {
-        self.metrics.log_state(&self.state);
-    }
+    fn log_state(&self) { self.metrics.log_state(&self.state); }
 
-    fn get_operations(&self) -> Vec<Operation> {
-        self.state.get_operations()
-    }
+    fn get_operations(&self) -> Vec<Operation> { self.state.get_operations() }
 
-    fn get_ongoing_op(&self) -> &Option<Operation> {
-        self.state.ongoing_op()
-    }
+    fn get_ongoing_op(&self) -> &Option<Operation> { self.state.ongoing_op() }
 
-    fn cancel_ongoing_op(&mut self) -> bool {
-        self.state.cancel_ongoing_op()
-    }
+    fn cancel_ongoing_op(&mut self) -> bool { self.state.cancel_ongoing_op() }
 
-    fn dump_db(&self) -> Vec<String> {
-        self.state.dump_db()
-    }
+    fn dump_db(&self) -> Vec<String> { self.state.dump_db() }
 
-    fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> {
-        self.state.change_state(field, v)
-    }
+    fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> { self.state.change_state(field, v) }
 }
 
 #[async_trait]
@@ -371,10 +346,7 @@ impl StrategyInterface for NaiveTradingStrategy {
             }
         }
         let now = Utc::now();
-        if now.gt(&self
-            .last_row_process_time
-            .add(chrono::Duration::milliseconds(200)))
-        {
+        if now.gt(&self.last_row_process_time.add(chrono::Duration::milliseconds(200))) {
             if let (Some(l), Some(r)) = (self.last_left.clone(), self.last_right.clone()) {
                 let x = DataRow {
                     left: l,
@@ -392,16 +364,10 @@ impl StrategyInterface for NaiveTradingStrategy {
         match q {
             DataQuery::Operations => Some(DataResult::NaiveOperations(self.get_operations())),
             DataQuery::Dump => Some(DataResult::Dump(self.dump_db())),
-            DataQuery::CurrentOperation => {
-                Some(DataResult::NaiveOperation(self.get_ongoing_op().clone()))
-            }
-            DataQuery::CancelOngoingOp => Some(DataResult::OngongOperationCancelation(
-                self.cancel_ongoing_op(),
-            )),
+            DataQuery::CurrentOperation => Some(DataResult::NaiveOperation(self.get_ongoing_op().clone())),
+            DataQuery::CancelOngoingOp => Some(DataResult::OngongOperationCancelation(self.cancel_ongoing_op())),
         }
     }
 
-    fn mutate(&mut self, m: FieldMutation) -> Result<()> {
-        self.change_state(m.field, m.value)
-    }
+    fn mutate(&mut self, m: FieldMutation) -> Result<()> { self.change_state(m.field, m.value) }
 }

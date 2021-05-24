@@ -32,9 +32,7 @@ impl ExponentialMovingAverage {
         }
     }
 
-    pub fn length(&self) -> u32 {
-        self.length
-    }
+    pub fn length(&self) -> u32 { self.length }
 }
 
 impl Next<f64> for ExponentialMovingAverage {
@@ -54,9 +52,7 @@ impl Next<f64> for ExponentialMovingAverage {
 impl<'a, T: Close> Next<&'a T> for ExponentialMovingAverage {
     type Output = f64;
 
-    fn next(&mut self, input: &'a T) -> Self::Output {
-        self.next(input.close())
-    }
+    fn next(&mut self, input: &'a T) -> Self::Output { self.next(input.close()) }
 }
 
 impl Reset for ExponentialMovingAverage {
@@ -67,15 +63,11 @@ impl Reset for ExponentialMovingAverage {
 }
 
 impl Default for ExponentialMovingAverage {
-    fn default() -> Self {
-        Self::new(2.0, 9).unwrap()
-    }
+    fn default() -> Self { Self::new(2.0, 9).unwrap() }
 }
 
 impl fmt::Display for ExponentialMovingAverage {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "EMA({})", self.length)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "EMA({})", self.length) }
 }
 
 #[cfg(test)]
@@ -119,9 +111,7 @@ mod test {
         }
 
         #[test]
-        fn test_default() {
-            ExponentialMovingAverage::default();
-        }
+        fn test_default() { ExponentialMovingAverage::default(); }
 
         #[test]
         fn test_display() {

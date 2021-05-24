@@ -24,7 +24,5 @@ impl Options {
         Duration::from_std(parse(&self.beta_sample_freq).unwrap()).unwrap()
     }
 
-    pub(super) fn dry_mode(&self) -> bool {
-        self.dry_mode.unwrap_or(true)
-    }
+    pub(super) fn dry_mode(&self) -> bool { self.dry_mode.unwrap_or(true) }
 }

@@ -36,8 +36,5 @@ pub async fn httpserver(
             .configure(crate::api::config_app)
     };
     debug!("Starting api server on {} ...", port);
-    HttpServer::new(app)
-        .bind(format!("localhost:{}", port))?
-        .run()
-        .await
+    HttpServer::new(app).bind(format!("localhost:{}", port))?.run().await
 }

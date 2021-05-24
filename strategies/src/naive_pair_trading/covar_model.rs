@@ -1,5 +1,5 @@
-use crate::types::BookPosition;
 use crate::models::Window;
+use crate::types::BookPosition;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use math::iter::{CovarianceExt, MeanExt, VarianceExt};
@@ -15,9 +15,7 @@ pub fn beta(i: Window<DataRow>) -> f64 {
     let (var, covar) = i.tee();
     let variance: f64 = var.map(|r| r.left.mid).variance();
     trace!("variance {}", variance);
-    let covariance: f64 = covar
-        .map(|r| (r.left.mid, r.right.mid))
-        .covariance::<(f64, f64), f64>();
+    let covariance: f64 = covar.map(|r| (r.left.mid, r.right.mid)).covariance::<(f64, f64), f64>();
     trace!("covariance {}", covariance);
     let beta_val = covariance / variance;
     trace!("beta_val {}", beta_val);
@@ -42,11 +40,7 @@ pub struct LinearModelValue {
 pub fn linear_model(_m: &LinearModelValue, i: Window<DataRow>) -> LinearModelValue {
     let beta = beta(i.clone());
     let alpha = alpha(i.clone(), beta);
-    LinearModelValue {
-        beta, alpha
-    }
+    LinearModelValue { beta, alpha }
 }
 
-pub fn predict(alpha: f64, beta: f64, value: f64) -> f64 {
-    alpha + beta * value
-}
+pub fn predict(alpha: f64, beta: f64, value: f64) -> f64 { alpha + beta * value }

@@ -3,11 +3,11 @@ pub mod binance_test_util {
     use std::io;
 
     use actix_http::ws;
+    use bytestring::ByteString;
     use coinnect_rt::binance::{BinanceApi, BinanceCreds};
     use coinnect_rt::exchange::ExchangeApi;
     use futures::Future;
     use httpmock::MockServer;
-    use bytestring::ByteString;
 
     // use std::sync::mpsc::Receiver;
 
@@ -23,9 +23,7 @@ pub mod binance_test_util {
             // let msg = input.recv().unwrap();
             let result: Result<ws::Message, io::Error> = match req {
                 ws::Frame::Ping(msg) => Ok(ws::Message::Pong(msg)),
-                ws::Frame::Text(text) => Ok(ws::Message::Text(
-                    ByteString::from_bytes_unchecked(text)
-                )),
+                ws::Frame::Text(text) => Ok(ws::Message::Text(ByteString::from_bytes_unchecked(text))),
                 ws::Frame::Binary(bin) => Ok(ws::Message::Binary(bin)),
                 ws::Frame::Close(reason) => Ok(ws::Message::Close(reason)),
                 _ => Ok(ws::Message::Close(None)),

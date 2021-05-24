@@ -5,14 +5,14 @@ use glob::glob;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::{Result, BufReader};
+use std::io::{BufReader, Result};
+use std::iter::FromIterator;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
 use util::date::DateRange;
 use util::serdes::date_time_format;
-use std::iter::FromIterator;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CsvRecord {
@@ -62,9 +62,7 @@ impl Into<BookPosition> for CsvRecord {
 }
 
 impl<'a> Into<BookPosition> for &'a CsvRecord {
-    fn into(self) -> BookPosition {
-        self.clone().into()
-    }
+    fn into(self) -> BookPosition { self.clone().into() }
 }
 
 pub fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
@@ -92,12 +90,10 @@ pub fn partition_path(exchange: &str, ts: i64, channel: &str, pair: &str) -> Opt
     )
 }
 
-pub fn load_records_from_csv<R>(
-    dr: &DateRange,
-    base_path: &PathBuf,
-    pairs: Vec<String>,
-    glob_str: &str,
-) -> Vec<Vec<R>> where Vec<R>: FromIterator<CsvRecord> {
+pub fn load_records_from_csv<R>(dr: &DateRange, base_path: &PathBuf, pairs: Vec<String>, glob_str: &str) -> Vec<Vec<R>>
+where
+    Vec<R>: FromIterator<CsvRecord>,
+{
     let get_records = move |p: String| {
         dr.clone()
             .flat_map(|dt| {
@@ -114,22 +110,16 @@ pub fn load_records_from_csv<R>(
     pairs.iter().map(|p| get_records(p.to_string())).collect()
 }
 
-fn load_records(path: &str) -> Vec<CsvRecord> {
-    read_csv(path).unwrap()
-}
+fn load_records(path: &str) -> Vec<CsvRecord> { read_csv(path).unwrap() }
 
-async fn dl_test_data(
-    base_path: Arc<String>,
-    exchange_name: Arc<String>,
-    channel: Arc<String>,
-    pair: String,
-) {
+async fn dl_test_data(base_path: Arc<String>, exchange_name: Arc<String>, channel: Arc<String>, pair: String) {
     let out_file_name = format!("{}.zip", pair);
     let file = tempfile::tempdir().unwrap();
     let out_file = file.into_path().join(out_file_name);
     let s3_key = &format!("test_data/{}/{}/{}.zip", exchange_name, channel, pair);
     util::s3::download_file(&s3_key.clone(), out_file.clone())
-        .await.expect("s3 file downloaded");
+        .await
+        .expect("s3 file downloaded");
 
     let bp = base_path.deref();
 
@@ -154,10 +144,7 @@ pub async fn load_csv_dataset(
         .and_then(|oss| oss.into_string().ok())
         .unwrap_or_else(|| "..".to_string());
 
-    let base_path = Path::new(&bp)
-        .join("data")
-        .join(exchange_name)
-        .join(channel.clone());
+    let base_path = Path::new(&bp).join("data").join(exchange_name).join(channel.clone());
     let bpc = Arc::new(bp);
     let channelc = Arc::new(channel.to_string());
     let exchange_namec = Arc::new(exchange_name.to_string());
@@ -166,8 +153,7 @@ pub async fn load_csv_dataset(
         if !base_path.exists() || !base_path.join(&format!("pr={}", s)).exists() {
             println!("download dataset from spaces");
             std::fs::create_dir_all(&base_path).unwrap();
-            crate::input::dl_test_data(bpc.clone(), exchange_namec.clone(), channelc.clone(), s)
-                .await;
+            crate::input::dl_test_data(bpc.clone(), exchange_namec.clone(), channelc.clone(), s).await;
         }
     }
     crate::input::load_records_from_csv(dr, &base_path, pairs, "*csv")

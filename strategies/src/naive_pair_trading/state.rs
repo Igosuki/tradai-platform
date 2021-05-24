@@ -1,7 +1,7 @@
-use crate::types::{BookPosition, StratEvent, OperationEvent, TradeEvent};
-use crate::types::{OperationKind, PositionKind, TradeKind};
 use crate::order_manager::{OrderId, OrderManager, StagedOrder, Transaction};
 use crate::query::MutableField;
+use crate::types::{BookPosition, OperationEvent, StratEvent, TradeEvent};
+use crate::types::{OperationKind, PositionKind, TradeKind};
 use actix::Addr;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -54,44 +54,28 @@ impl TradeOperation {
 #[juniper::graphql_object]
 impl Operation {
     #[graphql(description = "the kind of operation")]
-    pub fn kind(&self) -> &OperationKind {
-        &self.kind
-    }
+    pub fn kind(&self) -> &OperationKind { &self.kind }
 
     #[graphql(description = "the position this operation is based on")]
-    pub fn pos(&self) -> &Position {
-        &self.pos
-    }
+    pub fn pos(&self) -> &Position { &self.pos }
 
     #[graphql(description = "the operation of the 'left' crypto pair")]
-    pub fn left_trade(&self) -> &TradeOperation {
-        &self.left_trade
-    }
+    pub fn left_trade(&self) -> &TradeOperation { &self.left_trade }
 
     #[graphql(description = "the operation of the 'right' crypto pair")]
-    pub fn right_trade(&self) -> &TradeOperation {
-        &self.right_trade
-    }
+    pub fn right_trade(&self) -> &TradeOperation { &self.right_trade }
 
     #[graphql(description = "left value")]
-    pub fn left_value(&self) -> f64 {
-        self.left_trade.qty * self.pos.left_price * self.left_coef.abs()
-    }
+    pub fn left_value(&self) -> f64 { self.left_trade.qty * self.pos.left_price * self.left_coef.abs() }
 
     #[graphql(description = "right value")]
-    pub fn right_value(&self) -> f64 {
-        self.right_trade.qty * self.pos.right_price * self.right_coef.abs()
-    }
+    pub fn right_value(&self) -> f64 { self.right_trade.qty * self.pos.right_price * self.right_coef.abs() }
 }
 
 impl Operation {
-    pub fn left_value(&self) -> f64 {
-        self.left_trade.qty * self.pos.left_price * self.left_coef.abs()
-    }
+    pub fn left_value(&self) -> f64 { self.left_trade.qty * self.pos.left_price * self.left_coef.abs() }
 
-    pub fn right_value(&self) -> f64 {
-        self.right_trade.qty * self.pos.right_price * self.right_coef.abs()
-    }
+    pub fn right_value(&self) -> f64 { self.right_trade.qty * self.pos.right_price * self.right_coef.abs() }
 
     pub fn is_resolved(&self) -> bool {
         match (&self.right_transaction, &self.left_transaction) {
@@ -104,8 +88,9 @@ impl Operation {
         StratEvent::Operation(OperationEvent {
             op: self.kind.clone(),
             pos: self.pos.kind.clone(),
-            at: self.pos.time
-        }).log();
+            at: self.pos.time,
+        })
+        .log();
         StratEvent::Trade(TradeEvent {
             op: self.right_trade.kind.clone(),
             qty: self.right_trade.qty,
@@ -113,7 +98,8 @@ impl Operation {
             price: self.pos.right_price,
             strat_value: self.right_value(),
             at: self.pos.time,
-        }).log();
+        })
+        .log();
         StratEvent::Trade(TradeEvent {
             op: self.left_trade.kind.clone(),
             qty: self.left_trade.qty,
@@ -121,7 +107,8 @@ impl Operation {
             price: self.pos.left_price,
             strat_value: self.left_value(),
             at: self.pos.time,
-        }).log();
+        })
+        .log();
     }
 }
 
@@ -220,33 +207,19 @@ impl MovingState {
         }
     }
 
-    pub(super) fn no_position_taken(&self) -> bool {
-        self.position.is_none()
-    }
+    pub(super) fn no_position_taken(&self) -> bool { self.position.is_none() }
 
-    pub(super) fn is_long(&self) -> bool {
-        self.position.eq(&Some(PositionKind::LONG))
-    }
+    pub(super) fn is_long(&self) -> bool { self.position.eq(&Some(PositionKind::LONG)) }
 
-    pub(super) fn is_short(&self) -> bool {
-        self.position.eq(&Some(PositionKind::SHORT))
-    }
+    pub(super) fn is_short(&self) -> bool { self.position.eq(&Some(PositionKind::SHORT)) }
 
-    pub(super) fn set_position(&mut self, k: PositionKind) {
-        self.position = Some(k);
-    }
+    pub(super) fn set_position(&mut self, k: PositionKind) { self.position = Some(k); }
 
-    pub(super) fn unset_position(&mut self) {
-        self.position = None;
-    }
+    pub(super) fn unset_position(&mut self) { self.position = None; }
 
-    fn set_ongoing_op(&mut self, op: Option<Operation>) {
-        self.ongoing_op = op;
-    }
+    fn set_ongoing_op(&mut self, op: Option<Operation>) { self.ongoing_op = op; }
 
-    pub fn ongoing_op(&self) -> &Option<Operation> {
-        &self.ongoing_op
-    }
+    pub fn ongoing_op(&self) -> &Option<Operation> { &self.ongoing_op }
 
     pub fn cancel_ongoing_op(&mut self) -> bool {
         match self.ongoing_op {
@@ -259,71 +232,39 @@ impl MovingState {
         }
     }
 
-    pub(super) fn set_predicted_right(&mut self, predicted_right: f64) {
-        self.predicted_right = predicted_right;
-    }
+    pub(super) fn set_predicted_right(&mut self, predicted_right: f64) { self.predicted_right = predicted_right; }
 
-    pub(super) fn predicted_right(&self) -> f64 {
-        self.predicted_right
-    }
+    pub(super) fn predicted_right(&self) -> f64 { self.predicted_right }
 
     #[cfg(test)]
-    pub(super) fn traded_price_right(&self) -> f64 {
-        self.traded_price_right
-    }
+    pub(super) fn traded_price_right(&self) -> f64 { self.traded_price_right }
 
     #[cfg(test)]
-    pub(super) fn traded_price_left(&self) -> f64 {
-        self.traded_price_left
-    }
+    pub(super) fn traded_price_left(&self) -> f64 { self.traded_price_left }
 
-    pub(super) fn set_pnl(&mut self) {
-        self.pnl = self.value_strat;
-    }
+    pub(super) fn set_pnl(&mut self) { self.pnl = self.value_strat; }
 
-    pub(super) fn pnl(&self) -> f64 {
-        self.pnl
-    }
+    pub(super) fn pnl(&self) -> f64 { self.pnl }
 
-    pub(super) fn set_beta(&mut self, beta: f64) {
-        self.beta_val = beta;
-    }
+    pub(super) fn set_beta(&mut self, beta: f64) { self.beta_val = beta; }
 
-    pub(super) fn beta(&self) -> f64 {
-        self.beta_val
-    }
+    pub(super) fn beta(&self) -> f64 { self.beta_val }
 
-    pub(super) fn set_res(&mut self, res: f64) {
-        self.res = res;
-    }
+    pub(super) fn set_res(&mut self, res: f64) { self.res = res; }
 
-    pub(super) fn res(&self) -> f64 {
-        self.res
-    }
+    pub(super) fn res(&self) -> f64 { self.res }
 
-    pub(super) fn set_alpha(&mut self, alpha: f64) {
-        self.alpha_val = alpha;
-    }
+    pub(super) fn set_alpha(&mut self, alpha: f64) { self.alpha_val = alpha; }
 
-    pub(super) fn alpha(&self) -> f64 {
-        self.alpha_val
-    }
+    pub(super) fn alpha(&self) -> f64 { self.alpha_val }
 
-    pub(super) fn value_strat(&self) -> f64 {
-        self.value_strat
-    }
+    pub(super) fn value_strat(&self) -> f64 { self.value_strat }
 
-    pub(super) fn set_beta_lr(&mut self) {
-        self.beta_lr = self.beta_val;
-    }
+    pub(super) fn set_beta_lr(&mut self) { self.beta_lr = self.beta_val; }
 
-    pub(super) fn beta_lr(&self) -> f64 {
-        self.beta_lr
-    }
+    pub(super) fn beta_lr(&self) -> f64 { self.beta_lr }
 
-    pub(super) fn nominal_position(&self) -> f64 {
-        self.nominal_position
-    }
+    pub(super) fn nominal_position(&self) -> f64 { self.nominal_position }
 
     pub(super) fn set_units_to_buy_long_spread(&mut self, units_to_buy_long_spread: f64) {
         self.units_to_buy_long_spread = units_to_buy_long_spread;
@@ -361,13 +302,9 @@ impl MovingState {
             / self.pnl;
     }
 
-    pub(super) fn short_position_return(&self) -> f64 {
-        self.short_position_return
-    }
+    pub(super) fn short_position_return(&self) -> f64 { self.short_position_return }
 
-    pub(super) fn long_position_return(&self) -> f64 {
-        self.long_position_return
-    }
+    pub(super) fn long_position_return(&self) -> f64 { self.long_position_return }
 
     fn make_operation(
         &self,
@@ -408,19 +345,12 @@ impl MovingState {
 
     /// Fetches the latest version of this transaction for the order id
     /// Returns whether it changed, and the latest transaction retrieved
-    async fn latest_transaction_change(
-        &self,
-        tr: &Transaction,
-    ) -> anyhow::Result<(bool, Transaction)> {
+    async fn latest_transaction_change(&self, tr: &Transaction) -> anyhow::Result<(bool, Transaction)> {
         let new_tr = self.om.send(OrderId(tr.id.clone())).await??;
         Ok((!new_tr.variant_eq(&tr), new_tr))
     }
 
-    async fn maybe_retry_trade(
-        &self,
-        tr: Transaction,
-        trade: &TradeOperation,
-    ) -> anyhow::Result<Transaction> {
+    async fn maybe_retry_trade(&self, tr: Transaction, trade: &TradeOperation) -> anyhow::Result<Transaction> {
         if tr.is_rejected() {
             // Changed and rejected, retry transaction
             // TODO need to handle rejections in a finer grained way
@@ -487,18 +417,11 @@ impl MovingState {
                             Ok(())
                         } else {
                             // Need to resolve the operation, potentially with a new price
-                            let (current_price_left, current_price_right) = match (
-                                &self.position,
-                                &o.kind,
-                            ) {
+                            let (current_price_left, current_price_right) = match (&self.position, &o.kind) {
                                 (Some(PositionKind::SHORT), OperationKind::OPEN)
-                                | (Some(PositionKind::LONG), OperationKind::CLOSE) => {
-                                    (left_bp.ask, right_bp.bid)
-                                }
+                                | (Some(PositionKind::LONG), OperationKind::CLOSE) => (left_bp.ask, right_bp.bid),
                                 (Some(PositionKind::SHORT), OperationKind::CLOSE)
-                                | (Some(PositionKind::LONG), OperationKind::OPEN) => {
-                                    (left_bp.bid, right_bp.ask)
-                                }
+                                | (Some(PositionKind::LONG), OperationKind::OPEN) => (left_bp.bid, right_bp.ask),
                                 _ => {
                                     error!("Tried to determine new price for transactions when no position is taken");
                                     (0.0, 0.0)
@@ -510,10 +433,7 @@ impl MovingState {
                                 .await
                                 .map(|tr| new_op.left_transaction = Some(tr))
                             {
-                                error!(
-                                    "Failed to retry trade {:?}, {:?} : {}",
-                                    &lts, &new_left_trade, e
-                                );
+                                error!("Failed to retry trade {:?}, {:?} : {}", &lts, &new_left_trade, e);
                             }
                             let new_right_trade = o.right_trade.with_new_price(current_price_right);
                             if let Err(e) = self
@@ -521,15 +441,10 @@ impl MovingState {
                                 .await
                                 .map(|tr| new_op.right_transaction = Some(tr))
                             {
-                                error!(
-                                    "Failed to retry right trade {:?}, {:?} : {}",
-                                    &rts, &new_right_trade, e
-                                );
+                                error!("Failed to retry right trade {:?}, {:?} : {}", &rts, &new_right_trade, e);
                             }
                             self.set_ongoing_op(Some(new_op.clone()));
-                            Err(anyhow!(
-                                "Some operations have not been filled or had to be restaged"
-                            ))
+                            Err(anyhow!("Some operations have not been filled or had to be restaged"))
                         };
                         self.save_operation(&new_op);
                         result
@@ -549,17 +464,15 @@ impl MovingState {
         self.traded_price_left = pos.left_price;
         let (spread, right_coef, left_coef) = match position_kind {
             PositionKind::SHORT => {
-                let (spread, right_coef, left_coef) =
-                    (self.units_to_buy_short_spread, 1.0 - fees, 1.0 + fees);
-                self.value_strat += spread
-                    * (pos.right_price * right_coef - pos.left_price * self.beta_val * left_coef);
+                let (spread, right_coef, left_coef) = (self.units_to_buy_short_spread, 1.0 - fees, 1.0 + fees);
+                self.value_strat +=
+                    spread * (pos.right_price * right_coef - pos.left_price * self.beta_val * left_coef);
                 (spread, right_coef, left_coef)
             }
             PositionKind::LONG => {
-                let (spread, right_coef, left_coef) =
-                    (self.units_to_buy_long_spread, 1.0 + fees, 1.0 - fees);
-                self.value_strat += spread
-                    * (pos.left_price * self.beta_val * left_coef - pos.right_price * right_coef);
+                let (spread, right_coef, left_coef) = (self.units_to_buy_long_spread, 1.0 + fees, 1.0 - fees);
+                self.value_strat +=
+                    spread * (pos.left_price * self.beta_val * left_coef - pos.right_price * right_coef);
                 (spread, right_coef, left_coef)
             }
         };
@@ -576,17 +489,15 @@ impl MovingState {
         let kind: PositionKind = pos.kind.clone();
         let (spread, right_coef, left_coef) = match kind {
             PositionKind::SHORT => {
-                let (spread, right_coef, left_coef) =
-                    (self.units_to_buy_short_spread, 1.0 + fees, 1.0 - fees);
-                self.value_strat += spread
-                    * (pos.left_price * self.beta_val * left_coef - pos.right_price * right_coef);
+                let (spread, right_coef, left_coef) = (self.units_to_buy_short_spread, 1.0 + fees, 1.0 - fees);
+                self.value_strat +=
+                    spread * (pos.left_price * self.beta_val * left_coef - pos.right_price * right_coef);
                 (spread, right_coef, left_coef)
             }
             PositionKind::LONG => {
-                let (spread, right_coef, left_coef) =
-                    (self.units_to_buy_long_spread, 1.0 - fees, 1.0 + fees);
-                self.value_strat += spread
-                    * (pos.right_price * right_coef - pos.left_price * self.beta_val * left_coef);
+                let (spread, right_coef, left_coef) = (self.units_to_buy_long_spread, 1.0 - fees, 1.0 + fees);
+                self.value_strat +=
+                    spread * (pos.right_price * right_coef - pos.left_price * self.beta_val * left_coef);
                 (spread, right_coef, left_coef)
             }
         };
@@ -643,19 +554,16 @@ impl MovingState {
     }
 
     fn save(&self) {
-        if let Err(e) = self.db.put_json(
-            STATE_KEY,
-            TransientState {
-                units_to_buy_short_spread: self.units_to_buy_short_spread,
-                units_to_buy_long_spread: self.units_to_buy_long_spread,
-                value_strat: self.value_strat,
-                pnl: self.pnl,
-                traded_price_left: self.traded_price_left,
-                traded_price_right: self.traded_price_right,
-                nominal_position: Some(self.nominal_position),
-                ongoing_op: self.ongoing_op.as_ref().map(|o| o.id.clone()),
-            },
-        ) {
+        if let Err(e) = self.db.put_json(STATE_KEY, TransientState {
+            units_to_buy_short_spread: self.units_to_buy_short_spread,
+            units_to_buy_long_spread: self.units_to_buy_long_spread,
+            value_strat: self.value_strat,
+            pnl: self.pnl,
+            traded_price_left: self.traded_price_left,
+            traded_price_right: self.traded_price_right,
+            nominal_position: Some(self.nominal_position),
+            ongoing_op: self.ongoing_op.as_ref().map(|o| o.id.clone()),
+        }) {
             error!("Error saving state: {:?}", e);
         }
     }
@@ -670,13 +578,9 @@ impl MovingState {
         Ok(())
     }
 
-    pub fn get_operations(&self) -> Vec<Operation> {
-        self.db.read_json_vec(OPERATIONS_KEY)
-    }
+    pub fn get_operations(&self) -> Vec<Operation> { self.db.read_json_vec(OPERATIONS_KEY) }
 
-    pub fn dump_db(&self) -> Vec<String> {
-        self.db.all()
-    }
+    pub fn dump_db(&self) -> Vec<String> { self.db.all() }
 
     #[allow(dead_code)]
     fn get_operation(&self, uuid: &str) -> Option<Operation> {
