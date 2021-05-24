@@ -1,8 +1,8 @@
 use chrono::Duration;
 use chrono::{DateTime, Utc};
 
+use crate::types::{StopEvent, StratEvent};
 use std::ops::{Add, Mul};
-use crate::types::{StratEvent, StopEvent};
 
 /// Time obsolescence is defined by last_time + (sample_freq * eval_freq) > current_time
 pub fn is_eval_time_reached(
@@ -17,19 +17,13 @@ pub fn is_eval_time_reached(
 
 pub(crate) struct Stopper<T> {
     stop_gain: T,
-    stop_loss: T
+    stop_loss: T,
 }
 
 impl<T: std::cmp::PartialOrd + Copy> Stopper<T> {
-    pub(crate) fn new(stop_gain: T, stop_loss: T) -> Self {
-        Self {
-            stop_gain, stop_loss
-        }
-    }
+    pub(crate) fn new(stop_gain: T, stop_loss: T) -> Self { Self { stop_gain, stop_loss } }
 
-    pub(crate) fn should_stop(&self, ret: T) -> bool {
-        ret > self.stop_gain || ret < self.stop_loss
-    }
+    pub(crate) fn should_stop(&self, ret: T) -> bool { ret > self.stop_gain || ret < self.stop_loss }
 
     pub(crate) fn maybe_stop(&self, ret: T) -> bool {
         if self.should_stop(ret) {
@@ -40,8 +34,8 @@ impl<T: std::cmp::PartialOrd + Copy> Stopper<T> {
             } else {
                 StopEvent::NA
             };
-            StratEvent::Stop {stop: stop_type}.log();
-            return true
+            StratEvent::Stop { stop: stop_type }.log();
+            return true;
         }
         false
     }

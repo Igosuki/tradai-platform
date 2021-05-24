@@ -22,8 +22,7 @@ pub mod date_time_format {
         let pr = s.parse::<i64>();
         pr.map(|millis| Utc.timestamp_millis(millis))
             .or_else(|_| {
-                Decimal::from_scientific(s.as_str())
-                    .map(|decimal| Utc.timestamp_millis(decimal.to_i64().unwrap()))
+                Decimal::from_scientific(s.as_str()).map(|decimal| Utc.timestamp_millis(decimal.to_i64().unwrap()))
             })
             .or_else(|_| Utc.datetime_from_str(&s, DATE_FORMAT))
             .map_err(serde::de::Error::custom)

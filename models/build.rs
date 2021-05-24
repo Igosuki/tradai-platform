@@ -54,18 +54,10 @@ fn main() -> io::Result<()> {
             .and_then(|f| avro_state.get(f.as_str()))
             .copied();
         if Some(checksum) == original_checksum {
-            eprintln!(
-                "Matching checksums {:?} {:?}",
-                Some(checksum),
-                original_checksum
-            );
+            eprintln!("Matching checksums {:?} {:?}", Some(checksum), original_checksum);
             continue;
         }
-        eprintln!(
-            "Non matching checksums {:?} {:?}",
-            Some(checksum),
-            original_checksum
-        );
+        eprintln!("Non matching checksums {:?} {:?}", Some(checksum), original_checksum);
         schema_file_name_str.map(|s| avro_state.insert(s, checksum));
         any_changes = true;
         let output = Command::new("sh")
@@ -83,10 +75,7 @@ fn main() -> io::Result<()> {
         }
     }
     if any_changes {
-        let mut file = File::with_options()
-            .write(true)
-            .create(true)
-            .open(gen_path.as_path())?;
+        let mut file = File::with_options().write(true).create(true).open(gen_path.as_path())?;
         let x = dest_path.as_path();
         let source = Source::DirPath(x);
         let g = Generator::new().unwrap();

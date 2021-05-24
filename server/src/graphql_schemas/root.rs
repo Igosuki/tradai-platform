@@ -155,10 +155,7 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Get all positions for this naive strat")]
-    async fn naive_operations(
-        context: &Context,
-        tk: TypeAndKeyInput,
-    ) -> FieldResult<Vec<Operation>> {
+    async fn naive_operations(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<Operation>> {
         context
             .with_strat(tk, DataQuery::Operations, |dr| match dr {
                 DataResult::NaiveOperations(pos_vec) => Ok(pos_vec),
@@ -168,10 +165,7 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Get all positions for this mean strat")]
-    async fn mean_operations(
-        context: &Context,
-        tk: TypeAndKeyInput,
-    ) -> FieldResult<Vec<MeanOperation>> {
+    async fn mean_operations(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<MeanOperation>> {
         context
             .with_strat(tk, DataQuery::Operations, |dr| match dr {
                 DataResult::MeanRevertingOperations(pos_vec) => Ok(pos_vec),
@@ -181,10 +175,7 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Get the current naive strat operation")]
-    async fn current_naive_operation(
-        context: &Context,
-        tk: TypeAndKeyInput,
-    ) -> FieldResult<Option<Operation>> {
+    async fn current_naive_operation(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Option<Operation>> {
         context
             .with_strat(tk, DataQuery::CurrentOperation, |dr| match dr {
                 DataResult::NaiveOperation(op) => Ok(op),
@@ -194,10 +185,7 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Get the current naive strat operation")]
-    async fn current_mean_operation(
-        context: &Context,
-        tk: TypeAndKeyInput,
-    ) -> FieldResult<Option<MeanOperation>> {
+    async fn current_mean_operation(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Option<MeanOperation>> {
         context
             .with_strat(tk, DataQuery::CurrentOperation, |dr| match dr {
                 DataResult::MeanRevertingOperation(op) => Ok(op),
@@ -283,14 +271,11 @@ type StringStream = Pin<Box<dyn Stream<Item = Result<String, FieldError>> + Send
 #[juniper::graphql_subscription(Context = Context)]
 impl Subscription {
     async fn hello_world() -> StringStream {
-        let stream =
-        tokio_stream::iter(vec![Ok(String::from("Hello")), Ok(String::from("World!"))]);
+        let stream = tokio_stream::iter(vec![Ok(String::from("Hello")), Ok(String::from("World!"))]);
         Box::pin(stream)
     }
 }
 
 pub type Schema = RootNode<'static, QueryRoot, MutationRoot, Subscription>;
 
-pub fn create_schema() -> Schema {
-    Schema::new(QueryRoot, MutationRoot, Subscription)
-}
+pub fn create_schema() -> Schema { Schema::new(QueryRoot, MutationRoot, Subscription) }

@@ -73,18 +73,13 @@ where
     L: RotationPolicy,
 {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        if self
-            .rotation_policy
-            .should_rotate(&self.path, &self.inner)?
-        {
+        if self.rotation_policy.should_rotate(&self.path, &self.inner)? {
             self.rotate()?;
         }
         self.inner.write(buf)
     }
 
-    fn flush(&mut self) -> Result<()> {
-        self.inner.flush()
-    }
+    fn flush(&mut self) -> Result<()> { self.inner.flush() }
 }
 
 pub trait RotationPolicy {
@@ -101,9 +96,7 @@ pub struct SizeAndExpirationPolicy {
 }
 
 impl RotationPolicy for SizeAndExpirationPolicy {
-    fn set_last_flush(&mut self, d: DateTime<Utc>) {
-        self.last_flush = Some(d);
-    }
+    fn set_last_flush(&mut self, d: DateTime<Utc>) { self.last_flush = Some(d); }
 
     fn should_rotate(&mut self, _path: &Path, file: &File) -> io::Result<bool> {
         match self.last_flush {

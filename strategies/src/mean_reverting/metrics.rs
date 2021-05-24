@@ -20,8 +20,8 @@ impl MeanRevertingStrategyMetrics {
             let pos_labels = &["pos", "op"];
             let pos_gauge_names = vec!["mr_position"];
             for gauge_name in pos_gauge_names {
-                let gauge_vec_opts = Opts::new(gauge_name, &format!("gauge for {}", gauge_name))
-                    .const_label("pair", pair);
+                let gauge_vec_opts =
+                    Opts::new(gauge_name, &format!("gauge for {}", gauge_name)).const_label("pair", pair);
                 let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
                 gauges.insert(gauge_name.to_string(), gauge_vec.clone());
                 registry.register(Box::new(gauge_vec.clone())).unwrap();
@@ -32,8 +32,8 @@ impl MeanRevertingStrategyMetrics {
             let pos_labels = &[];
             let mid_names = vec!["mr_mid"];
             for gauge_name in mid_names {
-                let gauge_vec_opts = Opts::new(gauge_name, &format!("gauge for {}", gauge_name))
-                    .const_label("pair", pair);
+                let gauge_vec_opts =
+                    Opts::new(gauge_name, &format!("gauge for {}", gauge_name)).const_label("pair", pair);
                 let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
                 gauges.insert(gauge_name.to_string(), gauge_vec.clone());
                 registry.register(Box::new(gauge_vec.clone())).unwrap();
@@ -41,10 +41,9 @@ impl MeanRevertingStrategyMetrics {
         }
 
         let threshold_gauges: Vec<StateGauge> = vec![
-            (
-                "mr_threshold_short".to_string(),
-                |x: &MeanRevertingState| x.threshold_short(),
-            ),
+            ("mr_threshold_short".to_string(), |x: &MeanRevertingState| {
+                x.threshold_short()
+            }),
             ("mr_threshold_long".to_string(), |x: &MeanRevertingState| {
                 x.threshold_long()
             }),
@@ -81,8 +80,7 @@ impl MeanRevertingStrategyMetrics {
 
     pub(super) fn log_position(&self, pos: &Position, op: &OperationKind) {
         if let Some(g) = self.common_gauges.get("mr_position") {
-            g.with_label_values(&[pos.kind.as_ref(), op.as_ref()])
-                .set(pos.price);
+            g.with_label_values(&[pos.kind.as_ref(), op.as_ref()]).set(pos.price);
         }
     }
 
@@ -94,9 +92,7 @@ impl MeanRevertingStrategyMetrics {
         }
     }
 
-    pub(super) fn log_state(&self, state: &MeanRevertingState) {
-        self.log_all_with_state(&self.state_gauges, state);
-    }
+    pub(super) fn log_state(&self, state: &MeanRevertingState) { self.log_all_with_state(&self.state_gauges, state); }
 
     pub(super) fn log_thresholds(&self, state: &MeanRevertingState) {
         self.log_all_with_state(&self.threshold_gauges, state);

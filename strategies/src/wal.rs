@@ -13,9 +13,7 @@ pub struct Wal {
 }
 
 impl Wal {
-    pub fn new(backend: Db) -> Self {
-        Self { backend }
-    }
+    pub fn new(backend: Db) -> Self { Self { backend } }
 
     pub fn read_all<T: DeserializeOwned>(&self) -> HashMap<String, T> {
         let mut records: HashMap<String, T> = HashMap::new();

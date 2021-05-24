@@ -3,8 +3,8 @@ use std::collections::{HashMap, HashSet};
 use byte_unit::Byte;
 use chrono::Duration;
 use config::{Config, ConfigError, Environment, File};
-use serde::{Deserialize, Deserializer};
 use serde::de;
+use serde::{Deserialize, Deserializer};
 
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::types::Pair;
@@ -43,9 +43,7 @@ pub struct Port(pub i32);
 
 /// Timeout in seconds.
 impl Default for Port {
-    fn default() -> Self {
-        Port(8080)
-    }
+    fn default() -> Self { Port(8080) }
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -54,9 +52,7 @@ pub struct ApiSettings {
     pub port: Port,
 }
 
-fn default_as_false() -> bool {
-    false
-}
+fn default_as_false() -> bool { false }
 
 #[derive(Debug, Deserialize)]
 pub struct Settings {
@@ -106,10 +102,8 @@ impl Settings {
                 .flat_map(|o| o.symbols)
                 .collect();
             let pairs_fn: fn(&Pair) -> Option<&&str> = coinnect_rt::utils::pair_fn(xchg);
-            let (invalid_pairs, valid_pairs): (_, Vec<Pair>) = pairs
-                .clone()
-                .into_iter()
-                .partition(|p| pairs_fn(p).is_none());
+            let (invalid_pairs, valid_pairs): (_, Vec<Pair>) =
+                pairs.clone().into_iter().partition(|p| pairs_fn(p).is_none());
             info!("Invalid pairs : {:?}", invalid_pairs);
             info!("Valid pairs : {:?}", valid_pairs);
         }

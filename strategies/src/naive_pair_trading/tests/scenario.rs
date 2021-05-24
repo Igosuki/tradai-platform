@@ -1,17 +1,17 @@
+use async_std::task;
 use chrono::{DateTime, TimeZone, Utc};
 use plotters::prelude::*;
 use serde::Serialize;
-use async_std::task;
 
-use crate::naive_pair_trading::state::MovingState;
-use crate::naive_pair_trading::{DataRow, NaiveTradingStrategy, covar_model};
 use crate::naive_pair_trading::options::Options;
+use crate::naive_pair_trading::state::MovingState;
+use crate::naive_pair_trading::{covar_model, DataRow, NaiveTradingStrategy};
 use crate::order_manager::test_util;
 use coinnect_rt::exchange::Exchange;
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use std::error::Error;
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 use util::date::{DateRange, DurationRangeType};
 
 static LEFT_PAIR: &str = "ETH_USDT";
@@ -40,20 +40,13 @@ type StrategyEntry<'a> = (&'a str, Vec<fn(&StrategyLog) -> f64>);
 
 fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn Error>> {
     let now = Utc::now();
-    let string = format!(
-        "graphs/naive_pair_trading_plot_{}.svg",
-        now.format("%Y%m%d%H:%M:%S")
-    );
+    let string = format!("graphs/naive_pair_trading_plot_{}.svg", now.format("%Y%m%d%H:%M:%S"));
     let color_wheel = vec![&BLACK, &BLUE, &RED];
     let more_lines: Vec<StrategyEntry<'_>> = vec![
-        (
-            "value",
-            vec![|x| x.right_mid, |x| x.state.predicted_right()],
-        ),
-        (
-            "return",
-            vec![|x| x.state.short_position_return() + x.state.long_position_return()],
-        ),
+        ("value", vec![|x| x.right_mid, |x| x.state.predicted_right()]),
+        ("return", vec![|x| {
+            x.state.short_position_return() + x.state.long_position_return()
+        }]),
         ("PnL", vec![|x| x.state.pnl()]),
         ("Nominal Position", vec![|x| x.state.nominal_position()]),
         ("Beta", vec![|x| x.state.beta_lr()]),
@@ -110,9 +103,7 @@ fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn
     Ok(string.clone())
 }
 
-fn init() {
-    let _ = env_logger::builder().is_test(true).try_init();
-}
+fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
 static EXCHANGE: &str = "Binance";
 static CHANNEL: &str = "order_books";
@@ -133,17 +124,13 @@ async fn beta_val() {
     )
     .await;
     // align data
-    records[0]
-        .iter()
-        .zip(records[1].iter())
-        .take(500)
-        .for_each(|(l, r)| {
-            dt.push(&DataRow {
-                time: l.event_ms,
-                left: l.into(),
-                right: r.into(),
-            })
-        });
+    records[0].iter().zip(records[1].iter()).take(500).for_each(|(l, r)| {
+        dt.push(&DataRow {
+            time: l.event_ms,
+            left: l.into(),
+            right: r.into(),
+        })
+    });
 
     let beta = covar_model::beta(dt.window());
     assert!(beta > 0.0, "beta {:?} should be positive", beta);
@@ -228,14 +215,8 @@ async fn continuous_scenario() {
     let mut positions = strat.get_operations();
     positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
     let last_position = positions.last();
-    assert_eq!(
-        Some(162.130004882813),
-        last_position.map(|p| p.pos.left_price)
-    );
-    assert_eq!(
-        Some(33.33032942489664),
-        last_position.map(|p| p.left_value())
-    );
+    assert_eq!(Some(162.130004882813), last_position.map(|p| p.pos.left_price));
+    assert_eq!(Some(33.33032942489664), last_position.map(|p| p.left_value()));
 
     // let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
     // serde_json::to_writer(logs_f, &logs);

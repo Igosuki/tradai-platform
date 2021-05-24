@@ -46,14 +46,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     // Order Managers actors
     let db_path_str = Arc::new(settings_v.db_storage_path.clone());
     let keys_path = PathBuf::from(settings_v.keys.clone());
-    let oms = Arc::new(
-        order_managers(
-            keys_path,
-            &db_path_str,
-            Arc::new(settings_v.exchanges.clone()),
-        )
-        .await,
-    );
+    let oms = Arc::new(order_managers(keys_path, &db_path_str, Arc::new(settings_v.exchanges.clone())).await);
     // Strategy actors, cf strategy crate
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
@@ -72,11 +65,8 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     let keys_path = PathBuf::from(settings_v.keys.clone());
     let exchanges = settings_v.exchanges.clone();
     let bots = exchange_bots(exchanges.clone(), keys_path.clone(), live_events_recipients).await;
-    let strats_map: HashMap<StrategyKey, Strategy> = strategies
-        .clone()
-        .iter()
-        .map(|s| (s.0.clone(), s.clone()))
-        .collect();
+    let strats_map: HashMap<StrategyKey, Strategy> =
+        strategies.clone().iter().map(|s| (s.0.clone(), s.clone())).collect();
     let strats_map_a = Arc::new(strats_map);
     // API Server
     let server = server::httpserver(
@@ -113,10 +103,7 @@ fn file_actor(settings: Arc<RwLock<Settings>>) -> Addr<AvroFileActor> {
     })
 }
 
-async fn strategies(
-    settings: Arc<RwLock<Settings>>,
-    oms: Arc<HashMap<Exchange, AccountSystem>>,
-) -> Vec<Strategy> {
+async fn strategies(settings: Arc<RwLock<Settings>>, oms: Arc<HashMap<Exchange, AccountSystem>>) -> Vec<Strategy> {
     println!("creating strat actors");
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
@@ -160,16 +147,12 @@ async fn order_managers(
         let om_path = format!("{}/om_{}", db_path, xch);
         let order_manager = OrderManager::new(Arc::new(api), Path::new(&om_path));
         let order_manager_addr = OrderManager::start(order_manager);
-        let recipients: Vec<Recipient<AccountEventEnveloppe>> =
-            vec![order_manager_addr.clone().recipient()];
+        let recipients: Vec<Recipient<AccountEventEnveloppe>> = vec![order_manager_addr.clone().recipient()];
         let bot = match xch {
             Exchange::Binance => {
                 let creds = Box::new(
-                    BinanceCreds::new_from_file(
-                        coinnect_rt::binance::credentials::ACCOUNT_KEY,
-                        keys_path.clone(),
-                    )
-                    .unwrap(),
+                    BinanceCreds::new_from_file(coinnect_rt::binance::credentials::ACCOUNT_KEY, keys_path.clone())
+                        .unwrap(),
                 );
                 Coinnect::new_account_stream(*xch, creds.clone(), recipients)
                     .await
@@ -180,13 +163,10 @@ async fn order_managers(
                 unimplemented!()
             }
         };
-        bots.insert(
-            *xch,
-            AccountSystem {
-                om: order_manager_addr.clone(),
-                bot,
-            },
-        );
+        bots.insert(*xch, AccountSystem {
+            om: order_manager_addr.clone(),
+            bot,
+        });
     }
     bots
 }
@@ -201,28 +181,21 @@ async fn exchange_bots(
     for (xch, conf) in exchanges_settings {
         let bot = match xch {
             Exchange::Bittrex => {
-                let creds = Box::new(
-                    BittrexCreds::new_from_file("account_bittrex", keys_path.clone()).unwrap(),
-                );
+                let creds = Box::new(BittrexCreds::new_from_file("account_bittrex", keys_path.clone()).unwrap());
                 Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), None)
                     .await
                     .unwrap()
             }
             Exchange::Bitstamp => {
-                let creds = Box::new(
-                    BitstampCreds::new_from_file("account_bitstamp", keys_path.clone()).unwrap(),
-                );
+                let creds = Box::new(BitstampCreds::new_from_file("account_bitstamp", keys_path.clone()).unwrap());
                 Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), None)
                     .await
                     .unwrap()
             }
             Exchange::Binance => {
                 let creds = Box::new(
-                    BinanceCreds::new_from_file(
-                        coinnect_rt::binance::credentials::ACCOUNT_KEY,
-                        keys_path.clone(),
-                    )
-                    .unwrap(),
+                    BinanceCreds::new_from_file(coinnect_rt::binance::credentials::ACCOUNT_KEY, keys_path.clone())
+                        .unwrap(),
                 );
                 let url = if conf.use_test.unwrap_or_else(|| false) {
                     coinnect_rt::binance::streaming_api::WEBSOCKET_STREAM_TEST_URL

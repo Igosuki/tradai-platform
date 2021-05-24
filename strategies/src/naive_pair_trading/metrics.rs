@@ -13,11 +13,7 @@ pub struct NaiveStrategyMetrics {
 }
 
 impl NaiveStrategyMetrics {
-    pub fn for_strat(
-        registry: &Registry,
-        left_pair: &str,
-        right_pair: &str,
-    ) -> NaiveStrategyMetrics {
+    pub fn for_strat(registry: &Registry, left_pair: &str, right_pair: &str) -> NaiveStrategyMetrics {
         let mut gauges: HashMap<String, GaugeVec> = HashMap::new();
 
         {

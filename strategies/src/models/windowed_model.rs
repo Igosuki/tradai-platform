@@ -1,22 +1,22 @@
+use super::persist::{PersistentModel, PersistentVec, Window};
+use crate::models::persist::ModelValue;
 use chrono::{DateTime, Utc};
 use db::DataStoreError;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use super::persist::{PersistentVec, PersistentModel, Window};
-use crate::models::persist::ModelValue;
 
 type WindowFn<T, M> = fn(&M, Window<T>) -> M;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub struct WindowedModel<T: Serialize + DeserializeOwned + Clone, M:  Serialize + DeserializeOwned + Clone> {
+pub struct WindowedModel<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone> {
     rows: PersistentVec<T>,
     model: PersistentModel<M>,
     #[derivative(Debug = "ignore")]
     window_fn: WindowFn<T, M>,
 }
 
-impl<T:  Serialize + DeserializeOwned + Clone, M:  Serialize + DeserializeOwned + Clone> WindowedModel<T, M> {
+impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone> WindowedModel<T, M> {
     pub fn new(
         id: &str,
         db_path: &str,
@@ -43,37 +43,21 @@ impl<T:  Serialize + DeserializeOwned + Clone, M:  Serialize + DeserializeOwned 
         self.rows.load();
     }
 
-    pub fn last_model_time(&self) -> Option<DateTime<Utc>> {
-        self.model.last_model_time()
-    }
+    pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }
 
-    pub fn has_model(&self) -> bool {
-        self.model.has_model()
-    }
+    pub fn has_model(&self) -> bool { self.model.has_model() }
 
-    pub fn push(&mut self, row: &T) {
-        self.rows.push(row);
-    }
+    pub fn push(&mut self, row: &T) { self.rows.push(row); }
 
-    pub fn is_filled(&self) -> bool {
-        self.rows.is_filled()
-    }
+    pub fn is_filled(&self) -> bool { self.rows.is_filled() }
 
-    pub fn window(&self) -> Window<T> {
-        self.rows.window()
-    }
+    pub fn window(&self) -> Window<T> { self.rows.window() }
 
-    pub fn len(&self) -> usize {
-        self.rows.len()
-    }
+    pub fn len(&self) -> usize { self.rows.len() }
 
-    pub fn try_loading_model(&mut self) -> bool {
-        self.model.try_loading_model()
-    }
+    pub fn try_loading_model(&mut self) -> bool { self.model.try_loading_model() }
 
-    pub fn model(&self) -> Option<ModelValue<M>> {
-        self.model.model()
-    }
+    pub fn model(&self) -> Option<ModelValue<M>> { self.model.model() }
 }
 
 #[cfg(test)]
@@ -82,12 +66,12 @@ mod test {
 
     use tempfile::TempDir;
 
-    use crate::types::BookPosition;
+    use crate::models::Window;
     use crate::models::WindowedModel;
+    use crate::types::BookPosition;
     use chrono::{DateTime, TimeZone, Utc};
     use quickcheck::{Arbitrary, Gen};
     use test::Bencher;
-    use crate::models::Window;
 
     #[derive(Debug)]
     struct MockLinearModel;
@@ -117,9 +101,7 @@ mod test {
     //     Db::new(tempdir.into_path().to_str().unwrap(), "temp".to_string())
     // }
 
-    fn sum_window(_lm: &f64, window: Window<TestRow>) -> f64 {
-        window.map(|t| t.pos.mid).sum::<f64>()
-    }
+    fn sum_window(_lm: &f64, window: Window<TestRow>) -> f64 { window.map(|t| t.pos.mid).sum::<f64>() }
 
     #[bench]
     fn test_save_load_model(b: &mut Bencher) {

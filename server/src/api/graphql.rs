@@ -41,11 +41,11 @@ Check the LICENSE file for details.
 
 // use futures::{FutureExt as _};
 use super::playground_source::playground_source;
-use actix_web::{error::{ErrorBadRequest, ErrorMethodNotAllowed, ErrorUnsupportedMediaType}, http::Method, web, Error, FromRequest, HttpRequest, HttpResponse, HttpMessage};
-use juniper::{
-    http::{graphiql::graphiql_source, GraphQLBatchRequest, GraphQLRequest},
-    ScalarValue,
-};
+use actix_web::{error::{ErrorBadRequest, ErrorMethodNotAllowed, ErrorUnsupportedMediaType},
+                http::Method,
+                web, Error, FromRequest, HttpMessage, HttpRequest, HttpResponse};
+use juniper::{http::{graphiql::graphiql_source, GraphQLBatchRequest, GraphQLRequest},
+              ScalarValue};
 use serde::Deserialize;
 
 #[derive(Deserialize, Clone, PartialEq, Debug)]
@@ -119,14 +119,13 @@ where
     let get_req = web::Query::<GetGraphQLRequest>::from_query(req.query_string())?;
     let req = GraphQLRequest::from(get_req.into_inner());
     let gql_response = req.execute(schema, context).await;
-    let body_response = serde_json::to_string(&gql_response).map_err(|_e| actix_web::web::HttpResponse::internal_server_error())?;
+    let body_response =
+        serde_json::to_string(&gql_response).map_err(|_e| actix_web::web::HttpResponse::internal_server_error())?;
     let mut response = match gql_response.is_ok() {
         true => HttpResponse::Ok(),
         false => HttpResponse::BadRequest(),
     };
-    Ok(response
-        .content_type("application/json")
-        .body(body_response))
+    Ok(response.content_type("application/json").body(body_response))
 }
 
 /// Actix GraphQL Handler for POST requests
@@ -153,9 +152,7 @@ where
         }
         "application/graphql" => {
             let body = String::from_request(&req, &mut payload.into_inner()).await?;
-            Ok(GraphQLBatchRequest::Single(GraphQLRequest::new(
-                body, None, None,
-            )))
+            Ok(GraphQLBatchRequest::Single(GraphQLRequest::new(body, None, None)))
         }
         _ => Err(ErrorUnsupportedMediaType(
             "GraphQL requests should have content type `application/json` or `application/graphql`",
@@ -191,9 +188,7 @@ pub async fn graphiql_handler(
     subscriptions_endpoint_url: Option<&'static str>,
 ) -> Result<HttpResponse, Error> {
     let html = graphiql_source(graphql_endpoint_url, subscriptions_endpoint_url);
-    Ok(HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html))
+    Ok(HttpResponse::Ok().content_type("text/html; charset=utf-8").body(html))
 }
 
 /// Create a handler that replies with an HTML page containing GraphQL Playground. This does not handle routing, so you cant mount it on any endpoint.
@@ -202,7 +197,5 @@ pub async fn playground_handler(
     subscriptions_endpoint_url: Option<&'static str>,
 ) -> Result<HttpResponse, Error> {
     let html = playground_source(graphql_endpoint_url, subscriptions_endpoint_url);
-    Ok(HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html))
+    Ok(HttpResponse::Ok().content_type("text/html; charset=utf-8").body(html))
 }

@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::sync::Arc;
 
-use actix_web::{body::Body, Error, HttpResponse, ResponseError, web::{self, HttpResponse as HttpResponse2}};
+use actix_web::{body::Body,
+                web::{self, HttpResponse as HttpResponse2},
+                Error, HttpResponse, ResponseError};
 use derive_more::Display;
 use futures::lock::Mutex;
 use serde::{Deserialize, Serialize};
@@ -43,25 +45,18 @@ impl ResponseError for ApiError {
         match self {
             ExchangeNotFound(_e) => HttpResponse2::not_found(),
             ApiError::Coinnect(e) => HttpResponse2::internal_server_error().set_body(e.to_string().into()),
-            ApiError::IoError(e) => HttpResponse2::internal_server_error().set_body(e.to_string().into()),
-            // _ => HttpResponse::InternalServerError().finish()
+            ApiError::IoError(e) => HttpResponse2::internal_server_error().set_body(e.to_string().into()), // _ => HttpResponse::InternalServerError().finish()
         }
     }
 }
 
 impl From<std::io::Error> for ApiError {
-    fn from(e: std::io::Error) -> Self {
-        ApiError::IoError(e)
-    }
+    fn from(e: std::io::Error) -> Self { ApiError::IoError(e) }
 }
 
-async fn graphiql_handler() -> Result<HttpResponse, Error> {
-    self::graphql::graphiql_handler("/", None).await
-}
+async fn graphiql_handler() -> Result<HttpResponse, Error> { self::graphql::graphiql_handler("/", None).await }
 
-async fn playground_handler() -> Result<HttpResponse, Error> {
-    self::graphql::playground_handler("/", None).await
-}
+async fn playground_handler() -> Result<HttpResponse, Error> { self::graphql::playground_handler("/", None).await }
 
 type ExchangeData = web::Data<Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>>>;
 type StratsData = web::Data<Arc<HashMap<StrategyKey, Strategy>>>;
@@ -104,10 +99,7 @@ pub fn config_app(cfg: &mut web::ServiceConfig) {
     cfg.service(web::resource("/playground").route(web::get().to(playground_handler)));
     cfg.service(web::resource("/graphiql").route(web::get().to(graphiql_handler)));
     #[cfg(feature = "flame_it")]
-        cfg.service(
-        web::scope("/profiling")
-            .service(web::resource("dump").route(web::post().to(dump_profiler))),
-    );
+    cfg.service(web::scope("/profiling").service(web::resource("dump").route(web::post().to(dump_profiler))));
 }
 
 #[cfg(test)]
@@ -116,16 +108,13 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use actix_web::{
-        App,
-        http::StatusCode, test,
-    };
+    use actix_web::{http::StatusCode, test, App};
     use futures::lock::Mutex;
     use tokio::time::timeout;
 
     use coinnect_rt::coinnect;
-    use coinnect_rt::exchange::{Exchange, ExchangeApi};
     use coinnect_rt::exchange::Exchange::Binance;
+    use coinnect_rt::exchange::{Exchange, ExchangeApi};
     use coinnect_rt::types::OrderType;
     use strategies::{Strategy, StrategyKey};
 
@@ -133,17 +122,14 @@ mod tests {
     use crate::graphql_schemas::root::create_schema;
     use actix_web::http::header::ContentType;
 
-    fn strats() -> HashMap<StrategyKey, Strategy> {
-        HashMap::new()
-    }
+    fn strats() -> HashMap<StrategyKey, Strategy> { HashMap::new() }
 
     #[actix_rt::test]
     async fn test_add_order() {
         let schema = create_schema();
         let exchanges = coinnect::ExchangeConfig::new("../config/keys_real_test.json".to_string(), vec![Binance]);
         let exchanges_map = coinnect::build_test_exchanges(exchanges).await;
-        let data: Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>> =
-            Arc::new(Mutex::new(exchanges_map));
+        let data: Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>> = Arc::new(Mutex::new(exchanges_map));
         let mut guard = data.lock().await;
         let binance_api: &mut Box<dyn ExchangeApi> = guard.get_mut(&Exchange::Binance).unwrap();
         let ob = binance_api.orderbook("BTC_USDT".into()).await.unwrap();
@@ -157,7 +143,7 @@ mod tests {
                 .data(strats)
                 .configure(config_app),
         )
-            .await;
+        .await;
 
         let _o = crate::api::Order {
             exchg: Binance,
@@ -185,13 +171,7 @@ mod tests {
         let res: serde_json::error::Result<serde_json::Value> = serde_json::from_str(body_string);
         assert!(res.is_ok(), "failed to deserialize json: {:?}", body_string);
         let v = res.unwrap();
-        assert_eq!(
-            status,
-            StatusCode::OK,
-            "status : {}, body: {:?}",
-            status,
-            body
-        );
+        assert_eq!(status, StatusCode::OK, "status : {}, body: {:?}", status, body);
         let option = v.get("data");
         assert!(option.is_some(), "data should exist: {:?}", &option);
         assert!(

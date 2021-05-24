@@ -34,23 +34,23 @@ use std::str::FromStr;
 use strum_macros::EnumString;
 use uuid::Uuid;
 
-use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::mean_reverting::options::Options as MeanRevertingStrategyOptions;
+use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation};
 
 pub mod error;
 pub mod input;
 pub mod mean_reverting;
-mod types;
-pub mod naive_pair_trading;
 mod models;
+pub mod naive_pair_trading;
 pub mod order_manager;
 pub mod query;
-mod util;
-mod wal;
 #[cfg(test)]
 mod test_util;
+mod types;
+mod util;
+mod wal;
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display)]
 pub enum StrategyType {
@@ -74,12 +74,7 @@ impl StrategyKey {
 pub struct Strategy(pub StrategyKey, pub Addr<StrategyActor>);
 
 impl Strategy {
-    pub fn new(
-        db_path: Arc<String>,
-        fees: f64,
-        settings: StrategySettings,
-        om: Option<Addr<OrderManager>>,
-    ) -> Self {
+    pub fn new(db_path: Arc<String>, fees: f64, settings: StrategySettings, om: Option<Addr<OrderManager>>) -> Self {
         Self(settings.key(), {
             let strat_settings = from_settings(db_path.as_ref(), fees, &settings, om);
             StrategyActor::start(StrategyActor::new(StrategyActorOptions {
@@ -93,7 +88,7 @@ impl Strategy {
 #[serde(tag = "type")]
 pub enum StrategySettings {
     Naive(NaiveStrategyOptions),
-    MeanReverting(MeanRevertingStrategyOptions)
+    MeanReverting(MeanRevertingStrategyOptions),
 }
 
 impl StrategySettings {
@@ -106,12 +101,8 @@ impl StrategySettings {
 
     pub fn key(&self) -> StrategyKey {
         match &self {
-            StrategySettings::Naive(n) => {
-                StrategyKey(StrategyType::Naive, format!("{}_{}", n.left, n.right))
-            },
-            StrategySettings::MeanReverting(n) => {
-                StrategyKey(StrategyType::MeanReverting, format!("{}", n.pair))
-            }
+            StrategySettings::Naive(n) => StrategyKey(StrategyType::Naive, format!("{}_{}", n.left, n.right)),
+            StrategySettings::MeanReverting(n) => StrategyKey(StrategyType::MeanReverting, format!("{}", n.pair)),
         }
     }
 }
@@ -219,20 +210,24 @@ pub fn from_settings(
     match s {
         StrategySettings::Naive(n) => {
             if let Some(o) = om {
-                Box::new(crate::naive_pair_trading::NaiveTradingStrategy::new(db_path, fees, n, o))
+                Box::new(crate::naive_pair_trading::NaiveTradingStrategy::new(
+                    db_path, fees, n, o,
+                ))
             } else {
                 error!("Expected an order manager to be available for the targeted exchange of this NaiveStrategy");
                 panic!();
             }
-        },
+        }
         StrategySettings::MeanReverting(n) => {
             if let Some(o) = om {
                 Box::new(crate::mean_reverting::MeanRevertingStrategy::new(db_path, fees, n, o))
             } else {
-                error!("Expected an order manager to be available for the targeted exchange of this MeanRevertingStrategy");
+                error!(
+                    "Expected an order manager to be available for the targeted exchange of this MeanRevertingStrategy"
+                );
                 panic!();
             }
-        },
+        }
     }
 }
 
@@ -247,9 +242,7 @@ mod test {
 
     use super::*;
 
-    fn init() {
-        let _ = env_logger::builder().is_test(true).try_init();
-    }
+    fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
     fn actor(strategy: Box<dyn StrategyInterface>) -> StrategyActor {
         StrategyActor::new(StrategyActorOptions { strategy })
@@ -259,17 +252,11 @@ mod test {
 
     #[async_trait]
     impl StrategyInterface for DummyStrat {
-        async fn add_event(&mut self, _: LiveEvent) -> anyhow::Result<()> {
-            Ok(())
-        }
+        async fn add_event(&mut self, _: LiveEvent) -> anyhow::Result<()> { Ok(()) }
 
-        fn data(&mut self, _q: DataQuery) -> Option<DataResult> {
-            unimplemented!()
-        }
+        fn data(&mut self, _q: DataQuery) -> Option<DataResult> { unimplemented!() }
 
-        fn mutate(&mut self, _m: FieldMutation) -> anyhow::Result<()> {
-            unimplemented!()
-        }
+        fn mutate(&mut self, _m: FieldMutation) -> anyhow::Result<()> { unimplemented!() }
     }
 
     #[test]

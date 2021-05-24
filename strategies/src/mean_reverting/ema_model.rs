@@ -1,9 +1,9 @@
+use crate::models::Window;
 use crate::types::BookPosition;
 use chrono::{DateTime, Utc};
+use log::Level::Trace;
 use math::moving_average::ExponentialMovingAverage;
 use math::Next;
-use log::Level::Trace;
-use crate::models::Window;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SinglePosRow {
@@ -35,17 +35,10 @@ pub fn moving_average_apo(m: &MeanRevertingModelValue, row: &SinglePosRow) -> Me
     let apo = (short_ema - long_ema) / long_ema;
     if log_enabled!(Trace) {
         trace!("short_ema={},long_ema={}", short_ema, long_ema);
-        trace!(
-            "moving average : short {} long {} apo {}",
-            short_ema,
-            long_ema,
-            apo
-        );
+        trace!("moving average : short {} long {} apo {}", short_ema, long_ema, apo);
     }
     m.apo = apo;
     m
 }
 
-pub fn threshold(_m: &f64, _rows: Window<f64>) -> f64 {
-    0.0
-}
+pub fn threshold(_m: &f64, _rows: Window<f64>) -> f64 { 0.0 }
