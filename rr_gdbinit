@@ -1,0 +1,16 @@
+# ~/.rr_gdbinit
+
+# get around CLion/QtCreator not supporting target extended-remote
+define target remote
+target extended-remote $arg0
+end
+
+define target hook-extended-remote
+source ~/.rr_gdbinit
+end
+
+# optional: prevent gdb asking for confirmation
+# when invoking the run command in gdb
+set confirm off
+
+set remotetimeout 100000
