@@ -1,15 +1,19 @@
-use crate::order_manager::{OrderId, OrderManager, StagedOrder, Transaction};
-use crate::query::MutableField;
-use crate::types::{BookPosition, OperationEvent, StratEvent, TradeEvent};
-use crate::types::{OperationKind, PositionKind, TradeKind};
+use std::panic;
+
 use actix::Addr;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use db::Db;
 use log::Level::Info;
 use serde::{Deserialize, Serialize};
-use std::panic;
 use uuid::Uuid;
+
+use db::Db;
+
+use crate::order_manager::OrderManager;
+use crate::order_types::{OrderId, StagedOrder, Transaction};
+use crate::query::MutableField;
+use crate::types::{BookPosition, OperationEvent, StratEvent, TradeEvent};
+use crate::types::{OperationKind, PositionKind, TradeKind};
 
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct Position {
