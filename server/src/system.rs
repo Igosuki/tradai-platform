@@ -224,7 +224,12 @@ async fn exchange_bots(
                     )
                     .unwrap(),
                 );
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), None)
+                let url = if conf.use_test.unwrap_or_else(|| false) {
+                    coinnect_rt::binance::streaming_api::WEBSOCKET_STREAM_TEST_URL
+                } else {
+                    coinnect_rt::binance::streaming_api::WEBSOCKET_URL
+                };
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), Some(url))
                     .await
                     .unwrap()
             }

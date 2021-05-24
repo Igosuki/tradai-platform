@@ -33,6 +33,10 @@ log = "0.4"
 
 bincode = "1.3"
 
+# Optional dependencies to be used later
+# Flatdata is write once read many and fast memory mapping a structured file
+#flatdata = "0.5"
+
 [dev-dependencies]
 tempdir = "0.3"
 rand = "0.8"
