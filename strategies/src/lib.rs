@@ -1,4 +1,6 @@
 #![deny(unused_must_use, unused_mut, unused_imports, unused_import_braces)]
+// TODO: See regression in nightly: https://github.com/rust-lang/rust/issues/70814
+#![allow(unused_braces)]
 #![allow(incomplete_features)]
 #![feature(test)]
 #![feature(async_closure)]
