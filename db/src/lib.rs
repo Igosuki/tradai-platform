@@ -17,7 +17,7 @@ use rkv::StoreError::LmdbError;
 use rkv::{Manager, OwnedValue, Rkv, SingleStore, StoreError, StoreOptions, Value, Writer};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::time::Instant;
+
 use thiserror::Error;
 
 type RkvLmdb = Rkv<LmdbEnvironment>;
@@ -435,7 +435,7 @@ mod test {
     }
 
     fn db() -> Db {
-        let dir = tempdir::TempDir::new("s").unwrap();
+        let _dir = tempdir::TempDir::new("s").unwrap();
         Db::new(&test_dir(), "mydb".to_string())
     }
 
@@ -500,14 +500,14 @@ mod test {
         let size = 100000;
         let mut vals: Vec<(f64, f64)> = Vec::with_capacity(size);
         let now = Instant::now();
-        for i in 0..10000 {
+        for _i in 0..10000 {
             let v = (rand::random::<f64>(), rand::random::<f64>());
             vals.push(v);
         }
         db.put_b("row", &vals);
         println!("inserted array in {}", now.elapsed().as_millis());
         let mut vals: Vec<(f64, f64)> = Vec::with_capacity(size);
-        for i in 0..size {
+        for _i in 0..size {
             let v = (rand::random::<f64>(), rand::random::<f64>());
             vals.push(v);
         }
@@ -554,12 +554,12 @@ mod test {
         let db = db();
         let size = 10000;
         let mut vals: Vec<(f64, f64)> = Vec::with_capacity(size);
-        for i in 0..100 {
+        for _i in 0..100 {
             let v = (rand::random::<f64>(), rand::random::<f64>());
             vals.push(v);
             db.put_b("row", &v);
         }
-        for i in 0..size {
+        for _i in 0..size {
             let v = (rand::random::<f64>(), rand::random::<f64>());
             vals.push(v);
         }
