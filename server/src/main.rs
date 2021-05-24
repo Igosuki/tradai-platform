@@ -1,4 +1,4 @@
-#![feature(try_trait)]
+#![feature(try_trait_v2)]
 
 extern crate clap;
 extern crate coinnect_rt;
