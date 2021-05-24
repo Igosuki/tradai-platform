@@ -105,3 +105,6 @@ default = []
 flame_it = ["flame", "flamer"]
 gprof = ["gperftools"]
 #desktop_vis = ["cairo-rs", "gtk"]
+
+[dev-dependencies]
+pretty_assertions = "0.7"

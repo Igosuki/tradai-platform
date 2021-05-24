@@ -96,3 +96,4 @@ socket2 = "0.4"
 matches = "0.1"
 fake = { version = "2.4", features=['chrono'] }
 rand = "0.8"
+pretty_assertions = "0.7"
