@@ -1,11 +1,17 @@
 #![feature(test)]
 #![allow(incomplete_features)]
 
+mod error;
+mod storage;
+
 #[macro_use]
 extern crate log;
 #[cfg(test)]
 #[macro_use]
 extern crate serde;
+#[cfg(test)]
+#[macro_use]
+extern crate measure_time;
 
 use std::fs;
 use std::path::Path;
@@ -25,17 +31,13 @@ type RkvLmdb = Rkv<LmdbEnvironment>;
 #[derive(Error, Debug)]
 pub enum DataStoreError {
     #[error("rkv error")]
-    StoreError(rkv::StoreError),
+    StoreError(#[from] rkv::StoreError),
     #[error("expected a json value")]
     ExpectedJson,
     #[error("json error")]
     JsonError(#[from] serde_json::error::Error),
     #[error("blob error")]
     BlobError(#[from] bincode::Error),
-}
-
-impl From<rkv::StoreError> for DataStoreError {
-    fn from(e: StoreError) -> Self { Self::StoreError(e) }
 }
 
 #[derive(Debug, Clone)]
@@ -504,7 +506,7 @@ mod test {
             let v = (rand::random::<f64>(), rand::random::<f64>());
             vals.push(v);
         }
-        db.put_b("row", &vals);
+        db.put_b("row", &vals).unwrap();
         println!("inserted array in {}", now.elapsed().as_millis());
         let mut vals: Vec<(f64, f64)> = Vec::with_capacity(size);
         for _i in 0..size {
@@ -512,10 +514,10 @@ mod test {
             vals.push(v);
         }
         let now = Instant::now();
-        db.delete_all("row");
+        db.delete_all("row").unwrap();
         println!("deleted array in {}", now.elapsed().as_millis());
         let now = Instant::now();
-        db.put_b("row", &vals);
+        db.put_b("row", &vals).unwrap();
         println!("inserted larger array in {}", now.elapsed().as_millis());
         //db.replace_all("row", vals.as_slice());
 
@@ -557,7 +559,7 @@ mod test {
         for _i in 0..100 {
             let v = (rand::random::<f64>(), rand::random::<f64>());
             vals.push(v);
-            db.put_b("row", &v);
+            db.put_b("row", &v).unwrap();
         }
         for _i in 0..size {
             let v = (rand::random::<f64>(), rand::random::<f64>());
@@ -565,7 +567,7 @@ mod test {
         }
 
         b.iter(|| {
-            db.replace_all("row", vals.as_slice());
+            db.replace_all("row", vals.as_slice()).unwrap();
         });
     }
 }
