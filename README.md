@@ -59,6 +59,11 @@ Get the rr gdb configuration
 Follow the steps here https://github.com/rr-debugger/rr/wiki/Using-rr-in-an-IDE
 and this specifically for rust https://gist.github.com/spacejam/15f27007c0b1bcc1d6b4c9169b18868c
 
+#### Code coverage
+
+- ```rustup component add llvm-tools-preview```
+- ```export RUSTFLAGS="-Zinstrument-coverage"```
+
 #### Linux specifics 
 
 ##### Dependencies
