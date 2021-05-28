@@ -1,6 +1,8 @@
 use crate::error::*;
 use crate::storage::Storage;
-use rocksdb::{ColumnFamilyDescriptor, Direction, IteratorMode, Options, DB};
+use rocksdb::{ColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode, Options, DB};
+
+type Bytes = Box<[u8]>;
 
 struct RocksDbStorage {
     inner: DB,
@@ -22,59 +24,52 @@ impl RocksDbStorage {
         let db = DB::open_cf_descriptors(&options, db_path, column_families).unwrap();
         Self { inner: db }
     }
+
+    fn cf(&self, name: &str) -> Result<&ColumnFamily> {
+        self.inner
+            .cf_handle(name.as_ref())
+            .ok_or_else(|| Error::NotFoundError(name.to_string()))
+    }
 }
 
 impl Storage for RocksDbStorage {
-    fn put<K, V>(&self, key: K, value: V) -> Result<()>
+    fn put<K, V>(&self, table: &str, key: K, value: V) -> Result<()>
     where
         K: AsRef<[u8]>,
         V: AsRef<[u8]>,
     {
-        self.inner.put(key, value).map_err(|e| e.into())
+        let cf = self.cf(table)?;
+        self.inner.put_cf(cf, key, value).map_err(|e| e.into())
     }
 
-    fn get<K>(&self, key: K) -> Result<String>
+    fn get<K>(&self, table: &str, key: K) -> Result<String>
     where
         K: AsRef<[u8]>,
     {
         let k = key.as_ref();
-        self.inner.get(k).map_err(|e| e.into()).and_then(|r| {
+        let cf = self.cf(table)?;
+        self.inner.get_cf(cf, k).map_err(|e| e.into()).and_then(|r| {
             r.map(|v| String::from_utf8(v).unwrap())
                 .ok_or_else(|| Error::NotFoundError(String::from_utf8(k.into()).unwrap()))
         })
     }
 
-    fn get_ranged<F>(&self, table: &str, from: F) -> Result<Vec<String>>
+    fn get_ranged<F>(&self, table: &str, from: F) -> Result<Vec<Bytes>>
     where
         F: AsRef<[u8]>,
     {
         let mode = IteratorMode::From(from.as_ref(), Direction::Forward);
-        let cf = self
-            .inner
-            .cf_handle(table.as_ref())
-            .ok_or_else(|| Error::NotFoundError(table.to_string()))?;
-        Ok(self
-            .inner
-            .iterator_cf(cf, mode)
-            .map(|(k, v)| String::from_utf8(v.to_vec()).unwrap())
-            .collect())
+        let cf = self.cf(table)?;
+        Ok(self.inner.iterator_cf(cf, mode).map(|(k, v)| v).collect())
     }
 
-    fn get_all(&self, table: &str) -> Result<Vec<(String, String)>> {
+    fn get_all(&self, table: &str) -> Result<Vec<(String, Bytes)>> {
         let mode = IteratorMode::Start;
-        let cf = self
-            .inner
-            .cf_handle(table.as_ref())
-            .ok_or_else(|| Error::NotFoundError(table.to_string()))?;
+        let cf = self.cf(table)?;
         Ok(self
             .inner
             .iterator_cf(cf, mode)
-            .map(|(k, v)| {
-                (
-                    String::from_utf8(k.to_vec()).unwrap(),
-                    String::from_utf8(v.to_vec()).unwrap(),
-                )
-            })
+            .map(|(k, v)| (String::from_utf8(k.to_vec()).unwrap(), v))
             .collect())
     }
 
@@ -82,10 +77,7 @@ impl Storage for RocksDbStorage {
     where
         K: AsRef<[u8]>,
     {
-        let cf = self
-            .inner
-            .cf_handle(table.as_ref())
-            .ok_or_else(|| Error::NotFoundError(table.to_string()))?;
+        let cf = self.cf(table)?;
         self.inner.delete_cf(cf, key).map_err(|e| e.into())
     }
 
@@ -93,20 +85,23 @@ impl Storage for RocksDbStorage {
     where
         K: AsRef<[u8]>,
     {
-        let cf = self
-            .inner
-            .cf_handle(table.as_ref())
-            .ok_or_else(|| Error::NotFoundError(table.to_string()))?;
+        let cf = self.cf(table)?;
         self.inner.delete_range_cf(cf, from, to).map_err(|e| e.into())
     }
 }
 
 #[cfg(test)]
 mod test {
+    extern crate test;
+
     use crate::storage::rocksdb::RocksDbStorage;
     use crate::storage::Storage;
+    use chrono::Utc;
+    use test::Bencher;
 
-    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
+
+    #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
     struct Foobar {
         foo: String,
         number: i32,
@@ -120,38 +115,40 @@ mod test {
         path.to_string()
     }
 
-    fn db(tables: Vec<String>) -> RocksDbStorage {
-        let _dir = tempdir::TempDir::new("s").unwrap();
-        RocksDbStorage::new(&test_dir(), tables)
-    }
+    fn db(tables: Vec<String>) -> RocksDbStorage { RocksDbStorage::new(&test_dir(), tables) }
 
-    #[test]
-    fn db_serde_put_1m() {
-        let db = db(vec![]);
+    #[bench]
+    fn db_serde_put_bench(b: &mut Bencher) {
+        let table = "foos";
+        let db = db(vec![table.to_string()]);
         //let mut vec: Vec<Foobar> = Vec::new();
-        let size = 10_i32.pow(6) as i32;
-        {
-            info_time!("Insert {} records", size);
-            for i in 0..size {
-                let v = Foobar {
-                    foo: "bar".to_string(),
-                    number: i,
-                };
-                let result = bincode::serialize(&v).unwrap();
-                let r = db.put("foos", &result.as_slice());
+        let size = 10_i32;
+        let mut inserts = vec![];
+        for i in 0..size {
+            let v = Foobar {
+                foo: "bar".to_string(),
+                number: i,
+            };
+            let result = bincode::serialize(&v).unwrap();
+            inserts.push((i, result));
+        }
+        b.iter(|| {
+            for (i, insert) in inserts.clone() {
+                let r = db.put(table, &format!("foo{}", i), &insert.as_slice());
                 assert!(r.is_ok(), "failed to write all foos {:?}", r);
             }
-        }
+        });
     }
 
     #[test]
-    fn db_serde_put_get() {
-        let db = db(vec![]);
+    fn db_serde_put_get_delete() {
+        let table = "foos";
+        let db = db(vec![table.to_string()]);
         let rw_cmp = |k, v| {
             let result = bincode::serialize(&v).unwrap();
-            let r = db.put(k, &result.as_slice());
+            let r = db.put(table, k, &result.as_slice());
             assert!(r.is_ok(), "failed to write {} {:?} {:?}", k, v, r);
-            let r: String = db.get(k).unwrap();
+            let r: String = db.get(table, k).unwrap();
             let deserialized: Foobar = bincode::deserialize(r.as_bytes()).unwrap();
             assert_eq!(deserialized, v);
         };
@@ -163,26 +160,77 @@ mod test {
             foo: "baz".to_string(),
             number: 11,
         });
+        db.delete(table, "foo").unwrap();
+        let foo = db.get(table, "foo");
+        assert_eq!(Err(crate::error::Error::NotFoundError("foo".to_string())), foo);
     }
 
     #[test]
     fn get_ranged_cf() {
-        let db = db(vec![]);
-        let rw_cmp = |k, v| {
+        let table = "rows";
+        let db = db(vec![table.to_string()]);
+        let size = 10_i32.pow(3) as i32;
+        let before = Utc::now();
+        let mut items = vec![];
+        for i in 0..size {
+            let v = Foobar {
+                foo: "bar".to_string(),
+                number: i,
+            };
+            items.push(v.clone());
             let result = bincode::serialize(&v).unwrap();
-            let r = db.put(k, &result.as_slice());
-            assert!(r.is_ok(), "failed to write {} {:?} {:?}", k, v, r);
-            let r: String = db.get(k).unwrap();
-            let deserialized: Foobar = bincode::deserialize(r.as_bytes()).unwrap();
-            assert_eq!(deserialized, v);
-        };
-        rw_cmp("foo", Foobar {
-            foo: "bar".to_string(),
-            number: 10,
-        });
-        rw_cmp("foo", Foobar {
-            foo: "baz".to_string(),
-            number: 11,
-        });
+            let key = &format!("{}", Utc::now());
+            let r = db.put(table, key, &result.as_slice());
+            assert!(r.is_ok(), "failed to write {} {:?} {:?}", key, v, r);
+        }
+
+        let from = format!("{}", before);
+        let vec1: Vec<Foobar> = db
+            .get_ranged(table, from)
+            .unwrap()
+            .iter()
+            .map(|i| bincode::deserialize(i).unwrap())
+            .collect();
+        assert_eq!(vec1, items);
+    }
+
+    #[test]
+    fn delete_ranged_cf() {
+        init();
+        let table = "rows";
+        let db = db(vec![table.to_string()]);
+        let size = 10_i32.pow(4) as i32;
+        let before = Utc::now();
+        let mut then = Utc::now();
+        let mut items = vec![];
+
+        for i in 0..size {
+            let v = Foobar {
+                foo: "bar".to_string(),
+                number: i,
+            };
+            items.push(v.clone());
+            let result = bincode::serialize(&v).unwrap();
+            let key = &format!("{}", Utc::now());
+            let r = db.put(table, key, &result.as_slice());
+            assert!(r.is_ok(), "failed to write {} {:?} {:?}", key, v, r);
+            if i == size / 2 {
+                then = Utc::now();
+            }
+        }
+        {
+            let from = format!("{}", before);
+            let to = format!("{}", then);
+            info_time!("Deleted items in range {}, {}", &from, &to);
+            db.delete_range(table, from, to).unwrap();
+            let remaining: Vec<Foobar> = db
+                .get_all(table)
+                .unwrap()
+                .iter()
+                .map(|(k, v)| bincode::deserialize(v).unwrap())
+                .collect();
+            let remaining_items: Vec<Foobar> = items.drain(0..((size / 2) + 1) as usize).collect();
+            assert_eq!(remaining, items);
+        }
     }
 }

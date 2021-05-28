@@ -1462,6 +1462,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "chrono",
+ "env_logger",
  "itertools",
  "lmdb-rkv",
  "log",
