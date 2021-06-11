@@ -7,7 +7,7 @@ use log::Level::Info;
 use serde::{Deserialize, Serialize, Serializer};
 use uuid::Uuid;
 
-use db::Db;
+use db::{Storage, StorageBincodeExt};
 
 use crate::mean_reverting::options::Options;
 use crate::order_manager::{OrderManager, TransactionService};
@@ -139,7 +139,7 @@ pub(crate) static OPERATIONS_KEY: &str = "orders";
 
 pub(crate) static STATE_KEY: &str = "state";
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 pub(super) struct MeanRevertingState {
     position: Option<PositionKind>,
     value_strat: f64,
@@ -154,7 +154,8 @@ pub(super) struct MeanRevertingState {
     threshold_short: f64,
     threshold_long: f64,
     #[serde(skip_serializing)]
-    db: Db,
+    db: Box<dyn Storage>,
+    table: String,
     #[serde(skip_serializing)]
     ts: TransactionService,
     ongoing_op: Option<Operation>,
@@ -177,7 +178,7 @@ struct TransientState {
 }
 
 impl MeanRevertingState {
-    pub fn new(options: &Options, db: Db, om: Addr<OrderManager>) -> MeanRevertingState {
+    pub fn new(options: &Options, db: Box<dyn Storage>, table: String, om: Addr<OrderManager>) -> MeanRevertingState {
         let mut state = MeanRevertingState {
             position: None,
             value_strat: options.initial_cap,
@@ -192,6 +193,7 @@ impl MeanRevertingState {
             threshold_short: options.threshold_short,
             threshold_long: options.threshold_long,
             db,
+            table,
             ts: TransactionService::new(om),
             ongoing_op: None,
             dry_mode: options.dry_mode(),
@@ -208,7 +210,7 @@ impl MeanRevertingState {
                 self.set_position(o.pos.kind.clone());
             }
         }
-        let previous_state: Option<TransientState> = self.db.read_json(STATE_KEY);
+        let previous_state: Option<TransientState> = self.db.get(&self.table, STATE_KEY).ok();
         if let Some(ps) = previous_state {
             self.set_units_to_sell(ps.units_to_sell);
             self.set_units_to_buy(ps.units_to_buy);
@@ -222,7 +224,7 @@ impl MeanRevertingState {
                 self.nominal_position = np;
             }
             if let Some(op_key) = ps.ongoing_op {
-                let op: Option<Operation> = self.db.read_json(&op_key);
+                let op: Option<Operation> = self.db.get(&self.table, &op_key).ok();
                 self.set_ongoing_op(op);
             }
         }
@@ -401,7 +403,7 @@ impl MeanRevertingState {
     }
 
     fn save_operation(&mut self, op: &Operation) {
-        if let Err(e) = self.db.put_json(&op.id, op.clone()) {
+        if let Err(e) = self.db.put(&self.table, &op.id, op.clone()) {
             error!("Error saving operation: {:?}", e);
         }
     }
@@ -424,8 +426,8 @@ impl MeanRevertingState {
         transaction_result
     }
 
-    fn save(&self) {
-        if let Err(e) = self.db.put_json(STATE_KEY, TransientState {
+    fn save(&mut self) {
+        if let Err(e) = self.db.put(&self.table, STATE_KEY, TransientState {
             value_strat: self.value_strat,
             pnl: self.pnl,
             nominal_position: Some(self.nominal_position),
@@ -451,13 +453,18 @@ impl MeanRevertingState {
         Ok(())
     }
 
-    pub fn get_operations(&self) -> Vec<Operation> { self.db.read_json_vec(OPERATIONS_KEY) }
+    pub fn get_operations(&self) -> Vec<Operation> {
+        self.db
+            .get_ranged(&self.table, OPERATIONS_KEY)
+            .unwrap_or_else(|_| Vec::new())
+    }
 
-    pub fn dump_db(&self) -> Vec<String> { self.db.all() }
+    /// TODO: maybe implement StorageJsonExt
+    pub fn dump_db(&self) -> Vec<String> { Vec::new() }
 
     #[allow(dead_code)]
     fn get_operation(&self, uuid: &str) -> Option<Operation> {
-        self.db.read_json(&format!("{}:{}", OPERATIONS_KEY, uuid))
+        self.db.get(&self.table, &format!("{}:{}", OPERATIONS_KEY, uuid)).ok()
     }
 
     fn log_indicators(&self, pos: &PositionKind) {
