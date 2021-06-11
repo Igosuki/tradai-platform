@@ -1,7 +1,6 @@
 use super::persist::{PersistentModel, PersistentVec, Window};
 use crate::models::persist::ModelValue;
 use chrono::{DateTime, Utc};
-use db::DataStoreError;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -34,7 +33,7 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
         }
     }
 
-    pub fn update_model(&mut self) -> Result<(), DataStoreError> {
+    pub fn update_model(&mut self) -> Result<(), db::Error> {
         self.model.update_model(self.window_fn, self.rows.window())
     }
 

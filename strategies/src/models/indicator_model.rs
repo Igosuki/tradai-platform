@@ -1,6 +1,5 @@
 use super::persist::{ModelValue, PersistentModel};
 use chrono::{DateTime, Utc};
-use db::DataStoreError;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -29,7 +28,7 @@ impl<T: Serialize + DeserializeOwned + Clone, R: Clone> IndicatorModel<T, R> {
         }
     }
 
-    pub fn update_model(&mut self, row: R) -> Result<(), DataStoreError> {
+    pub fn update_model(&mut self, row: R) -> Result<(), db::Error> {
         let x = self.update_fn;
         self.model.update_model(x, &row)
     }

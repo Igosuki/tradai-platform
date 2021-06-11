@@ -185,9 +185,11 @@ async fn continuous_scenario() {
         CHANNEL,
     )
     .await;
+    let num_records = csv_records[0].len();
+    assert!(num_records > 0, "no records could be read");
     info!(
         "Loaded {} csv records in {:.6} ms",
-        csv_records[0].len(),
+        num_records,
         now.elapsed().as_millis()
     );
     // align data
@@ -218,9 +220,9 @@ async fn continuous_scenario() {
     }
     info!(
         "For {} records, evals took {}ms, each iteration took {} ns on avg",
-        csv_records[0].len(),
+        num_records,
         before_evals.elapsed().as_millis(),
-        elapsed / csv_records[0].len() as u128
+        elapsed / num_records as u128
     );
 
     // Write all model values to a csv file

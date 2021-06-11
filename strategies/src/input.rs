@@ -117,9 +117,15 @@ async fn dl_test_data(base_path: Arc<String>, exchange_name: Arc<String>, channe
     let file = tempfile::tempdir().unwrap();
     let out_file = file.into_path().join(out_file_name);
     let s3_key = &format!("test_data/{}/{}/{}.zip", exchange_name, channel, pair);
-    util::s3::download_file(&s3_key.clone(), out_file.clone())
+    let output = util::s3::download_file(&s3_key.clone(), out_file.clone())
         .await
         .expect("s3 file downloaded");
+    if let Some(1) = output.status.code() {
+        println!(
+            "s3 download failed : {}",
+            std::str::from_utf8(output.stderr.as_slice()).unwrap()
+        );
+    }
 
     let bp = base_path.deref();
 
@@ -151,7 +157,7 @@ pub async fn load_csv_dataset(
 
     for s in pairs.clone() {
         if !base_path.exists() || !base_path.join(&format!("pr={}", s)).exists() {
-            println!("download dataset from spaces");
+            println!("downloading dataset from spaces");
             std::fs::create_dir_all(&base_path).unwrap();
             crate::input::dl_test_data(bpc.clone(), exchange_namec.clone(), channelc.clone(), s).await;
         }
