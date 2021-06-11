@@ -1,11 +1,11 @@
 use chrono::{DateTime, Utc};
-use db::{DataStoreError, Db};
+use db::{get_or_create, RocksDbStorage, Storage};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::iter::{Rev, Take};
-use std::slice::Iter;
+//use std::iter::{Map, Rev, Take};
+//use std::slice::Iter;
 
-static LAST_MODEL_KEY: &str = "last_model";
+static MODELS_TABLE_NAME: &str = "models";
 
 type ModelUpdateFn<T, A> = fn(&T, A) -> T;
 
@@ -19,22 +19,25 @@ pub struct ModelValue<T> {
 pub struct PersistentModel<T> {
     last_model: Option<ModelValue<T>>,
     last_model_load_attempt: Option<DateTime<Utc>>,
-    db: Db,
+    db: RocksDbStorage,
+    key: String,
 }
 
 impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
     pub fn new(db_path: &str, name: String, init: Option<ModelValue<T>>) -> Self {
-        let db = Db::new(&format!("{}/model_{}", db_path, name), name);
+        let db = get_or_create(db_path, vec![MODELS_TABLE_NAME.to_string()]);
         Self {
             db,
+            key: format!("model_{}", name),
             last_model: init,
             last_model_load_attempt: None,
         }
     }
 
     pub fn load_model(&mut self) {
-        let lmv = self.db.read_json(LAST_MODEL_KEY);
-        self.last_model = lmv;
+        if let Ok(lmv) = self.db.get(MODELS_TABLE_NAME, &self.key) {
+            self.last_model = Some(lmv);
+        }
         self.last_model_load_attempt = Some(Utc::now());
     }
 
@@ -45,11 +48,11 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
         });
     }
 
-    pub fn update_model<A>(&mut self, update_fn: ModelUpdateFn<T, A>, args: A) -> Result<(), DataStoreError> {
+    pub fn update_model<A>(&mut self, update_fn: ModelUpdateFn<T, A>, args: A) -> Result<(), db::Error> {
         if let Some(model) = &self.last_model {
             let new_model_value = (update_fn).call((&model.value, args));
             self.set_last_model(new_model_value);
-            self.db.put_json(LAST_MODEL_KEY, &self.last_model)?;
+            self.db.put(MODELS_TABLE_NAME, &self.key, &self.last_model)?;
         }
         Ok(())
     }
@@ -57,8 +60,8 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
     pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.last_model.as_ref().map(|m| m.at) }
 
     #[allow(dead_code)]
-    pub fn wipe_model(&mut self) -> Result<(), DataStoreError> {
-        self.db.delete_all(LAST_MODEL_KEY)?;
+    pub fn wipe_model(&mut self) -> Result<(), db::Error> {
+        self.db.delete(MODELS_TABLE_NAME, &self.key)?;
         Ok(())
     }
 
@@ -77,49 +80,62 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
     }
 }
 
-//pub type Window<'a, T> = impl Iterator<Item = &'a T>;
-pub type Window<'a, T> = Take<Rev<Iter<'a, T>>>;
+pub type Window<'a, T> = impl Iterator<Item = &'a T> + Clone;
+//pub type Window<'a, T> = Take<Rev<Map<Iter<'a, T>>>>;
+
+#[derive(Debug)]
+pub struct TimedValue<T>(i64, T);
 
 // Fixed size vector backed by a database
 #[derive(Debug)]
 pub struct PersistentVec<T> {
-    pub rows: Vec<T>,
-    db: Db,
+    pub rows: Vec<TimedValue<T>>,
+    db: RocksDbStorage,
     max_size: usize,
     pub window_size: usize,
 }
 
-const ROW_KEY: &str = "row";
+const ROWS_TABLE_NAME: &str = "rows";
 
 impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
     pub fn new(db_path: &str, name: String, max_size: usize, window_size: usize) -> Self {
+        let db = get_or_create(&format!("{}/{}", db_path, name), vec![ROWS_TABLE_NAME.to_string()]);
         Self {
             rows: vec![],
-            db: Db::new(db_path, name),
+            db,
             max_size,
             window_size,
         }
     }
 
     pub fn push(&mut self, row: &T) {
-        self.rows.push(row.clone());
+        let timed_row = TimedValue(Utc::now().timestamp_nanos(), row.clone());
+        let x: &str = &timed_row.0.to_string();
+        self.rows.push(timed_row);
         // Truncate the table by window_size once max_size is reached
-        if let Err(e) = self.db.put_b(&format!("{}{}", ROW_KEY, self.rows.len() - 1), row) {
+        if let Err(e) = self.db.put(ROWS_TABLE_NAME, x, row) {
             error!("Failed writing row : {:?}", e);
         }
         if self.rows.len() > self.max_size {
-            self.rows.drain(0..self.window_size);
-            if let Err(e) = self.db.replace_all(ROW_KEY, self.rows.as_ref()) {
-                error!("Failed to replace rows : {:?}", e);
+            let mut drained = self.rows.drain(0..self.window_size);
+            let from = drained.next().unwrap();
+            let to = drained.last().unwrap();
+            if let Err(e) = self
+                .db
+                .delete_range(ROWS_TABLE_NAME, from.0.to_string(), to.0.to_string())
+            {
+                error!("Failed to delete range of rows : {:?}", e);
             }
         }
     }
 
-    pub(crate) fn window(&self) -> Window<T> { self.rows.iter().rev().take(self.window_size) }
+    pub(crate) fn window(&self) -> Window<T> { self.rows.iter().map(|r| &r.1).rev().take(self.window_size) }
 
     pub fn len(&self) -> usize { self.rows.len() }
 
-    pub fn load(&mut self) { self.rows = self.db.read_json_vec(ROW_KEY); }
+    pub fn load(&mut self) {
+        // self.rows = self.db.get_all(ROWS_TABLE_NAME);
+    }
 
     pub fn is_filled(&self) -> bool { self.len() > self.window_size }
 }

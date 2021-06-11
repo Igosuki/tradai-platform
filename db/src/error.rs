@@ -1,11 +1,13 @@
 use thiserror::Error;
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug)]
 pub enum Error {
+    #[error("bincode serde error {0}")]
+    Bincode(#[from] bincode::Error),
     #[error("rkv error")]
-    RocksDbError(#[from] rocksdb::Error),
+    RocksDb(#[from] rocksdb::Error),
     #[error("record not found {0}")]
-    NotFoundError(String),
+    NotFound(String),
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

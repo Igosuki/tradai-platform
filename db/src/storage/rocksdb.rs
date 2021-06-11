@@ -1,15 +1,18 @@
 use crate::error::*;
 use crate::storage::Storage;
 use rocksdb::{ColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode, Options, DB};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 type Bytes = Box<[u8]>;
 
-struct RocksDbStorage {
+#[derive(Debug)]
+pub struct RocksDbStorage {
     inner: DB,
 }
 
 impl RocksDbStorage {
-    fn new(db_path: &str, tables: Vec<String>) -> Self {
+    pub fn new(db_path: &str, tables: Vec<String>) -> Self {
         let mut options = Options::default();
         options.create_if_missing(true);
         options.create_missing_column_families(true);
@@ -28,7 +31,7 @@ impl RocksDbStorage {
     fn cf(&self, name: &str) -> Result<&ColumnFamily> {
         self.inner
             .cf_handle(name.as_ref())
-            .ok_or_else(|| Error::NotFoundError(name.to_string()))
+            .ok_or_else(|| Error::NotFound(name.to_string()))
     }
 }
 
@@ -36,21 +39,23 @@ impl Storage for RocksDbStorage {
     fn put<K, V>(&self, table: &str, key: K, value: V) -> Result<()>
     where
         K: AsRef<[u8]>,
-        V: AsRef<[u8]>,
+        V: Serialize,
     {
         let cf = self.cf(table)?;
-        self.inner.put_cf(cf, key, value).map_err(|e| e.into())
+        let s = bincode::serialize(&value)?;
+        self.inner.put_cf(cf, key, s).map_err(|e| e.into())
     }
 
-    fn get<K>(&self, table: &str, key: K) -> Result<String>
+    fn get<K, V>(&self, table: &str, key: K) -> Result<V>
     where
         K: AsRef<[u8]>,
+        V: DeserializeOwned,
     {
         let k = key.as_ref();
         let cf = self.cf(table)?;
         self.inner.get_cf(cf, k).map_err(|e| e.into()).and_then(|r| {
-            r.map(|v| String::from_utf8(v).unwrap())
-                .ok_or_else(|| Error::NotFoundError(String::from_utf8(k.into()).unwrap()))
+            r.ok_or_else(|| Error::NotFound(String::from_utf8(k.into()).unwrap()))
+                .and_then(|v| bincode::deserialize(v.as_slice()).map_err(|e| e.into()))
         })
     }
 
@@ -60,7 +65,7 @@ impl Storage for RocksDbStorage {
     {
         let mode = IteratorMode::From(from.as_ref(), Direction::Forward);
         let cf = self.cf(table)?;
-        Ok(self.inner.iterator_cf(cf, mode).map(|(k, v)| v).collect())
+        Ok(self.inner.iterator_cf(cf, mode).map(|(_k, v)| v).collect())
     }
 
     fn get_all(&self, table: &str) -> Result<Vec<(String, Bytes)>> {
