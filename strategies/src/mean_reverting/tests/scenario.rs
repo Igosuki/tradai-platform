@@ -22,22 +22,34 @@ use std::io::BufWriter;
 struct StrategyLog {
     time: DateTime<Utc>,
     mid: f64,
-    state: MeanRevertingState,
+    threshold_short: f64,
+    threshold_long: f64,
+    apo: f64,
+    pnl: f64,
+    long_position_return: f64,
+    short_position_return: f64,
+    nominal_position: f64,
     value: MeanRevertingModelValue,
 }
 
 impl StrategyLog {
     fn from_state(
         time: DateTime<Utc>,
-        state: MeanRevertingState,
+        state: &MeanRevertingState,
         last_row: &SinglePosRow,
         value: MeanRevertingModelValue,
     ) -> StrategyLog {
         StrategyLog {
             time,
             mid: last_row.pos.mid,
-            state,
+            threshold_short: state.threshold_short(),
+            threshold_long: state.threshold_long(),
+            apo: state.apo(),
+            pnl: state.pnl(),
+            long_position_return: state.long_position_return(),
             value,
+            short_position_return: state.short_position_return(),
+            nominal_position: state.nominal_position(),
         }
     }
 }
@@ -49,12 +61,12 @@ fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn
         ("Prices and EMA", vec![|x| x.mid, |x| x.value.short_ema.current, |x| {
             x.value.long_ema.current
         }]),
-        ("Open Position Return", vec![|x| x.state.short_position_return(), |x| {
-            x.state.long_position_return()
+        ("Open Position Return", vec![|x| x.short_position_return, |x| {
+            x.long_position_return
         }]),
-        ("APO", vec![|x| x.state.apo()]),
-        ("PnL", vec![|x| x.state.pnl()]),
-        ("Nominal (units)", vec![|x| x.state.nominal_position()]),
+        ("APO", vec![|x| x.apo]),
+        ("PnL", vec![|x| x.pnl]),
+        ("Nominal (units)", vec![|x| x.nominal_position]),
     ];
     let height: u32 = 342 * more_lines.len() as u32;
     let root = SVGBackend::new(&string, (1724, height)).into_drawing_area();
@@ -211,7 +223,7 @@ async fn continuous_scenario() {
 
         let value = strat.model_value().unwrap();
         model_values.push((row_time, value.clone(), strat.state.value_strat()));
-        strategy_logs.push(StrategyLog::from_state(row_time, strat.state.clone(), &row, value));
+        strategy_logs.push(StrategyLog::from_state(row_time, &strat.state, &row, value));
         match strat.state.ongoing_op() {
             Some(op) => trade_events.push((op.operation_event().clone(), op.trade_event())),
             None => (),
@@ -286,8 +298,8 @@ async fn continuous_scenario() {
             thresholds_wtr
                 .write_record(&[
                     log.time.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
-                    log.state.threshold_short().to_string(),
-                    log.state.threshold_long().to_string(),
+                    log.threshold_short.to_string(),
+                    log.threshold_long.to_string(),
                 ])
                 .unwrap();
         }
