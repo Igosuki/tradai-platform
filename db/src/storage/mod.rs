@@ -34,9 +34,10 @@ pub trait StorageBincodeExt {
         K: AsRef<[u8]>,
         V: DeserializeOwned;
 
-    fn get_ranged<F>(&self, table: &str, from: F) -> Result<Vec<Box<[u8]>>>
+    fn get_ranged<F, V>(&self, table: &str, from: F) -> Result<Vec<V>>
     where
-        F: AsRef<[u8]>;
+        F: AsRef<[u8]>,
+        V: DeserializeOwned;
 
     fn get_all<V>(&self, table: &str) -> Result<Vec<(String, V)>>
     where
@@ -70,11 +71,16 @@ impl<T: Storage + ?Sized> StorageBincodeExt for T {
         bincode::deserialize(record.as_slice()).map_err(|e| e.into())
     }
 
-    fn get_ranged<F>(&self, table: &str, from: F) -> Result<Vec<Box<[u8]>>>
+    fn get_ranged<F, V>(&self, table: &str, from: F) -> Result<Vec<V>>
     where
         F: AsRef<[u8]>,
+        V: DeserializeOwned,
     {
-        self._get_ranged(table, from.as_ref())
+        let items = self._get_ranged(table, from.as_ref())?;
+        items
+            .iter()
+            .map(|v| bincode::deserialize::<V>(v).map_err(|e| e.into()))
+            .collect()
     }
 
     fn get_all<V>(&self, table: &str) -> Result<Vec<(String, V)>>
