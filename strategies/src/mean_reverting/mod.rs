@@ -2,7 +2,7 @@ use actix::Addr;
 use anyhow::Result;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use coinnect_rt::types::{LiveEvent, Pair};
-use db::Db;
+use db::get_or_create;
 use itertools::Itertools;
 use std::convert::TryInto;
 use std::path::PathBuf;
@@ -62,9 +62,11 @@ impl MeanRevertingStrategy {
         let mut pb = PathBuf::from(db_path);
         let strat_db_path = format!("{}_{}", MEAN_REVERTING_DB_KEY, n.pair);
         pb.push(strat_db_path);
-        let db_name = format!("{}", n.pair);
-        let db = Db::new(&pb.to_str().unwrap(), db_name);
-        let state = MeanRevertingState::new(n, db, om);
+        let state_table = format!("{}", n.pair);
+        let mut state_db_path = pb.clone();
+        state_db_path.push(&state_table);
+        let db = get_or_create(&state_db_path.to_str().unwrap(), vec![state_table.clone()]);
+        let state = MeanRevertingState::new(n, db, state_table, om);
 
         // EMA Model
         let model = Self::make_model(
@@ -191,7 +193,7 @@ impl MeanRevertingStrategy {
 
         // If a position is taken, resolve pending operations
         // In case of error return immediately as no trades can be made until the position is resolved
-        self.state.resolve_pending_operations(&lr.pos).await?;
+        //self.state.resolve_pending_operations(&lr.pos).await?;
 
         // Possibly open a short position
         if (self.state.apo() > self.state.threshold_short()) && self.state.no_position_taken() {
