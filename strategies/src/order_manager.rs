@@ -13,7 +13,7 @@ use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::exchange_bot::Ping;
 use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, OrderEnforcement, OrderQuery,
                          OrderStatus, OrderType, OrderUpdate, TradeType};
-use db::Db;
+use db::get_or_create;
 
 use crate::order_types::{OrderId, Rejection, StagedOrder, Transaction, TransactionStatus};
 use crate::types::TradeKind;
@@ -58,17 +58,18 @@ impl TransactionService {
 pub struct OrderManager {
     api: Arc<Box<dyn ExchangeApi>>,
     orders: Arc<RwLock<HashMap<String, TransactionStatus>>>,
-    transactions_wal: Wal,
+    transactions_wal: Arc<RwLock<Wal>>,
 }
+
+static TRANSACTIONS_TABLE: &str = "transactions_wal";
 
 impl OrderManager {
     pub fn new(api: Arc<Box<dyn ExchangeApi>>, db_path: &Path) -> Self {
-        let wal_db = Db::new(
-            &format!("{}/transactions", db_path.to_str().unwrap()),
-            "transactions_wal".to_string(),
-        );
-        let wal = Wal::new(wal_db);
-        let orders = Arc::new(RwLock::new(wal.read_all()));
+        let wal_db = get_or_create(&format!("{}/transactions", db_path.to_str().unwrap()), vec![
+            TRANSACTIONS_TABLE.to_string(),
+        ]);
+        let wal = Arc::new(RwLock::new(Wal::new(wal_db, TRANSACTIONS_TABLE.to_string())));
+        let orders = Arc::new(RwLock::new(HashMap::new()));
         OrderManager {
             api,
             orders,
@@ -115,7 +116,9 @@ impl OrderManager {
             ..AddOrderRequest::default()
         });
         let staged_transaction = TransactionStatus::Staged(add_order.clone());
-        self.transactions_wal.append(order_id.clone(), staged_transaction)?;
+        //let mut writer = self.transactions_wal.write().await;
+        //writer.append(order_id.clone(), staged_transaction)?;
+        //drop(writer);
         let order_info = self.api.order(add_order).await;
         let written_transaction = match order_info {
             Ok(o) => TransactionStatus::New(o),
@@ -151,7 +154,8 @@ impl OrderManager {
     }
 
     pub(crate) async fn register(&mut self, order_id: String, tr: TransactionStatus) -> Result<()> {
-        self.transactions_wal.append(order_id.clone(), tr.clone())?;
+        //let mut writer = self.transactions_wal.write().await;
+        //writer.append(order_id.clone(), tr.clone())?;
         let mut writer = self.orders.write().await;
         writer.insert(order_id.clone(), tr.clone());
         Ok(())
@@ -179,6 +183,11 @@ impl Actor for OrderManager {
         info!("Starting Order Manager");
         ctx.run_later(Duration::from_millis(0), |act, ctx| {
             async {
+                //let reader = act.transactions_wal.read().await;
+                //let mut writer = act.orders.write().await;
+                // if let Ok(wal_transactions) = reader.read_all() {
+                //     writer.extend(wal_transactions);
+                // }
                 let orders_read_lock = act.orders.read().await;
                 // Fetch all latest orders
                 let latest_orders = futures::future::join_all(

@@ -1,5 +1,6 @@
+use crate::error::*;
 use chrono::Utc;
-use db::{Db, WriteResult};
+use db::{Storage, StorageBincodeExt};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::hash_map::Entry;
@@ -7,18 +8,19 @@ use std::collections::HashMap;
 
 static WAL_KEY_SEP: &str = "|";
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Wal {
-    backend: Db,
+    backend: Box<dyn Storage>,
+    table: String,
 }
 
 impl Wal {
-    pub fn new(backend: Db) -> Self { Self { backend } }
+    pub fn new(backend: Box<dyn Storage>, table: String) -> Self { Self { backend, table } }
 
-    pub fn read_all<T: DeserializeOwned>(&self) -> HashMap<String, T> {
+    pub fn read_all<T: DeserializeOwned>(&self) -> Result<HashMap<String, T>> {
         let mut records: HashMap<String, T> = HashMap::new();
         let mut last_key_time: HashMap<String, i64> = HashMap::new();
-        self.backend.read_all_json().into_iter().for_each(|(k, v)| {
+        self.backend.get_all::<T>(&self.table)?.into_iter().for_each(|(k, v)| {
             let split: Vec<&str> = k.split(WAL_KEY_SEP).collect();
             if let [ts, key] = split[..] {
                 let key_string = key.to_string();
@@ -36,11 +38,11 @@ impl Wal {
                 }
             }
         });
-        records
+        Ok(records)
     }
 
-    pub fn append<T: Serialize>(&self, k: String, t: T) -> WriteResult {
+    pub fn append<T: Serialize>(&mut self, k: String, t: T) -> Result<()> {
         let key = format!("{}{}{}", Utc::now().timestamp_millis(), WAL_KEY_SEP, k);
-        self.backend.put_json(&key, t)
+        Ok(self.backend.put(&self.table, &key, t)?)
     }
 }
