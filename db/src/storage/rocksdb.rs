@@ -36,60 +36,43 @@ impl RocksDbStorage {
 }
 
 impl Storage for RocksDbStorage {
-    fn put<K, V>(&self, table: &str, key: K, value: V) -> Result<()>
-    where
-        K: AsRef<[u8]>,
-        V: Serialize,
-    {
+    fn _put(&mut self, table: &str, key: &[u8], value: &[u8]) -> Result<()> {
         let cf = self.cf(table)?;
-        let s = bincode::serialize(&value)?;
-        self.inner.put_cf(cf, key, s).map_err(|e| e.into())
+        self.inner.put_cf(cf, key, value).map_err(|e| e.into())
     }
 
-    fn get<K, V>(&self, table: &str, key: K) -> Result<V>
-    where
-        K: AsRef<[u8]>,
-        V: DeserializeOwned,
-    {
+    fn _get(&self, table: &str, key: &[u8]) -> Result<Vec<u8>> {
+        info_time!("RocksDb Get");
         let k = key.as_ref();
         let cf = self.cf(table)?;
-        self.inner.get_cf(cf, k).map_err(|e| e.into()).and_then(|r| {
-            r.ok_or_else(|| Error::NotFound(String::from_utf8(k.into()).unwrap()))
-                .and_then(|v| bincode::deserialize(v.as_slice()).map_err(|e| e.into()))
-        })
+        self.inner
+            .get_cf(cf, k)
+            .map_err(|e| e.into())
+            .and_then(|r| r.ok_or_else(|| Error::NotFound(String::from_utf8(k.into()).unwrap())))
     }
 
-    fn get_ranged<F>(&self, table: &str, from: F) -> Result<Vec<Bytes>>
-    where
-        F: AsRef<[u8]>,
-    {
+    fn _get_ranged(&self, table: &str, from: &[u8]) -> Result<Vec<Bytes>> {
         let mode = IteratorMode::From(from.as_ref(), Direction::Forward);
         let cf = self.cf(table)?;
         Ok(self.inner.iterator_cf(cf, mode).map(|(_k, v)| v).collect())
     }
 
-    fn get_all(&self, table: &str) -> Result<Vec<(String, Bytes)>> {
+    fn _get_all(&self, table: &str) -> Result<Vec<(String, Bytes)>> {
         let mode = IteratorMode::Start;
         let cf = self.cf(table)?;
         Ok(self
             .inner
             .iterator_cf(cf, mode)
-            .map(|(k, v)| (String::from_utf8(k.to_vec()).unwrap(), v))
+            .map(|(k, v)| (String::from_utf8(k.into()).unwrap(), v))
             .collect())
     }
 
-    fn delete<K>(&self, table: &str, key: K) -> Result<()>
-    where
-        K: AsRef<[u8]>,
-    {
+    fn _delete(&mut self, table: &str, key: &[u8]) -> Result<()> {
         let cf = self.cf(table)?;
         self.inner.delete_cf(cf, key).map_err(|e| e.into())
     }
 
-    fn delete_range<K>(&self, table: &str, from: K, to: K) -> Result<()>
-    where
-        K: AsRef<[u8]>,
-    {
+    fn _delete_range(&mut self, table: &str, from: &[u8], to: &[u8]) -> Result<()> {
         let cf = self.cf(table)?;
         self.inner.delete_range_cf(cf, from, to).map_err(|e| e.into())
     }
