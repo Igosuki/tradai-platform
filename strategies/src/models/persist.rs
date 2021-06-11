@@ -1,9 +1,8 @@
 use chrono::{DateTime, Utc};
-use db::{get_or_create, RocksDbStorage, Storage};
+use db::StorageBincodeExt;
+use db::{get_or_create, Storage};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-//use std::iter::{Map, Rev, Take};
-//use std::slice::Iter;
 
 static MODELS_TABLE_NAME: &str = "models";
 
@@ -19,7 +18,7 @@ pub struct ModelValue<T> {
 pub struct PersistentModel<T> {
     last_model: Option<ModelValue<T>>,
     last_model_load_attempt: Option<DateTime<Utc>>,
-    db: RocksDbStorage,
+    db: Box<dyn Storage>,
     key: String,
 }
 
@@ -90,7 +89,7 @@ pub struct TimedValue<T>(i64, T);
 #[derive(Debug)]
 pub struct PersistentVec<T> {
     pub rows: Vec<TimedValue<T>>,
-    db: RocksDbStorage,
+    db: Box<dyn Storage>,
     max_size: usize,
     pub window_size: usize,
 }

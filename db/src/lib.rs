@@ -1,4 +1,5 @@
 #![feature(test)]
+#![feature(btree_drain_filter)]
 #![allow(incomplete_features)]
 
 mod error;
@@ -9,7 +10,6 @@ extern crate log;
 #[cfg(test)]
 #[macro_use]
 extern crate serde;
-#[cfg(test)]
 #[macro_use]
 extern crate measure_time;
 
@@ -28,7 +28,7 @@ use thiserror::Error;
 
 pub use error::Error;
 pub use storage::rocksdb::RocksDbStorage;
-pub use storage::{get_or_create, Storage};
+pub use storage::{get_or_create, Storage, StorageBincodeExt};
 
 type RkvLmdb = Rkv<LmdbEnvironment>;
 
