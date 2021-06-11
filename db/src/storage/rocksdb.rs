@@ -42,7 +42,6 @@ impl Storage for RocksDbStorage {
     }
 
     fn _get(&self, table: &str, key: &[u8]) -> Result<Vec<u8>> {
-        info_time!("RocksDb Get");
         let k = key.as_ref();
         let cf = self.cf(table)?;
         self.inner
