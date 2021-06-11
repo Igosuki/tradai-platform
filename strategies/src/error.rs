@@ -6,4 +6,8 @@ pub enum Error {
     IOError(#[from] std::io::Error),
     #[error("Coinnect {0}")]
     Coinnect(#[from] coinnect_rt::error::Error),
+    #[error("Db {0}")]
+    Db(#[from] db::Error),
 }
+
+pub type Result<T> = std::result::Result<T, Error>;
