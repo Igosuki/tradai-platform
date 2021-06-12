@@ -27,6 +27,7 @@ pub(crate) struct TransactionService {
 impl TransactionService {
     pub fn new(om: Addr<OrderManager>) -> Self { Self { om } }
 
+    #[tracing::instrument(skip(self), level = "debug")]
     pub async fn stage_order(&self, staged_order: StagedOrder) -> Result<Transaction> {
         self.om
             .send(staged_order)
@@ -319,7 +320,6 @@ mod test {
 
     use crate::order_manager::OrderManager;
     use crate::order_types::{Rejection, StagedOrder, TransactionStatus};
-    use crate::test_util::test_dir;
     use crate::types::TradeKind;
 
     #[actix_rt::test]
