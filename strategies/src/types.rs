@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
-use log::Level::Info;
+use log::Level::Debug;
 use strum_macros::{AsRefStr, EnumString};
 use thiserror::Error;
 
@@ -86,9 +86,9 @@ pub enum StratEvent {
 
 impl StratEvent {
     pub fn log(&self) {
-        if log_enabled!(Info) {
+        if log_enabled!(Debug) {
             let s = serde_json::to_string(self).unwrap();
-            info!("{}", s);
+            debug!("{}", s);
         }
     }
 }

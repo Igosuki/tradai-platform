@@ -3,7 +3,7 @@ use std::panic;
 use actix::Addr;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use log::Level::Info;
+use log::Level::Debug;
 use serde::{Deserialize, Serialize, Serializer};
 use uuid::Uuid;
 
@@ -467,7 +467,7 @@ impl MeanRevertingState {
     }
 
     fn log_indicators(&self, pos: &PositionKind) {
-        if log_enabled!(Info) {
+        if log_enabled!(Debug) {
             let indicator = MeanRevertingStateIndicator {
                 units_to_buy: self.units_to_buy,
                 units_to_sell: self.units_to_sell,
@@ -480,7 +480,7 @@ impl MeanRevertingState {
                 pnl: self.pnl(),
                 nominal_position: self.nominal_position,
             };
-            info!("{}", serde_json::to_string(&indicator).unwrap());
+            debug!("{}", serde_json::to_string(&indicator).unwrap());
         }
     }
     fn new_price(&self, bp: &BookPosition, operation_kind: &OperationKind) -> Result<f64> {
