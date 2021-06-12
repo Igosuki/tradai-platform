@@ -1,8 +1,7 @@
 use crate::error::*;
 use crate::storage::Storage;
 use rocksdb::{ColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode, Options, DB};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use std::path::Path;
 
 type Bytes = Box<[u8]>;
 
@@ -12,7 +11,7 @@ pub struct RocksDbStorage {
 }
 
 impl RocksDbStorage {
-    pub fn new(db_path: &str, tables: Vec<String>) -> Self {
+    pub fn new<S: AsRef<Path>>(db_path: S, tables: Vec<String>) -> Self {
         let mut options = Options::default();
         options.create_if_missing(true);
         options.create_missing_column_families(true);
@@ -81,8 +80,10 @@ impl Storage for RocksDbStorage {
 mod test {
     extern crate test;
 
+    use crate::error::Error;
     use crate::storage::rocksdb::RocksDbStorage;
     use crate::storage::Storage;
+    use crate::StorageBincodeExt;
     use chrono::Utc;
     use test::Bencher;
 
@@ -107,7 +108,7 @@ mod test {
     #[bench]
     fn db_serde_put_bench(b: &mut Bencher) {
         let table = "foos";
-        let db = db(vec![table.to_string()]);
+        let mut db = db(vec![table.to_string()]);
         //let mut vec: Vec<Foobar> = Vec::new();
         let size = 10_i32;
         let mut inserts = vec![];
@@ -121,7 +122,7 @@ mod test {
         }
         b.iter(|| {
             for (i, insert) in inserts.clone() {
-                let r = db.put(table, &format!("foo{}", i), &insert.as_slice());
+                let r = db._put(table, format!("foo{}", i).as_bytes(), &insert.as_slice());
                 assert!(r.is_ok(), "failed to write all foos {:?}", r);
             }
         });
@@ -130,32 +131,40 @@ mod test {
     #[test]
     fn db_serde_put_get_delete() {
         let table = "foos";
-        let db = db(vec![table.to_string()]);
-        let rw_cmp = |k, v| {
+        let key = "foo".as_bytes();
+        let mut db = db(vec![table.to_string()]);
+        let mut rw_cmp = |k, v| {
             let result = bincode::serialize(&v).unwrap();
-            let r = db.put(table, k, &result.as_slice());
-            assert!(r.is_ok(), "failed to write {} {:?} {:?}", k, v, r);
-            let r: String = db.get(table, k).unwrap();
-            let deserialized: Foobar = bincode::deserialize(r.as_bytes()).unwrap();
+            let r = db._put(table, k, &result.as_slice());
+            assert!(
+                r.is_ok(),
+                "failed to write {} {:?} {:?}",
+                std::str::from_utf8(k).unwrap(),
+                v,
+                r
+            );
+            let r: Vec<u8> = db._get(table, k).unwrap();
+            let deserialized: Foobar = bincode::deserialize(r.as_slice()).unwrap();
             assert_eq!(deserialized, v);
         };
-        rw_cmp("foo", Foobar {
+        rw_cmp(key, Foobar {
             foo: "bar".to_string(),
             number: 10,
         });
-        rw_cmp("foo", Foobar {
+        rw_cmp(key, Foobar {
             foo: "baz".to_string(),
             number: 11,
         });
-        db.delete(table, "foo").unwrap();
-        let foo = db.get(table, "foo");
-        assert_eq!(Err(crate::error::Error::NotFoundError("foo".to_string())), foo);
+        db._delete(table, key).unwrap();
+        let foo = db._get(table, key);
+        matches!(foo, Err(Error::NotFound(x)) if x == "foo");
+        //assert_eq!(Err(Error::NotFound(String::from_utf8_lossy(key).to_string())), foo);
     }
 
     #[test]
     fn get_ranged_cf() {
         let table = "rows";
-        let db = db(vec![table.to_string()]);
+        let mut db = db(vec![table.to_string()]);
         let size = 10_i32.pow(3) as i32;
         let before = Utc::now();
         let mut items = vec![];
@@ -167,13 +176,12 @@ mod test {
             items.push(v.clone());
             let result = bincode::serialize(&v).unwrap();
             let key = &format!("{}", Utc::now());
-            let r = db.put(table, key, &result.as_slice());
+            let r = db._put(table, key.as_bytes(), &result.as_slice());
             assert!(r.is_ok(), "failed to write {} {:?} {:?}", key, v, r);
         }
 
-        let from = format!("{}", before);
         let vec1: Vec<Foobar> = db
-            .get_ranged(table, from)
+            ._get_ranged(table, before.to_string().as_bytes())
             .unwrap()
             .iter()
             .map(|i| bincode::deserialize(i).unwrap())
@@ -185,7 +193,7 @@ mod test {
     fn delete_ranged_cf() {
         init();
         let table = "rows";
-        let db = db(vec![table.to_string()]);
+        let mut db = db(vec![table.to_string()]);
         let size = 10_i32.pow(4) as i32;
         let before = Utc::now();
         let mut then = Utc::now();
@@ -199,19 +207,18 @@ mod test {
             items.push(v.clone());
             let result = bincode::serialize(&v).unwrap();
             let key = &format!("{}", Utc::now());
-            let r = db.put(table, key, &result.as_slice());
+            let r = db._put(table, key.as_bytes(), &result.as_slice());
             assert!(r.is_ok(), "failed to write {} {:?} {:?}", key, v, r);
             if i == size / 2 {
                 then = Utc::now();
             }
         }
         {
-            let from = format!("{}", before);
-            let to = format!("{}", then);
-            info_time!("Deleted items in range {}, {}", &from, &to);
-            db.delete_range(table, from, to).unwrap();
+            info_time!("Deleted items in range {}, {}", &before, &then);
+            db._delete_range(table, before.to_string().as_bytes(), then.to_string().as_bytes())
+                .unwrap();
             let remaining: Vec<Foobar> = db
-                .get_all(table)
+                ._get_all(table)
                 .unwrap()
                 .iter()
                 .map(|(k, v)| bincode::deserialize(v).unwrap())
