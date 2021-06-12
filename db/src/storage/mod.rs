@@ -2,11 +2,11 @@ pub mod mem;
 pub mod rocksdb;
 
 use crate::error::*;
-use crate::storage::mem::MemoryKVStore;
 use crate::RocksDbStorage;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fmt::Debug;
+use std::path::Path;
 
 pub trait Storage: Send + Sync + Debug {
     fn _put(&mut self, table: &str, key: &[u8], value: &[u8]) -> Result<()>;
@@ -113,6 +113,6 @@ impl<T: Storage + ?Sized> StorageBincodeExt for T {
     }
 }
 
-pub fn get_or_create(path: &str, tables: Vec<String>) -> Box<dyn Storage> {
+pub fn get_or_create<S: AsRef<Path>>(path: S, tables: Vec<String>) -> Box<dyn Storage> {
     Box::new(RocksDbStorage::new(path, tables))
 }

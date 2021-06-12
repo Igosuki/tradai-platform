@@ -1,6 +1,6 @@
 use crate::error::*;
 use crate::Storage;
-use std::collections::{BTreeMap, Bound, HashMap};
+use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub struct MemoryKVStore {
@@ -24,9 +24,9 @@ impl Storage for MemoryKVStore {
             .map(|v| v.clone())
     }
 
-    fn _get_ranged(&self, table: &str, from: &[u8]) -> Result<Vec<Box<[u8]>>> { todo!() }
+    fn _get_ranged(&self, _table: &str, _from: &[u8]) -> Result<Vec<Box<[u8]>>> { todo!() }
 
-    fn _get_all(&self, table: &str) -> Result<Vec<(String, Box<[u8]>)>> { todo!() }
+    fn _get_all(&self, _table: &str) -> Result<Vec<(String, Box<[u8]>)>> { todo!() }
 
     fn _delete(&mut self, _table: &str, key: &[u8]) -> Result<()> {
         self.inner.remove(key);
