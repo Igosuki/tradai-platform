@@ -153,6 +153,7 @@ impl MeanRevertingStrategy {
         }
     }
 
+    #[tracing::instrument(skip(self), level = "debug")]
     fn maybe_eval_threshold(&mut self, current_time: DateTime<Utc>) {
         if !self.dynamic_threshold {
             return;
@@ -187,6 +188,7 @@ impl MeanRevertingStrategy {
         }
     }
 
+    #[tracing::instrument(skip(self), level = "debug")]
     async fn eval_latest(&mut self, lr: &SinglePosRow) -> Result<Operation> {
         self.maybe_eval_threshold(lr.time);
 
@@ -196,7 +198,7 @@ impl MeanRevertingStrategy {
 
         // If a position is taken, resolve pending operations
         // In case of error return immediately as no trades can be made until the position is resolved
-        //self.state.resolve_pending_operations(&lr.pos).await?;
+        self.state.resolve_pending_operations(&lr.pos).await?;
 
         // Possibly open a short position
         if (self.state.apo() > self.state.threshold_short()) && self.state.no_position_taken() {
