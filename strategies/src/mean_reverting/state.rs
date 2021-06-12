@@ -317,6 +317,7 @@ impl MeanRevertingState {
         self.save();
     }
 
+    #[tracing::instrument(skip(self), level = "debug")]
     pub(super) async fn resolve_pending_operations(&mut self, current_bp: &BookPosition) -> Result<()> {
         match self.ongoing_op.as_ref() {
             // There is an ongoing operation
@@ -361,6 +362,7 @@ impl MeanRevertingState {
         }
     }
 
+    #[tracing::instrument(skip(self), level = "debug")]
     pub(super) async fn open(&mut self, pos: Position, fees: f64) -> Result<Operation> {
         let position_kind = pos.kind.clone();
         self.set_position(position_kind.clone());
@@ -380,6 +382,7 @@ impl MeanRevertingState {
         Ok(op)
     }
 
+    #[tracing::instrument(skip(self), level = "debug")]
     pub(super) async fn close(&mut self, pos: Position, fees: f64) -> Result<Operation> {
         let position_kind: PositionKind = pos.kind.clone();
         match position_kind {
@@ -408,6 +411,7 @@ impl MeanRevertingState {
         }
     }
 
+    #[tracing::instrument(skip(self), level = "debug")]
     async fn stage_operation(&mut self, op: &mut Operation) -> Result<()> {
         self.save_operation(op);
         let reqs = self.ts.stage_order(op.trade.clone().into()).await;

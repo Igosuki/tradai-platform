@@ -1,5 +1,7 @@
 use async_std::task;
 use chrono::{DateTime, TimeZone, Utc};
+use coinnect_rt::exchange::Exchange;
+use ordered_float::OrderedFloat;
 use plotters::prelude::*;
 use std::error::Error;
 use std::time::{Duration, Instant};
@@ -11,12 +13,9 @@ use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::MeanRevertingState;
 use crate::mean_reverting::MeanRevertingStrategy;
 use crate::order_manager::test_util::mock_manager;
-use crate::test_util::now_str;
+use crate::test_util::tracing::setup_opentelemetry;
+use crate::test_util::{init, now_str};
 use crate::types::{OperationEvent, TradeEvent};
-use coinnect_rt::exchange::Exchange;
-use ordered_float::OrderedFloat;
-use serde::{ser::SerializeSeq, Serializer};
-use std::io::BufWriter;
 
 #[derive(Debug, Serialize, Clone)]
 struct StrategyLog {
@@ -55,7 +54,8 @@ impl StrategyLog {
 }
 
 fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn Error>> {
-    let string = format!("graphs/mean_reverting_plot_{}.svg", now_str());
+    std::fs::create_dir_all("graphs").unwrap();
+    let out_file = format!("graphs/mean_reverting_plot_{}.svg", now_str());
     let color_wheel = vec![&BLACK, &BLUE, &RED];
     let more_lines: Vec<StrategyEntry<'_>> = vec![
         ("Prices and EMA", vec![|x| x.mid, |x| x.value.short_ema.current, |x| {
@@ -69,7 +69,7 @@ fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn
         ("Nominal (units)", vec![|x| x.nominal_position]),
     ];
     let height: u32 = 342 * more_lines.len() as u32;
-    let root = SVGBackend::new(&string, (1724, height)).into_drawing_area();
+    let root = SVGBackend::new(&out_file, (1724, height)).into_drawing_area();
     root.fill(&WHITE)?;
 
     let lower = data.first().unwrap().time;
@@ -78,7 +78,7 @@ fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn
 
     let area_rows = root.split_evenly((more_lines.len(), 1));
 
-    let skipped_data = data.iter().skip(501);
+    let skipped_data = data.iter();
     for (i, line_specs) in more_lines.iter().enumerate() {
         let mins = skipped_data.clone().map(|sl| {
             line_specs
@@ -111,13 +111,10 @@ fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn
             ))?;
         }
     }
-
-    Ok(string.clone())
+    Ok(out_file.clone())
 }
 
 type StrategyEntry<'a> = (&'a str, Vec<fn(&StrategyLog) -> f64>);
-
-fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
 static EXCHANGE: &str = "Binance";
 static CHANNEL: &str = "order_books";
@@ -153,7 +150,8 @@ async fn moving_average() {
 
 #[actix_rt::test]
 async fn continuous_scenario() {
-    init();
+    //init();
+    setup_opentelemetry();
     let _window_size = 10000;
     let path = crate::test_util::test_dir();
     let order_manager_addr = mock_manager(&path);
@@ -198,7 +196,7 @@ async fn continuous_scenario() {
     )
     .await;
     let num_records = csv_records[0].len();
-    assert!(num_records > 0, "no records could be read");
+    assert!(num_records > 0, "no csv records could be read");
     info!(
         "Loaded {} csv records in {:.6} ms",
         num_records,
@@ -209,6 +207,7 @@ async fn continuous_scenario() {
     let mut strategy_logs: Vec<StrategyLog> = Vec::new();
     let mut model_values: Vec<(DateTime<Utc>, MeanRevertingModelValue, f64)> = Vec::new();
     let mut trade_events: Vec<(OperationEvent, TradeEvent)> = Vec::new();
+
     // Feed all csv records to the strat
     let before_evals = Instant::now();
     for csvr in pair_csv_records {

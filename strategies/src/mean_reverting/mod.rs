@@ -242,6 +242,7 @@ impl MeanRevertingStrategy {
 
     fn can_eval(&self) -> bool { self.model.value().is_some() }
 
+    #[tracing::instrument(skip(self), level = "debug")]
     async fn process_row(&mut self, row: &SinglePosRow) {
         self.last_row_time_at_eval = self.model.last_model_time().unwrap_or_else(|| Utc.timestamp_millis(0));
         let should_sample = crate::util::is_eval_time_reached(row.time, self.last_sample_time, self.sample_freq, 1);
