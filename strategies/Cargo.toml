@@ -113,3 +113,4 @@ hdrhistogram = "7"
 
 [patch.crates-io]
 pathfinder_simd = { git="https://github.com/servo/pathfinder", version = "0.5.1" }
+
