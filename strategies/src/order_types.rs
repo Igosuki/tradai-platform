@@ -80,7 +80,7 @@ impl Transaction {
     }
 }
 
-#[derive(Message)]
+#[derive(Message, Debug)]
 #[rtype(result = "Result<Transaction>")]
 pub(crate) struct StagedOrder {
     pub op_kind: TradeKind,
