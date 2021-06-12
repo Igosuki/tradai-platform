@@ -15,6 +15,7 @@ pub fn is_eval_time_reached(
     current_time.ge(&obsolete_time)
 }
 
+#[derive(Debug)]
 pub(crate) struct Stopper<T> {
     stop_gain: T,
     stop_loss: T,
