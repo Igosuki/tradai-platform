@@ -1,6 +1,6 @@
 use crate::error::*;
 use chrono::Utc;
-use db::{Storage, StorageBincodeExt};
+use db::{Storage, StorageExt};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::hash_map::Entry;

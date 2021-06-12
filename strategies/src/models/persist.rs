@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use db::StorageBincodeExt;
+use db::StorageExt;
 use db::{get_or_create, Storage};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
