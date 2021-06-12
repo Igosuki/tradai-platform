@@ -112,7 +112,7 @@ static CHANNEL: &str = "order_books";
 async fn beta_val() {
     init();
     let path = crate::test_util::test_dir();
-    let mut dt = NaiveTradingStrategy::make_lm_table("BTC_USDT", "ETH_USDT", &path, 500);
+    let mut dt = NaiveTradingStrategy::make_lm_table("BTC_USDT", "ETH_USDT", path, 500);
     // Read downsampled streams
     let dt0 = Utc.ymd(2020, 3, 25);
     let dt1 = Utc.ymd(2020, 3, 25);

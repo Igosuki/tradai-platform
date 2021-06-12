@@ -5,7 +5,7 @@ use coinnect_rt::types::{LiveEvent, Pair};
 use db::get_or_create;
 use itertools::Itertools;
 use std::convert::TryInto;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
@@ -57,9 +57,9 @@ pub struct MeanRevertingStrategy {
 static MEAN_REVERTING_DB_KEY: &str = "mean_reverting";
 
 impl MeanRevertingStrategy {
-    pub fn new(db_path: &str, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
+    pub fn new<S: AsRef<Path>>(db_path: S, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
         let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
-        let mut pb = PathBuf::from(db_path);
+        let mut pb: PathBuf = PathBuf::from(db_path.as_ref());
         let strat_db_path = format!("{}_{}", MEAN_REVERTING_DB_KEY, n.pair);
         pb.push(strat_db_path);
         let state_table = format!("{}", n.pair);
@@ -107,9 +107,9 @@ impl MeanRevertingStrategy {
         }
     }
 
-    pub fn make_model(
+    pub fn make_model<S: AsRef<Path>>(
         pair: &str,
-        db_path: &str,
+        db_path: S,
         short_window_size: u32,
         long_window_size: u32,
     ) -> IndicatorModel<MeanRevertingModelValue, SinglePosRow> {

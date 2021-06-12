@@ -26,6 +26,7 @@ use db::Db;
 use metrics::NaiveStrategyMetrics;
 use options::Options;
 use state::{MovingState, Position};
+use std::path::Path;
 
 const LM_AGE_CUTOFF_RATIO: f64 = 0.0013;
 
@@ -51,9 +52,14 @@ pub struct NaiveTradingStrategy {
 }
 
 impl NaiveTradingStrategy {
-    pub fn new(db_path: &str, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
+    pub fn new<S: AsRef<Path>>(db_path: S, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
         let metrics = NaiveStrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
-        let strat_db_path = format!("{}/naive_pair_trading_{}_{}", db_path, n.left, n.right);
+        let strat_db_path = format!(
+            "{}/naive_pair_trading_{}_{}",
+            db_path.as_ref().display(),
+            n.left,
+            n.right
+        );
         let db_name = format!("{}_{}", n.left, n.right);
         let db = Db::new(&strat_db_path, db_name);
         Self {
@@ -78,10 +84,10 @@ impl NaiveTradingStrategy {
         }
     }
 
-    pub fn make_lm_table(
+    pub fn make_lm_table<S: AsRef<Path>>(
         left_pair: &str,
         right_pair: &str,
-        db_path: &str,
+        db_path: S,
         window_size: usize,
     ) -> WindowedModel<DataRow, LinearModelValue> {
         WindowedModel::new(

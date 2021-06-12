@@ -3,6 +3,7 @@ use db::StorageBincodeExt;
 use db::{get_or_create, Storage};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 static MODELS_TABLE_NAME: &str = "models";
 
@@ -23,7 +24,7 @@ pub struct PersistentModel<T> {
 }
 
 impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
-    pub fn new(db_path: &str, name: String, init: Option<ModelValue<T>>) -> Self {
+    pub fn new<S: AsRef<Path>>(db_path: S, name: String, init: Option<ModelValue<T>>) -> Self {
         let db = get_or_create(db_path, vec![MODELS_TABLE_NAME.to_string()]);
         Self {
             db,

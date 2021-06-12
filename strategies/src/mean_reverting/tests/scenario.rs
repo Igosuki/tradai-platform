@@ -127,7 +127,7 @@ static PAIR: &str = "BTC_USDT";
 async fn moving_average() {
     init();
     let path = crate::test_util::test_dir();
-    let mut model = MeanRevertingStrategy::make_model("BTC_USDT", &path, 100, 1000);
+    let mut model = MeanRevertingStrategy::make_model("BTC_USDT", &path.into_path(), 100, 1000);
     // Read downsampled streams
     let dt0 = Utc.ymd(2020, 3, 25);
     let dt1 = Utc.ymd(2020, 4, 8);
@@ -164,7 +164,7 @@ async fn continuous_scenario() {
     std::fs::create_dir_all(test_results_dir).unwrap();
 
     let mut strat = MeanRevertingStrategy::new(
-        &path,
+        path,
         0.001,
         &Options {
             pair: PAIR.into(),
@@ -238,24 +238,29 @@ async fn continuous_scenario() {
     );
 
     // Write all model values to a csv file
-    let mut ema_values_wtr = csv::Writer::from_path(format!("{}/{}_ema_values.csv", test_results_dir, PAIR)).unwrap();
-    ema_values_wtr
-        .write_record(&["ts", "short_ema", "long_ema", "apo", "value_strat"])
-        .unwrap();
-    for model_value in model_values {
-        ema_values_wtr
-            .write_record(&[
-                model_value.0.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
-                model_value.1.short_ema.current.to_string(),
-                model_value.1.long_ema.current.to_string(),
-                model_value.1.apo.to_string(),
-                model_value.2.to_string(),
-            ])
-            .unwrap();
-    }
-    ema_values_wtr.flush().unwrap();
+    write_ema_values(test_results_dir, &model_values);
 
     // Write all trade events to a csv file
+    write_trade_events(test_results_dir, &trade_events);
+
+    // Write strategy logs
+    write_thresholds(test_results_dir, &mut strategy_logs);
+
+    // Find that latest operations are correct
+    let mut positions = strat.get_operations();
+    positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
+    let last_position = positions.last();
+    assert!(last_position.is_some(), "No position found in operations");
+    // Output SVG graphs
+    let out_file = draw_line_plot(strategy_logs).expect("Should have drawn plots from strategy logs");
+    let copied = std::fs::copy(&out_file, "graphs/mean_reverting_plot_latest.svg");
+    assert!(copied.is_ok(), "{}", format!("{:?} : {}", copied, out_file));
+
+    assert_eq!(Some(7308.47998046875), last_position.map(|p| p.pos.price));
+    assert_eq!(Some(78767.08484500754), last_position.map(|p| p.value()));
+}
+
+fn write_trade_events(test_results_dir: &String, trade_events: &Vec<(OperationEvent, TradeEvent)>) {
     let mut trade_events_wtr =
         csv::Writer::from_path(format!("{}/{}_trade_events.csv", test_results_dir, PAIR)).unwrap();
     trade_events_wtr
@@ -276,13 +281,28 @@ async fn continuous_scenario() {
     }
 
     trade_events_wtr.flush().unwrap();
+}
 
-    // Find that latest operations are correct
-    let mut positions = strat.get_operations();
-    positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
-    let last_position = positions.last();
+fn write_ema_values(test_results_dir: &String, model_values: &Vec<(DateTime<Utc>, MeanRevertingModelValue, f64)>) {
+    let mut ema_values_wtr = csv::Writer::from_path(format!("{}/{}_ema_values.csv", test_results_dir, PAIR)).unwrap();
+    ema_values_wtr
+        .write_record(&["ts", "short_ema", "long_ema", "apo", "value_strat"])
+        .unwrap();
+    for model_value in model_values {
+        ema_values_wtr
+            .write_record(&[
+                model_value.0.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
+                model_value.1.short_ema.current.to_string(),
+                model_value.1.long_ema.current.to_string(),
+                model_value.1.apo.to_string(),
+                model_value.2.to_string(),
+            ])
+            .unwrap();
+    }
+    ema_values_wtr.flush().unwrap();
+}
 
-    // Write strategy logs
+fn write_thresholds(test_results_dir: &String, strategy_logs: &mut Vec<StrategyLog>) {
     {
         info_time!("Write strategy logs");
         let mut thresholds_wtr =
@@ -291,10 +311,7 @@ async fn continuous_scenario() {
             .write_record(&["ts", "threshold_short", "threshold_long"])
             .unwrap();
         let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
-        let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
-        let mut seq = ser.serialize_seq(None).unwrap();
         for log in strategy_logs.clone() {
-            seq.serialize_element(&log).unwrap();
             thresholds_wtr
                 .write_record(&[
                     log.time.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
@@ -303,20 +320,6 @@ async fn continuous_scenario() {
                 ])
                 .unwrap();
         }
-        seq.end().unwrap();
         thresholds_wtr.flush().unwrap();
     }
-
-    // Output SVG graphs
-    std::fs::create_dir_all("graphs").unwrap();
-    let drew = draw_line_plot(strategy_logs);
-    if let Ok(file) = drew {
-        let copied = std::fs::copy(&file, "graphs/mean_reverting_plot_latest.svg");
-        assert!(copied.is_ok(), "{}", format!("{:?}", copied));
-    } else {
-        panic!("{}", format!("{:?}", drew));
-    }
-
-    assert_eq!(Some(7308.47998046875), last_position.map(|p| p.pos.price));
-    assert_eq!(Some(78767.08484500754), last_position.map(|p| p.value()));
 }

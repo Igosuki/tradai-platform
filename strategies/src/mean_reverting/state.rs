@@ -411,7 +411,6 @@ impl MeanRevertingState {
     async fn stage_operation(&mut self, op: &mut Operation) -> Result<()> {
         self.save_operation(op);
         let reqs = self.ts.stage_order(op.trade.clone().into()).await;
-
         op.transaction = reqs.ok();
         self.save_operation(&op);
         let transaction_result = match &op.transaction {

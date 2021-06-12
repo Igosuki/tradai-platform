@@ -64,8 +64,8 @@ pub struct OrderManager {
 static TRANSACTIONS_TABLE: &str = "transactions_wal";
 
 impl OrderManager {
-    pub fn new(api: Arc<Box<dyn ExchangeApi>>, db_path: &Path) -> Self {
-        let wal_db = get_or_create(&format!("{}/transactions", db_path.to_str().unwrap()), vec![
+    pub fn new<S: AsRef<Path>>(api: Arc<Box<dyn ExchangeApi>>, db_path: S) -> Self {
+        let wal_db = get_or_create(&format!("{}/transactions", db_path.as_ref().display()), vec![
             TRANSACTIONS_TABLE.to_string(),
         ]);
         let wal = Arc::new(RwLock::new(Wal::new(wal_db, TRANSACTIONS_TABLE.to_string())));
@@ -294,15 +294,15 @@ pub mod test_util {
 
     use crate::order_manager::OrderManager;
 
-    pub fn mock_manager(path: &str) -> Addr<OrderManager> {
+    pub fn mock_manager<S: AsRef<Path>>(path: S) -> Addr<OrderManager> {
         let capi: Box<dyn ExchangeApi> = Box::new(MockApi);
         let api = Arc::new(capi);
-        let order_manager = OrderManager::new(api, Path::new(path));
+        let order_manager = OrderManager::new(api, path);
         OrderManager::start(order_manager)
     }
 
-    pub fn local_manager(path: &str, api: Box<dyn ExchangeApi>) -> Addr<OrderManager> {
-        let order_manager = OrderManager::new(Arc::new(api), Path::new(path));
+    pub fn local_manager<S: AsRef<Path>>(path: S, api: Box<dyn ExchangeApi>) -> Addr<OrderManager> {
+        let order_manager = OrderManager::new(Arc::new(api), path);
         OrderManager::start(order_manager)
     }
 }
@@ -341,17 +341,18 @@ mod test {
 
     fn test_pair() -> String { "BTC_USDT".to_string() }
 
-    async fn it_order_manager(exchange: Exchange) -> OrderManager {
+    async fn it_order_manager<S: AsRef<Path>>(dir: S, exchange: Exchange) -> OrderManager {
         let api = coinnect::build_exchange_api(test_keys().into(), &exchange, true)
             .await
             .unwrap();
-        let om_path = format!("{}/om_{}", test_dir(), exchange);
+        let om_path = format!("{}/om_{}", dir.as_ref().display(), exchange);
         OrderManager::new(Arc::new(api), Path::new(&om_path))
     }
 
     #[actix_rt::test]
     async fn test_binance_stage_order_invalid() {
-        let mut order_manager = it_order_manager(Binance).await;
+        let test_dir = crate::test_util::test_dir();
+        let mut order_manager = it_order_manager(test_dir, Binance).await;
         let registered = order_manager
             .stage_order(StagedOrder {
                 op_kind: TradeKind::BUY,
