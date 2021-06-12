@@ -23,7 +23,7 @@ pub trait Storage: Send + Sync + Debug {
     fn _delete_range(&mut self, table: &str, from: &[u8], to: &[u8]) -> Result<()>;
 }
 
-pub trait StorageBincodeExt {
+pub trait StorageExt {
     fn put<K, V>(&mut self, table: &str, key: K, value: V) -> Result<()>
     where
         K: AsRef<[u8]>,
@@ -52,13 +52,13 @@ pub trait StorageBincodeExt {
         K: AsRef<[u8]>;
 }
 
-impl<T: Storage + ?Sized> StorageBincodeExt for T {
+impl<T: Storage + ?Sized> StorageExt for T {
     fn put<K, V>(&mut self, table: &str, key: K, value: V) -> Result<()>
     where
         K: AsRef<[u8]>,
         V: Serialize,
     {
-        let serialized = bincode::serialize(&value)?;
+        let serialized = serde_json::to_vec::<V>(&value)?;
         self._put(table, key.as_ref(), serialized.as_slice())
     }
 
@@ -68,7 +68,7 @@ impl<T: Storage + ?Sized> StorageBincodeExt for T {
         V: DeserializeOwned,
     {
         let record = self._get(table, key.as_ref())?;
-        bincode::deserialize(record.as_slice()).map_err(|e| e.into())
+        serde_json::from_slice(record.as_slice()).map_err(|e| e.into())
     }
 
     fn get_ranged<F, V>(&self, table: &str, from: F) -> Result<Vec<V>>
@@ -79,7 +79,7 @@ impl<T: Storage + ?Sized> StorageBincodeExt for T {
         let items = self._get_ranged(table, from.as_ref())?;
         items
             .iter()
-            .map(|v| bincode::deserialize::<V>(v).map_err(|e| e.into()))
+            .map(|v| serde_json::from_slice(v).map_err(|e| e.into()))
             .collect()
     }
 
@@ -91,7 +91,7 @@ impl<T: Storage + ?Sized> StorageBincodeExt for T {
         items
             .iter()
             .map(|(k, v)| {
-                bincode::deserialize::<V>(v)
+                serde_json::from_slice::<V>(v)
                     .map(|v| (k.clone(), v))
                     .map_err(|e| e.into())
             })

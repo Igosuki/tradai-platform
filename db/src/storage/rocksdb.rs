@@ -83,7 +83,7 @@ mod test {
     use crate::error::Error;
     use crate::storage::rocksdb::RocksDbStorage;
     use crate::storage::Storage;
-    use crate::StorageBincodeExt;
+    use crate::StorageExt;
     use chrono::Utc;
     use test::Bencher;
 
@@ -129,7 +129,7 @@ mod test {
     }
 
     #[test]
-    fn db_serde_put_get_delete() {
+    fn db_put_get_delete() {
         let table = "foos";
         let key = "foo".as_bytes();
         let mut db = db(vec![table.to_string()]);
@@ -159,6 +159,60 @@ mod test {
         let foo = db._get(table, key);
         matches!(foo, Err(Error::NotFound(x)) if x == "foo");
         //assert_eq!(Err(Error::NotFound(String::from_utf8_lossy(key).to_string())), foo);
+    }
+
+    #[test]
+    fn db_serde_put_get_delete() {
+        let table = "foos";
+        let key = "foo".as_bytes();
+        let mut db = db(vec![table.to_string()]);
+        let mut rw_cmp = |k, v: Foobar| {
+            let r = db.put(table, k, v.clone());
+            assert!(
+                r.is_ok(),
+                "failed to write {} {:?} {:?}",
+                std::str::from_utf8(k).unwrap(),
+                &v,
+                r
+            );
+            let r: Foobar = db.get(table, k).unwrap();
+            assert_eq!(r, v);
+        };
+        rw_cmp(key, Foobar {
+            foo: "bar".to_string(),
+            number: 10,
+        });
+        rw_cmp(key, Foobar {
+            foo: "baz".to_string(),
+            number: 11,
+        });
+        db.delete(table, key).unwrap();
+        let foo: crate::error::Result<Foobar> = db.get(table, key);
+        matches!(foo, Err(Error::NotFound(x)) if x == "foo");
+        //assert_eq!(Err(Error::NotFound(String::from_utf8_lossy(key).to_string())), foo);
+    }
+
+    #[test]
+    fn serde_get_ranged_cf() {
+        let table = "rows";
+        let mut db = db(vec![table.to_string()]);
+        let size = 10_i32.pow(3) as i32;
+        let before = Utc::now();
+        let mut items = vec![];
+        for i in 0..size {
+            let v = Foobar {
+                foo: "bar".to_string(),
+                number: i,
+            };
+            items.push(v.clone());
+            let key = &format!("{}", Utc::now());
+            let r = db.put(table, key.as_bytes(), v.clone());
+            assert!(r.is_ok(), "failed to write {} {:?} {:?}", key, v, r);
+        }
+
+        let vec1: Vec<Foobar> = db.get_ranged(table, before.to_string().as_bytes()).unwrap();
+        println!("{:?} {:?}", vec1, items);
+        assert_eq!(vec1, items);
     }
 
     #[test]

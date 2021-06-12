@@ -28,7 +28,7 @@ use thiserror::Error;
 
 pub use error::Error;
 pub use storage::rocksdb::RocksDbStorage;
-pub use storage::{get_or_create, Storage, StorageBincodeExt};
+pub use storage::{get_or_create, Storage, StorageExt};
 
 type RkvLmdb = Rkv<LmdbEnvironment>;
 
