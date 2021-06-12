@@ -30,6 +30,8 @@ pub mod state;
 #[cfg(test)]
 mod tests;
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct MeanRevertingStrategy {
     pair: Pair,
     fees_rate: f64,
@@ -42,6 +44,7 @@ pub struct MeanRevertingStrategy {
     last_row_time_at_eval: DateTime<Utc>,
     #[allow(dead_code)]
     last_row_process_time: DateTime<Utc>,
+    #[derivative(Debug = "ignore")]
     metrics: Arc<MeanRevertingStrategyMetrics>,
     threshold_eval_freq: Option<i32>,
     threshold_short_0: f64,
