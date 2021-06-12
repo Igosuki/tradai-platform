@@ -1,8 +1,13 @@
+#![feature(test)]
+
 extern crate log;
 #[macro_use]
 extern crate thiserror;
 #[macro_use]
 extern crate serde_derive;
+
+#[cfg(test)]
+extern crate test;
 
 mod error;
 pub mod iter;
