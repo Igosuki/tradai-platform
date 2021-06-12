@@ -2,7 +2,6 @@ use actix::Addr;
 use anyhow::Result;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use coinnect_rt::types::{LiveEvent, Pair};
-use db::get_or_create;
 use itertools::Itertools;
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
@@ -65,11 +64,7 @@ impl MeanRevertingStrategy {
         let mut pb: PathBuf = PathBuf::from(db_path.as_ref());
         let strat_db_path = format!("{}_{}", MEAN_REVERTING_DB_KEY, n.pair);
         pb.push(strat_db_path);
-        let state_table = format!("{}", n.pair);
-        let mut state_db_path = pb.clone();
-        state_db_path.push(&state_table);
-        let db = get_or_create(&state_db_path.to_str().unwrap(), vec![state_table.clone()]);
-        let state = MeanRevertingState::new(n, db, state_table, om);
+        let state = MeanRevertingState::new(n, pb.clone(), om);
 
         // EMA Model
         let model = Self::make_model(
@@ -175,6 +170,7 @@ impl MeanRevertingStrategy {
                     )
                     .into(),
                 );
+                tracing::debug!(target: "threshold_events", "set_threshold_short");
                 self.state.set_threshold_long(
                     min(
                         OrderedFloat(self.threshold_long_0),
@@ -182,7 +178,9 @@ impl MeanRevertingStrategy {
                     )
                     .into(),
                 );
+                tracing::debug!(target: "threshold_events", "set_threshold_long");
                 self.metrics.log_thresholds(&self.state);
+                tracing::debug!(target: "threshold_events", "log_thresholds");
                 self.last_threshold_time = current_time;
             }
         }

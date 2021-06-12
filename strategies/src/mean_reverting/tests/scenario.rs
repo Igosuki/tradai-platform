@@ -16,6 +16,7 @@ use crate::order_manager::test_util::mock_manager;
 use crate::test_util::tracing::setup_opentelemetry;
 use crate::test_util::{init, now_str};
 use crate::types::{OperationEvent, TradeEvent};
+use tracing_futures::Instrument;
 
 #[derive(Debug, Serialize, Clone)]
 struct StrategyLog {
@@ -218,7 +219,10 @@ async fn continuous_scenario() {
             pos: csvr.into(),
         };
 
-        strat.process_row(&row).await;
+        strat
+            .process_row(&row)
+            .instrument(tracing::info_span!("process_row"))
+            .await;
 
         let value = strat.model_value().unwrap();
         model_values.push((row_time, value.clone(), strat.state.value_strat()));
