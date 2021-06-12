@@ -16,10 +16,17 @@ serde_derive = "1.0"
 # Math
 num-traits = "0.2"
 peroxide = "0.30"
+
 #streaming-stats = "0.2.3"
 #average = "0.10.4"
 #nalgebra = "0.21.0"
-log = "0.4"
 
 # Optional dependencies to be used later
 # tensorflow = "0.16"
+
+# Log
+log = "0.4"
+tracing = "0.1"
+
+[dev-dependencies]
+rand = "0.8"
