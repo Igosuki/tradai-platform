@@ -7,7 +7,7 @@ use log::Level::Debug;
 use serde::{Deserialize, Serialize, Serializer};
 use uuid::Uuid;
 
-use db::{Storage, StorageBincodeExt};
+use db::{get_or_create, Storage, StorageExt};
 
 use crate::mean_reverting::options::Options;
 use crate::order_manager::{OrderManager, TransactionService};
@@ -15,6 +15,7 @@ use crate::order_types::{StagedOrder, Transaction};
 use crate::query::MutableField;
 use crate::types::{BookPosition, OperationEvent, StratEvent, TradeEvent};
 use crate::types::{OperationKind, PositionKind, TradeKind};
+use std::path::Path;
 
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct Position {
@@ -178,7 +179,14 @@ struct TransientState {
 }
 
 impl MeanRevertingState {
-    pub fn new(options: &Options, db: Box<dyn Storage>, table: String, om: Addr<OrderManager>) -> MeanRevertingState {
+    pub fn new<S: AsRef<Path>>(options: &Options, db_path: S, om: Addr<OrderManager>) -> MeanRevertingState {
+        let table = format!("{}", options.pair);
+        let mut state_db_path = db_path.as_ref().clone().to_path_buf();
+        state_db_path.push(&table);
+        let db = get_or_create(&state_db_path.to_str().unwrap(), vec![
+            table.clone(),
+            OPERATIONS_KEY.to_string(),
+        ]);
         let mut state = MeanRevertingState {
             position: None,
             value_strat: options.initial_cap,
@@ -224,7 +232,7 @@ impl MeanRevertingState {
                 self.nominal_position = np;
             }
             if let Some(op_key) = ps.ongoing_op {
-                let op: Option<Operation> = self.db.get(&self.table, &op_key).ok();
+                let op: Option<Operation> = self.get_operation(&op_key);
                 self.set_ongoing_op(op);
             }
         }
@@ -406,7 +414,8 @@ impl MeanRevertingState {
     }
 
     fn save_operation(&mut self, op: &Operation) {
-        if let Err(e) = self.db.put(&self.table, &op.id, op.clone()) {
+        let save = op.clone();
+        if let Err(e) = self.db.put(OPERATIONS_KEY, &op.id, save) {
             error!("Error saving operation: {:?}", e);
         }
     }
@@ -458,7 +467,7 @@ impl MeanRevertingState {
 
     pub fn get_operations(&self) -> Vec<Operation> {
         self.db
-            .get_ranged(&self.table, OPERATIONS_KEY)
+            .get_ranged(OPERATIONS_KEY, OPERATIONS_KEY)
             .unwrap_or_else(|_| Vec::new())
     }
 
@@ -467,7 +476,9 @@ impl MeanRevertingState {
 
     #[allow(dead_code)]
     fn get_operation(&self, uuid: &str) -> Option<Operation> {
-        self.db.get(&self.table, &format!("{}:{}", OPERATIONS_KEY, uuid)).ok()
+        self.db
+            .get(OPERATIONS_KEY, &format!("{}:{}", OPERATIONS_KEY, uuid))
+            .ok()
     }
 
     fn log_indicators(&self, pos: &PositionKind) {
