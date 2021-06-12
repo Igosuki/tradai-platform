@@ -19,7 +19,7 @@ mod test {
         let (_server, binance_api) = local_api().await;
         // Order Manager
         let test_dir = crate::test_util::test_dir();
-        let om = crate::order_manager::test_util::local_manager(&test_dir, binance_api);
+        let om = crate::order_manager::test_util::local_manager(test_dir, binance_api);
 
         // Workflow :
         // Strategy has reached a certain initial state

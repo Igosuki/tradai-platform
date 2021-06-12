@@ -3,6 +3,7 @@ use crate::models::persist::ModelValue;
 use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::path::Path;
 
 type WindowFn<T, M> = fn(&M, Window<T>) -> M;
 
@@ -16,15 +17,16 @@ pub struct WindowedModel<T: Serialize + DeserializeOwned + Clone, M: Serialize +
 }
 
 impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone> WindowedModel<T, M> {
-    pub fn new(
+    pub fn new<S: AsRef<Path>>(
         id: &str,
-        db_path: &str,
+        db_path: S,
         window_size: usize,
         max_size_o: Option<usize>,
         window_fn: WindowFn<T, M>,
     ) -> Self {
-        let rows_path = &format!("{}/model_{}_rows", db_path, id);
-        let model_path = &format!("{}/model_{}", db_path, id);
+        let os_string = db_path.as_ref().display();
+        let rows_path = &format!("{}/model_{}_rows", os_string, id);
+        let model_path = &format!("{}/model_{}", os_string, id);
         let max_size = max_size_o.unwrap_or_else(|| 2 * window_size);
         Self {
             rows: PersistentVec::new(rows_path, id.to_string(), max_size, window_size),
