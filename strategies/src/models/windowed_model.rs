@@ -70,12 +70,10 @@ mod test {
     use crate::models::Window;
     use crate::models::WindowedModel;
     use crate::types::BookPosition;
-    use chrono::{DateTime, TimeZone, Utc};
+    use chrono::{DateTime, Utc};
+    use fake::Fake;
     use quickcheck::{Arbitrary, Gen};
     use test::Bencher;
-
-    #[derive(Debug)]
-    struct MockLinearModel;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct TestRow {
@@ -85,8 +83,9 @@ mod test {
 
     impl Arbitrary for TestRow {
         fn arbitrary(g: &mut Gen) -> TestRow {
+            let time: chrono::DateTime<Utc> = fake::faker::chrono::en::DateTime().fake();
             TestRow {
-                time: Utc.timestamp_millis(f64::arbitrary(g) as i64),
+                time,
                 pos: BookPosition::arbitrary(g),
             }
         }
@@ -96,11 +95,6 @@ mod test {
         let tempdir = TempDir::new().unwrap();
         tempdir.into_path().to_str().unwrap().to_string()
     }
-
-    // fn test_db() -> Db {
-    //     let tempdir = TempDir::new().unwrap();
-    //     Db::new(tempdir.into_path().to_str().unwrap(), "temp".to_string())
-    // }
 
     fn sum_window(_lm: &f64, window: Window<TestRow>) -> f64 { window.map(|t| t.pos.mid).sum::<f64>() }
 
