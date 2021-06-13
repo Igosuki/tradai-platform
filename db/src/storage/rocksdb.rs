@@ -79,6 +79,7 @@ impl Storage for RocksDbStorage {
 #[cfg(test)]
 mod test {
     extern crate test;
+    extern crate util;
 
     use crate::error::Error;
     use crate::storage::rocksdb::RocksDbStorage;
@@ -95,15 +96,7 @@ mod test {
         number: i32,
     }
 
-    fn test_dir() -> String {
-        let basedir = std::env::var("BITCOINS_TEST_RAMFS_DIR").unwrap_or_else(|_| "/media/ramdisk".to_string());
-        let root = tempdir::TempDir::new(&format!("{}/test_data", basedir)).unwrap();
-        let buf = root.into_path();
-        let path = buf.to_str().unwrap();
-        path.to_string()
-    }
-
-    fn db(tables: Vec<String>) -> RocksDbStorage { RocksDbStorage::new(&test_dir(), tables) }
+    fn db(tables: Vec<String>) -> RocksDbStorage { RocksDbStorage::new(&util::test::test_dir(), tables) }
 
     #[bench]
     fn db_serde_put_bench(b: &mut Bencher) {
@@ -211,7 +204,6 @@ mod test {
         }
 
         let vec1: Vec<Foobar> = db.get_ranged(table, before.to_string().as_bytes()).unwrap();
-        println!("{:?} {:?}", vec1, items);
         assert_eq!(vec1, items);
     }
 

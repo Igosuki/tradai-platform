@@ -351,7 +351,7 @@ mod test {
 
     #[actix_rt::test]
     async fn test_binance_stage_order_invalid() {
-        let test_dir = crate::test_util::test_dir();
+        let test_dir = util::test::test_dir();
         let mut order_manager = it_order_manager(test_dir, Binance).await;
         let registered = order_manager
             .stage_order(StagedOrder {

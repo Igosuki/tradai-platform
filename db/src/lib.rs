@@ -295,6 +295,7 @@ mod test {
     use crate::{Db, RkvLmdb};
     use std::time::Instant;
     use test::Bencher;
+    use util::test::test_dir;
 
     fn make_db_test(env: RwLockReadGuard<RkvLmdb>, store: SingleStore<LmdbDatabase>) {
         {
@@ -432,17 +433,9 @@ mod test {
         }
     }
 
-    pub fn test_dir() -> String {
-        let basedir = std::env::var("BITCOINS_TEST_RAMFS_DIR").unwrap_or_else(|_| "/media/ramdisk".to_string());
-        let root = tempdir::TempDir::new(&format!("{}/test_data", basedir)).unwrap();
-        let buf = root.into_path();
-        let path = buf.to_str().unwrap();
-        path.to_string()
-    }
-
     fn db() -> Db {
-        let _dir = tempdir::TempDir::new("s").unwrap();
-        Db::new(&test_dir(), "mydb".to_string())
+        let dir = test_dir();
+        Db::new(&dir.as_ref().to_str().unwrap(), "mydb".to_string())
     }
 
     #[derive(Debug, Serialize, Deserialize, PartialEq)]
