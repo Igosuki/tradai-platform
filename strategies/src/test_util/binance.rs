@@ -36,7 +36,9 @@ pub mod binance_test_util {
     pub async fn local_api() -> (MockServer, Box<dyn ExchangeApi>) {
         let server = MockServer::start();
         let creds = BinanceCreds::empty();
-        let api = BinanceApi::new_with_host(Box::new(creds), Some(format!("{}", server.address())))
+        let mock_server_address = server.address().to_string();
+        println!("mock server address : {}", mock_server_address);
+        let api = BinanceApi::new_with_host(Box::new(creds), Some(format!("http://{}", mock_server_address)))
             .await
             .unwrap();
         (server, Box::new(api))

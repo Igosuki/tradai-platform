@@ -21,8 +21,11 @@ build_all:
 	@$(CARGO_BIN) build --all-features
 
 .PHONY: test
-test: ## Tests all features
+test_all: ## Tests all features
 	@$(CARGO_BIN) test --all-features
+
+test: ## Tests all features
+	RUST_LOG=info BITCOINS_REPO=$(shell pwd) $(CARGO_BIN) test --all-targets -- --skip coinnect_tests --skip gdax_tests --nocapture
 
 .PHONY: test_watcher ## Starts funzzy, test watcher, to run the tests on every change
 test_watcher:

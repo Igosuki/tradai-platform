@@ -109,9 +109,9 @@ static EXCHANGE: &str = "Binance";
 static CHANNEL: &str = "order_books";
 
 #[tokio::test]
-async fn beta_val() {
+async fn model_backtest() {
     init();
-    let path = crate::test_util::test_dir();
+    let path = util::test::test_dir();
     let mut dt = NaiveTradingStrategy::make_lm_table("BTC_USDT", "ETH_USDT", path, 500);
     // Read downsampled streams
     let dt0 = Utc.ymd(2020, 3, 25);
@@ -137,9 +137,9 @@ async fn beta_val() {
 }
 
 #[actix_rt::test]
-async fn continuous_scenario() {
+async fn complete_backtest() {
     init();
-    let path = crate::test_util::test_dir();
+    let path = util::test::test_dir();
     let beta_eval_freq = 1000;
     let window_size = 2000;
     let order_manager_addr = test_util::mock_manager(&path);
@@ -183,8 +183,6 @@ async fn continuous_scenario() {
     let (left, right) = other.tee();
     let left_sum: f64 = left.map(|r| (r.0.a1 + r.0.b1) / 2.0).sum();
     let right_sum: f64 = right.map(|r| (r.1.a1 + r.1.b1) / 2.0).sum();
-    println!("crypto1_m {}", left_sum);
-    println!("crypto2_m {}", right_sum);
     let mut logs: Vec<StrategyLog> = Vec::new();
     for (l, r) in zip {
         iterations += 1;

@@ -13,10 +13,11 @@ use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::MeanRevertingState;
 use crate::mean_reverting::MeanRevertingStrategy;
 use crate::order_manager::test_util::mock_manager;
-use crate::test_util::tracing::setup_opentelemetry;
-use crate::test_util::{init, now_str};
+//use crate::test_util::tracing::setup_opentelemetry;
+use crate::test_util::init;
 use crate::types::{OperationEvent, TradeEvent};
 use tracing_futures::Instrument;
+use util::date::now_str;
 
 #[derive(Debug, Serialize, Clone)]
 struct StrategyLog {
@@ -122,9 +123,9 @@ static CHANNEL: &str = "order_books";
 static PAIR: &str = "BTC_USDT";
 
 #[tokio::test]
-async fn moving_average() {
+async fn moving_average_model_backtest() {
     init();
-    let path = crate::test_util::test_dir();
+    let path = util::test::test_dir();
     let mut model = MeanRevertingStrategy::make_model("BTC_USDT", &path.into_path(), 100, 1000);
     // Read downsampled streams
     let dt0 = Utc.ymd(2020, 3, 25);
@@ -146,15 +147,15 @@ async fn moving_average() {
             .unwrap();
     });
     let apo = model.value().unwrap().apo;
-    assert!(apo > 0.0, "apo {}", apo);
+    assert!(apo != 0.0, "apo should not be 0, was: {}", apo);
 }
 
 #[actix_rt::test]
-async fn continuous_scenario() {
-    //init();
-    setup_opentelemetry();
+async fn complete_backtest() {
+    init();
+    //setup_opentelemetry();
     let _window_size = 10000;
-    let path = crate::test_util::test_dir();
+    let path = util::test::test_dir();
     let order_manager_addr = mock_manager(&path);
     task::sleep(Duration::from_millis(20)).await;
     let module_path = module_path!().replace("::", "_");
@@ -221,7 +222,7 @@ async fn continuous_scenario() {
 
         strat
             .process_row(&row)
-            .instrument(tracing::info_span!("process_row"))
+            .instrument(tracing::debug_span!("process_row"))
             .await;
 
         let value = strat.model_value().unwrap();
@@ -272,7 +273,7 @@ fn write_trade_events(test_results_dir: &String, trade_events: &Vec<(OperationEv
     for (op_event, trade_event) in trade_events {
         trade_events_wtr
             .write_record(&[
-                trade_event.at.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
+                trade_event.at.format(util::date::TIMESTAMP_FORMAT).to_string(),
                 op_event.op.as_ref().to_string(),
                 op_event.pos.as_ref().to_string(),
                 trade_event.op.as_ref().to_string(),
@@ -294,7 +295,7 @@ fn write_ema_values(test_results_dir: &String, model_values: &Vec<(DateTime<Utc>
     for model_value in model_values {
         ema_values_wtr
             .write_record(&[
-                model_value.0.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
+                model_value.0.format(util::date::TIMESTAMP_FORMAT).to_string(),
                 model_value.1.short_ema.current.to_string(),
                 model_value.1.long_ema.current.to_string(),
                 model_value.1.apo.to_string(),
@@ -317,7 +318,7 @@ fn write_thresholds(test_results_dir: &String, strategy_logs: &mut Vec<StrategyL
         for log in strategy_logs.clone() {
             thresholds_wtr
                 .write_record(&[
-                    log.time.format(crate::test_util::TIMESTAMP_FORMAT).to_string(),
+                    log.time.format(util::date::TIMESTAMP_FORMAT).to_string(),
                     log.threshold_short.to_string(),
                     log.threshold_long.to_string(),
                 ])
