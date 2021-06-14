@@ -3,26 +3,24 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
-use futures::{pin_mut, select, FutureExt};
-
 use actix::{Actor, Addr, Recipient, SyncArbiter};
 use actix_rt::signal::unix::{signal, Signal, SignalKind};
-use std::time::Duration;
+use futures::{pin_mut, select, FutureExt};
 
 use coinnect_rt::binance::BinanceCreds;
-use coinnect_rt::bitstamp::BitstampCreds;
-use coinnect_rt::bittrex::BittrexCreds;
 use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::exchange_bot::ExchangeBot;
 use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::{AccountEventEnveloppe, LiveEventEnveloppe};
+use strategies::order_manager::OrderManager;
 use strategies::{self, Strategy, StrategyKey};
 
 use crate::logging::file_actor::{AvroFileActor, FileActorOptions};
 use crate::settings::Settings;
 use crate::{logging, server};
-use strategies::order_manager::OrderManager;
+
+mod bots;
 
 pub struct AccountSystem {
     pub om: Addr<OrderManager>,
@@ -64,7 +62,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     // Exchange bot actors, they just receive data
     let keys_path = PathBuf::from(settings_v.keys.clone());
     let exchanges = settings_v.exchanges.clone();
-    let bots = exchange_bots(exchanges.clone(), keys_path.clone(), live_events_recipients).await;
+    let bots = bots::exchange_bots(exchanges.clone(), keys_path.clone(), live_events_recipients).await;
     let strats_map: HashMap<StrategyKey, Strategy> =
         strategies.clone().iter().map(|s| (s.0.clone(), s.clone())).collect();
     let strats_map_a = Arc::new(strats_map);
@@ -81,9 +79,9 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     select! {
         _ = server.fuse() => println!("Http Server terminated."),
         // ping all bots at regular intervals
-        _ = poll_bots(bots).fuse() => println!("Stopped polling bots."),
+        _ = bots::poll_bots(bots).fuse() => println!("Stopped polling bots."),
         // ping all account bots at regular intervals
-        _ = poll_account_bots(oms).fuse() => println!("Stopped polling order bots."),
+        _ = bots::poll_account_bots(oms).fuse() => println!("Stopped polling order bots."),
     };
     Ok(())
 }
@@ -171,48 +169,6 @@ async fn order_managers(
     bots
 }
 
-async fn exchange_bots(
-    exchanges_settings: HashMap<Exchange, ExchangeSettings>,
-    keys_path: PathBuf,
-    recipients: Vec<Recipient<LiveEventEnveloppe>>,
-) -> HashMap<Exchange, Box<dyn ExchangeBot>> {
-    let mut bots: HashMap<Exchange, Box<dyn ExchangeBot>> = HashMap::new();
-    // TODO : solve the annoying problem of credentials being a specific struct when new_stream and new are generic
-    for (xch, conf) in exchanges_settings {
-        let bot = match xch {
-            Exchange::Bittrex => {
-                let creds = Box::new(BittrexCreds::new_from_file("account_bittrex", keys_path.clone()).unwrap());
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), None)
-                    .await
-                    .unwrap()
-            }
-            Exchange::Bitstamp => {
-                let creds = Box::new(BitstampCreds::new_from_file("account_bitstamp", keys_path.clone()).unwrap());
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), None)
-                    .await
-                    .unwrap()
-            }
-            Exchange::Binance => {
-                let creds = Box::new(
-                    BinanceCreds::new_from_file(coinnect_rt::binance::credentials::ACCOUNT_KEY, keys_path.clone())
-                        .unwrap(),
-                );
-                let url = if conf.use_test.unwrap_or_else(|| false) {
-                    coinnect_rt::binance::streaming_api::WEBSOCKET_STREAM_TEST_URL
-                } else {
-                    coinnect_rt::binance::streaming_api::WEBSOCKET_URL
-                };
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), Some(url))
-                    .await
-                    .unwrap()
-            }
-            _ => unimplemented!(),
-        };
-        bots.insert(xch, bot);
-    }
-    bots
-}
-
 #[allow(dead_code)]
 async fn await_termination() -> std::io::Result<()> {
     let _stream: Signal = signal(SignalKind::terminate())?;
@@ -227,24 +183,4 @@ async fn await_termination() -> std::io::Result<()> {
         _ = t2 => info!("SigUSR1"),
     }
     Ok(())
-}
-
-async fn poll_bots(bots: HashMap<Exchange, Box<dyn ExchangeBot>>) -> std::io::Result<()> {
-    let mut interval = tokio::time::interval(Duration::from_secs(1));
-    loop {
-        interval.tick().await;
-        for bot in bots.values() {
-            bot.ping();
-        }
-    }
-}
-
-async fn poll_account_bots(systems: Arc<HashMap<Exchange, AccountSystem>>) -> std::io::Result<()> {
-    let mut interval = tokio::time::interval(Duration::from_secs(1));
-    loop {
-        interval.tick().await;
-        for system in systems.values() {
-            system.ping();
-        }
-    }
 }

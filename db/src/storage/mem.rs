@@ -8,6 +8,7 @@ pub struct MemoryKVStore {
 }
 
 impl MemoryKVStore {
+    #[allow(dead_code)]
     pub fn new() -> Self { MemoryKVStore { inner: BTreeMap::new() } }
 }
 

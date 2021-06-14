@@ -190,14 +190,13 @@ impl<'a> Quantile<&'a f64> for f64 {
 #[cfg(test)]
 mod test {
     use crate::iter::QuantileExt;
-    use itertools::Itertools;
     use rand::Rng;
     use test::Bencher;
 
     #[bench]
     fn bench_test(b: &mut Bencher) {
         let mut rng = rand::thread_rng();
-        let vals: Vec<f64> = (0..10000).map(|_| rng.gen_range((0.0..5000.0))).collect();
+        let vals: Vec<f64> = (0..10000).map(|_| rng.gen_range(0.0..5000.0)).collect();
         b.iter(|| {
             let _: f64 = vals.clone().into_iter().quantile(0.99);
         });

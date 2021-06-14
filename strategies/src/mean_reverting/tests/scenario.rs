@@ -314,7 +314,7 @@ fn write_thresholds(test_results_dir: &String, strategy_logs: &mut Vec<StrategyL
         thresholds_wtr
             .write_record(&["ts", "threshold_short", "threshold_long"])
             .unwrap();
-        let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
+        //let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
         for log in strategy_logs.clone() {
             thresholds_wtr
                 .write_record(&[

@@ -267,9 +267,9 @@ mod test {
                 ._get_all(table)
                 .unwrap()
                 .iter()
-                .map(|(k, v)| bincode::deserialize(v).unwrap())
+                .map(|(_k, v)| bincode::deserialize(v).unwrap())
                 .collect();
-            let remaining_items: Vec<Foobar> = items.drain(0..((size / 2) + 1) as usize).collect();
+            let _: Vec<Foobar> = items.drain(0..((size / 2) + 1) as usize).collect();
             assert_eq!(remaining, items);
         }
     }
