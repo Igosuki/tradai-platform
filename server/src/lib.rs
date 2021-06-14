@@ -26,6 +26,7 @@ extern crate anyhow;
 pub mod api;
 pub mod graphql_schemas;
 pub mod logging;
+pub mod runner;
 pub mod server;
 pub mod settings;
 pub mod system;

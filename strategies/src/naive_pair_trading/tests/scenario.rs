@@ -200,7 +200,7 @@ async fn complete_backtest() {
     assert!(left_records.len() > 0, "no left pair records in dataset");
     assert!(right_records.len() > 0, "no right pair records in dataset");
     let (zip, other) = left_records.iter().zip(right_records.iter()).tee();
-    let (left, right) = other.tee();
+    let (_left, _right) = other.tee();
     let mut logs: Vec<StrategyLog> = Vec::new();
     for (l, r) in zip {
         iterations += 1;
