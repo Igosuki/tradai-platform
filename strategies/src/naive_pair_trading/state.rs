@@ -7,13 +7,14 @@ use log::Level::Info;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use db::Db;
+use db::{get_or_create, Storage, StorageExt};
 
 use crate::order_manager::OrderManager;
 use crate::order_types::{OrderId, StagedOrder, Transaction};
 use crate::query::MutableField;
 use crate::types::{BookPosition, OperationEvent, StratEvent, TradeEvent};
 use crate::types::{OperationKind, PositionKind, TradeKind};
+use std::path::Path;
 
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct Position {
@@ -120,7 +121,7 @@ pub(crate) static OPERATIONS_KEY: &str = "orders";
 
 pub(crate) static STATE_KEY: &str = "state";
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 pub(super) struct MovingState {
     position: Option<PositionKind>,
     value_strat: f64,
@@ -138,7 +139,7 @@ pub(super) struct MovingState {
     long_position_return: f64,
     pnl: f64,
     #[serde(skip_serializing)]
-    db: Db,
+    db: Box<dyn Storage>,
     #[serde(skip_serializing)]
     om: Addr<OrderManager>,
     ongoing_op: Option<Operation>,
@@ -159,7 +160,8 @@ struct TransientState {
 }
 
 impl MovingState {
-    pub fn new(initial_value: f64, db: Db, om: Addr<OrderManager>, dry_mode: bool) -> MovingState {
+    pub fn new<S: AsRef<Path>>(initial_value: f64, db_path: S, om: Addr<OrderManager>, dry_mode: bool) -> MovingState {
+        let db = get_or_create(db_path, vec![STATE_KEY.to_string(), OPERATIONS_KEY.to_string()]);
         let mut state = MovingState {
             position: None,
             value_strat: initial_value,
@@ -193,7 +195,7 @@ impl MovingState {
                 self.set_position(o.pos.kind.clone());
             }
         }
-        let previous_state: Option<TransientState> = self.db.read_json(STATE_KEY);
+        let previous_state: Option<TransientState> = self.db.get(STATE_KEY, STATE_KEY).ok();
         if let Some(ps) = previous_state {
             self.set_units_to_buy_long_spread(ps.units_to_buy_long_spread);
             self.set_units_to_buy_short_spread(ps.units_to_buy_short_spread);
@@ -205,7 +207,7 @@ impl MovingState {
                 self.nominal_position = np;
             }
             if let Some(op_key) = ps.ongoing_op {
-                let op: Option<Operation> = self.db.read_json(&op_key);
+                let op: Option<Operation> = self.db.get(OPERATIONS_KEY, &op_key).ok();
                 self.set_ongoing_op(op);
             }
         }
@@ -536,7 +538,7 @@ impl MovingState {
     }
 
     fn save_operation(&mut self, op: &Operation) {
-        if let Err(e) = self.db.put_json(&op.id, op.clone()) {
+        if let Err(e) = self.db.put(OPERATIONS_KEY, &op.id, op.clone()) {
             error!("Error saving operation: {:?}", e);
         }
     }
@@ -557,8 +559,8 @@ impl MovingState {
         }
     }
 
-    fn save(&self) {
-        if let Err(e) = self.db.put_json(STATE_KEY, TransientState {
+    fn save(&mut self) {
+        if let Err(e) = self.db.put(STATE_KEY, STATE_KEY, TransientState {
             units_to_buy_short_spread: self.units_to_buy_short_spread,
             units_to_buy_long_spread: self.units_to_buy_long_spread,
             value_strat: self.value_strat,
@@ -582,13 +584,19 @@ impl MovingState {
         Ok(())
     }
 
-    pub fn get_operations(&self) -> Vec<Operation> { self.db.read_json_vec(OPERATIONS_KEY) }
+    pub fn get_operations(&self) -> Vec<Operation> {
+        self.db
+            .get_ranged(OPERATIONS_KEY, OPERATIONS_KEY)
+            .unwrap_or_else(|_| Vec::new())
+    }
 
-    pub fn dump_db(&self) -> Vec<String> { self.db.all() }
+    pub fn dump_db(&self) -> Vec<String> { todo!() }
 
     #[allow(dead_code)]
     fn get_operation(&self, uuid: &str) -> Option<Operation> {
-        self.db.read_json(&format!("{}:{}", OPERATIONS_KEY, uuid))
+        self.db
+            .get(OPERATIONS_KEY, &format!("{}:{}", OPERATIONS_KEY, uuid))
+            .ok()
     }
 
     fn log_indicators(&self, pos: &PositionKind) {
