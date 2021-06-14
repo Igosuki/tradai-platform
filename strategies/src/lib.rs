@@ -262,6 +262,7 @@ mod test {
         fn mutate(&mut self, _m: FieldMutation) -> anyhow::Result<()> { unimplemented!() }
     }
 
+    /// TODO : this test does nothing
     #[test]
     fn test_workflow() {
         init();
@@ -277,17 +278,10 @@ mod test {
                 }),
             );
             println!("Sending...");
-            for _ in 0..100000 {
+            for _ in 0..1000 {
                 addr.do_send(order_book_event.clone());
             }
-            thread::sleep(std::time::Duration::from_secs(2));
-            for _ in 0..100000 {
-                addr.do_send(order_book_event.clone());
-            }
-            thread::sleep(std::time::Duration::from_secs(2));
-            for _ in 0..100000 {
-                addr.do_send(order_book_event.clone());
-            }
+            thread::sleep(std::time::Duration::from_secs(1));
             System::current().stop();
         });
         assert_eq!(true, true);

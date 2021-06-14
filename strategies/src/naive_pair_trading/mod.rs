@@ -22,7 +22,6 @@ use crate::types::{BookPosition, PositionKind};
 use crate::{DataQuery, DataResult, StrategyInterface};
 use actix::Addr;
 use coinnect_rt::types::LiveEvent;
-use db::Db;
 use metrics::NaiveStrategyMetrics;
 use options::Options;
 use state::{MovingState, Position};
@@ -61,7 +60,7 @@ impl NaiveTradingStrategy {
             n.right
         );
         let db_name = format!("{}_{}", n.left, n.right);
-        let db = Db::new(&strat_db_path, db_name);
+        let state_db_pah = &format!("{}/{}", strat_db_path, db_name);
         Self {
             fees_rate,
             res_threshold_long: n.threshold_long,
@@ -70,7 +69,7 @@ impl NaiveTradingStrategy {
             stop_gain: n.stop_gain,
             beta_eval_window_size: n.window_size,
             beta_eval_freq: n.beta_eval_freq,
-            state: MovingState::new(n.initial_cap, db, om, n.dry_mode()),
+            state: MovingState::new(n.initial_cap, state_db_pah, om, n.dry_mode()),
             data_table: Self::make_lm_table(&n.left, &n.right, &strat_db_path, n.window_size as usize),
             right_pair: n.right.to_string(),
             left_pair: n.left.to_string(),
@@ -293,6 +292,9 @@ impl NaiveTradingStrategy {
                 ))
             })
             .unwrap_or(false);
+        if has_model {
+            println!("has model");
+        }
         has_model && (has_position || is_model_obsolete)
     }
 

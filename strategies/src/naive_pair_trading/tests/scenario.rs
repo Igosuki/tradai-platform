@@ -22,16 +22,36 @@ struct StrategyLog {
     time: DateTime<Utc>,
     right_mid: f64,
     left_mid: f64,
-    state: MovingState,
+    predicted_right: f64,
+    short_position_return: f64,
+    long_position_return: f64,
+    pnl: f64,
+    nominal_position: f64,
+    beta_lr: f64,
+    res: f64,
+    traded_price_left: f64,
+    traded_price_right: f64,
+    alpha: f64,
+    value_strat: f64,
 }
 
 impl StrategyLog {
-    fn from_state(time: DateTime<Utc>, state: MovingState, last_row: &DataRow) -> StrategyLog {
+    fn from_state(time: DateTime<Utc>, state: &MovingState, last_row: &DataRow) -> StrategyLog {
         StrategyLog {
             time,
             right_mid: last_row.right.mid,
             left_mid: last_row.left.mid,
-            state,
+            predicted_right: state.predicted_right(),
+            short_position_return: state.short_position_return(),
+            long_position_return: state.long_position_return(),
+            pnl: state.pnl(),
+            nominal_position: state.nominal_position(),
+            beta_lr: state.beta_lr(),
+            res: state.res(),
+            traded_price_left: state.traded_price_left(),
+            traded_price_right: state.traded_price_right(),
+            alpha: state.alpha(),
+            value_strat: state.value_strat(),
         }
     }
 }
@@ -43,18 +63,16 @@ fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn
     let string = format!("graphs/naive_pair_trading_plot_{}.svg", now.format("%Y%m%d%H:%M:%S"));
     let color_wheel = vec![&BLACK, &BLUE, &RED];
     let more_lines: Vec<StrategyEntry<'_>> = vec![
-        ("value", vec![|x| x.right_mid, |x| x.state.predicted_right()]),
-        ("return", vec![|x| {
-            x.state.short_position_return() + x.state.long_position_return()
-        }]),
-        ("PnL", vec![|x| x.state.pnl()]),
-        ("Nominal Position", vec![|x| x.state.nominal_position()]),
-        ("Beta", vec![|x| x.state.beta_lr()]),
-        ("res", vec![|x| x.state.res()]),
-        ("traded_price_left", vec![|x| x.state.traded_price_left()]),
-        ("traded_price_right", vec![|x| x.state.traded_price_right()]),
-        ("alpha_val", vec![|x| x.state.alpha()]),
-        ("value_strat", vec![|x| x.state.value_strat()]),
+        ("value", vec![|x| x.right_mid, |x| x.predicted_right]),
+        ("return", vec![|x| x.short_position_return + x.long_position_return]),
+        ("PnL", vec![|x| x.pnl]),
+        ("Nominal Position", vec![|x| x.nominal_position]),
+        ("Beta", vec![|x| x.beta_lr]),
+        ("res", vec![|x| x.res]),
+        ("traded_price_left", vec![|x| x.traded_price_left]),
+        ("traded_price_right", vec![|x| x.traded_price_right]),
+        ("alpha_val", vec![|x| x.alpha]),
+        ("value_strat", vec![|x| x.value_strat]),
     ];
     let height: u32 = 342 * more_lines.len() as u32;
     let root = SVGBackend::new(&string, (1724, height)).into_drawing_area();
@@ -179,10 +197,10 @@ async fn complete_backtest() {
     let mut iterations = 0 as u128;
     let left_records = records[0].clone();
     let right_records = records[1].clone();
+    assert!(left_records.len() > 0, "no left pair records in dataset");
+    assert!(right_records.len() > 0, "no right pair records in dataset");
     let (zip, other) = left_records.iter().zip(right_records.iter()).tee();
     let (left, right) = other.tee();
-    let left_sum: f64 = left.map(|r| (r.0.a1 + r.0.b1) / 2.0).sum();
-    let right_sum: f64 = right.map(|r| (r.1.a1 + r.1.b1) / 2.0).sum();
     let mut logs: Vec<StrategyLog> = Vec::new();
     for (l, r) in zip {
         iterations += 1;
@@ -203,7 +221,7 @@ async fn complete_backtest() {
                 right: r.into(),
             };
             strat.process_row(&row).await;
-            StrategyLog::from_state(row_time, strat.state.clone(), &row)
+            StrategyLog::from_state(row_time, &strat.state, &row)
         };
         elapsed += now.elapsed().as_nanos();
         logs.push(log);

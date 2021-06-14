@@ -7,7 +7,7 @@ use std::path::Path;
 
 static MODELS_TABLE_NAME: &str = "models";
 
-type ModelUpdateFn<T, A> = fn(&T, A) -> T;
+pub type ModelUpdateFn<T, A> = fn(&T, A) -> T;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelValue<T> {
@@ -41,7 +41,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
         self.last_model_load_attempt = Some(Utc::now());
     }
 
-    fn set_last_model(&mut self, new_model: T) {
+    pub fn set_last_model(&mut self, new_model: T) {
         self.last_model = Some(ModelValue {
             value: new_model,
             at: Utc::now(),
