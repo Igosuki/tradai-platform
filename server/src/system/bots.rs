@@ -26,13 +26,13 @@ pub async fn exchange_bots(
         let bot = match xch {
             Exchange::Bittrex => {
                 let creds = Box::new(BittrexCreds::new_from_file("account_bittrex", keys_path.clone()).unwrap());
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), None)
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), false)
                     .await
                     .unwrap()
             }
             Exchange::Bitstamp => {
                 let creds = Box::new(BitstampCreds::new_from_file("account_bitstamp", keys_path.clone()).unwrap());
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), None)
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), false)
                     .await
                     .unwrap()
             }
@@ -41,12 +41,8 @@ pub async fn exchange_bots(
                     BinanceCreds::new_from_file(coinnect_rt::binance::credentials::ACCOUNT_KEY, keys_path.clone())
                         .unwrap(),
                 );
-                let url = if conf.use_test.unwrap_or_else(|| false) {
-                    coinnect_rt::binance::streaming_api::WEBSOCKET_STREAM_TEST_URL
-                } else {
-                    coinnect_rt::binance::streaming_api::WEBSOCKET_URL
-                };
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), Some(url))
+                let servers = conf.use_test.unwrap_or_else(|| false);
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), servers)
                     .await
                     .unwrap()
             }
