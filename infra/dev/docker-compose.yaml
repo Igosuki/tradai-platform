@@ -7,6 +7,7 @@ volumes:
 networks:
   front-tier:
   back-tier:
+  nats:
 
 services:
 
@@ -113,3 +114,28 @@ services:
       - back-tier
       - front-tier
     restart: always
+
+  nats:
+    image: nats
+    networks:
+      - nats
+    ports:
+      - 4222:4222
+      - 8222:8222
+    volumes:
+      - ./nats/nats-server.conf:/nats-server.conf
+  nats-1:
+    image: nats
+    command: "--cluster nats://0.0.0.0:6222 --routes=nats://ruser:T0pS3cr3t@nats:6222"
+    networks:
+      - nats
+    depends_on:
+      - nats
+  nats-2:
+    image: nats
+    command: "--cluster nats://0.0.0.0:6222 --routes=nats://ruser:T0pS3cr3t@nats:6222"
+    networks:
+      - nats
+    depends_on:
+      - nats
+

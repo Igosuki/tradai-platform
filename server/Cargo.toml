@@ -12,6 +12,10 @@ path = "src/lib.rs"
 name = "trader"
 path = "src/main.rs"
 
+[[bin]]
+name = "feeder"
+path = "src/feeder.rs"
+
 [dependencies]
 
 models = { path = "../models" }
@@ -99,6 +103,9 @@ db = { path = "../db" }
 
 # Strategies
 strategies = { path = "../strategies"}
+
+# Nats
+nats = "0.9"
 
 [features]
 default = []

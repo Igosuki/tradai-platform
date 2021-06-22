@@ -20,7 +20,7 @@ use crate::logging::file_actor::{AvroFileActor, FileActorOptions};
 use crate::settings::Settings;
 use crate::{logging, server};
 
-mod bots;
+pub mod bots;
 
 pub struct AccountSystem {
     pub om: Addr<OrderManager>,
