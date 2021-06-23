@@ -28,7 +28,7 @@ where
     Ok(size_bytes.get_bytes() as u64)
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct FileRotation {
     /// Max file size in bytes
     #[serde(deserialize_with = "decode_file_size")]
@@ -52,14 +52,41 @@ pub struct ApiSettings {
     pub port: Port,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct NatsSettings {
+    pub username: String,
+    pub password: String,
+    pub host: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct AvroFileLoggerSettings {
+    pub file_rotation: FileRotation,
+    pub basedir: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub enum OutputSettings {
+    Nats(NatsSettings),
+    AvroFileLogger(AvroFileLoggerSettings),
+    Strategies,
+}
+
+#[derive(Debug, Deserialize)]
+pub enum StreamSettings {
+    Nats(NatsSettings),
+    ExchangeBots,
+}
+
 fn default_as_false() -> bool { false }
 
 #[derive(Debug, Deserialize)]
 pub struct Settings {
-    pub file_rotation: FileRotation,
-    pub data_dir: String,
     pub __config_file: String,
     pub exchanges: HashMap<Exchange, ExchangeSettings>,
+    pub streams: Vec<StreamSettings>,
+    pub outputs: Vec<OutputSettings>,
+    pub data_dir: String,
     pub keys: String,
     #[serde(default = "default_as_false")]
     pub profile_main: bool,

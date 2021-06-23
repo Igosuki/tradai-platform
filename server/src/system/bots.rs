@@ -23,16 +23,17 @@ pub async fn exchange_bots(
     let mut bots: HashMap<Exchange, Box<dyn ExchangeBot>> = HashMap::new();
     // TODO : solve the annoying problem of credentials being a specific struct when new_stream and new are generic
     for (xch, conf) in exchanges_settings {
+        let use_test = conf.use_test;
         let bot = match xch {
             Exchange::Bittrex => {
                 let creds = Box::new(BittrexCreds::new_from_file("account_bittrex", keys_path.clone()).unwrap());
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), false)
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), use_test)
                     .await
                     .unwrap()
             }
             Exchange::Bitstamp => {
                 let creds = Box::new(BitstampCreds::new_from_file("account_bitstamp", keys_path.clone()).unwrap());
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), false)
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), use_test)
                     .await
                     .unwrap()
             }
@@ -41,8 +42,7 @@ pub async fn exchange_bots(
                     BinanceCreds::new_from_file(coinnect_rt::binance::credentials::ACCOUNT_KEY, keys_path.clone())
                         .unwrap(),
                 );
-                let servers = conf.use_test.unwrap_or_else(|| false);
-                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), servers)
+                Coinnect::new_stream(xch, creds.clone(), conf, recipients.clone(), use_test)
                     .await
                     .unwrap()
             }

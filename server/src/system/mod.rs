@@ -5,7 +5,7 @@ use std::sync::{Arc, RwLock};
 
 use actix::{Actor, Addr, Recipient, SyncArbiter};
 use actix_rt::signal::unix::{signal, Signal, SignalKind};
-use futures::{pin_mut, select, FutureExt};
+use futures::{future::select_all, pin_mut, select, FutureExt};
 
 use coinnect_rt::binance::BinanceCreds;
 use coinnect_rt::coinnect::Coinnect;
@@ -17,8 +17,11 @@ use strategies::order_manager::OrderManager;
 use strategies::{self, Strategy, StrategyKey};
 
 use crate::logging::file_actor::{AvroFileActor, FileActorOptions};
-use crate::settings::Settings;
+use crate::nats::NatsProducer;
+use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
 use crate::{logging, server};
+use std::future::Future;
+use std::pin::Pin;
 
 pub mod bots;
 
@@ -36,66 +39,78 @@ impl AccountSystem {
 
 pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     let settings_v = settings.read().unwrap();
-    // Live Events recipients
-    let mut live_events_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
-    // File actor that logs avro beans for all events
-    let fa = file_actor(settings.clone()).recipient();
-    live_events_recipients.push(fa);
-    // Order Managers actors
+    let exchanges = settings_v.exchanges.clone();
+    let mut termination_handles: Vec<Pin<Box<dyn Future<Output = std::io::Result<()>>>>> = vec![];
+    let mut output_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
+
+    // order managers
     let db_path_str = Arc::new(settings_v.db_storage_path.clone());
     let keys_path = PathBuf::from(settings_v.keys.clone());
-    let oms = Arc::new(order_managers(keys_path, &db_path_str, Arc::new(settings_v.exchanges.clone())).await);
-    // Strategy actors, cf strategy crate
+    let oms = Arc::new(order_managers(keys_path.clone(), &db_path_str, Arc::new(exchanges.clone())).await);
+    if !oms.is_empty() {
+        termination_handles.push(Box::pin(bots::poll_account_bots(oms.clone())));
+    }
+
+    // strategies, cf strategies crate
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
     let strategies = strategies(arc1, oms.clone()).await;
 
-    for a in strategies.clone() {
-        live_events_recipients.push(a.1.recipient().clone());
+    for output in settings_v.outputs.clone() {
+        match output {
+            OutputSettings::AvroFileLogger(logger_settings) => {
+                output_recipients.push(file_actor(logger_settings).recipient())
+            }
+            OutputSettings::Nats(nats_settings) => {
+                let producer = NatsProducer::new(&nats_settings.host, &nats_settings.username, &nats_settings.password)
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::NotConnected, e))?;
+                output_recipients.push(NatsProducer::start(producer).recipient())
+            }
+            OutputSettings::Strategies => {
+                for a in strategies.clone() {
+                    output_recipients.push(a.1.recipient().clone());
+                }
+            }
+        }
     }
-    // Metrics pusher
+
+    // metrics actor
     let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(
         &settings_v.prom_push_gw,
         &settings_v.prom_instance,
     ));
 
-    // Exchange bot actors, they just receive data
-    let keys_path = PathBuf::from(settings_v.keys.clone());
-    let exchanges = settings_v.exchanges.clone();
-    let bots = bots::exchange_bots(exchanges.clone(), keys_path.clone(), live_events_recipients).await;
-    let strats_map: HashMap<StrategyKey, Strategy> =
-        strategies.clone().iter().map(|s| (s.0.clone(), s.clone())).collect();
-    let strats_map_a = Arc::new(strats_map);
+    for stream_settings in &settings_v.streams {
+        match stream_settings {
+            StreamSettings::ExchangeBots => {
+                let bots = bots::exchange_bots(exchanges.clone(), keys_path.clone(), output_recipients.clone()).await;
+                if !bots.is_empty() {
+                    termination_handles.push(Box::pin(bots::poll_bots(bots)));
+                }
+            }
+            StreamSettings::Nats(nats_settings) => (),
+        }
+    }
+
+    let strats_map: Arc<HashMap<StrategyKey, Strategy>> =
+        Arc::new(strategies.clone().iter().map(|s| (s.0.clone(), s.clone())).collect());
     // API Server
-    let server = server::httpserver(
-        exchanges.clone(),
-        strats_map_a,
-        keys_path.clone(),
-        settings_v.api.port.0,
-    );
+    let server = server::httpserver(exchanges.clone(), strats_map, keys_path.clone(), settings_v.api.port.0);
+    termination_handles.push(Box::pin(server));
 
     // Handle interrupts for graceful shutdown
     // await_termination().await?;
-    select! {
-        _ = server.fuse() => println!("Http Server terminated."),
-        // ping all bots at regular intervals
-        _ = bots::poll_bots(bots).fuse() => println!("Stopped polling bots."),
-        // ping all account bots at regular intervals
-        _ = bots::poll_account_bots(oms).fuse() => println!("Stopped polling order bots."),
-    };
-    Ok(())
+    select_all(termination_handles).await.0
 }
 
-fn file_actor(settings: Arc<RwLock<Settings>>) -> Addr<AvroFileActor> {
+fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor> {
     SyncArbiter::start(2, move || {
-        let settings_v = &settings.read().unwrap();
-        let data_dir = settings_v.data_dir.clone();
-        let dir = Path::new(data_dir.as_str());
+        let dir = Path::new(settings.basedir.as_str());
         fs::create_dir_all(&dir).unwrap();
         AvroFileActor::new(&FileActorOptions {
             base_dir: dir.to_str().unwrap().to_string(),
-            max_file_size: settings_v.file_rotation.max_file_size,
-            max_file_time: settings_v.file_rotation.max_file_time,
+            max_file_size: settings.file_rotation.max_file_size,
+            max_file_time: settings.file_rotation.max_file_time,
             partitioner: logging::live_event_partitioner,
         })
     })
@@ -152,7 +167,7 @@ async fn order_managers(
                     BinanceCreds::new_from_file(coinnect_rt::binance::credentials::ACCOUNT_KEY, keys_path.clone())
                         .unwrap(),
                 );
-                Coinnect::new_account_stream(*xch, creds.clone(), recipients)
+                Coinnect::new_account_stream(*xch, creds.clone(), recipients, conf.use_test)
                     .await
                     .unwrap()
             }
