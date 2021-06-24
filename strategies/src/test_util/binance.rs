@@ -38,7 +38,7 @@ pub mod binance_test_util {
         let creds = BinanceCreds::empty();
         let mock_server_address = server.address().to_string();
         println!("mock server address : {}", mock_server_address);
-        let api = BinanceApi::new_with_host(Box::new(creds), Some(format!("http://{}", mock_server_address)))
+        let api = BinanceApi::new_with_host(Box::new(creds), mock_server_address)
             .await
             .unwrap();
         (server, Box::new(api))
