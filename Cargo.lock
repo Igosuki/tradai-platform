@@ -808,7 +808,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "binance-async"
+name = "binance-rs-async"
 version = "0.1.1"
 dependencies = [
  "chrono",
@@ -1179,7 +1179,7 @@ dependencies = [
  "backoff",
  "base64",
  "bimap",
- "binance-async",
+ "binance-rs-async",
  "bstr",
  "bytes 1.0.1",
  "chrono",
