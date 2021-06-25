@@ -809,18 +809,21 @@ dependencies = [
 
 [[package]]
 name = "binance-rs-async"
-version = "0.1.1"
+version = "1.0.0-beta.0"
 dependencies = [
  "chrono",
  "csv",
+ "env_logger 0.8.4",
  "futures",
  "hex",
+ "log",
  "reqwest",
  "ring",
  "serde 1.0.126",
  "serde_json",
  "serde_qs",
  "thiserror",
+ "tokio 1.6.1",
  "tungstenite",
  "url",
 ]
@@ -5801,6 +5804,7 @@ dependencies = [
  "tokio 1.6.1",
  "tokio-stream",
  "url",
+ "util",
  "uuid",
 ]
 
@@ -6018,10 +6022,19 @@ name = "util"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "opentelemetry",
+ "opentelemetry-jaeger",
  "rust_decimal",
  "serde 1.0.126",
  "tempdir",
  "tokio 1.6.1",
+ "tracing",
+ "tracing-flame",
+ "tracing-futures",
+ "tracing-log",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "tracing-timing",
 ]
 
 [[package]]
