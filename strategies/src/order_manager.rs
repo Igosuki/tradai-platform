@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
 
 use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, Running, WrapFuture};
 use anyhow::Result;
@@ -188,48 +187,62 @@ impl Actor for OrderManager {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         info!("Starting Order Manager");
-        ctx.run_later(Duration::from_millis(0), |act, ctx| {
-            async {
-                let reader = act.transactions_wal.read().await;
-                let mut writer = act.orders.write().await;
-                if let Ok(wal_transactions) = reader.read_all() {
-                    writer.extend(wal_transactions);
-                }
-                let orders_read_lock = act.orders.read().await;
-                // Fetch all latest orders
-                info!("Fetching remote orders for all unfilled transactions");
-                let latest_orders = futures::future::join_all(
-                    orders_read_lock
-                        .iter()
-                        .filter(|(_k, v)| match v {
-                            TransactionStatus::PartiallyFilled(_) | TransactionStatus::Staged(_) => true,
-                            _ => false,
-                        })
-                        .map(|(tr_id, _tr_status)| act.api.get_order(tr_id.clone())),
-                )
-                .await;
-                for lo in latest_orders {
-                    if let Ok(order) = lo {
-                        let order_id = order.orig_order_id.clone();
-                        if let Some(tr_status) = orders_read_lock.get(&order_id) {
-                            if !equivalent_status(&tr_status, &order.status) {
-                                ctx.notify(AccountEventEnveloppe(
+        let refresh_orders = async {}
+            .into_actor(self)
+            .then(|_, acty: &mut OrderManager, _ctx| {
+                let act = acty.clone();
+                async move {
+                    {
+                        let reader = act.transactions_wal.read().await;
+                        let mut writer = act.orders.write().await;
+                        if let Ok(wal_transactions) = reader.read_all() {
+                            writer.extend(wal_transactions);
+                        }
+                    }
+                    let orders_read_lock = act.orders.read().await;
+                    // Fetch all latest orders
+                    info!("Fetching remote orders for all unfilled transactions");
+                    let latest_orders = futures::future::join_all(
+                        orders_read_lock
+                            .iter()
+                            .filter(|(_k, v)| match v {
+                                TransactionStatus::PartiallyFilled(_) | TransactionStatus::Staged(_) => true,
+                                _ => false,
+                            })
+                            .map(|(tr_id, _tr_status)| act.api.get_order(tr_id.clone())),
+                    )
+                    .await;
+                    let mut notifications = vec![];
+                    for lo in latest_orders {
+                        if let Ok(order) = lo {
+                            let order_id = order.orig_order_id.clone();
+                            if let Some(tr_status) = orders_read_lock.get(&order_id) {
+                                if !equivalent_status(&tr_status, &order.status) {
+                                    notifications.push(AccountEventEnveloppe(
+                                        Exchange::Binance,
+                                        AccountEvent::OrderUpdate(order.into()),
+                                    ));
+                                }
+                            } else {
+                                notifications.push(AccountEventEnveloppe(
                                     Exchange::Binance,
                                     AccountEvent::OrderUpdate(order.into()),
                                 ));
                             }
-                        } else {
-                            ctx.notify(AccountEventEnveloppe(
-                                Exchange::Binance,
-                                AccountEvent::OrderUpdate(order.into()),
-                            ));
                         }
                     }
+                    notifications
                 }
-            }
-            .into_actor(act);
-        });
+                .into_actor(acty)
+            })
+            .map(|notifications, _, ctx| {
+                for notification in notifications {
+                    ctx.notify(notification)
+                }
+            });
+        ctx.spawn(Box::pin(refresh_orders));
     }
+
     fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
         info!("Stopping Order Manager");
         Running::Stop
