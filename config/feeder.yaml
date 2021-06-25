@@ -6,7 +6,7 @@ exchanges:
   #        symbols: ['BTC_USD']
   binance:
     use_account: false
-    use_test: true
+    use_test: false
     fees: 0.001
     orderbook:
       symbols: ['BTC_USDT', 'ETH_USDT']
