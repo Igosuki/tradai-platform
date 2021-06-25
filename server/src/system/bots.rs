@@ -54,7 +54,7 @@ pub async fn exchange_bots(
 }
 
 pub async fn poll_bots(bots: HashMap<Exchange, Box<dyn ExchangeBot>>) -> std::io::Result<()> {
-    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    let mut interval = tokio::time::interval(Duration::from_secs(10));
     loop {
         interval.tick().await;
         for bot in bots.values() {
@@ -64,7 +64,7 @@ pub async fn poll_bots(bots: HashMap<Exchange, Box<dyn ExchangeBot>>) -> std::io
 }
 
 pub async fn poll_account_bots(systems: Arc<HashMap<Exchange, AccountSystem>>) -> std::io::Result<()> {
-    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    let mut interval = tokio::time::interval(Duration::from_secs(10));
     loop {
         interval.tick().await;
         for system in systems.values() {
