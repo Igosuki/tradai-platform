@@ -90,6 +90,13 @@ pub(crate) struct StagedOrder {
     pub dry_run: bool,
 }
 
+#[derive(Message, Debug)]
+#[rtype(result = "Result<()>")]
+pub(crate) struct PassOrder {
+    pub id: String,
+    pub query: OrderQuery,
+}
+
 #[derive(Message)]
 #[rtype(result = "Result<Transaction>")]
 pub struct OrderId(pub String);
