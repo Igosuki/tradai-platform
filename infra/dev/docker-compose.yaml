@@ -12,7 +12,7 @@ networks:
 services:
 
   prometheus:
-    image: prom/prometheus:v2.1.0
+    image: prom/prometheus:v2.28.0
     volumes:
       - ./prometheus/:/etc/prometheus/
       - ./prometheus_data:/prometheus
@@ -124,7 +124,7 @@ services:
     networks:
       - back-tier
       - front-tier
-      restart: always
+    restart: always
   nats:
     image: nats
     networks:
