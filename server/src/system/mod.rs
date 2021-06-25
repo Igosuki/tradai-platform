@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::fs;
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 use actix::{Actor, Addr, Recipient, SyncArbiter};
 use actix_rt::signal::unix::{signal, Signal, SignalKind};
@@ -20,8 +23,6 @@ use crate::logging::file_actor::{AvroFileActor, FileActorOptions};
 use crate::nats::{NatsConsumer, NatsProducer, Subject};
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
 use crate::{logging, server};
-use std::future::Future;
-use std::pin::Pin;
 
 pub mod bots;
 
@@ -95,31 +96,36 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
             StreamSettings::Nats(nats_settings) => {
                 // For now, give each strategy a nats consumer
                 for strategy in strategies.clone() {
-                    NatsConsumer::start(
+                    let topics = strategy
+                        .2
+                        .iter()
+                        .map(|c| <LiveEventEnveloppe as Subject>::from_channel(c))
+                        .collect();
+                    let consumer = NatsConsumer::start(
                         NatsConsumer::new::<LiveEventEnveloppe>(
                             &nats_settings.host,
                             &nats_settings.username,
                             &nats_settings.username,
-                            strategy
-                                .2
-                                .iter()
-                                .map(|c| <LiveEventEnveloppe as Subject>::from_channel(c))
-                                .collect(),
+                            topics,
                             vec![strategy.1.recipient()],
                         )
                         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
                     );
+                    termination_handles.push(Box::pin(poll(consumer)));
                 }
-                NatsConsumer::start(
-                    NatsConsumer::new(
-                        &nats_settings.host,
-                        &nats_settings.username,
-                        &nats_settings.username,
-                        vec![<LiveEventEnveloppe as Subject>::glob()],
-                        output_recipients.clone(),
-                    )
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
-                );
+                if !output_recipients.is_empty() {
+                    let consumer = NatsConsumer::start(
+                        NatsConsumer::new(
+                            &nats_settings.host,
+                            &nats_settings.username,
+                            &nats_settings.username,
+                            vec![<LiveEventEnveloppe as Subject>::glob()],
+                            output_recipients.clone(),
+                        )
+                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
+                    );
+                    termination_handles.push(Box::pin(poll(consumer)));
+                }
             }
         }
     }
@@ -230,4 +236,12 @@ async fn await_termination() -> std::io::Result<()> {
         _ = t2 => info!("SigUSR1"),
     }
     Ok(())
+}
+
+pub async fn poll<T: Actor>(addr: Addr<T>) -> std::io::Result<()> {
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    loop {
+        interval.tick().await;
+        addr.connected();
+    }
 }
