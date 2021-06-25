@@ -263,15 +263,12 @@ impl MeanRevertingState {
         }
     }
 
-    #[cfg(test)]
-    #[allow(dead_code)]
     pub(super) fn traded_price(&self) -> f64 { self.traded_price }
 
     pub(super) fn set_pnl(&mut self) { self.pnl = self.value_strat; }
 
     pub(super) fn pnl(&self) -> f64 { self.pnl }
 
-    #[allow(dead_code)]
     pub(super) fn value_strat(&self) -> f64 { self.value_strat }
 
     pub(super) fn set_apo(&mut self, apo: f64) { self.apo = apo; }

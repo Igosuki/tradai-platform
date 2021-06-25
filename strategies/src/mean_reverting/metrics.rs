@@ -59,7 +59,18 @@ impl MeanRevertingStrategyMetrics {
             }
         }
 
-        let state_gauges: Vec<StateGauge> = vec![];
+        let state_gauges: Vec<StateGauge> = vec![
+            ("apo".to_string(), |x| x.apo()),
+            ("threshold_long".to_string(), |x| x.threshold_long()),
+            ("threshold_short".to_string(), |x| x.threshold_short()),
+            ("value_strat".to_string(), |x| x.value_strat()),
+            ("return".to_string(), |x| {
+                x.long_position_return() + x.short_position_return()
+            }),
+            ("traded_price".to_string(), |x| x.traded_price()),
+            ("pnl".to_string(), |x| x.pnl()),
+            ("nominal_position".to_string(), |x| x.nominal_position()),
+        ];
         {
             let pos_labels = &[];
             for (gauge_name, _) in state_gauges.clone() {
