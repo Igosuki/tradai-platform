@@ -27,7 +27,7 @@ strategies:
     pair: 'BTC_USDT'
     short_window_size: 100
     long_window_size: 1000
-    dry_mode: true
+    dry_mode: false
     sample_freq: 1min
     initial_cap: 100.0
     threshold_short: 0.01
