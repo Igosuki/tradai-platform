@@ -1,0 +1,25 @@
+streams:
+  - type: Nats
+    username: ruser
+    password: T0pS3cr3t
+    host: localhost:4222
+
+outputs:
+  - type: AvroFileLogger
+    file_rotation:
+      max_file_size: 50 Mb
+      max_file_time: 1800
+    basedir: './data'
+
+data_dir: './data'
+
+keys: ./config/keys_real_test.json
+
+db_storage_path: './database'
+
+prom_push_gw: 127.0.0.1:9091
+
+prom_instance: trader
+
+api:
+  port: 8181
