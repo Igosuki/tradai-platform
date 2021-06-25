@@ -93,7 +93,7 @@ impl AvroFileActor {
                 // Create base directory for partition if necessary
                 fs::create_dir_all(&buf).map_err(Error::IOError)?;
 
-                let schema = self.schema_for(&e.1).ok_or(Error::NoSchemaError)?;
+                let schema = self.schema_for(&e.e).ok_or(Error::NoSchemaError)?;
 
                 // Rotating file
                 let file_path = buf.join(format!("{}-{:04}.{}", self.session_uuid, 0, AVRO_EXTENSION));
@@ -188,7 +188,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
         }
         let rc_ok = rc.unwrap();
         let mut writer = rc_ok.borrow_mut();
-        let appended = match msg.1 {
+        let appended = match msg.e {
             LiveEvent::LiveTrade(lt) => {
                 let lt = LT {
                     pair: lt.pair.to_string(),

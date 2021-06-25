@@ -10,8 +10,8 @@ mod rotate;
 /// /k1=v1/k2=v2/...
 /// Dates are formatted using strftime/Ymd
 pub fn live_event_partitioner(le: &LiveEventEnveloppe) -> Option<PathBuf> {
-    let exchange = format!("{:?}", le.0);
-    match &le.1 {
+    let exchange = format!("{:?}", le.xch);
+    match &le.e {
         LiveEvent::LiveOrderbook(ob) => partition_path(&exchange, ob.timestamp, "order_books", &ob.pair.clone()),
         LiveEvent::LiveOrder(o) => partition_path(&exchange, o.event_ms, "orders", &o.pair),
         LiveEvent::LiveTrade(t) => partition_path(&exchange, t.event_ms, "trades", &t.pair),

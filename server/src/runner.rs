@@ -17,6 +17,8 @@ use structopt::StructOpt;
 struct CliOptions {
     #[structopt(short, long)]
     debug: bool,
+    #[structopt(short, long)]
+    config: String,
 }
 
 // TODO : clean up the ugly code for settings access
@@ -31,9 +33,8 @@ where
     // Logging, App config
     env_logger::init();
     let opts: CliOptions = CliOptions::from_args();
-    let env = std::env::var("TRADER_ENV").unwrap_or_else(|_| "development".to_string());
     let settings = Arc::new(RwLock::new(
-        settings::Settings::new(env).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?,
+        settings::Settings::new(opts.config).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?,
     ));
 
     // Create a channel to receive the events.

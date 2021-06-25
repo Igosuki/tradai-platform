@@ -16,7 +16,8 @@ use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation, MutableField};
 use crate::types::PositionKind;
 use crate::util::Stopper;
-use crate::StrategyInterface;
+use crate::{Channel, StrategyInterface};
+use coinnect_rt::exchange::Exchange;
 use math::iter::QuantileExt;
 use ordered_float::OrderedFloat;
 use std::cmp::{max, min};
@@ -32,6 +33,7 @@ mod tests;
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct MeanRevertingStrategy {
+    exchange: Exchange,
     pair: Pair,
     fees_rate: f64,
     sample_freq: Duration,
@@ -85,6 +87,7 @@ impl MeanRevertingStrategy {
         });
 
         Self {
+            exchange: n.exchange.clone(),
             pair: n.pair.clone(),
             fees_rate,
             sample_freq: n.sample_freq(),
@@ -302,4 +305,11 @@ impl StrategyInterface for MeanRevertingStrategy {
     }
 
     fn mutate(&mut self, m: FieldMutation) -> Result<()> { self.change_state(m.field, m.value) }
+
+    fn channels(&self) -> Vec<Channel> {
+        vec![Channel::Orderbooks {
+            xch: self.exchange.clone(),
+            pair: self.pair.clone(),
+        }]
+    }
 }

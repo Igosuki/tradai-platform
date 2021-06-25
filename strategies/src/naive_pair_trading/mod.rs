@@ -19,8 +19,9 @@ use crate::naive_pair_trading::state::Operation;
 use crate::order_manager::OrderManager;
 use crate::query::{FieldMutation, MutableField};
 use crate::types::{BookPosition, PositionKind};
-use crate::{DataQuery, DataResult, StrategyInterface};
+use crate::{Channel, DataQuery, DataResult, StrategyInterface};
 use actix::Addr;
+use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::LiveEvent;
 use metrics::NaiveStrategyMetrics;
 use options::Options;
@@ -30,6 +31,7 @@ use std::path::Path;
 const LM_AGE_CUTOFF_RATIO: f64 = 0.0013;
 
 pub struct NaiveTradingStrategy {
+    exchange: Exchange,
     fees_rate: f64,
     res_threshold_long: f64,
     res_threshold_short: f64,
@@ -62,6 +64,7 @@ impl NaiveTradingStrategy {
         let db_name = format!("{}_{}", n.left, n.right);
         let state_db_pah = &format!("{}/{}", strat_db_path, db_name);
         Self {
+            exchange: n.exchange,
             fees_rate,
             res_threshold_long: n.threshold_long,
             res_threshold_short: n.threshold_short,
@@ -378,4 +381,17 @@ impl StrategyInterface for NaiveTradingStrategy {
     }
 
     fn mutate(&mut self, m: FieldMutation) -> Result<()> { self.change_state(m.field, m.value) }
+
+    fn channels(&self) -> Vec<Channel> {
+        vec![
+            Channel::Orderbooks {
+                xch: self.exchange.clone(),
+                pair: self.left_pair.clone().into(),
+            },
+            Channel::Orderbooks {
+                xch: self.exchange.clone(),
+                pair: self.right_pair.clone().into(),
+            },
+        ]
+    }
 }

@@ -28,7 +28,7 @@ use anyhow::Result;
 use async_std::sync::Arc;
 use async_std::sync::RwLock;
 use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
+use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe, Pair};
 use derive_more::Display;
 use serde::Deserialize;
 use std::str::FromStr;
@@ -55,6 +55,13 @@ mod types;
 mod util;
 mod wal;
 
+#[derive(Clone)]
+pub enum Channel {
+    Orders { xch: Exchange, pair: Pair },
+    Trades { xch: Exchange, pair: Pair },
+    Orderbooks { xch: Exchange, pair: Pair },
+}
+
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display)]
 pub enum StrategyType {
     #[strum(serialize = "naive")]
@@ -74,16 +81,17 @@ impl StrategyKey {
 }
 
 #[derive(Clone)]
-pub struct Strategy(pub StrategyKey, pub Addr<StrategyActor>);
+pub struct Strategy(pub StrategyKey, pub Addr<StrategyActor>, pub Vec<Channel>);
 
 impl Strategy {
     pub fn new(db_path: Arc<String>, fees: f64, settings: StrategySettings, om: Option<Addr<OrderManager>>) -> Self {
-        Self(settings.key(), {
-            let strat_settings = from_settings(db_path.as_ref(), fees, &settings, om);
-            StrategyActor::start(StrategyActor::new(StrategyActorOptions {
-                strategy: strat_settings,
-            }))
-        })
+        let strategy = from_settings(db_path.as_ref(), fees, &settings, om);
+        let channels = strategy.channels();
+        Self(
+            settings.key(),
+            { StrategyActor::start(StrategyActor::new(StrategyActorOptions { strategy })) },
+            channels,
+        )
     }
 }
 
@@ -156,7 +164,7 @@ impl Handler<LiveEventEnveloppe> for StrategyActor {
             async move {
                 let arc = lock.clone();
                 let mut act = arc.write().await;
-                act.add_event(msg.1).await
+                act.add_event(msg.e).await
             }
             .into_actor(self),
         )
@@ -202,6 +210,8 @@ pub trait StrategyInterface {
     fn data(&mut self, q: DataQuery) -> Option<DataResult>;
 
     fn mutate(&mut self, m: FieldMutation) -> Result<()>;
+
+    fn channels(&self) -> Vec<Channel>;
 }
 
 pub fn from_settings(
@@ -244,6 +254,7 @@ mod test {
     use coinnect_rt::types::Orderbook;
 
     use super::*;
+    use coinnect_rt::exchange::Exchange::Binance;
 
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
@@ -260,6 +271,13 @@ mod test {
         fn data(&mut self, _q: DataQuery) -> Option<DataResult> { unimplemented!() }
 
         fn mutate(&mut self, _m: FieldMutation) -> anyhow::Result<()> { unimplemented!() }
+
+        fn channels(&self) -> Vec<Channel> {
+            vec![Channel::Orderbooks {
+                xch: Binance,
+                pair: "BTC_USDT".into(),
+            }]
+        }
     }
 
     /// TODO : this test does nothing
