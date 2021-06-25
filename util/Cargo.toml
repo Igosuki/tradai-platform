@@ -13,6 +13,17 @@ serde = "1"
 rust_decimal = "1.11"
 tempdir = "0.3"
 
+# Tracing
+tracing = "0.1"
+tracing-futures = "0.2"
+tracing-log = { version = "0.1", features = ["env_logger"] }
+tracing-timing = "0.5"
+tracing-opentelemetry = "0.13"
+tracing-flame = "0.1"
+tracing-subscriber = { version = "0.2", features = ["tracing-log", "env-filter"] }
+opentelemetry = { version = "0.14", default-features = false, features = ["trace"] }
+opentelemetry-jaeger = "0.13"
+
 [features]
 
 [dev-dependencies]
