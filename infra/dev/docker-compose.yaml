@@ -115,6 +115,16 @@ services:
       - front-tier
     restart: always
 
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - 6831:6831/udp
+      - 6832:6832/udp
+      - 16686:16686
+    networks:
+      - back-tier
+      - front-tier
+      restart: always
   nats:
     image: nats
     networks:
