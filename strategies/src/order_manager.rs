@@ -3,7 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use actix::{Actor, Addr, AsyncContext, Context, Handler, ResponseActFuture, Running, WrapFuture};
+use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, Running, WrapFuture};
 use anyhow::Result;
 use async_std::sync::RwLock;
 use uuid::Uuid;
@@ -15,7 +15,7 @@ use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, O
                          OrderStatus, OrderType, OrderUpdate, TradeType};
 use db::get_or_create;
 
-use crate::order_types::{OrderId, Rejection, StagedOrder, Transaction, TransactionStatus};
+use crate::order_types::{OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
 use crate::types::TradeKind;
 use crate::wal::Wal;
 
@@ -64,6 +64,7 @@ pub struct OrderManager {
 
 static TRANSACTIONS_TABLE: &str = "transactions_wal";
 
+// TODO: notify listeners every time a transaction is updated
 impl OrderManager {
     pub fn new<S: AsRef<Path>>(api: Arc<Box<dyn ExchangeApi>>, db_path: S) -> Self {
         let wal_db = get_or_create(&format!("{}/transactions", db_path.as_ref().display()), vec![
@@ -99,6 +100,7 @@ impl OrderManager {
         }
     }
 
+    #[tracing::instrument(skip(self), level = "info")]
     pub(crate) async fn stage_order(&mut self, staged_order: StagedOrder) -> Result<Transaction> {
         let side = match staged_order.op_kind {
             TradeKind::BUY => TradeType::Buy,
@@ -117,10 +119,22 @@ impl OrderManager {
             ..AddOrderRequest::default()
         });
         let staged_transaction = TransactionStatus::Staged(add_order.clone());
-        //let mut writer = self.transactions_wal.write().await;
-        //writer.append(order_id.clone(), staged_transaction)?;
-        //drop(writer);
-        let order_info = self.api.order(add_order).await;
+        self.register(order_id.clone(), staged_transaction.clone()).await?;
+        Ok(Transaction {
+            id: order_id.clone(),
+            status: // Dry mode simulates transactions as filled
+            if staged_order.dry_run {
+                let filled_transaction = TransactionStatus::Filled(OrderUpdate::default());
+                self.register(order_id.clone(), filled_transaction.clone()).await?;
+                filled_transaction
+            } else {
+                staged_transaction
+            },
+        })
+    }
+    #[tracing::instrument(skip(self), level = "info")]
+    pub(crate) async fn pass_order(&mut self, order: PassOrder) -> Result<()> {
+        let order_info = self.api.order(order.query).await;
         let written_transaction = match order_info {
             Ok(o) => TransactionStatus::New(o),
             Err(e) => TransactionStatus::Rejected(match e {
@@ -128,16 +142,8 @@ impl OrderManager {
                 _ => Rejection::BadRequest(format!("{}", e)),
             }),
         };
-        self.register(order_id.clone(), written_transaction.clone()).await?;
-        // Dry mode simulates transactions as filled
-        if staged_order.dry_run {
-            let filled_transaction = TransactionStatus::Filled(OrderUpdate::default());
-            self.register(order_id.clone(), filled_transaction.clone()).await?;
-        }
-        Ok(Transaction {
-            id: order_id.clone(),
-            status: written_transaction,
-        })
+        self.register(order.id.clone(), written_transaction.clone()).await?;
+        Ok(())
     }
 
     #[allow(dead_code)]
@@ -155,8 +161,8 @@ impl OrderManager {
     }
 
     pub(crate) async fn register(&mut self, order_id: String, tr: TransactionStatus) -> Result<()> {
-        //let mut writer = self.transactions_wal.write().await;
-        //writer.append(order_id.clone(), tr.clone())?;
+        let mut writer = self.transactions_wal.write().await;
+        writer.append(order_id.clone(), tr.clone())?;
         let mut writer = self.orders.write().await;
         writer.insert(order_id.clone(), tr.clone());
         Ok(())
@@ -184,13 +190,14 @@ impl Actor for OrderManager {
         info!("Starting Order Manager");
         ctx.run_later(Duration::from_millis(0), |act, ctx| {
             async {
-                //let reader = act.transactions_wal.read().await;
-                //let mut writer = act.orders.write().await;
-                // if let Ok(wal_transactions) = reader.read_all() {
-                //     writer.extend(wal_transactions);
-                // }
+                let reader = act.transactions_wal.read().await;
+                let mut writer = act.orders.write().await;
+                if let Ok(wal_transactions) = reader.read_all() {
+                    writer.extend(wal_transactions);
+                }
                 let orders_read_lock = act.orders.read().await;
                 // Fetch all latest orders
+                info!("Fetching remote orders for all unfilled transactions");
                 let latest_orders = futures::future::join_all(
                     orders_read_lock
                         .iter()
@@ -255,7 +262,32 @@ impl Handler<StagedOrder> for OrderManager {
 
     fn handle(&mut self, order: StagedOrder, _ctx: &mut Self::Context) -> Self::Result {
         let mut zis = self.clone();
-        Box::pin(async move { zis.stage_order(order).await }.into_actor(self))
+        Box::pin(
+            async move { zis.stage_order(order).await }
+                .into_actor(self)
+                .map(|tr, act, ctx| {
+                    if let Ok(Transaction {
+                        id,
+                        status: TransactionStatus::Staged(query),
+                    }) = &tr
+                    {
+                        ctx.notify(PassOrder {
+                            id: id.clone(),
+                            query: query.clone(),
+                        });
+                    }
+                    tr
+                }),
+        )
+    }
+}
+
+impl Handler<PassOrder> for OrderManager {
+    type Result = ResponseActFuture<Self, Result<()>>;
+
+    fn handle(&mut self, msg: PassOrder, _ctx: &mut Self::Context) -> Self::Result {
+        let mut zis = self.clone();
+        Box::pin(async move { zis.pass_order(msg).await }.into_actor(self))
     }
 }
 
