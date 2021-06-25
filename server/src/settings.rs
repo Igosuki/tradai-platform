@@ -66,6 +66,7 @@ pub struct AvroFileLoggerSettings {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+#[serde(tag = "type")]
 pub enum OutputSettings {
     Nats(NatsSettings),
     AvroFileLogger(AvroFileLoggerSettings),
@@ -73,6 +74,7 @@ pub enum OutputSettings {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
 pub enum StreamSettings {
     Nats(NatsSettings),
     ExchangeBots,
@@ -83,8 +85,11 @@ fn default_as_false() -> bool { false }
 #[derive(Debug, Deserialize)]
 pub struct Settings {
     pub __config_file: String,
+    #[serde(default)]
     pub exchanges: HashMap<Exchange, ExchangeSettings>,
+    #[serde(default)]
     pub streams: Vec<StreamSettings>,
+    #[serde(default)]
     pub outputs: Vec<OutputSettings>,
     pub data_dir: String,
     pub keys: String,
