@@ -1,8 +1,6 @@
 #![deny(unused_must_use, unused_mut, unused_imports, unused_import_braces)]
 #![feature(try_trait_v2)]
 #![feature(async_closure)]
-#![feature(impl_trait_in_bindings)]
-#![feature(min_type_alias_impl_trait)]
 
 extern crate actix;
 extern crate actix_derive;
