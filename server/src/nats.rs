@@ -1,4 +1,4 @@
-use actix::{Actor, Context, Handler, Message, Recipient};
+use actix::{Actor, Context, Handler, Message, Recipient, Running};
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use nats::Connection;
 use serde::de::DeserializeOwned;
@@ -39,7 +39,6 @@ impl Subject for LiveEventEnveloppe {
             Channel::Orderbooks { xch, pair } => format!("live_event.{}.{}.obs", xch.to_string(), pair),
             Channel::Orders { xch, pair } => format!("live_event.{}.{}.orders", xch.to_string(), pair),
             Channel::Trades { xch, pair } => format!("live_event.{}.{}.trades", xch.to_string(), pair),
-            _ => "noop".to_string(),
         }
     }
 }
@@ -104,4 +103,18 @@ impl NatsConsumer {
 
 impl Actor for NatsConsumer {
     type Context = Context<Self>;
+
+    fn started(&mut self, _ctx: &mut Self::Context) {
+        info!("NatsConsumer : started");
+    }
+    fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
+        info!("NatsConsumer : stopping");
+        Running::Stop
+    }
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
+        info!("NatsConsumer stopped, closing...");
+        if let Err(e) = self.nats_conn.drain() {
+            error!("Couldn't close NatsConsumer connection {}", e);
+        }
+    }
 }
