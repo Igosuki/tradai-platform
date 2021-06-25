@@ -142,10 +142,10 @@ impl Actor for StrategyActor {
     type Context = Context<Self>;
 
     fn started(&mut self, _: &mut Self::Context) {
-        info!("starting");
+        info!("Strategy actor starting");
     }
     fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
-        info!("stopping");
+        info!("Strategy actor stopping");
         Running::Stop
     }
     fn stopped(&mut self, _ctx: &mut Self::Context) {
