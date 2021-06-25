@@ -100,8 +100,8 @@ pub struct Settings {
 }
 
 impl Settings {
-    pub fn new(env: String) -> Result<Self, ConfigError> {
-        let config_file = format!("config/{}.yaml", env);
+    pub fn new(config_file_name: String) -> Result<Self, ConfigError> {
+        let config_file = format!("config/{}.yaml", config_file_name);
         let mut s = Config::new();
 
         s.merge(File::with_name(&config_file)).unwrap();

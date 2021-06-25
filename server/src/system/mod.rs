@@ -17,7 +17,7 @@ use strategies::order_manager::OrderManager;
 use strategies::{self, Strategy, StrategyKey};
 
 use crate::logging::file_actor::{AvroFileActor, FileActorOptions};
-use crate::nats::NatsProducer;
+use crate::nats::{NatsConsumer, NatsProducer, Subject};
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
 use crate::{logging, server};
 use std::future::Future;
@@ -42,6 +42,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     let exchanges = settings_v.exchanges.clone();
     let mut termination_handles: Vec<Pin<Box<dyn Future<Output = std::io::Result<()>>>>> = vec![];
     let mut output_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
+    let mut strat_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
 
     // order managers
     let db_path_str = Arc::new(settings_v.db_storage_path.clone());
@@ -68,7 +69,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
             }
             OutputSettings::Strategies => {
                 for a in strategies.clone() {
-                    output_recipients.push(a.1.recipient().clone());
+                    strat_recipients.push(a.1.recipient().clone());
                 }
             }
         }
@@ -83,12 +84,43 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     for stream_settings in &settings_v.streams {
         match stream_settings {
             StreamSettings::ExchangeBots => {
-                let bots = bots::exchange_bots(exchanges.clone(), keys_path.clone(), output_recipients.clone()).await;
+                let mut all_recipients = vec![];
+                all_recipients.extend(strat_recipients.clone());
+                all_recipients.extend(output_recipients.clone());
+                let bots = bots::exchange_bots(exchanges.clone(), keys_path.clone(), all_recipients).await;
                 if !bots.is_empty() {
                     termination_handles.push(Box::pin(bots::poll_bots(bots)));
                 }
             }
-            StreamSettings::Nats(nats_settings) => (),
+            StreamSettings::Nats(nats_settings) => {
+                // For now, give each strategy a nats consumer
+                for strategy in strategies.clone() {
+                    NatsConsumer::start(
+                        NatsConsumer::new::<LiveEventEnveloppe>(
+                            &nats_settings.host,
+                            &nats_settings.username,
+                            &nats_settings.username,
+                            strategy
+                                .2
+                                .iter()
+                                .map(|c| <LiveEventEnveloppe as Subject>::from_channel(c))
+                                .collect(),
+                            vec![strategy.1.recipient()],
+                        )
+                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
+                    );
+                }
+                NatsConsumer::start(
+                    NatsConsumer::new(
+                        &nats_settings.host,
+                        &nats_settings.username,
+                        &nats_settings.username,
+                        vec![<LiveEventEnveloppe as Subject>::glob()],
+                        output_recipients.clone(),
+                    )
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
+                );
+            }
         }
     }
 
