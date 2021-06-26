@@ -127,12 +127,14 @@ impl Settings {
     pub fn sanitize(&mut self) {
         for (xchg, xchg_settings) in self.exchanges.clone() {
             info!("{:?} : Checking exchange config...", xchg);
-            let pairs: HashSet<Pair> = vec![xchg_settings.trades, xchg_settings.orderbook]
-                .into_iter()
-                .filter(|s| s.is_some())
-                .map(|o| o.unwrap())
-                .flat_map(|o| o.symbols)
-                .collect();
+            let pairs: HashSet<Pair> = vec![
+                xchg_settings.trades.map(|ts| ts.symbols),
+                xchg_settings.orderbook.map(|obs| obs.symbols),
+            ]
+            .into_iter()
+            .flatten()
+            .flatten()
+            .collect();
             let pairs_fn: fn(&Pair) -> Option<&&str> = coinnect_rt::utils::pair_fn(xchg);
             let (invalid_pairs, valid_pairs): (_, Vec<Pair>) =
                 pairs.clone().into_iter().partition(|p| pairs_fn(p).is_none());
