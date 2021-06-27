@@ -71,3 +71,17 @@ and this specifically for rust https://gist.github.com/spacejam/15f27007c0b1bcc1
 ```
 sudo apt-get install libfontconfig libfontconfig1-dev google-perftools libgoogle-perftools-dev
 ```
+
+#### Administration
+
+##### Database
+
+For rocksdb, see https://github.com/facebook/rocksdb/wiki/Administration-and-Data-Access-Tool
+
+Example : 
+```
+ldb --db=mean_reverting_BTC_USDT/ --column_family=models dump
+```
+This dumps the models table from the db.
+
+
