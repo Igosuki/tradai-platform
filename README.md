@@ -30,6 +30,11 @@ make test
 make bench
 ```
 
+#### Coverage
+```
+make coverage
+```
+
 ### Deploying
 
 Infrastructure files are found in `/infra`
