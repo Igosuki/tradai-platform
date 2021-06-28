@@ -27,6 +27,10 @@ test_all: ## Tests all features
 test: ## Tests all features
 	RUST_LOG=info BITCOINS_REPO=$(shell pwd) $(CARGO_BIN) test --all-targets -- --skip coinnect_tests --skip gdax_tests --nocapture
 
+.PHONY: coverage
+coverage: ## Tests all features
+	@$(CARGO_BIN) tarpaulin -v
+
 .PHONY: test_watcher ## Starts funzzy, test watcher, to run the tests on every change
 test_watcher:
 	@$(FUNZZY_BIN)
