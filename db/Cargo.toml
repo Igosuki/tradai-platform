@@ -19,7 +19,7 @@ itertools = "0.10"
 # DB
 rkv = "0.17"
 lmdb-rkv = "0.14"
-rocksdb = "0.16"
+rocksdb = { version = "0.16", features = ["multi-threaded-cf"] }
 
 # Error
 thiserror = "1.0"

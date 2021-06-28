@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use std::path::Path;
 
 pub trait Storage: Send + Sync + Debug {
-    fn _put(&mut self, table: &str, key: &[u8], value: &[u8]) -> Result<()>;
+    fn _put(&self, table: &str, key: &[u8], value: &[u8]) -> Result<()>;
 
     fn _get(&self, table: &str, key: &[u8]) -> Result<Vec<u8>>;
 
@@ -18,13 +18,15 @@ pub trait Storage: Send + Sync + Debug {
     /// TODO: this should return impl Iterator
     fn _get_all(&self, table: &str) -> Result<Vec<(String, Box<[u8]>)>>;
 
-    fn _delete(&mut self, table: &str, key: &[u8]) -> Result<()>;
+    fn _delete(&self, table: &str, key: &[u8]) -> Result<()>;
 
-    fn _delete_range(&mut self, table: &str, from: &[u8], to: &[u8]) -> Result<()>;
+    fn _delete_range(&self, table: &str, from: &[u8], to: &[u8]) -> Result<()>;
+
+    fn ensure_table(&self, name: &str) -> Result<()>;
 }
 
 pub trait StorageExt {
-    fn put<K, V>(&mut self, table: &str, key: K, value: V) -> Result<()>
+    fn put<K, V>(&self, table: &str, key: K, value: V) -> Result<()>
     where
         K: AsRef<[u8]>,
         V: Serialize;
@@ -43,17 +45,17 @@ pub trait StorageExt {
     where
         V: DeserializeOwned;
 
-    fn delete<K>(&mut self, table: &str, key: K) -> Result<()>
+    fn delete<K>(&self, table: &str, key: K) -> Result<()>
     where
         K: AsRef<[u8]>;
 
-    fn delete_range<K>(&mut self, table: &str, from: K, to: K) -> Result<()>
+    fn delete_range<K>(&self, table: &str, from: K, to: K) -> Result<()>
     where
         K: AsRef<[u8]>;
 }
 
 impl<T: Storage + ?Sized> StorageExt for T {
-    fn put<K, V>(&mut self, table: &str, key: K, value: V) -> Result<()>
+    fn put<K, V>(&self, table: &str, key: K, value: V) -> Result<()>
     where
         K: AsRef<[u8]>,
         V: Serialize,
@@ -98,14 +100,14 @@ impl<T: Storage + ?Sized> StorageExt for T {
             .collect()
     }
 
-    fn delete<K>(&mut self, table: &str, key: K) -> Result<()>
+    fn delete<K>(&self, table: &str, key: K) -> Result<()>
     where
         K: AsRef<[u8]>,
     {
         self._delete(table, key.as_ref())
     }
 
-    fn delete_range<K>(&mut self, table: &str, from: K, to: K) -> Result<()>
+    fn delete_range<K>(&self, table: &str, from: K, to: K) -> Result<()>
     where
         K: AsRef<[u8]>,
     {

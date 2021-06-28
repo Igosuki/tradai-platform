@@ -1,9 +1,9 @@
 use chrono::{DateTime, Utc};
+use db::Storage;
 use db::StorageExt;
-use db::{get_or_create, Storage};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::sync::Arc;
 
 static MODELS_TABLE_NAME: &str = "models";
 
@@ -19,16 +19,17 @@ pub struct ModelValue<T> {
 pub struct PersistentModel<T> {
     last_model: Option<ModelValue<T>>,
     last_model_load_attempt: Option<DateTime<Utc>>,
-    db: Box<dyn Storage>,
+    db: Arc<Box<dyn Storage>>,
     key: String,
 }
 
 impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
-    pub fn new<S: AsRef<Path>>(db_path: S, name: String, init: Option<ModelValue<T>>) -> Self {
-        let db = get_or_create(db_path, vec![MODELS_TABLE_NAME.to_string()]);
+    pub fn new(db: Arc<Box<dyn Storage>>, key: &str, init: Option<ModelValue<T>>) -> Self {
+        //let db = get_or_create(db_path, vec![MODELS_TABLE_NAME.to_string()]);
+        db.ensure_table(MODELS_TABLE_NAME).unwrap();
         Self {
             db,
-            key: format!("model_{}", name),
+            key: key.to_string(),
             last_model: init,
             last_model_load_attempt: None,
         }
@@ -90,21 +91,21 @@ pub struct TimedValue<T>(i64, T);
 #[derive(Debug)]
 pub struct PersistentVec<T> {
     pub rows: Vec<TimedValue<T>>,
-    db: Box<dyn Storage>,
+    db: Arc<Box<dyn Storage>>,
     max_size: usize,
     pub window_size: usize,
+    key: String,
 }
 
-const ROWS_TABLE_NAME: &str = "rows";
-
 impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
-    pub fn new(db_path: &str, name: String, max_size: usize, window_size: usize) -> Self {
-        let db = get_or_create(&format!("{}/{}", db_path, name), vec![ROWS_TABLE_NAME.to_string()]);
+    pub fn new(db: Arc<Box<dyn Storage>>, key: &str, max_size: usize, window_size: usize) -> Self {
+        db.ensure_table(key).unwrap();
         Self {
             rows: vec![],
             db,
             max_size,
             window_size,
+            key: key.to_string(),
         }
     }
 
@@ -113,17 +114,14 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
         let x: &str = &timed_row.0.to_string();
         self.rows.push(timed_row);
         // Truncate the table by window_size once max_size is reached
-        if let Err(e) = self.db.put(ROWS_TABLE_NAME, x, row) {
+        if let Err(e) = self.db.put(&self.key, x, row) {
             error!("Failed writing row : {:?}", e);
         }
         if self.rows.len() > self.max_size {
             let mut drained = self.rows.drain(0..self.window_size);
             let from = drained.next().unwrap();
             let to = drained.last().unwrap();
-            if let Err(e) = self
-                .db
-                .delete_range(ROWS_TABLE_NAME, from.0.to_string(), to.0.to_string())
-            {
+            if let Err(e) = self.db.delete_range(&self.key, from.0.to_string(), to.0.to_string()) {
                 error!("Failed to delete range of rows : {:?}", e);
             }
         }
@@ -134,7 +132,13 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
     pub fn len(&self) -> usize { self.rows.len() }
 
     pub fn load(&mut self) {
-        // self.rows = self.db.get_all(ROWS_TABLE_NAME);
+        self.rows = self
+            .db
+            .get_all(&self.key)
+            .unwrap()
+            .into_iter()
+            .map(|v| TimedValue(v.0.parse::<i64>().unwrap(), v.1))
+            .collect();
     }
 
     pub fn is_filled(&self) -> bool { self.len() > self.window_size }
@@ -150,6 +154,7 @@ mod test {
     use super::PersistentModel;
     use crate::types::BookPosition;
     use chrono::{DateTime, Utc};
+    use db::get_or_create;
     use fake::Fake;
     use quickcheck::{Arbitrary, Gen};
     use test::Bencher;
@@ -181,8 +186,9 @@ mod test {
     #[bench]
     fn test_save_load_model(b: &mut Bencher) {
         let tempdir = TempDir::new().unwrap();
+        let db = get_or_create(tempdir.as_ref(), vec![]);
         let mut table: PersistentModel<MockLinearModel> = PersistentModel::new(
-            tempdir.into_path().to_str().unwrap(),
+            db,
             "default".to_string(),
             Some(ModelValue {
                 value: MockLinearModel {},

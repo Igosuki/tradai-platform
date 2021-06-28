@@ -1,6 +1,6 @@
 use crate::error::*;
 use crate::storage::Storage;
-use rocksdb::{ColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode, Options, DB};
+use rocksdb::{BoundColumnFamily, ColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode, Options, DB};
 use std::path::Path;
 
 type Bytes = Box<[u8]>;
@@ -15,11 +15,15 @@ impl RocksDbStorage {
         let mut options = Options::default();
         options.create_if_missing(true);
         options.create_missing_column_families(true);
+        let mut tables = tables.clone();
+        let query = DB::list_cf(&options, db_path.as_ref().clone());
+        if let Ok(cfs) = query {
+            tables.extend_from_slice(cfs.as_slice());
+        }
         let column_families: Vec<ColumnFamilyDescriptor> = tables
             .iter()
             .map(|table| {
-                let mut cf_opts = Options::default();
-                cf_opts.set_max_write_buffer_number(16);
+                let cf_opts = RocksDbStorage::default_cf_options();
                 ColumnFamilyDescriptor::new(table, cf_opts)
             })
             .collect();
@@ -27,7 +31,13 @@ impl RocksDbStorage {
         Self { inner: db }
     }
 
-    fn cf(&self, name: &str) -> Result<&ColumnFamily> {
+    fn default_cf_options() -> Options {
+        let mut cf_opts = Options::default();
+        cf_opts.set_max_write_buffer_number(16);
+        cf_opts
+    }
+
+    fn cf(&self, name: &str) -> Result<BoundColumnFamily> {
         self.inner
             .cf_handle(name.as_ref())
             .ok_or_else(|| Error::NotFound(name.to_string()))
@@ -35,7 +45,7 @@ impl RocksDbStorage {
 }
 
 impl Storage for RocksDbStorage {
-    fn _put(&mut self, table: &str, key: &[u8], value: &[u8]) -> Result<()> {
+    fn _put(&self, table: &str, key: &[u8], value: &[u8]) -> Result<()> {
         let cf = self.cf(table)?;
         self.inner.put_cf(cf, key, value).map_err(|e| e.into())
     }
@@ -65,14 +75,24 @@ impl Storage for RocksDbStorage {
             .collect())
     }
 
-    fn _delete(&mut self, table: &str, key: &[u8]) -> Result<()> {
+    fn _delete(&self, table: &str, key: &[u8]) -> Result<()> {
         let cf = self.cf(table)?;
         self.inner.delete_cf(cf, key).map_err(|e| e.into())
     }
 
-    fn _delete_range(&mut self, table: &str, from: &[u8], to: &[u8]) -> Result<()> {
+    fn _delete_range(&self, table: &str, from: &[u8], to: &[u8]) -> Result<()> {
         let cf = self.cf(table)?;
         self.inner.delete_range_cf(cf, from, to).map_err(|e| e.into())
+    }
+
+    fn ensure_table(&self, name: &str) -> Result<()> {
+        if let None = self.inner.cf_handle(name) {
+            self.inner
+                .create_cf(name, &RocksDbStorage::default_cf_options())
+                .map_err(|e| e.into())
+        } else {
+            Ok(())
+        }
     }
 }
 

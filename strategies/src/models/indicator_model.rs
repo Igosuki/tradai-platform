@@ -1,8 +1,9 @@
 use super::persist::{ModelValue, PersistentModel};
 use chrono::{DateTime, Utc};
+use db::Storage;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::path::Path;
+use std::sync::Arc;
 
 type ModelUpdateFn<T, R> = fn(&T, &R) -> T;
 
@@ -15,11 +16,11 @@ pub struct IndicatorModel<T, R> {
 }
 
 impl<T: Serialize + DeserializeOwned + Clone, R: Clone> IndicatorModel<T, R> {
-    pub fn new<S: AsRef<Path>>(id: &str, db_path: S, initial_value: T, update_fn: ModelUpdateFn<T, R>) -> Self {
+    pub fn new(id: &str, db: Arc<Box<dyn Storage>>, initial_value: T, update_fn: ModelUpdateFn<T, R>) -> Self {
         Self {
             model: PersistentModel::new(
-                db_path,
-                id.to_string(),
+                db,
+                id,
                 Some(ModelValue {
                     value: initial_value,
                     at: Utc::now(),

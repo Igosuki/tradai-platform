@@ -23,6 +23,7 @@ use crate::{Channel, DataQuery, DataResult, StrategyInterface};
 use actix::Addr;
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::LiveEvent;
+use db::{get_or_create, Storage};
 use metrics::NaiveStrategyMetrics;
 use options::Options;
 use state::{MovingState, Position};
@@ -61,8 +62,7 @@ impl NaiveTradingStrategy {
             n.left,
             n.right
         );
-        let db_name = format!("{}_{}", n.left, n.right);
-        let state_db_pah = &format!("{}/{}", strat_db_path, db_name);
+        let db = Arc::new(get_or_create(strat_db_path, vec![]));
         Self {
             exchange: n.exchange,
             fees_rate,
@@ -72,8 +72,8 @@ impl NaiveTradingStrategy {
             stop_gain: n.stop_gain,
             beta_eval_window_size: n.window_size,
             beta_eval_freq: n.beta_eval_freq,
-            state: MovingState::new(n.initial_cap, state_db_pah, om, n.dry_mode()),
-            data_table: Self::make_lm_table(&n.left, &n.right, &strat_db_path, n.window_size as usize),
+            state: MovingState::new(n.initial_cap, db.clone(), om, n.dry_mode()),
+            data_table: Self::make_lm_table(&n.left, &n.right, db, n.window_size as usize),
             right_pair: n.right.to_string(),
             left_pair: n.left.to_string(),
             last_row_process_time: Utc.timestamp_millis(0),
@@ -86,15 +86,15 @@ impl NaiveTradingStrategy {
         }
     }
 
-    pub fn make_lm_table<S: AsRef<Path>>(
+    pub fn make_lm_table(
         left_pair: &str,
         right_pair: &str,
-        db_path: S,
+        db: Arc<Box<dyn Storage>>,
         window_size: usize,
     ) -> WindowedModel<DataRow, LinearModelValue> {
         WindowedModel::new(
             &format!("{}_{}", left_pair, right_pair),
-            db_path,
+            db,
             window_size,
             None,
             covar_model::linear_model,
