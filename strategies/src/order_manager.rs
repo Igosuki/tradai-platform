@@ -58,7 +58,7 @@ impl TransactionService {
 pub struct OrderManager {
     api: Arc<Box<dyn ExchangeApi>>,
     orders: Arc<RwLock<HashMap<String, TransactionStatus>>>,
-    transactions_wal: Arc<RwLock<Wal>>,
+    transactions_wal: Arc<Wal>,
 }
 
 static TRANSACTIONS_TABLE: &str = "transactions_wal";
@@ -66,10 +66,10 @@ static TRANSACTIONS_TABLE: &str = "transactions_wal";
 // TODO: notify listeners every time a transaction is updated
 impl OrderManager {
     pub fn new<S: AsRef<Path>>(api: Arc<Box<dyn ExchangeApi>>, db_path: S) -> Self {
-        let wal_db = get_or_create(&format!("{}/transactions", db_path.as_ref().display()), vec![
+        let wal_db = Arc::new(get_or_create(&format!("{}", db_path.as_ref().display()), vec![
             TRANSACTIONS_TABLE.to_string(),
-        ]);
-        let wal = Arc::new(RwLock::new(Wal::new(wal_db, TRANSACTIONS_TABLE.to_string())));
+        ]));
+        let wal = Arc::new(Wal::new(wal_db, TRANSACTIONS_TABLE.to_string()));
         let orders = Arc::new(RwLock::new(HashMap::new()));
         OrderManager {
             api,
@@ -160,8 +160,7 @@ impl OrderManager {
     }
 
     pub(crate) async fn register(&mut self, order_id: String, tr: TransactionStatus) -> Result<()> {
-        let mut writer = self.transactions_wal.write().await;
-        writer.append(order_id.clone(), tr.clone())?;
+        self.transactions_wal.append(order_id.clone(), tr.clone())?;
         let mut writer = self.orders.write().await;
         writer.insert(order_id.clone(), tr.clone());
         Ok(())
@@ -193,9 +192,8 @@ impl Actor for OrderManager {
                 let act = acty.clone();
                 async move {
                     {
-                        let reader = act.transactions_wal.read().await;
                         let mut writer = act.orders.write().await;
-                        if let Ok(wal_transactions) = reader.read_all() {
+                        if let Ok(wal_transactions) = act.transactions_wal.read_all() {
                             writer.extend(wal_transactions);
                         }
                     }

@@ -2,9 +2,6 @@
 #![feature(btree_drain_filter)]
 #![allow(incomplete_features)]
 
-mod error;
-mod storage;
-
 extern crate log;
 #[cfg(test)]
 #[macro_use]
@@ -12,18 +9,19 @@ extern crate serde;
 #[macro_use]
 extern crate measure_time;
 
-use std::fs;
-use std::path::Path;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
-
 use rkv::backend::{BackendDatabase, BackendEnvironmentBuilder, BackendRwTransaction, Lmdb, LmdbDatabase,
                    LmdbEnvironment, LmdbRwTransaction};
 use rkv::StoreError::LmdbError;
 use rkv::{Manager, OwnedValue, Rkv, SingleStore, StoreError, StoreOptions, Value, Writer};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-
+use std::fs;
+use std::path::Path;
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 use thiserror::Error;
+
+mod error;
+mod storage;
 
 pub use error::Error;
 pub use storage::rocksdb::RocksDbStorage;

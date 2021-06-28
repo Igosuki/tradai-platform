@@ -5,17 +5,18 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 static WAL_KEY_SEP: &str = "|";
 
 #[derive(Debug)]
 pub struct Wal {
-    backend: Box<dyn Storage>,
+    backend: Arc<Box<dyn Storage>>,
     table: String,
 }
 
 impl Wal {
-    pub fn new(backend: Box<dyn Storage>, table: String) -> Self { Self { backend, table } }
+    pub fn new(backend: Arc<Box<dyn Storage>>, table: String) -> Self { Self { backend, table } }
 
     pub fn read_all<T: DeserializeOwned>(&self) -> Result<HashMap<String, T>> {
         let mut records: HashMap<String, T> = HashMap::new();
@@ -41,7 +42,7 @@ impl Wal {
         Ok(records)
     }
 
-    pub fn append<T: Serialize>(&mut self, k: String, t: T) -> Result<()> {
+    pub fn append<T: Serialize>(&self, k: String, t: T) -> Result<()> {
         let key = format!("{}{}{}", Utc::now().timestamp_millis(), WAL_KEY_SEP, k);
         Ok(self.backend.put(&self.table, &key, t)?)
     }

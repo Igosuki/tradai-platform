@@ -7,14 +7,14 @@ use log::Level::Info;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use db::{get_or_create, Storage, StorageExt};
+use db::{Storage, StorageExt};
 
 use crate::order_manager::OrderManager;
 use crate::order_types::{OrderId, StagedOrder, Transaction};
 use crate::query::MutableField;
 use crate::types::{BookPosition, OperationEvent, StratEvent, TradeEvent};
 use crate::types::{OperationKind, PositionKind, TradeKind};
-use std::path::Path;
+use std::sync::Arc;
 
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct Position {
@@ -139,7 +139,7 @@ pub(super) struct MovingState {
     long_position_return: f64,
     pnl: f64,
     #[serde(skip_serializing)]
-    db: Box<dyn Storage>,
+    db: Arc<Box<dyn Storage>>,
     #[serde(skip_serializing)]
     om: Addr<OrderManager>,
     ongoing_op: Option<Operation>,
@@ -160,8 +160,9 @@ struct TransientState {
 }
 
 impl MovingState {
-    pub fn new<S: AsRef<Path>>(initial_value: f64, db_path: S, om: Addr<OrderManager>, dry_mode: bool) -> MovingState {
-        let db = get_or_create(db_path, vec![STATE_KEY.to_string(), OPERATIONS_KEY.to_string()]);
+    pub fn new(initial_value: f64, db: Arc<Box<dyn Storage>>, om: Addr<OrderManager>, dry_mode: bool) -> MovingState {
+        db.ensure_table(STATE_KEY).unwrap();
+        db.ensure_table(OPERATIONS_KEY).unwrap();
         let mut state = MovingState {
             position: None,
             value_strat: initial_value,

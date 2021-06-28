@@ -7,7 +7,7 @@ use log::Level::Debug;
 use serde::{Deserialize, Serialize, Serializer};
 use uuid::Uuid;
 
-use db::{get_or_create, Storage, StorageExt};
+use db::{Storage, StorageExt};
 
 use crate::mean_reverting::options::Options;
 use crate::order_manager::{OrderManager, TransactionService};
@@ -15,7 +15,7 @@ use crate::order_types::{StagedOrder, Transaction};
 use crate::query::MutableField;
 use crate::types::{BookPosition, OperationEvent, StratEvent, TradeEvent};
 use crate::types::{OperationKind, PositionKind, TradeKind};
-use std::path::Path;
+use std::sync::Arc;
 
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct Position {
@@ -155,8 +155,8 @@ pub(super) struct MeanRevertingState {
     threshold_short: f64,
     threshold_long: f64,
     #[serde(skip_serializing)]
-    db: Box<dyn Storage>,
-    table: String,
+    db: Arc<Box<dyn Storage>>,
+    key: String,
     #[serde(skip_serializing)]
     ts: TransactionService,
     ongoing_op: Option<Operation>,
@@ -179,14 +179,9 @@ struct TransientState {
 }
 
 impl MeanRevertingState {
-    pub fn new<S: AsRef<Path>>(options: &Options, db_path: S, om: Addr<OrderManager>) -> MeanRevertingState {
-        let table = format!("{}", options.pair);
-        let mut state_db_path = db_path.as_ref().clone().to_path_buf();
-        state_db_path.push(&table);
-        let db = get_or_create(&state_db_path.to_str().unwrap(), vec![
-            table.clone(),
-            OPERATIONS_KEY.to_string(),
-        ]);
+    pub fn new(options: &Options, db: Arc<Box<dyn Storage>>, om: Addr<OrderManager>) -> MeanRevertingState {
+        db.ensure_table(STATE_KEY).unwrap();
+        db.ensure_table(OPERATIONS_KEY).unwrap();
         let mut state = MeanRevertingState {
             position: None,
             value_strat: options.initial_cap,
@@ -201,7 +196,7 @@ impl MeanRevertingState {
             threshold_short: options.threshold_short,
             threshold_long: options.threshold_long,
             db,
-            table,
+            key: format!("{}", options.pair),
             ts: TransactionService::new(om),
             ongoing_op: None,
             dry_mode: options.dry_mode(),
@@ -218,7 +213,7 @@ impl MeanRevertingState {
                 self.set_position(o.pos.kind.clone());
             }
         }
-        let previous_state: Option<TransientState> = self.db.get(&self.table, STATE_KEY).ok();
+        let previous_state: Option<TransientState> = self.db.get(STATE_KEY, &self.key).ok();
         if let Some(ps) = previous_state {
             self.set_units_to_sell(ps.units_to_sell);
             self.set_units_to_buy(ps.units_to_buy);
@@ -436,7 +431,7 @@ impl MeanRevertingState {
     }
 
     fn save(&mut self) {
-        if let Err(e) = self.db.put(&self.table, STATE_KEY, TransientState {
+        if let Err(e) = self.db.put(STATE_KEY, &self.key, TransientState {
             value_strat: self.value_strat,
             pnl: self.pnl,
             nominal_position: Some(self.nominal_position),

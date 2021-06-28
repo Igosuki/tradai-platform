@@ -18,6 +18,7 @@ use crate::types::PositionKind;
 use crate::util::Stopper;
 use crate::{Channel, StrategyInterface};
 use coinnect_rt::exchange::Exchange;
+use db::{get_or_create, Storage};
 use math::iter::QuantileExt;
 use ordered_float::OrderedFloat;
 use std::cmp::{max, min};
@@ -64,22 +65,15 @@ impl MeanRevertingStrategy {
     pub fn new<S: AsRef<Path>>(db_path: S, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
         let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
         let mut pb: PathBuf = PathBuf::from(db_path.as_ref());
-        let strat_db_path = format!("{}_{}", MEAN_REVERTING_DB_KEY, n.pair);
+        let strat_db_path = format!("{}_{}.{}", MEAN_REVERTING_DB_KEY, n.exchange.to_string(), n.pair);
         pb.push(strat_db_path);
-        let state = MeanRevertingState::new(n, pb.clone(), om);
-
-        // EMA Model
-        let model = Self::make_model(
-            n.pair.as_ref(),
-            pb.to_str().unwrap(),
-            n.short_window_size,
-            n.long_window_size,
-        );
-        // Threshold model
+        let db = Arc::new(get_or_create(pb.as_path(), vec![]));
+        let state = MeanRevertingState::new(n, db.clone(), om);
+        let model = Self::make_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
         let threshold_table = n.threshold_window_size.map(|thresold_window_size| {
             WindowedModel::new(
                 n.pair.as_ref(),
-                pb.to_str().unwrap(),
+                db.clone(),
                 thresold_window_size,
                 Some(thresold_window_size * 2),
                 ema_model::threshold,
@@ -108,14 +102,14 @@ impl MeanRevertingStrategy {
         }
     }
 
-    pub fn make_model<S: AsRef<Path>>(
+    pub fn make_model(
         pair: &str,
-        db_path: S,
+        db: Arc<Box<dyn Storage>>,
         short_window_size: u32,
         long_window_size: u32,
     ) -> IndicatorModel<MeanRevertingModelValue, SinglePosRow> {
         let init = MeanRevertingModelValue::new(long_window_size, short_window_size);
-        IndicatorModel::new(&pair, db_path, init, ema_model::moving_average_apo)
+        IndicatorModel::new(&format!("model_{}", pair), db, init, ema_model::moving_average_apo)
     }
 
     #[allow(dead_code)]
