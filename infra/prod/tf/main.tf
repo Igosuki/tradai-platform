@@ -25,7 +25,7 @@ resource "digitalocean_droplet" "trader2" {
 }
 
 resource "digitalocean_droplet" "monitoring" {
-  image    = "ubuntu-18-04-x64"
+  image    = "ubuntu-20-04-x64"
   name     = "monitoring"
   region   = "sgp1"
   size     = "s-1vcpu-1gb"
@@ -67,7 +67,7 @@ resource "digitalocean_firewall" "monitoring" {
 resource "digitalocean_firewall" "trader" {
   name = "trader-monitoring"
 
-  droplet_ids = [digitalocean_droplet.trader.id]
+  droplet_ids = [digitalocean_droplet.trader2.id]
 
   inbound_rule {
     protocol         = "tcp"

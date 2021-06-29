@@ -37,6 +37,7 @@
         static_configs:
           - targets:
             - 139.59.230.40:9091
+        scrape_interval: 5s
         honor_labels: true
       - job_name: 'node-exporter'
         scrape_interval: 5s
