@@ -36,13 +36,13 @@
       - job_name: 'pushgateway'
         static_configs:
           - targets:
-            - 167.71.204.126:9091
+            - 139.59.230.40:9091
         honor_labels: true
       - job_name: 'node-exporter'
         scrape_interval: 5s
         static_configs:
           - targets:
-            - 167.71.204.126:9100
+            - 139.59.230.40:9100
             - localhost:9100
       - job_name: 'prometheus'
         scrape_interval: 5s
