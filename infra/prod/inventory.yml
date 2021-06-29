@@ -8,6 +8,10 @@ all:
       ansible_host: 167.71.204.126
       ansible_user: root
       ansible_ssh_private_key_file: ~/.ssh/btc
+    btc3:
+      ansible_host: 139.59.230.40
+      ansible_user: root
+      ansible_ssh_private_key_file: ~/.ssh/btc
     monitoring:
       ansible_host: 167.71.204.235
       ansible_user: root
