@@ -4,6 +4,15 @@ Requires a `config/$TRADER_ENV.yaml` file in the cwd.
 
 See test.yaml for a reference implementation.
 
+### Running infrastructure 
+
+Install terraform 
+```
+curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+sudo apt-get update && sudo apt-get install -y terraform
+```
+
 ### Building 
 
 Default features 
@@ -15,6 +24,28 @@ All features
 ```
 make build_all
 ```
+
+### Releasing
+
+If missing, build the rust-musl-builder-nightly docker image : 
+```
+git clone git@github.com:Igosuki/rust-musl-builder.git
+cd rust-musl-builder
+docker build -t rust-musl-builder-nightly --build-arg TOOLCHAIN=nightly .
+```
+
+Setup an alias
+
+```
+alias rust-musl-builder-nightly='docker run --cpus=$(nproc) --rm -it $MUSL_FLAGS -v "$(pwd)/cargo-git":/home/rust/.cargo/git -v "$(pwd)/cargo-registry":/home/rust/.cargo/registry -v "$(pwd)/cargo-target":/home/rust/src/target -v "$(pwd)":/home/rust/src rust-musl-builder-nightly'
+```
+
+Build the rust program
+
+```
+rust-musl-builder-nightly cargo build --release --target=x86_64-unknown-linux-musl 
+```
+
 
 ### Tests and benchmarks
 
