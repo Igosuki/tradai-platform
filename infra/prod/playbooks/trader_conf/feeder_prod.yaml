@@ -32,7 +32,7 @@ db_storage_path: './database'
 
 prom_push_gw: 127.0.0.1:9091
 
-prom_instance: trader
+prom_instance: feeder
 
 api:
-  port: 8180
+  port: 8181
