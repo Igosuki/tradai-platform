@@ -71,7 +71,7 @@ resource "digitalocean_firewall" "monitoring" {
   outbound_rule {
     protocol              = "tcp"
     destination_addresses = ["0.0.0.0/0", "::/0"]
-    port_range = "all"
+    port_range            = "all"
   }
 }
 
@@ -106,6 +106,6 @@ resource "digitalocean_firewall" "trader" {
   outbound_rule {
     protocol              = "tcp"
     destination_addresses = ["0.0.0.0/0", "::/0"]
-    port_range = "all"
+    port_range            = "all"
   }
 }
