@@ -13,6 +13,34 @@ sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(l
 sudo apt-get update && sudo apt-get install -y terraform
 ```
 
+Run the plan
+
+```
+cd infra/prod/tf
+terraform init
+terraform plan -var-file=default.tfvars
+```
+
+Install ansible
+```
+sudo python3 -m pip install ansible  
+```
+
+Install ansible galaxy roles
+```
+infra/prod/install_roles.sh
+```
+
+Run the books to install software and config files on prod machines
+```
+infra/prod/run_books.sh
+```
+
+Deploy the trader (after running release found below)
+```
+infra/prod/deploy_trader.sh
+```
+
 ### Building 
 
 Default features 
