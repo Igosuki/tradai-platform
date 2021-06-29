@@ -16,7 +16,7 @@
   "gnetId": null,
   "graphTooltip": 0,
   "id": 3,
-  "iteration": 1624654800205,
+  "iteration": 1624983144615,
   "links": [],
   "panels": [
     {
@@ -175,7 +175,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "pnl{left_pair=~\"$left_pair\", right_pair=~\"$right_pair\"}",
+          "expr": "pnl{pair=~\"$pair\"}",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -423,6 +423,7 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": null,
+      "decimals": 5,
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -579,6 +580,20 @@
           "interval": "",
           "legendFormat": "",
           "refId": "A"
+        },
+        {
+          "expr": "threshold_long{pair=~\"$pair\"}",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "B"
+        },
+        {
+          "expr": "threshold_short{pair=~\"$pair\"}",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "C"
         }
       ],
       "thresholds": [],
@@ -922,7 +937,7 @@
       }
     }
   ],
-  "refresh": false,
+  "refresh": "5s",
   "schemaVersion": 27,
   "style": "dark",
   "tags": [],
@@ -932,12 +947,11 @@
         "allValue": ".*",
         "current": {
           "selected": true,
-          "tags": [],
           "text": [
-            "All"
+            "BTC_USDT"
           ],
           "value": [
-            "$__all"
+            "BTC_USDT"
           ]
         },
         "datasource": null,
@@ -949,74 +963,28 @@
         "label": "crypto pair",
         "multi": true,
         "name": "pair",
-        "options": [],
+        "options": [
+          {
+            "selected": false,
+            "text": "All",
+            "value": "$__all"
+          },
+          {
+            "selected": true,
+            "text": "BTC_USDT",
+            "value": "BTC_USDT"
+          },
+          {
+            "selected": false,
+            "text": "ETH_USDT",
+            "value": "ETH_USDT"
+          }
+        ],
         "query": {
           "query": "label_values(pair)",
           "refId": "StandardVariableQuery"
         },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 0,
-        "tagValuesQuery": "",
-        "tags": [],
-        "tagsQuery": "",
-        "type": "query",
-        "useTags": false
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "selected": false,
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": null,
-        "definition": "label_values(left_pair)",
-        "description": null,
-        "error": null,
-        "hide": 0,
-        "includeAll": true,
-        "label": "left crypto pair",
-        "multi": true,
-        "name": "left_pair",
-        "options": [],
-        "query": {
-          "query": "label_values(left_pair)",
-          "refId": "StandardVariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 0,
-        "tagValuesQuery": "",
-        "tags": [],
-        "tagsQuery": "",
-        "type": "query",
-        "useTags": false
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "selected": false,
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": null,
-        "definition": "label_values(right_pair)",
-        "description": null,
-        "error": null,
-        "hide": 0,
-        "includeAll": true,
-        "label": "right crypto pair",
-        "multi": true,
-        "name": "right_pair",
-        "options": [],
-        "query": {
-          "query": "label_values(right_pair)",
-          "refId": "StandardVariableQuery"
-        },
-        "refresh": 1,
+        "refresh": 0,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
@@ -1049,5 +1017,5 @@
   "timezone": "utc",
   "title": "Mean Reverting",
   "uid": "-mC8Jw3Zz2",
-  "version": 4
+  "version": 10
 }
