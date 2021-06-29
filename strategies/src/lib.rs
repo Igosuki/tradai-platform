@@ -28,7 +28,7 @@ use anyhow::Result;
 use async_std::sync::Arc;
 use async_std::sync::RwLock;
 use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe, Pair};
+use coinnect_rt::types::{LiveEventEnveloppe, Pair};
 use derive_more::Display;
 use serde::Deserialize;
 use std::str::FromStr;
@@ -164,7 +164,7 @@ impl Handler<LiveEventEnveloppe> for StrategyActor {
             async move {
                 let arc = lock.clone();
                 let mut act = arc.write().await;
-                act.add_event(msg.e).await
+                act.add_event(msg).await
             }
             .into_actor(self),
         )
@@ -205,7 +205,7 @@ impl Handler<FieldMutation> for StrategyActor {
 
 #[async_trait]
 pub trait StrategyInterface {
-    async fn add_event(&mut self, le: LiveEvent) -> anyhow::Result<()>;
+    async fn add_event(&mut self, le: LiveEventEnveloppe) -> anyhow::Result<()>;
 
     fn data(&mut self, q: DataQuery) -> Option<DataResult>;
 
