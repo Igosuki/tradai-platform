@@ -52,6 +52,23 @@ pub struct ApiSettings {
     pub port: Port,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct OpenTelemetrySettings {
+    pub agents: String,
+    pub tags: HashMap<String, String>,
+    pub service_name: String,
+}
+
+impl Default for OpenTelemetrySettings {
+    fn default() -> Self {
+        Self {
+            agents: "127.0.0.1:6831".to_string(),
+            tags: HashMap::new(),
+            service_name: "default".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct NatsSettings {
     pub username: String,
@@ -102,6 +119,7 @@ pub struct Settings {
     pub db_storage_path: String,
     pub prom_push_gw: String,
     pub prom_instance: String,
+    pub telemetry: OpenTelemetrySettings,
 }
 
 impl Settings {
@@ -123,7 +141,7 @@ impl Settings {
         s.try_into()
     }
 
-    pub fn sanitize(&mut self) {
+    pub fn sanitize(&self) {
         for (xchg, xchg_settings) in self.exchanges.clone() {
             info!("{:?} : Checking exchange config...", xchg);
             let pairs: HashSet<Pair> = vec![

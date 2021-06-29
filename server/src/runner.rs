@@ -23,7 +23,6 @@ struct CliOptions {
     telemetry: bool,
 }
 
-// TODO : clean up the ugly code for settings access
 pub async fn with_config<F, T>(system_fn: F) -> std::io::Result<()>
 where
     F: FnOnce(Arc<RwLock<Settings>>) -> T,
@@ -45,23 +44,29 @@ where
         .unwrap();
 
     let settings_arc = Arc::clone(&settings);
-    let settings_arc2 = settings_arc.clone();
     if opts.check_conf {
-        settings_arc2.write().unwrap().sanitize();
+        settings_arc.clone().read().unwrap().sanitize();
         process::exit(0x0100);
     }
     if opts.telemetry {
-        util::tracing::setup_opentelemetry();
+        let endpoints = settings_arc.read().unwrap();
+        let telemetry = &endpoints.telemetry;
+        util::tracing::setup_opentelemetry(
+            telemetry.agents.clone(),
+            telemetry.service_name.clone(),
+            telemetry.tags.clone(),
+        );
     } else {
         env_logger::init();
     }
-    let settings_guard = settings_arc2.read().unwrap();
+
+    let settings_guard = settings_arc.read().unwrap();
     if settings_guard.profile_main {
         #[cfg(feature = "flame_it")]
         flame::start("main bot");
     }
 
-    if let Err(e) = system_fn(settings_arc).await {
+    if let Err(e) = system_fn(settings_arc.clone()).await {
         error!("Trader system exited in error: {:?}", e);
     }
     if settings_guard.profile_main {
