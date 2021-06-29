@@ -1,7 +1,7 @@
 use actix::Addr;
 use anyhow::Result;
 use chrono::{DateTime, Duration, TimeZone, Utc};
-use coinnect_rt::types::{LiveEvent, Pair};
+use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe, Pair};
 use itertools::Itertools;
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
@@ -272,12 +272,23 @@ impl MeanRevertingStrategy {
         }
         self.metrics.log_row(&row);
     }
+
+    pub(crate) fn handles(&self, e: &LiveEventEnveloppe) -> bool {
+        &self.exchange == &e.xch
+            && match &e.e {
+                LiveEvent::LiveOrderbook(ob) => ob.pair == self.pair,
+                _ => false,
+            }
+    }
 }
 
 #[async_trait]
 impl StrategyInterface for MeanRevertingStrategy {
-    async fn add_event(&mut self, le: LiveEvent) -> anyhow::Result<()> {
-        if let LiveEvent::LiveOrderbook(ob) = le {
+    async fn add_event(&mut self, le: LiveEventEnveloppe) -> anyhow::Result<()> {
+        if !self.handles(&le) {
+            return Ok(());
+        }
+        if let LiveEvent::LiveOrderbook(ob) = le.e {
             let book_pos = ob.try_into().ok();
             if let Some(pos) = book_pos {
                 let now = Utc::now();
