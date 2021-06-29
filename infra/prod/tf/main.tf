@@ -67,6 +67,12 @@ resource "digitalocean_firewall" "monitoring" {
     protocol              = "icmp"
     destination_addresses = ["0.0.0.0/0", "::/0"]
   }
+
+  outbound_rule {
+    protocol              = "tcp"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+    port_range = "all"
+  }
 }
 
 resource "digitalocean_firewall" "trader" {
@@ -95,5 +101,11 @@ resource "digitalocean_firewall" "trader" {
   outbound_rule {
     protocol              = "icmp"
     destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  outbound_rule {
+    protocol              = "tcp"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+    port_range = "all"
   }
 }
