@@ -1,29 +1,49 @@
+terraform {
+  required_providers {
+    digitalocean = {
+      source  = "digitalocean/digitalocean"
+      version = "~> 2.0"
+    }
+  }
+}
+
 # Create a new Web Droplet in the nyc2 region
 provider "digitalocean" {
   token = var.do_token
 }
 data "digitalocean_project" "bitcoins" {}
 
-resource "digitalocean_droplet" "trader" {
-  image  = "ubuntu-18-04-x64"
-  name   = "trader"
-  region = "sgp1"
-  size   = "s-1vcpu-1gb"
-  backups = true
-  ipv6 = true
+resource "digitalocean_droplet" "trader2" {
+  image    = "ubuntu-20-04-x64"
+  name     = "trader-2021"
+  region   = "sgp1"
+  size     = "s-1vcpu-1gb-intel"
+  backups  = true
+  ipv6     = true
   ssh_keys = [26568141]
-  tags = ["trader", "prod"]
+  tags     = ["trader", "prod"]
+}
+
+resource "digitalocean_droplet" "trader" {
+  image    = "ubuntu-18-04-x64"
+  name     = "trader"
+  region   = "sgp1"
+  size     = "s-1vcpu-1gb"
+  backups  = true
+  ipv6     = true
+  ssh_keys = [26568141]
+  tags     = ["trader", "prod"]
 }
 
 resource "digitalocean_droplet" "monitoring" {
-  image  = "ubuntu-18-04-x64"
-  name   = "monitoring"
-  region = "sgp1"
-  size   = "s-1vcpu-1gb"
-  backups = true
-  ipv6 = true
+  image    = "ubuntu-18-04-x64"
+  name     = "monitoring"
+  region   = "sgp1"
+  size     = "s-1vcpu-1gb"
+  backups  = true
+  ipv6     = true
   ssh_keys = [26568141]
-  tags = ["monitoring", "prod"]
+  tags     = ["monitoring", "prod"]
 }
 
 resource "digitalocean_firewall" "monitoring" {
