@@ -44,19 +44,13 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     let mut termination_handles: Vec<Pin<Box<dyn Future<Output = std::io::Result<()>>>>> = vec![];
     let mut output_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
     let mut strat_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
-
+    let mut strategy_actors = vec![];
     // order managers
     let db_path_str = Arc::new(settings_v.db_storage_path.clone());
     let keys_path = PathBuf::from(settings_v.keys.clone());
-    let oms = Arc::new(order_managers(keys_path.clone(), &db_path_str, Arc::new(exchanges.clone())).await);
-    if !oms.is_empty() {
-        termination_handles.push(Box::pin(bots::poll_account_bots(oms.clone())));
-    }
 
     // strategies, cf strategies crate
     let arc = Arc::clone(&settings);
-    let arc1 = arc.clone();
-    let strategies = strategies(arc1, oms.clone()).await;
 
     for output in settings_v.outputs.clone() {
         match output {
@@ -69,8 +63,14 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
                 output_recipients.push(NatsProducer::start(producer).recipient())
             }
             OutputSettings::Strategies => {
+                let oms = Arc::new(order_managers(keys_path.clone(), &db_path_str, Arc::new(exchanges.clone())).await);
+                if !oms.is_empty() {
+                    termination_handles.push(Box::pin(bots::poll_account_bots(oms.clone())));
+                }
+                let strategies = strategies(arc.clone(), oms.clone()).await;
                 for a in strategies.clone() {
-                    strat_recipients.push(a.1.recipient().clone());
+                    strat_recipients.push(a.1.clone().recipient());
+                    strategy_actors.push(a.clone());
                 }
             }
         }
@@ -95,7 +95,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
             }
             StreamSettings::Nats(nats_settings) => {
                 // For now, give each strategy a nats consumer
-                for strategy in strategies.clone() {
+                for strategy in strategy_actors.clone() {
                     let topics = strategy
                         .2
                         .iter()
@@ -130,8 +130,13 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
         }
     }
 
-    let strats_map: Arc<HashMap<StrategyKey, Strategy>> =
-        Arc::new(strategies.clone().iter().map(|s| (s.0.clone(), s.clone())).collect());
+    let strats_map: Arc<HashMap<StrategyKey, Strategy>> = Arc::new(
+        strategy_actors
+            .clone()
+            .iter()
+            .map(|s| (s.0.clone(), s.clone()))
+            .collect(),
+    );
     // API Server
     let server = server::httpserver(exchanges.clone(), strats_map, keys_path.clone(), settings_v.api.port.0);
     termination_handles.push(Box::pin(server));

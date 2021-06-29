@@ -1,3 +1,5 @@
+use opentelemetry::KeyValue;
+use std::collections::HashMap;
 use tracing::Level;
 use tracing_subscriber::fmt::Subscriber;
 use tracing_subscriber::layer::SubscriberExt;
@@ -66,9 +68,12 @@ pub fn print_timings(sid: LayerDowncaster<ByName, ByName>) {
     });
 }
 
-pub fn setup_opentelemetry() {
+pub fn setup_opentelemetry(agent_endpoints: String, service_name: String, tags: HashMap<String, String>) {
+    let tags: Vec<KeyValue> = tags.into_iter().map(|(k, v)| KeyValue::new(k, v)).collect();
     let tracer = opentelemetry_jaeger::new_pipeline()
-        .with_service_name("trader_test")
+        .with_service_name(service_name)
+        .with_agent_endpoint(agent_endpoints)
+        .with_tags(tags)
         .install_simple()
         .unwrap();
     let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
