@@ -106,10 +106,9 @@ pub struct Settings {
 
 impl Settings {
     pub fn new(config_file_name: String) -> Result<Self, ConfigError> {
-        let config_file = format!("config/{}.yaml", config_file_name);
         let mut s = Config::new();
 
-        s.merge(File::with_name(&config_file)).unwrap();
+        s.merge(File::with_name(&config_file_name)).unwrap();
 
         // Add in a local configuration file
         // This file shouldn't be checked in to git
@@ -118,7 +117,7 @@ impl Settings {
         s.merge(Environment::with_prefix("TRADER"))?;
 
         // You may also programmatically change settings
-        s.set("__config_file", config_file)?;
+        s.set("__config_file", config_file_name)?;
 
         // You can deserialize (and thus freeze) the entire configuration as
         s.try_into()

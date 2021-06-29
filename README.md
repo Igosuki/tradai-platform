@@ -71,7 +71,7 @@ alias rust-musl-builder-nightly='docker run --cpus=$(nproc) --rm -it $MUSL_FLAGS
 Build the rust program
 
 ```
-rust-musl-builder-nightly cargo build --release --target=x86_64-unknown-linux-musl 
+rust-musl-builder-nightly cargo build --release --target=x86_64-unknown-linux-gnu 
 ```
 
 
