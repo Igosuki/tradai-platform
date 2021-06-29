@@ -17,7 +17,7 @@ Restart=always
 WorkingDirectory=/root
 
 Environment=SSL_CERT_DIR=/etc/ssl/certs/
-Environment=FEEDER_CONF=prod
+Environment=FEEDER_CONF=Environment=TRADER_CONF=/root/config/feeder_prod.yaml
 Environment=RUST_BACKTRACE=1
 Environment=RUST_LOG=info
 

@@ -12,7 +12,7 @@
         mode: '0644'
     - name: Trader Binary
       copy:
-        src: ../../../cargo-target/x86_64-unknown-linux-musl/release/trader
+        src: ../../../cargo-target/x86_64-unknown-linux-gnu/release/trader
         dest: /root/feeder.staged
         owner: root
         group: root
