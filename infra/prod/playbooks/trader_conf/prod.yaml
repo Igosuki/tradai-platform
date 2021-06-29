@@ -1,0 +1,56 @@
+exchanges:
+  #  Bitstamp:
+  #    orderbook:
+  #      symbols: ['BTC_USD']
+  #      trades:
+  #        symbols: ['BTC_USD']
+  binance:
+    fees: 0.001
+    use_account: true
+    use_test: false
+    orderbook_depth: 5
+    orderbook:
+      symbols: ['BTC_USDT', 'BCH_USDT', 'ETH_USDT', 'ETC_USDT', 'XRP_USDT', 'EOS_USDT', 'BNB_USDT', 'LTC_USDT', 'DASH_USDT', 'ETH_BTC', 'BCH_BTC', 'ETC_BTC', 'ADA_BTC', 'BTC_TUSD', 'STEEM_BTC', 'LTC_BTC', 'ZEC_BTC', 'BTC_EUR', 'ETH_EUR']
+    trades:
+      symbols: ['BTC_USDT', 'BCH_USDT', 'ETH_USDT', 'ETC_USDT', 'XRP_USDT', 'EOS_USDT', 'BNB_USDT', 'LTC_USDT', 'DASH_USDT', 'ETH_BTC', 'BCH_BTC', 'ETC_BTC', 'ADA_BTC', 'BTC_TUSD', 'STEEM_BTC', 'LTC_BTC', 'ZEC_BTC', 'BTC_EUR', 'ETH_EUR']
+
+streams:
+  - type: ExchangeBots
+
+outputs:
+  - type: Strategies
+  - type: AvroFileLogger
+    file_rotation:
+      max_file_size: 50 Mb
+      max_file_time: 1800
+    basedir: './data'
+
+strategies:
+  - type: MeanReverting
+    pair: 'BTC_USDT'
+    short_window_size: 100
+    long_window_size: 1000
+    dry_mode: false
+    sample_freq: 1min
+    initial_cap: 100.0
+    threshold_short: 0.01
+    threshold_long: -0.01
+    threshold_eval_freq: 1
+    dynamic_threshold: true
+    threshold_window_size: 10000
+    stop_loss: -0.1
+    stop_gain: 0.075
+    exchange: Binance
+
+data_dir: './data'
+
+keys: /root/config/keys_real.json
+
+db_storage_path: './database'
+
+prom_push_gw: 127.0.0.1:9091
+
+prom_instance: trader
+
+api:
+  port: 8180

@@ -9,7 +9,7 @@ User=root
 Group=root
 UMask=007
 
-ExecStart=/root/trader
+ExecStart=/root/trader -c $TRADER_CONF
 
 WatchdogSec=172800
 Restart=always
@@ -17,7 +17,7 @@ Restart=always
 WorkingDirectory=/root
 
 Environment=SSL_CERT_DIR=/etc/ssl/certs/
-Environment=TRADER_ENV=development
+Environment=TRADER_CONF=prod
 Environment=RUST_BACKTRACE=1
 Environment=RUST_LOG=info
 

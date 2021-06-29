@@ -1,5 +1,5 @@
 ---
-- hosts: btc2
+- hosts: btc3
   name: Download the trading system data for backup
   remote_user: root
   tasks:
