@@ -6,6 +6,9 @@
     # Trader
     - name: install trader systemd unit file
       template: src=system.d/trader.service.j2 dest=/etc/systemd/system/trader.service
+    # Feeder
+    - name: install feeder systemd unit file
+      template: src=system.d/feeder.service.j2 dest=/etc/systemd/system/feeder.service
 
     # Rclone
     - name: Install rclone
