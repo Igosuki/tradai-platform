@@ -15,8 +15,8 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 3,
-  "iteration": 1624983144615,
+  "id": 7,
+  "iteration": 1624991117833,
   "links": [],
   "panels": [
     {
@@ -28,7 +28,6 @@
       "decimals": 6,
       "fieldConfig": {
         "defaults": {
-          "custom": {},
           "links": []
         },
         "overrides": []
@@ -59,7 +58,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.4.3",
+      "pluginVersion": "8.0.3",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -134,7 +133,6 @@
       "decimals": 6,
       "fieldConfig": {
         "defaults": {
-          "custom": {},
           "links": []
         },
         "overrides": []
@@ -165,7 +163,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.4.3",
+      "pluginVersion": "8.0.3",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -231,7 +229,6 @@
       "decimals": 6,
       "fieldConfig": {
         "defaults": {
-          "custom": {},
           "links": []
         },
         "overrides": []
@@ -262,7 +259,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.4.3",
+      "pluginVersion": "8.0.3",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -329,7 +326,6 @@
       "decimals": 6,
       "fieldConfig": {
         "defaults": {
-          "custom": {},
           "links": []
         },
         "overrides": []
@@ -360,7 +356,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.4.3",
+      "pluginVersion": "8.0.3",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -423,10 +419,9 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": null,
-      "decimals": 5,
+      "decimals": 8,
       "fieldConfig": {
         "defaults": {
-          "custom": {},
           "links": []
         },
         "overrides": []
@@ -457,9 +452,9 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.4.3",
+      "pluginVersion": "8.0.3",
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -467,18 +462,21 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "top_bid{pair=~\"$pair\"}",
+          "exemplar": true,
+          "expr": "top_bid{pair=~\"$pair\", instance=~\"$instance\"}",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
         },
         {
-          "expr": "low_ask{pair=~\"$pair\"}",
+          "exemplar": true,
+          "expr": "low_ask{pair=~\"$pair\", instance=~\"$instance\"}",
           "interval": "",
           "legendFormat": "",
           "refId": "B"
         },
         {
+          "exemplar": true,
           "expr": "mr_mid{pair=~\"$pair\"}",
           "interval": "",
           "legendFormat": "",
@@ -505,6 +503,8 @@
       },
       "yaxes": [
         {
+          "$$hashKey": "object:630",
+          "decimals": null,
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -513,6 +513,8 @@
           "show": true
         },
         {
+          "$$hashKey": "object:631",
+          "decimals": null,
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -535,7 +537,6 @@
       "decimals": 6,
       "fieldConfig": {
         "defaults": {
-          "custom": {},
           "links": []
         },
         "overrides": []
@@ -566,7 +567,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.4.3",
+      "pluginVersion": "8.0.3",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -645,7 +646,6 @@
       "datasource": null,
       "fieldConfig": {
         "defaults": {
-          "custom": {},
           "links": []
         },
         "overrides": []
@@ -676,7 +676,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.4.3",
+      "pluginVersion": "8.0.3",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -742,7 +742,6 @@
       "decimals": 6,
       "fieldConfig": {
         "defaults": {
-          "custom": {},
           "links": []
         },
         "overrides": []
@@ -773,7 +772,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.4.3",
+      "pluginVersion": "8.0.3",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -848,7 +847,6 @@
       "decimals": 6,
       "fieldConfig": {
         "defaults": {
-          "custom": {},
           "links": []
         },
         "overrides": []
@@ -879,7 +877,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.4.3",
+      "pluginVersion": "8.0.3",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -938,7 +936,7 @@
     }
   ],
   "refresh": "5s",
-  "schemaVersion": 27,
+  "schemaVersion": 30,
   "style": "dark",
   "tags": [],
   "templating": {
@@ -963,33 +961,50 @@
         "label": "crypto pair",
         "multi": true,
         "name": "pair",
-        "options": [
-          {
-            "selected": false,
-            "text": "All",
-            "value": "$__all"
-          },
-          {
-            "selected": true,
-            "text": "BTC_USDT",
-            "value": "BTC_USDT"
-          },
-          {
-            "selected": false,
-            "text": "ETH_USDT",
-            "value": "ETH_USDT"
-          }
-        ],
+        "options": [],
         "query": {
           "query": "label_values(pair)",
           "refId": "StandardVariableQuery"
         },
-        "refresh": 0,
+        "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
         "tagValuesQuery": "",
-        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "feeder"
+          ],
+          "value": [
+            "feeder"
+          ]
+        },
+        "datasource": null,
+        "definition": "label_values(instance)",
+        "description": null,
+        "error": null,
+        "hide": 0,
+        "includeAll": true,
+        "label": "instance",
+        "multi": true,
+        "name": "instance",
+        "options": [],
+        "query": {
+          "query": "label_values(instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "tagValuesQuery": "",
         "tagsQuery": "",
         "type": "query",
         "useTags": false
@@ -997,7 +1012,7 @@
     ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {
@@ -1017,5 +1032,5 @@
   "timezone": "utc",
   "title": "Mean Reverting",
   "uid": "-mC8Jw3Zz2",
-  "version": 10
+  "version": 6
 }
