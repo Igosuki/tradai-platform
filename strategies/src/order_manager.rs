@@ -3,16 +3,16 @@ use std::path::Path;
 use std::sync::Arc;
 
 use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, Running, WrapFuture};
+use actix_derive::{Message, MessageResponse};
 use anyhow::Result;
 use async_std::sync::RwLock;
-use uuid::Uuid;
-
 use coinnect_rt::error::Error as CoinnectError;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::exchange_bot::Ping;
 use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, OrderEnforcement, OrderQuery,
                          OrderStatus, OrderType, OrderUpdate, TradeType};
 use db::get_or_create;
+use uuid::Uuid;
 
 use crate::order_types::{OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
 use crate::types::TradeKind;
@@ -52,6 +52,20 @@ impl TransactionService {
             Err(anyhow!("Nor rejected nor filled"))
         }
     }
+}
+
+// TODO: Use GraphQLUnion to refactor this ugly bit of code
+#[derive(Debug, Deserialize, Serialize, MessageResponse)]
+#[serde(tag = "type")]
+pub enum DataResult {
+    Transactions(Vec<Transaction>),
+}
+
+#[derive(Deserialize, Serialize, Message)]
+#[rtype(result = "Result<Option<DataResult>, anyhow::Error>")]
+pub enum DataQuery {
+    /// All transactions history
+    Transactions,
 }
 
 #[derive(Debug, Clone)]
@@ -317,6 +331,24 @@ impl Handler<OrderId> for OrderManager {
             }
             .into_actor(self),
         )
+    }
+}
+
+impl Handler<DataQuery> for OrderManager {
+    type Result = <DataQuery as actix::Message>::Result;
+
+    fn handle(&mut self, query: DataQuery, _ctx: &mut Self::Context) -> Self::Result {
+        match query {
+            DataQuery::Transactions => self
+                .transactions_wal
+                .get_all()
+                .map(|r| {
+                    Some(DataResult::Transactions(
+                        r.into_iter().map(|(id, status)| Transaction { status, id }).collect(),
+                    ))
+                })
+                .map_err(|e| anyhow!(e)),
+        }
     }
 }
 

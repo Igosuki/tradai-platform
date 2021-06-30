@@ -42,6 +42,10 @@ impl Wal {
         Ok(records)
     }
 
+    pub fn get_all<T: DeserializeOwned>(&self) -> Result<Vec<(String, T)>> {
+        self.backend.get_all::<T>(&self.table).map_err(|e| e.into())
+    }
+
     pub fn append<T: Serialize>(&self, k: String, t: T) -> Result<()> {
         let key = format!("{}{}{}", Utc::now().timestamp_millis(), WAL_KEY_SEP, k);
         Ok(self.backend.put(&self.table, &key, t)?)
