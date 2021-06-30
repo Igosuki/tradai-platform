@@ -1,21 +1,25 @@
-use actix::MailboxError;
+use crate::graphql_schemas::types::*;
+use actix::{Addr, MailboxError};
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
-use coinnect_rt::types::{AddOrderRequest, OrderEnforcement, OrderQuery, OrderType, TradeType};
+use coinnect_rt::types::{AddOrderRequest, OrderEnforcement, OrderQuery};
 use futures::lock::Mutex;
 use futures::Stream;
 use juniper::{FieldError, FieldResult, RootNode};
 use std::collections::HashMap;
 use std::pin::Pin;
+use std::str::FromStr;
 use std::sync::Arc;
 use strategies::mean_reverting::state::Operation as MeanOperation;
 use strategies::naive_pair_trading::state::Operation;
+use strategies::order_manager::OrderManager;
 use strategies::query::{DataQuery, DataResult, FieldMutation};
-use strategies::{Strategy, StrategyKey};
+use strategies::{order_manager, Strategy, StrategyKey};
 use uuid::Uuid;
 
 pub struct Context {
     pub strats: Arc<HashMap<StrategyKey, Strategy>>,
     pub exchanges: Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>>,
+    pub order_managers: Arc<HashMap<Exchange, Addr<OrderManager>>>,
 }
 
 impl juniper::Context for Context {}
@@ -55,70 +59,44 @@ impl Context {
             }
         }
     }
+
+    async fn with_order_manager<T, F>(&self, exchange: &str, q: order_manager::DataQuery, f: F) -> FieldResult<T>
+    where
+        F: Fn(order_manager::DataResult) -> FieldResult<T>,
+    {
+        let xchg = Exchange::from_str(exchange).ok().ok_or_else(|| {
+            FieldError::new(
+                "Exchange not found",
+                graphql_value!({ "not_found": "exchange not found" }),
+            )
+        })?;
+        match self.order_managers.get(&xchg) {
+            None => Err(FieldError::new(
+                "Exchange not found",
+                graphql_value!({ "not_found": "strategy not found" }),
+            )),
+            Some(om) => {
+                let res = om.send(q).await;
+                match res {
+                    Ok(Ok(Some(dr))) => f(dr),
+                    Err(_) => Err(FieldError::new(
+                        "OrderManager mailbox was full",
+                        graphql_value!({ "unavailable": "order manager mailbox full" }),
+                    )),
+                    r => {
+                        error!("{:?}", r);
+                        Err(FieldError::new(
+                            "Unexpected error",
+                            graphql_value!({ "unavailable": "unexpected error" }),
+                        ))
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub struct QueryRoot;
-
-#[derive(juniper::GraphQLObject)]
-pub struct TypeAndKey {
-    #[graphql(name = "type")]
-    t: String,
-    id: String,
-}
-
-#[derive(juniper::GraphQLInputObject)]
-pub struct TypeAndKeyInput {
-    #[graphql(name = "type")]
-    t: String,
-    id: String,
-}
-
-#[derive(juniper::GraphQLEnum)]
-pub enum TradeTypeInput {
-    Sell,
-    Buy,
-}
-
-impl Into<TradeType> for TradeTypeInput {
-    fn into(self) -> TradeType {
-        match self {
-            TradeTypeInput::Sell => TradeType::Sell,
-            TradeTypeInput::Buy => TradeType::Buy,
-        }
-    }
-}
-
-#[derive(juniper::GraphQLEnum)]
-pub enum OrderTypeInput {
-    Limit,
-    Market,
-}
-
-impl Into<OrderType> for OrderTypeInput {
-    fn into(self) -> OrderType {
-        match self {
-            OrderTypeInput::Limit => OrderType::Limit,
-            OrderTypeInput::Market => OrderType::Market,
-        }
-    }
-}
-
-#[derive(juniper::GraphQLInputObject)]
-pub struct AddOrderInput {
-    exchg: String,
-    order_type: OrderTypeInput,
-    side: TradeTypeInput,
-    pair: String,
-    quantity: f64,
-    price: f64,
-    #[graphql(description = "Set this to true to pass a real order")]
-    dry_run: bool,
-}
-
-#[derive(juniper::GraphQLObject)]
-pub struct OrderResult {
-    pub identifier: String,
-}
 
 fn unhandled_data_result<T>() -> FieldResult<T> {
     Err(FieldError::new(
@@ -142,11 +120,11 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Get all positions for this strat")]
-    async fn dump_strat_db(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<String>> {
+    async fn dump_strat_db(context: &Context, tk: TypeAndKeyInput) -> FieldResult<String> {
         context
             .with_strat(tk, DataQuery::Dump, |dr| {
-                if let DataResult::Dump(pos_vec) = dr {
-                    Ok(pos_vec)
+                if let DataResult::Dump(dump) = dr {
+                    Ok(dump)
                 } else {
                     unhandled_data_result()
                 }
@@ -189,6 +167,19 @@ impl QueryRoot {
         context
             .with_strat(tk, DataQuery::CurrentOperation, |dr| match dr {
                 DataResult::MeanRevertingOperation(op) => Ok(op),
+                _ => unhandled_data_result(),
+            })
+            .await
+    }
+
+    #[graphql(description = "Get all transactions history for an order manager")]
+    async fn transactions(context: &Context, exchange: String) -> FieldResult<Vec<String>> {
+        context
+            .with_order_manager(&exchange, order_manager::DataQuery::Transactions, |dr| match dr {
+                order_manager::DataResult::Transactions(transaction) => Ok(transaction
+                    .into_iter()
+                    .map(|t| serde_json::to_string(&t).unwrap())
+                    .collect()),
                 _ => unhandled_data_result(),
             })
             .await

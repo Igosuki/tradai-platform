@@ -119,6 +119,7 @@ pub struct Settings {
     pub db_storage_path: String,
     pub prom_push_gw: String,
     pub prom_instance: String,
+    #[serde(default)]
     pub telemetry: OpenTelemetrySettings,
 }
 
