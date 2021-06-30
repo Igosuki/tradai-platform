@@ -1,4 +1,5 @@
 use crate::graphql_schemas::root::create_schema;
+use actix::Addr;
 use actix_cors::Cors;
 use actix_web::{http, HttpServer};
 use coinnect_rt::coinnect::build_exchanges;
@@ -7,11 +8,13 @@ use futures::lock::Mutex;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use strategies::order_manager::OrderManager;
 use strategies::{Strategy, StrategyKey};
 
 pub async fn httpserver(
     exchanges: HashMap<Exchange, ExchangeSettings>,
     strategies: Arc<HashMap<StrategyKey, Strategy>>,
+    order_managers: Arc<HashMap<Exchange, Addr<OrderManager>>>,
     keys_path: PathBuf,
     port: i32,
 ) -> std::io::Result<()> {
@@ -22,7 +25,7 @@ pub async fn httpserver(
         let schema = create_schema();
 
         let cors = Cors::default()
-            .allowed_origin("http://localhost:8180")
+            .allowed_origin(&format!("http://localhost:{}", port))
             .allowed_methods(vec!["GET", "POST"])
             .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
             .allowed_header(http::header::CONTENT_TYPE)
@@ -33,6 +36,7 @@ pub async fn httpserver(
             .data(schema)
             .data(data.clone())
             .data(strategies.clone())
+            .data(order_managers.clone())
             .configure(crate::api::config_app)
     };
     debug!("Starting api server on {} ...", port);

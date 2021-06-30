@@ -16,6 +16,8 @@ use strategies::{Strategy, StrategyKey};
 
 use crate::api::ApiError::ExchangeNotFound;
 use crate::graphql_schemas::root::{Context, Schema};
+use actix::Addr;
+use strategies::order_manager::OrderManager;
 
 mod graphql;
 mod playground_source;
@@ -60,6 +62,7 @@ async fn playground_handler() -> Result<HttpResponse, Error> { self::graphql::pl
 
 type ExchangeData = web::Data<Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>>>;
 type StratsData = web::Data<Arc<HashMap<StrategyKey, Strategy>>>;
+type OrderManagerData = web::Data<Arc<HashMap<Exchange, Addr<OrderManager>>>>;
 
 async fn graphql(
     req: actix_web::HttpRequest,
@@ -67,10 +70,12 @@ async fn graphql(
     schema: web::Data<Schema>,
     strats: StratsData,
     exchanges: ExchangeData,
+    order_managers: OrderManagerData,
 ) -> Result<HttpResponse, Error> {
     let ctx = Context {
         strats: strats.get_ref().to_owned(),
         exchanges: exchanges.get_ref().to_owned(),
+        order_managers: order_managers.get_ref().to_owned(),
     };
     self::graphql::graphql_handler(&schema, &ctx, req, payload).await
 }

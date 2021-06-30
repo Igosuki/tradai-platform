@@ -45,6 +45,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     let mut output_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
     let mut strat_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
     let mut strategy_actors = vec![];
+    let mut order_managers_addr = HashMap::new();
     // order managers
     let db_path_str = Arc::new(settings_v.db_storage_path.clone());
     let keys_path = PathBuf::from(settings_v.keys.clone());
@@ -66,6 +67,9 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
                 let oms = Arc::new(order_managers(keys_path.clone(), &db_path_str, Arc::new(exchanges.clone())).await);
                 if !oms.is_empty() {
                     termination_handles.push(Box::pin(bots::poll_account_bots(oms.clone())));
+                    for (xchg, om_system) in oms.clone().iter() {
+                        order_managers_addr.insert(xchg.clone(), om_system.om.clone());
+                    }
                 }
                 let strategies = strategies(arc.clone(), oms.clone()).await;
                 for a in strategies.clone() {
@@ -138,7 +142,13 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
             .collect(),
     );
     // API Server
-    let server = server::httpserver(exchanges.clone(), strats_map, keys_path.clone(), settings_v.api.port.0);
+    let server = server::httpserver(
+        exchanges.clone(),
+        strats_map,
+        Arc::new(order_managers_addr),
+        keys_path.clone(),
+        settings_v.api.port.0,
+    );
     termination_handles.push(Box::pin(server));
 
     // Handle interrupts for graceful shutdown
