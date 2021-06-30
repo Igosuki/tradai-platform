@@ -15,6 +15,7 @@ use crate::order_types::{StagedOrder, Transaction};
 use crate::query::MutableField;
 use crate::types::{BookPosition, OperationEvent, StratEvent, TradeEvent};
 use crate::types::{OperationKind, PositionKind, TradeKind};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
@@ -459,12 +460,21 @@ impl MeanRevertingState {
 
     pub fn get_operations(&self) -> Vec<Operation> {
         self.db
-            .get_ranged(OPERATIONS_KEY, OPERATIONS_KEY)
+            .get_all::<Operation>(OPERATIONS_KEY)
+            .map(|v| v.into_iter().map(|kv| kv.1).collect())
             .unwrap_or_else(|_| Vec::new())
     }
 
-    /// TODO: maybe implement StorageJsonExt
-    pub fn dump_db(&self) -> Vec<String> { Vec::new() }
+    pub fn dump_db(&self) -> String {
+        let mut dump: HashMap<String, serde_json::Value> = HashMap::new();
+        if let Ok(operations) = self.db.get_all::<Vec<Operation>>(OPERATIONS_KEY) {
+            dump.insert("operations".to_string(), serde_json::to_value(&operations).unwrap());
+        }
+        if let Ok(state) = self.db.get_all::<TransientState>(STATE_KEY) {
+            dump.insert("state".to_string(), serde_json::to_value(&state).unwrap());
+        }
+        serde_json::to_string(&dump).unwrap()
+    }
 
     #[allow(dead_code)]
     fn get_operation(&self, uuid: &str) -> Option<Operation> {

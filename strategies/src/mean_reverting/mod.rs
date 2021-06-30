@@ -123,7 +123,7 @@ impl MeanRevertingStrategy {
 
     fn cancel_ongoing_op(&mut self) -> bool { self.state.cancel_ongoing_op() }
 
-    fn dump_db(&self) -> Vec<String> { self.state.dump_db() }
+    fn dump_db(&self) -> String { self.state.dump_db() }
 
     fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> { self.state.change_state(field, v) }
 
