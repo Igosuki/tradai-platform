@@ -1,6 +1,5 @@
 pub mod binance;
 pub mod http;
-pub mod tracing;
 
 pub fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 

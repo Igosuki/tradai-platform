@@ -157,6 +157,7 @@ mod test {
     use db::get_or_create;
     use fake::Fake;
     use quickcheck::{Arbitrary, Gen};
+    use std::sync::Arc;
     use test::Bencher;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -188,8 +189,8 @@ mod test {
         let tempdir = TempDir::new().unwrap();
         let db = get_or_create(tempdir.as_ref(), vec![]);
         let mut table: PersistentModel<MockLinearModel> = PersistentModel::new(
-            db,
-            "default".to_string(),
+            Arc::new(db),
+            "default",
             Some(ModelValue {
                 value: MockLinearModel {},
                 at: Utc::now(),

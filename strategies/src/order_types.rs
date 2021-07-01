@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::TradeKind;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", content = "__field0")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "reject_type", content = "__field0")]
 pub enum Rejection {
     BadRequest(String),
     InsufficientFunds,
@@ -32,7 +32,7 @@ impl Rejection {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, Display, PartialEq)]
 #[serde(tag = "type")]
 pub enum TransactionStatus {
     #[display(fmt = "staged")]
@@ -47,7 +47,7 @@ pub enum TransactionStatus {
     Rejected(Rejection),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Transaction {
     pub id: String,
     pub status: TransactionStatus,

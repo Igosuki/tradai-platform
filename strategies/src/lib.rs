@@ -251,7 +251,7 @@ mod test {
     use actix_rt::System;
 
     use coinnect_rt::exchange::Exchange;
-    use coinnect_rt::types::Orderbook;
+    use coinnect_rt::types::{LiveEvent, Orderbook};
 
     use super::*;
     use coinnect_rt::exchange::Exchange::Binance;
@@ -266,7 +266,7 @@ mod test {
 
     #[async_trait]
     impl StrategyInterface for DummyStrat {
-        async fn add_event(&mut self, _: LiveEvent) -> anyhow::Result<()> { Ok(()) }
+        async fn add_event(&mut self, _: LiveEventEnveloppe) -> anyhow::Result<()> { Ok(()) }
 
         fn data(&mut self, _q: DataQuery) -> Option<DataResult> { unimplemented!() }
 
@@ -286,15 +286,16 @@ mod test {
         init();
         System::new().block_on(async move {
             let addr = StrategyActor::start(actor(Box::new(DummyStrat)));
-            let order_book_event = LiveEventEnveloppe(
-                Exchange::Binance,
-                LiveEvent::LiveOrderbook(Orderbook {
+            let order_book_event = LiveEventEnveloppe {
+                xch: Exchange::Binance,
+                e: LiveEvent::LiveOrderbook(Orderbook {
                     timestamp: chrono::Utc::now().timestamp(),
                     pair: "BTC_USDT".into(),
                     asks: vec![(0.1, 0.1), (0.2, 0.2)],
                     bids: vec![(0.1, 0.1), (0.2, 0.2)],
+                    last_order_id: None,
                 }),
-            );
+            };
             println!("Sending...");
             for _ in 0..1000 {
                 addr.do_send(order_book_event.clone());
