@@ -179,6 +179,13 @@ impl OrderManager {
         writer.insert(order_id.clone(), tr.clone());
         Ok(())
     }
+
+    pub(crate) fn transactions(&self) -> Result<Vec<Transaction>> {
+        self.transactions_wal
+            .get_all()
+            .map(|r| r.into_iter().map(|(id, status)| Transaction { status, id }).collect())
+            .map_err(|e| e.into())
+    }
 }
 
 #[allow(clippy::unnested_or_patterns)]
@@ -290,7 +297,7 @@ impl Handler<StagedOrder> for OrderManager {
         Box::pin(
             async move { zis.stage_order(order).await }
                 .into_actor(self)
-                .map(|tr, act, ctx| {
+                .map(|tr, _act, ctx| {
                     if let Ok(Transaction {
                         id,
                         status: TransactionStatus::Staged(query),
@@ -340,13 +347,8 @@ impl Handler<DataQuery> for OrderManager {
     fn handle(&mut self, query: DataQuery, _ctx: &mut Self::Context) -> Self::Result {
         match query {
             DataQuery::Transactions => self
-                .transactions_wal
-                .get_all()
-                .map(|r| {
-                    Some(DataResult::Transactions(
-                        r.into_iter().map(|(id, status)| Transaction { status, id }).collect(),
-                    ))
-                })
+                .transactions()
+                .map(|r| Some(DataResult::Transactions(r)))
                 .map_err(|e| anyhow!(e)),
         }
     }
@@ -394,8 +396,9 @@ mod test {
     use coinnect_rt::exchange::{Exchange, ExchangeApi};
 
     use crate::order_manager::OrderManager;
-    use crate::order_types::{Rejection, StagedOrder, TransactionStatus};
+    use crate::order_types::{Rejection, StagedOrder, Transaction, TransactionStatus};
     use crate::types::TradeKind;
+    use coinnect_rt::types::{AddOrderRequest, OrderInfo, OrderQuery, OrderUpdate};
 
     #[actix_rt::test]
     async fn test_append_rejected() {
@@ -439,5 +442,49 @@ mod test {
             .await;
         println!("{:?}", registered);
         assert!(registered.is_ok(), "{:?}", registered);
+    }
+
+    #[actix_rt::test]
+    async fn test_register_transactions() {
+        let test_dir = util::test::test_dir();
+        let mut order_manager = it_order_manager(test_dir, Binance).await;
+        let order_id = "1".to_string();
+        let statuses = vec![
+            TransactionStatus::New(OrderInfo {
+                timestamp: 0,
+                id: order_id.clone(),
+            }),
+            TransactionStatus::Staged(OrderQuery::AddOrder(AddOrderRequest::default())),
+            TransactionStatus::Filled(OrderUpdate::default()),
+            TransactionStatus::Rejected(Rejection::Other("".to_string())),
+        ];
+        // Register each status in order
+        for status in &statuses {
+            let reg = order_manager.register(order_id.clone(), status.clone()).await;
+            assert!(reg.is_ok(), "{:?}", reg);
+        }
+        // Get the transactions log
+        let transactions = order_manager.transactions();
+        assert!(transactions.is_ok(), "{:?}", transactions);
+        assert_eq!(
+            transactions.unwrap(),
+            statuses
+                .clone()
+                .into_iter()
+                .map(|status| {
+                    Transaction {
+                        status: status.clone(),
+                        id: order_id.clone(),
+                    }
+                })
+                .collect::<Vec<Transaction>>()
+        );
+        // The last status for this id should be the last registered status
+        let order = order_manager.get_order(order_id.clone()).await;
+        assert_eq!(
+            &order.unwrap(),
+            statuses.last().unwrap(),
+            "latest order should the last in statuses"
+        );
     }
 }

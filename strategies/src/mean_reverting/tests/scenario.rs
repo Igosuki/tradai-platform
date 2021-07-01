@@ -16,6 +16,8 @@ use crate::order_manager::test_util::mock_manager;
 //use crate::test_util::tracing::setup_opentelemetry;
 use crate::test_util::init;
 use crate::types::{OperationEvent, TradeEvent};
+use db::get_or_create;
+use std::sync::Arc;
 use tracing_futures::Instrument;
 use util::date::now_str;
 
@@ -120,13 +122,14 @@ type StrategyEntry<'a> = (&'a str, Vec<fn(&StrategyLog) -> f64>);
 
 static EXCHANGE: &str = "Binance";
 static CHANNEL: &str = "order_books";
-static PAIR: &str = "BTC_USDT";
+static PAIR: &str = "LTC_USDT";
 
 #[tokio::test]
 async fn moving_average_model_backtest() {
     init();
     let path = util::test::test_dir();
-    let mut model = MeanRevertingStrategy::make_model("BTC_USDT", &path.into_path(), 100, 1000);
+    let db = get_or_create(path.as_ref(), vec![]);
+    let mut model = MeanRevertingStrategy::make_model("BTC_USDT", Arc::new(db), 100, 1000);
     // Read downsampled streams
     let dt0 = Utc.ymd(2020, 3, 25);
     let dt1 = Utc.ymd(2020, 4, 8);
@@ -186,7 +189,7 @@ async fn complete_backtest() {
     );
     // Read downsampled streams
     let dt0 = Utc.ymd(2020, 3, 25);
-    let dt1 = Utc.ymd(2020, 4, 8);
+    let dt1 = Utc.ymd(2020, 6, 2);
     // align data
     let mut elapsed = 0 as u128;
     let now = Instant::now();

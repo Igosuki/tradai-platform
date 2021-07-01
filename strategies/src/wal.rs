@@ -43,11 +43,23 @@ impl Wal {
     }
 
     pub fn get_all<T: DeserializeOwned>(&self) -> Result<Vec<(String, T)>> {
-        self.backend.get_all::<T>(&self.table).map_err(|e| e.into())
+        self.backend.get_all::<T>(&self.table).map_err(|e| e.into()).map(|v| {
+            v.into_iter()
+                .map(|(k, v)| {
+                    let index = k.find(WAL_KEY_SEP);
+                    let k = if let Some(i) = index {
+                        k[(i + 1)..].to_string()
+                    } else {
+                        k
+                    };
+                    (k, v)
+                })
+                .collect()
+        })
     }
 
     pub fn append<T: Serialize>(&self, k: String, t: T) -> Result<()> {
-        let key = format!("{}{}{}", Utc::now().timestamp_millis(), WAL_KEY_SEP, k);
+        let key = format!("{}{}{}", Utc::now().timestamp_nanos(), WAL_KEY_SEP, k);
         Ok(self.backend.put(&self.table, &key, t)?)
     }
 }

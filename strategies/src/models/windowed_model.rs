@@ -69,8 +69,10 @@ mod test {
     use crate::models::WindowedModel;
     use crate::types::BookPosition;
     use chrono::{DateTime, Utc};
+    use db::get_or_create;
     use fake::Fake;
     use quickcheck::{Arbitrary, Gen};
+    use std::sync::Arc;
     use test::Bencher;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,7 +102,9 @@ mod test {
     fn test_save_load_model(b: &mut Bencher) {
         let id = "default";
         let max_size = 2000;
-        let mut table = WindowedModel::new(id, &test_dir(), 1000, Some(max_size), sum_window);
+        let test_dir = test_dir();
+        let db = Arc::new(get_or_create(test_dir, vec![]));
+        let mut table = WindowedModel::new(id, db, 1000, Some(max_size), sum_window);
         let mut gen = Gen::new(500);
         for _ in 0..max_size {
             table.push(&TestRow::arbitrary(&mut gen))
