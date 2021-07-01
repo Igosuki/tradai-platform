@@ -49,7 +49,12 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     // order managers
     let db_path_str = Arc::new(settings_v.db_storage_path.clone());
     let keys_path = PathBuf::from(settings_v.keys.clone());
-
+    if fs::metadata(keys_path.clone()).is_err() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            anyhow!("key file doesn't exist at {:?}", keys_path.clone()),
+        ));
+    }
     // strategies, cf strategies crate
     let arc = Arc::clone(&settings);
 
