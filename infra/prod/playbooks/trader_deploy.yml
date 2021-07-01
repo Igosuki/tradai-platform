@@ -17,6 +17,13 @@
         owner: root
         group: root
         mode: '+x'
+    - name: Trader Conf
+      copy:
+        src: ./trader_conf/prod.yaml
+        dest: /root/config/prod.yaml
+        owner: root
+        group: root
+        mode: '+x'
   tasks:
     - name: backup trader
       shell: cp trader "trader.bak.$(date +%F)"

@@ -1,6 +1,6 @@
 use crate::error::*;
 use crate::storage::Storage;
-use rocksdb::{BoundColumnFamily, ColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode, Options, DB};
+use rocksdb::{BoundColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode, Options, DB};
 use std::path::Path;
 
 type Bytes = Box<[u8]>;
