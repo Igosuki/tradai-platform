@@ -26,6 +26,7 @@ pub(crate) struct TransactionService {
 impl TransactionService {
     pub fn new(om: Addr<OrderManager>) -> Self { Self { om } }
 
+    /// Stage an order
     #[tracing::instrument(skip(self), level = "debug")]
     pub async fn stage_order(&self, staged_order: StagedOrder) -> Result<Transaction> {
         self.om
@@ -41,6 +42,7 @@ impl TransactionService {
         Ok((!new_tr.variant_eq(&tr), new_tr))
     }
 
+    /// Retry staging an order if it was rejected
     pub async fn maybe_retry_trade(&self, tr: Transaction, order: StagedOrder) -> anyhow::Result<Transaction> {
         if tr.is_rejected() {
             // Changed and rejected, retry transaction
@@ -92,6 +94,7 @@ impl OrderManager {
         }
     }
 
+    /// Updates an already registered order
     pub(crate) async fn update_order(&mut self, order: OrderUpdate) -> Result<()> {
         let order_id = order.orig_order_id.clone();
         let tr = if order.new_status.is_rejection() {
@@ -113,6 +116,7 @@ impl OrderManager {
         }
     }
 
+    /// Registers an order, and passes it to be later processed
     #[tracing::instrument(skip(self), level = "info")]
     pub(crate) async fn stage_order(&mut self, staged_order: StagedOrder) -> Result<Transaction> {
         let side = match staged_order.op_kind {
@@ -145,9 +149,19 @@ impl OrderManager {
             },
         })
     }
+
+    /// Directly passes an order query
     #[tracing::instrument(skip(self), level = "info")]
     pub(crate) async fn pass_order(&mut self, order: PassOrder) -> Result<()> {
-        let order_info = self.api.order(order.query).await;
+        let order_info = self.api.order(order.query.clone()).await;
+        if let PassOrder {
+            query: OrderQuery::AddOrder(AddOrderRequest { dry_run: true, .. }),
+            ..
+        } = order
+        {
+            info!("dry run order {:?} response {:?}", order, order_info);
+            return order_info.map(|_| ()).map_err(|e| anyhow!(e));
+        }
         let written_transaction = match order_info {
             Ok(o) => TransactionStatus::New(o),
             Err(e) => TransactionStatus::Rejected(match e {
@@ -159,6 +173,7 @@ impl OrderManager {
         Ok(())
     }
 
+    /// Cancel an order
     #[allow(dead_code)]
     pub(crate) async fn cancel_order(&mut self, order_id: String) -> Result<()> {
         self.register(
@@ -168,11 +183,13 @@ impl OrderManager {
         .await
     }
 
+    /// Get the latest status for this order id
     pub(crate) async fn get_order(&self, order_id: String) -> Option<TransactionStatus> {
         let reader = self.orders.read().await;
         reader.get(&order_id).cloned()
     }
 
+    /// Registers a transaction
     pub(crate) async fn register(&mut self, order_id: String, tr: TransactionStatus) -> Result<()> {
         self.transactions_wal.append(order_id.clone(), tr.clone())?;
         let mut writer = self.orders.write().await;
@@ -180,6 +197,7 @@ impl OrderManager {
         Ok(())
     }
 
+    /// Returns all history of transactions
     pub(crate) fn transactions(&self) -> Result<Vec<Transaction>> {
         self.transactions_wal
             .get_all()

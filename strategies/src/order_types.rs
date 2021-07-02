@@ -92,7 +92,7 @@ pub(crate) struct StagedOrder {
 
 #[derive(Message, Debug)]
 #[rtype(result = "Result<()>")]
-pub(crate) struct PassOrder {
+pub struct PassOrder {
     pub id: String,
     pub query: OrderQuery,
 }
