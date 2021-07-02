@@ -1,4 +1,5 @@
-use coinnect_rt::types::{OrderType, TradeType};
+use coinnect_rt::types::{AddOrderRequest, OrderEnforcement, OrderQuery, OrderType, TradeType};
+use uuid::Uuid;
 
 #[derive(juniper::GraphQLObject)]
 pub struct TypeAndKey {
@@ -54,6 +55,22 @@ pub struct AddOrderInput {
     pub price: f64,
     #[graphql(description = "Set this to true to pass a real order")]
     pub dry_run: bool,
+}
+
+impl Into<OrderQuery> for AddOrderInput {
+    fn into(self) -> OrderQuery {
+        OrderQuery::AddOrder(AddOrderRequest {
+            order_type: self.order_type.into(),
+            side: self.side.into(),
+            quantity: Some(self.quantity),
+            pair: self.pair.into(),
+            price: Some(self.price),
+            enforcement: Some(OrderEnforcement::FOK),
+            dry_run: self.dry_run,
+            order_id: Some(Uuid::new_v4().to_string()),
+            ..AddOrderRequest::default()
+        })
+    }
 }
 
 #[derive(juniper::GraphQLObject)]

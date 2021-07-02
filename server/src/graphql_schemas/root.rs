@@ -1,20 +1,21 @@
 use crate::graphql_schemas::types::*;
 use actix::{Addr, MailboxError};
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
-use coinnect_rt::types::{AddOrderRequest, OrderEnforcement, OrderQuery};
+use coinnect_rt::types::OrderQuery;
 use futures::lock::Mutex;
 use futures::Stream;
 use juniper::{FieldError, FieldResult, RootNode};
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
 use strategies::mean_reverting::state::Operation as MeanOperation;
 use strategies::naive_pair_trading::state::Operation;
 use strategies::order_manager::OrderManager;
+use strategies::order_types::PassOrder;
 use strategies::query::{DataQuery, DataResult, FieldMutation};
 use strategies::{order_manager, Strategy, StrategyKey};
-use uuid::Uuid;
 
 pub struct Context {
     pub strats: Arc<HashMap<StrategyKey, Strategy>>,
@@ -60,9 +61,12 @@ impl Context {
         }
     }
 
-    async fn with_order_manager<T, F>(&self, exchange: &str, q: order_manager::DataQuery, f: F) -> FieldResult<T>
+    async fn with_order_manager<T, F, M: 'static>(&self, exchange: &str, q: M, f: F) -> FieldResult<T>
     where
-        F: Fn(order_manager::DataResult) -> FieldResult<T>,
+        F: Fn(M::Result) -> FieldResult<T>,
+        M: actix::Message + Send,
+        M::Result: Send + Debug,
+        OrderManager: actix::Handler<M>,
     {
         let xchg = Exchange::from_str(exchange).ok().ok_or_else(|| {
             FieldError::new(
@@ -78,18 +82,11 @@ impl Context {
             Some(om) => {
                 let res = om.send(q).await;
                 match res {
-                    Ok(Ok(Some(dr))) => f(dr),
+                    Ok(dr) => f(dr),
                     Err(_) => Err(FieldError::new(
                         "OrderManager mailbox was full",
                         graphql_value!({ "unavailable": "order manager mailbox full" }),
                     )),
-                    r => {
-                        error!("{:?}", r);
-                        Err(FieldError::new(
-                            "Unexpected error",
-                            graphql_value!({ "unavailable": "unexpected error" }),
-                        ))
-                    }
                 }
             }
         }
@@ -176,7 +173,7 @@ impl QueryRoot {
     async fn transactions(context: &Context, exchange: String) -> FieldResult<Vec<String>> {
         context
             .with_order_manager(&exchange, order_manager::DataQuery::Transactions, |dr| match dr {
-                order_manager::DataResult::Transactions(transaction) => Ok(transaction
+                Ok(Some(order_manager::DataResult::Transactions(transaction))) => Ok(transaction
                     .into_iter()
                     .map(|t| serde_json::to_string(&t).unwrap())
                     .collect()),
@@ -234,24 +231,33 @@ impl MutationRoot {
             )
         })?;
 
-        let request = AddOrderRequest {
-            order_type: input.order_type.into(),
-            side: input.side.into(),
-            quantity: Some(input.quantity),
-            pair: input.pair.into(),
-            price: Some(input.price),
-            enforcement: Some(OrderEnforcement::FOK),
-            dry_run: input.dry_run,
-            order_id: Some(Uuid::new_v4().to_string()),
-            ..AddOrderRequest::default()
-        };
-        api.order(OrderQuery::AddOrder(request))
+        api.order(input.into())
             .await
             .map_err(|e| {
                 let error_str = format!("{:?}", e);
                 FieldError::new("Coinnect error", graphql_value!({ "error": error_str }))
             })
             .map(|oi| OrderResult { identifier: oi.id })
+    }
+
+    #[graphql(description = "Pass an order with an order manager")]
+    async fn _pass_order(context: &Context, exchange: String, input: AddOrderInput) -> FieldResult<String> {
+        let query: OrderQuery = input.into();
+        let id = query.id();
+        match id {
+            Some(id) => {
+                context
+                    .with_order_manager(&exchange, PassOrder { id, query }, |dr| match dr {
+                        Ok(_) => Ok("passed".to_string()),
+                        Err(e) => {
+                            let error_str = format!("{}", e);
+                            Err(FieldError::new("order error", graphql_value!({ "error": error_str })))
+                        }
+                    })
+                    .await
+            }
+            None => unhandled_data_result(),
+        }
     }
 }
 
