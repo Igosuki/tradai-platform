@@ -52,7 +52,7 @@ strategies:
 
 data_dir: './data'
 
-keys: ./infra/prod/playbooks/trader_conf/keys_real.json
+keys: /root/config/keys_real.json
 
 db_storage_path: './database'
 
@@ -61,4 +61,4 @@ prom_push_gw: 127.0.0.1:9091
 prom_instance: trader
 
 api:
-  port: 8182
+  port: 8180
