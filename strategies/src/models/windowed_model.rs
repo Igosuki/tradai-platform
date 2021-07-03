@@ -27,19 +27,14 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
     ) -> Self {
         let max_size = max_size_o.unwrap_or_else(|| 2 * window_size);
         Self {
-            rows: PersistentVec::new(db.clone(), &format!("model_{}_rows", id), max_size, window_size),
-            model: PersistentModel::new(db, &format!("model_{}", id), None),
+            rows: PersistentVec::new(db.clone(), &format!("{}_rows", id), max_size, window_size),
+            model: PersistentModel::new(db, &format!("{}", id), None),
             window_fn,
         }
     }
 
     pub fn update_model(&mut self) -> Result<(), db::Error> {
         self.model.update_model(self.window_fn, self.rows.window())
-    }
-
-    pub fn load_model(&mut self) {
-        self.model.load_model();
-        self.rows.load();
     }
 
     pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }
@@ -54,9 +49,14 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
 
     pub fn len(&self) -> usize { self.rows.len() }
 
-    pub fn try_loading_model(&mut self) -> bool { self.model.try_loading_model() }
+    pub fn try_loading_model(&mut self) -> crate::error::Result<()> {
+        self.model.try_loading()?;
+        self.rows.try_loading()
+    }
 
     pub fn model(&self) -> Option<ModelValue<M>> { self.model.model() }
+
+    pub fn is_loaded(&self) -> bool { self.model.is_loaded() && self.rows.is_loaded() }
 }
 
 #[cfg(test)]
@@ -111,7 +111,7 @@ mod test {
         }
         b.iter(|| {
             table.update_model().unwrap();
-            table.load_model();
+            table.try_loading_model().unwrap();
         });
     }
 }

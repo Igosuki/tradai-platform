@@ -122,7 +122,7 @@ type StrategyEntry<'a> = (&'a str, Vec<fn(&StrategyLog) -> f64>);
 
 static EXCHANGE: &str = "Binance";
 static CHANNEL: &str = "order_books";
-static PAIR: &str = "LTC_USDT";
+static PAIR: &str = "BTC_USDT";
 
 #[tokio::test]
 async fn moving_average_model_backtest() {
@@ -132,7 +132,7 @@ async fn moving_average_model_backtest() {
     let mut model = MeanRevertingStrategy::make_model("BTC_USDT", Arc::new(db), 100, 1000);
     // Read downsampled streams
     let dt0 = Utc.ymd(2020, 3, 25);
-    let dt1 = Utc.ymd(2020, 4, 8);
+    let dt1 = Utc.ymd(2020, 6, 10);
     let records = input::load_csv_dataset(
         &DateRange(dt0, dt1, DurationRangeType::Days, 1),
         vec![PAIR.to_string()],
@@ -189,7 +189,7 @@ async fn complete_backtest() {
     );
     // Read downsampled streams
     let dt0 = Utc.ymd(2020, 3, 25);
-    let dt1 = Utc.ymd(2020, 6, 2);
+    let dt1 = Utc.ymd(2020, 6, 10);
     // align data
     let mut elapsed = 0 as u128;
     let now = Instant::now();

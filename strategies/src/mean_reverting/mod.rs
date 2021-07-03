@@ -42,21 +42,14 @@ pub struct MeanRevertingStrategy {
     state: MeanRevertingState,
     model: IndicatorModel<MeanRevertingModelValue, SinglePosRow>,
     threshold_table: Option<WindowedModel<f64, f64>>,
-    #[allow(dead_code)]
-    last_row_time_at_eval: DateTime<Utc>,
-    #[allow(dead_code)]
-    last_row_process_time: DateTime<Utc>,
     #[derivative(Debug = "ignore")]
     metrics: Arc<MeanRevertingStrategyMetrics>,
     threshold_eval_freq: Option<i32>,
     threshold_short_0: f64,
     threshold_long_0: f64,
-    #[allow(dead_code)]
     dynamic_threshold: bool,
     last_threshold_time: DateTime<Utc>,
     stopper: Stopper<f64>,
-    #[allow(dead_code)]
-    long_window_size: u32,
 }
 
 static MEAN_REVERTING_DB_KEY: &str = "mean_reverting";
@@ -69,10 +62,10 @@ impl MeanRevertingStrategy {
         pb.push(strat_db_path);
         let db = Arc::new(get_or_create(pb.as_path(), vec![]));
         let state = MeanRevertingState::new(n, db.clone(), om);
-        let model = Self::make_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
+        let ema_model = Self::make_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
         let threshold_table = n.threshold_window_size.map(|thresold_window_size| {
             WindowedModel::new(
-                n.pair.as_ref(),
+                &format!("thresholds_{}", n.pair.as_ref()),
                 db.clone(),
                 thresold_window_size,
                 Some(thresold_window_size * 2),
@@ -80,16 +73,14 @@ impl MeanRevertingStrategy {
             )
         });
 
-        Self {
+        let mut strat = Self {
             exchange: n.exchange.clone(),
             pair: n.pair.clone(),
             fees_rate,
             sample_freq: n.sample_freq(),
             last_sample_time: Utc.timestamp_millis(0),
-            last_row_time_at_eval: Utc.timestamp_millis(0),
-            last_row_process_time: Utc.timestamp_millis(0),
             state,
-            model,
+            model: ema_model,
             threshold_table,
             threshold_eval_freq: n.threshold_eval_freq,
             threshold_short_0: n.threshold_short,
@@ -98,8 +89,43 @@ impl MeanRevertingStrategy {
             last_threshold_time: Utc.timestamp_millis(0),
             stopper: Stopper::new(n.stop_gain, n.stop_loss),
             metrics: Arc::new(metrics),
-            long_window_size: n.long_window_size,
+        };
+        if let Err(e) = strat.load() {
+            error!("{}", e);
+            panic!("Could not loaded models");
         }
+        strat
+    }
+
+    fn load(&mut self) -> crate::error::Result<()> {
+        {
+            self.model.try_loading_model()?;
+            let lmb = self.model.value();
+            lmb.map(|lm| {
+                self.state.set_apo(lm.apo);
+            });
+        }
+        {
+            if let Some(threshold_table) = &mut self.threshold_table {
+                threshold_table.try_loading_model()?;
+            }
+        }
+        if !self.models_loaded() {
+            Err(crate::error::Error::ModelLoadError(
+                "models not loaded for unknown reasons".to_string(),
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn models_loaded(&self) -> bool {
+        self.model.is_loaded()
+            && self
+                .threshold_table
+                .as_ref()
+                .map(|t| t.is_loaded())
+                .unwrap_or_else(|| false)
     }
 
     pub fn make_model(
@@ -112,7 +138,7 @@ impl MeanRevertingStrategy {
         IndicatorModel::new(&format!("model_{}", pair), db, init, ema_model::moving_average_apo)
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     fn model_value(&self) -> Option<MeanRevertingModelValue> { self.model.value() }
 
     fn log_state(&self) { self.metrics.log_state(&self.state); }
@@ -240,11 +266,10 @@ impl MeanRevertingStrategy {
         }
     }
 
-    fn can_eval(&self) -> bool { self.model.value().is_some() }
+    fn can_eval(&self) -> bool { self.models_loaded() }
 
     #[tracing::instrument(skip(self), level = "debug")]
     async fn process_row(&mut self, row: &SinglePosRow) {
-        self.last_row_time_at_eval = self.model.last_model_time().unwrap_or_else(|| Utc.timestamp_millis(0));
         let should_sample = crate::util::is_eval_time_reached(row.time, self.last_sample_time, self.sample_freq, 1);
         // A model is available
         if should_sample {
@@ -261,7 +286,6 @@ impl MeanRevertingStrategy {
                     }
                 })
                 .unwrap();
-            self.last_row_time_at_eval = self.last_sample_time;
         }
         if self.can_eval() {
             match self.eval_latest(row).await {
@@ -294,7 +318,6 @@ impl StrategyInterface for MeanRevertingStrategy {
                 let now = Utc::now();
                 let x = SinglePosRow { time: now, pos };
                 self.process_row(&x).await;
-                self.last_row_process_time = now;
             }
         }
         Ok(())

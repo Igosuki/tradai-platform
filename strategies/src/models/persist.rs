@@ -21,6 +21,7 @@ pub struct PersistentModel<T> {
     last_model_load_attempt: Option<DateTime<Utc>>,
     db: Arc<Box<dyn Storage>>,
     key: String,
+    is_loaded: bool,
 }
 
 impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
@@ -32,14 +33,22 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
             key: key.to_string(),
             last_model: init,
             last_model_load_attempt: None,
+            is_loaded: false,
         }
     }
 
-    pub fn load_model(&mut self) {
-        if let Ok(lmv) = self.db.get(MODELS_TABLE_NAME, &self.key) {
-            self.last_model = Some(lmv);
-        }
+    pub fn load(&mut self) -> crate::error::Result<()> {
         self.last_model_load_attempt = Some(Utc::now());
+        let result = self.db.get(MODELS_TABLE_NAME, &self.key);
+        if let Err(e) = result.map(|lmv| self.last_model = Some(lmv)) {
+            match e {
+                // Ignore not found since this simply means the model was never persisted
+                db::Error::NotFound(_) => {}
+                _ => return Err(e.into()),
+            }
+        }
+        self.is_loaded = true;
+        Ok(())
     }
 
     pub fn set_last_model(&mut self, new_model: T) {
@@ -72,13 +81,18 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
 
     pub fn value(&self) -> Option<T> { self.last_model.clone().map(|s| s.value) }
 
-    pub fn try_loading_model(&mut self) -> bool {
-        if self.last_model_load_attempt.is_some() || self.has_model() {
-            return false;
+    pub fn try_loading(&mut self) -> crate::error::Result<()> {
+        if let None = self.last_model_load_attempt {
+            self.load()?;
         }
-        self.load_model();
-        self.last_model.is_some()
+        if self.is_loaded {
+            Ok(())
+        } else {
+            Err(crate::error::Error::ModelLoadError(self.key.clone()))
+        }
     }
+
+    pub fn is_loaded(&self) -> bool { self.is_loaded }
 }
 
 pub type Window<'a, T> = impl Iterator<Item = &'a T> + Clone;
@@ -95,6 +109,8 @@ pub struct PersistentVec<T> {
     max_size: usize,
     pub window_size: usize,
     key: String,
+    last_load_attempt: Option<DateTime<Utc>>,
+    is_loaded: bool,
 }
 
 impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
@@ -106,6 +122,8 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
             max_size,
             window_size,
             key: key.to_string(),
+            last_load_attempt: None,
+            is_loaded: false,
         }
     }
 
@@ -131,17 +149,32 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
 
     pub fn len(&self) -> usize { self.rows.len() }
 
-    pub fn load(&mut self) {
+    pub fn load(&mut self) -> crate::error::Result<()> {
         self.rows = self
             .db
-            .get_all(&self.key)
-            .unwrap()
+            .get_all(&self.key)?
             .into_iter()
             .map(|v| TimedValue(v.0.parse::<i64>().unwrap(), v.1))
             .collect();
+        self.last_load_attempt = Some(Utc::now());
+        self.is_loaded = true;
+        Ok(())
     }
 
     pub fn is_filled(&self) -> bool { self.len() > self.window_size }
+
+    pub fn try_loading(&mut self) -> crate::error::Result<()> {
+        if let None = self.last_load_attempt {
+            self.load()?;
+        }
+        if self.is_loaded {
+            Ok(())
+        } else {
+            Err(crate::error::Error::ModelLoadError(self.key.clone()))
+        }
+    }
+
+    pub fn is_loaded(&self) -> bool { self.is_loaded }
 }
 
 #[cfg(test)]
@@ -198,6 +231,6 @@ mod test {
         );
         let _gen = Gen::new(500);
         b.iter(|| table.update_model(|m, _a| m.clone(), ()).unwrap());
-        table.load_model();
+        table.try_loading().unwrap();
     }
 }
