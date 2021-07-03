@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use crate::order_types::{OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
 use crate::types::TradeKind;
-use crate::wal::Wal;
+use crate::wal::{Wal, WalCmp};
 
 #[derive(Debug, Clone)]
 pub(crate) struct TransactionService {
@@ -189,11 +189,18 @@ impl OrderManager {
         reader.get(&order_id).cloned()
     }
 
+    pub(crate) async fn is_newer_status(&self, order_id: &str, tr: &TransactionStatus) -> bool {
+        let orders = self.orders.read().await;
+        orders.get(order_id).map(|status| status.is_before(tr)).unwrap_or(true)
+    }
+
     /// Registers a transaction
     pub(crate) async fn register(&mut self, order_id: String, tr: TransactionStatus) -> Result<()> {
         self.transactions_wal.append(order_id.clone(), tr.clone())?;
-        let mut writer = self.orders.write().await;
-        writer.insert(order_id.clone(), tr.clone());
+        if self.is_newer_status(&order_id, &tr).await {
+            let mut writer = self.orders.write().await;
+            writer.insert(order_id.clone(), tr.clone());
+        }
         Ok(())
     }
 
@@ -201,7 +208,11 @@ impl OrderManager {
     pub(crate) fn transactions(&self) -> Result<Vec<Transaction>> {
         self.transactions_wal
             .get_all()
-            .map(|r| r.into_iter().map(|(id, status)| Transaction { status, id }).collect())
+            .map(|r| {
+                r.into_iter()
+                    .map(|(ts, (id, status))| Transaction { status, id })
+                    .collect()
+            })
             .map_err(|e| e.into())
     }
 }
@@ -232,14 +243,14 @@ impl Actor for OrderManager {
                 async move {
                     {
                         let mut writer = act.orders.write().await;
-                        if let Ok(wal_transactions) = act.transactions_wal.read_all() {
+                        if let Ok(wal_transactions) = act.transactions_wal.get_all_compacted() {
                             writer.extend(wal_transactions);
                         }
                     }
                     let orders_read_lock = act.orders.read().await;
                     // Fetch all latest orders
                     info!("Fetching remote orders for all unfilled transactions");
-                    let latest_orders = futures::future::join_all(
+                    let non_filled_orders = futures::future::join_all(
                         orders_read_lock
                             .iter()
                             .filter(|(_k, v)| match v {
@@ -250,7 +261,7 @@ impl Actor for OrderManager {
                     )
                     .await;
                     let mut notifications = vec![];
-                    for lo in latest_orders {
+                    for lo in non_filled_orders {
                         if let Ok(order) = lo {
                             let order_id = order.orig_order_id.clone();
                             if let Some(tr_status) = orders_read_lock.get(&order_id) {
@@ -504,5 +515,25 @@ mod test {
             statuses.last().unwrap(),
             "latest order should the last in statuses"
         );
+        // Insert a new order status
+        let reg = order_manager
+            .register(
+                order_id.clone(),
+                TransactionStatus::New(OrderInfo {
+                    timestamp: 0,
+                    id: order_id.clone(),
+                }),
+            )
+            .await;
+        let order = order_manager.get_order(order_id.clone()).await;
+        // The order registry should remain unchanged
+        assert_eq!(
+            &order.unwrap(),
+            statuses.last().unwrap(),
+            "latest order should the last in statuses"
+        );
+        let compacted = order_manager.transactions_wal.get_all_compacted();
+        assert!(compacted.is_ok());
+        assert_eq!(compacted.unwrap().get(&order_id.clone()), statuses.last())
     }
 }
