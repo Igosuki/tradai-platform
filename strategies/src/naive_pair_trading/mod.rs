@@ -302,7 +302,7 @@ impl NaiveTradingStrategy {
     }
 
     async fn process_row(&mut self, row: &DataRow) {
-        if self.data_table.try_loading_model() {
+        if self.data_table.try_loading_model().is_ok() {
             self.set_model_from_table();
             self.last_row_time_at_eval = self
                 .data_table

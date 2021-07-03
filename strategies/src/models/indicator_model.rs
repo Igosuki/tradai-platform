@@ -35,6 +35,10 @@ impl<T: Serialize + DeserializeOwned + Clone, R: Clone> IndicatorModel<T, R> {
     pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }
 
     pub fn value(&self) -> Option<T> { self.model.value() }
+
+    pub fn try_loading_model(&mut self) -> crate::error::Result<()> { self.model.try_loading() }
+
+    pub fn is_loaded(&self) -> bool { self.model.is_loaded() }
 }
 
 #[cfg(test)]
