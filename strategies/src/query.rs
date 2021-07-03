@@ -13,6 +13,7 @@ pub enum DataResult {
     NaiveOperation(Option<NaiveOperation>),
     MeanRevertingOperation(Option<MeanRevertingOperation>),
     OngongOperationCancelation(bool),
+    State(String),
 }
 
 #[derive(Deserialize, Serialize, Message)]
@@ -26,6 +27,8 @@ pub enum DataQuery {
     CurrentOperation,
     /// Cancel the ongoing operation
     CancelOngoingOp,
+    /// Latest state
+    State,
 }
 
 #[derive(Deserialize, Serialize, juniper::GraphQLEnum)]

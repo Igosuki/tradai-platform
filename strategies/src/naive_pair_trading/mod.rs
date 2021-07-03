@@ -379,6 +379,7 @@ impl StrategyInterface for NaiveTradingStrategy {
             DataQuery::Dump => Some(DataResult::Dump(self.dump_db())),
             DataQuery::CurrentOperation => Some(DataResult::NaiveOperation(self.get_ongoing_op().clone())),
             DataQuery::CancelOngoingOp => Some(DataResult::OngongOperationCancelation(self.cancel_ongoing_op())),
+            DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
         }
     }
 
