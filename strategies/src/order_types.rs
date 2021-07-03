@@ -50,7 +50,7 @@ pub enum TransactionStatus {
 
 impl WalCmp for TransactionStatus {
     fn is_before(&self, v: &Self) -> bool {
-        if std::mem::discriminant(&self) == std::mem::discriminant(&v) {
+        if std::mem::discriminant(self) == std::mem::discriminant(v) {
             return false;
         }
         match self {
@@ -66,7 +66,11 @@ impl WalCmp for TransactionStatus {
                 Self::Rejected(_) | Self::Filled(_) => true,
                 _ => false,
             },
-            Self::Rejected(_) | Self::Filled(_) => true,
+            Self::Filled(_) => match v {
+                Self::Rejected(_) => true,
+                _ => false,
+            },
+            Self::Rejected(_) => false,
         }
     }
 }
@@ -124,3 +128,33 @@ pub struct PassOrder {
 #[derive(Message)]
 #[rtype(result = "Result<Transaction>")]
 pub struct OrderId(pub String);
+
+#[cfg(test)]
+mod test {
+    use crate::order_types::{Rejection, Transaction, TransactionStatus};
+    use coinnect_rt::types::{AddOrderRequest, OrderInfo, OrderQuery, OrderUpdate};
+
+    #[test]
+    fn test_variant_eq() {
+        let order_id = "1".to_string();
+        let statuses = vec![
+            TransactionStatus::New(OrderInfo {
+                timestamp: 0,
+                id: order_id.clone(),
+            }),
+            TransactionStatus::Staged(OrderQuery::AddOrder(AddOrderRequest::default())),
+            TransactionStatus::Filled(OrderUpdate::default()),
+            TransactionStatus::Rejected(Rejection::Other("".to_string())),
+        ];
+        let tr0 = Transaction {
+            id: order_id.clone(),
+            status: statuses[0].clone(),
+        };
+        let tr1 = Transaction {
+            id: order_id.clone(),
+            status: statuses[1].clone(),
+        };
+        assert!(tr0.variant_eq(&tr0));
+        assert!(!tr0.variant_eq(&tr1));
+    }
+}

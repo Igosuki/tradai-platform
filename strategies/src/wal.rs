@@ -47,12 +47,9 @@ impl Wal {
         self.backend.get_all::<T>(&self.table).map_err(|e| e.into()).map(|v| {
             v.into_iter()
                 .map(|(k, v)| {
-                    let index = k.find(WAL_KEY_SEP);
-                    let (t, k) = if let Some(i) = index {
-                        let (ts_str, key) = k.split_at(i);
-                        (ts_str.parse::<i64>().unwrap(), key.to_string())
-                    } else {
-                        (0i64, k)
+                    let (t, k) = match k.split_once(WAL_KEY_SEP) {
+                        Some((ts_str, key)) => (ts_str.parse::<i64>().unwrap(), key.to_string()),
+                        None => (0i64, k),
                     };
                     (t, (k, v))
                 })

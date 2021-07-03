@@ -189,15 +189,17 @@ impl OrderManager {
         reader.get(&order_id).cloned()
     }
 
-    pub(crate) async fn is_newer_status(&self, order_id: &str, tr: &TransactionStatus) -> bool {
-        let orders = self.orders.read().await;
-        orders.get(order_id).map(|status| status.is_before(tr)).unwrap_or(true)
-    }
-
     /// Registers a transaction
     pub(crate) async fn register(&mut self, order_id: String, tr: TransactionStatus) -> Result<()> {
         self.transactions_wal.append(order_id.clone(), tr.clone())?;
-        if self.is_newer_status(&order_id, &tr).await {
+        let should_write = {
+            let orders = self.orders.read().await;
+            orders
+                .get(&order_id)
+                .map(|status| status.is_before(&tr))
+                .unwrap_or(true)
+        };
+        if should_write {
             let mut writer = self.orders.write().await;
             writer.insert(order_id.clone(), tr.clone());
         }
@@ -210,7 +212,7 @@ impl OrderManager {
             .get_all()
             .map(|r| {
                 r.into_iter()
-                    .map(|(ts, (id, status))| Transaction { status, id })
+                    .map(|(_ts, (id, status))| Transaction { status, id })
                     .collect()
             })
             .map_err(|e| e.into())
@@ -525,15 +527,20 @@ mod test {
                 }),
             )
             .await;
+        assert!(reg.is_ok());
         let order = order_manager.get_order(order_id.clone()).await;
         // The order registry should remain unchanged
         assert_eq!(
             &order.unwrap(),
             statuses.last().unwrap(),
-            "latest order should the last in statuses"
+            "latest order should the last in statuses after registering a new order"
         );
         let compacted = order_manager.transactions_wal.get_all_compacted();
         assert!(compacted.is_ok());
-        assert_eq!(compacted.unwrap().get(&order_id.clone()), statuses.last())
+        assert_eq!(
+            compacted.unwrap().get(&order_id.clone()),
+            statuses.last(),
+            "Compacted record should be the highest inserted status"
+        )
     }
 }
