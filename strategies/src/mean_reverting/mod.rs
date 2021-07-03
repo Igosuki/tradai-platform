@@ -329,6 +329,7 @@ impl StrategyInterface for MeanRevertingStrategy {
             DataQuery::Dump => Some(DataResult::Dump(self.dump_db())),
             DataQuery::CurrentOperation => Some(DataResult::MeanRevertingOperation(self.get_ongoing_op().clone())),
             DataQuery::CancelOngoingOp => Some(DataResult::OngongOperationCancelation(self.cancel_ongoing_op())),
+            DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
         }
     }
 

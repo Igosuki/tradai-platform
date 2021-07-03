@@ -42,7 +42,7 @@ impl Operation {
             (PositionKind::LONG, OperationKind::OPEN) | (PositionKind::SHORT, OperationKind::CLOSE) => TradeKind::BUY,
         };
         Operation {
-            id: format!("{}:{}", OPERATIONS_KEY, Uuid::new_v4()),
+            id: Uuid::new_v4().to_string(),
             pos: pos.clone(),
             kind: op_kind,
             transaction: None,
@@ -476,12 +476,7 @@ impl MeanRevertingState {
         serde_json::to_string(&dump).unwrap()
     }
 
-    #[allow(dead_code)]
-    fn get_operation(&self, uuid: &str) -> Option<Operation> {
-        self.db
-            .get(OPERATIONS_KEY, &format!("{}:{}", OPERATIONS_KEY, uuid))
-            .ok()
-    }
+    fn get_operation(&self, uuid: &str) -> Option<Operation> { self.db.get(OPERATIONS_KEY, uuid).ok() }
 
     fn log_indicators(&self, pos: &PositionKind) {
         if log_enabled!(Debug) {
