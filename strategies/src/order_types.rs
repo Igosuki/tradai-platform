@@ -5,6 +5,7 @@ use derive_more::Display;
 use serde::{Deserialize, Serialize};
 
 use crate::types::TradeKind;
+use crate::wal::WalCmp;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "reject_type", content = "__field0")]
@@ -45,6 +46,29 @@ pub enum TransactionStatus {
     PartiallyFilled(OrderUpdate),
     #[display(fmt = "rejected")]
     Rejected(Rejection),
+}
+
+impl WalCmp for TransactionStatus {
+    fn is_before(&self, v: &Self) -> bool {
+        if std::mem::discriminant(&self) == std::mem::discriminant(&v) {
+            return false;
+        }
+        match self {
+            Self::Staged(_) => match v {
+                Self::New(_) | Self::PartiallyFilled(_) | Self::Rejected(_) | Self::Filled(_) => true,
+                _ => false,
+            },
+            Self::New(_) => match v {
+                Self::PartiallyFilled(_) | Self::Rejected(_) | Self::Filled(_) => true,
+                _ => false,
+            },
+            Self::PartiallyFilled(_) => match v {
+                Self::Rejected(_) | Self::Filled(_) => true,
+                _ => false,
+            },
+            Self::Rejected(_) | Self::Filled(_) => true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
