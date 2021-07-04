@@ -116,12 +116,25 @@ impl QueryRoot {
             .collect())
     }
 
-    #[graphql(description = "Get all positions for this strat")]
+    #[graphql(description = "Dump the stored state for a strategy")]
     async fn dump_strat_db(context: &Context, tk: TypeAndKeyInput) -> FieldResult<String> {
         context
             .with_strat(tk, DataQuery::Dump, |dr| {
                 if let DataResult::Dump(dump) = dr {
                     Ok(dump)
+                } else {
+                    unhandled_data_result()
+                }
+            })
+            .await
+    }
+
+    #[graphql(description = "Dump the current in memory state for a strategy")]
+    async fn strat_state(context: &Context, tk: TypeAndKeyInput) -> FieldResult<String> {
+        context
+            .with_strat(tk, DataQuery::State, |dr| {
+                if let DataResult::State(state_str) = dr {
+                    Ok(state_str)
                 } else {
                     unhandled_data_result()
                 }
