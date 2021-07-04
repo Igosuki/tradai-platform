@@ -1,0 +1,36 @@
+exchanges:
+  #  Bitstamp:
+  #    orderbook:
+  #      symbols: ['BTC_USD']
+  #      trades:
+  #        symbols: ['BTC_USD']
+  binance:
+    fees: 0.001
+    use_account: true
+    use_test: false
+    orderbook_depth: 5
+    orderbook:
+      symbols: ['BTC_USDT', 'ETH_USDT', 'BCH_USDT', 'XRP_USDT', 'EOS_USDT', 'LTC_USDT', 'TRX_USDT', 'ETC_USDT', 'LINK_USDT', 'XLM_USDT', 'ADA_USDT', 'XMR_USDT', 'DASH_USDT', 'ZEC_USDT', 'XTZ_USDT', 'BNB_USDT', 'ATOM_USDT', 'ONT_USDT', 'IOTA_USDT', 'BAT_USDT', 'VET_USDT', 'NEO_USDT', 'QTUM_USDT', 'IOST_USDT', 'THETA_USDT', 'ALGO_USDT', 'ZIL_USDT', 'KNC_USDT', 'ZRX_USDT', 'COMP_USDT', 'OMG_USDT', 'DOGE_USDT', 'SXP_USDT', 'KAVA_USDT', 'BAND_USDT', 'RLC_USDT', 'WAVES_USDT', 'MKR_USDT', 'SNX_USDT', 'DOT_USDT', 'DEFI_USDT', 'YFI_USDT', 'BAL_USDT', 'CRV_USDT', 'TRB_USDT', 'YFII_USDT', 'RUNE_USDT', 'SUSHI_USDT', 'SRM_USDT', 'BZRX_USDT', 'EGLD_USDT', 'SOL_USDT', 'ICX_USDT', 'STORJ_USDT', 'BLZ_USDT', 'UNI_USDT', 'AVAX_USDT', 'FTM_USDT', 'HNT_USDT', 'ENJ_USDT', 'FLM_USDT', 'TOMO_USDT', 'REN_USDT', 'KSM_USDT', 'NEAR_USDT', 'AAVE_USDT', 'FIL_USDT', 'RSR_USDT', 'LRC_USDT', 'MATIC_USDT', 'OCEAN_USDT', 'CVC_USDT', 'BEL_USDT', 'CTK_USDT', 'AXS_USDT', 'ALPHA_USDT', 'ZEN_USDT', 'SKL_USDT', 'GRT_USDT', '1INCH_USDT', '"BTCBUSD"', 'AKRO_USDT', 'CHZ_USDT', 'SAND_USDT', 'ANKR_USDT', 'LUNA_USDT', 'BTS_USDT', 'LIT_USDT', 'UNFI_USDT', 'DODO_USDT', 'REEF_USDT', 'RVN_USDT', 'SFP_USDT', 'XEM_USDT', 'BTCST_USDT', 'COTI_USDT', 'CHR_USDT', 'MANA_USDT', 'ALICE_USDT', 'HBAR_USDT', 'ONE_USDT', 'LINA_USDT', 'STMX_USDT', 'DENT_USDT', 'CELR_USDT', 'HOT_USDT', 'MTL_USDT', 'OGN_USDT', 'BTT_USDT', 'NKN_USDT', 'SC_USDT', 'DGB_USDT', '1000SHIB_USDT', 'ICP_USDT', 'BAKE_USDT', 'GTC_USDT', 'BTC_USDT', 'ETH_USDT', 'BTCDOM_USDT', 'KEEP_USDT']
+
+streams:
+  - type: ExchangeBots
+
+outputs:
+  - type: AvroFileLogger
+    file_rotation:
+      max_file_size: 50 Mb
+      max_file_time: 1800
+    basedir: './data24'
+
+data_dir: './data24'
+
+keys: ./infra/prod/playbooks/trader_conf/keys_real.json
+
+db_storage_path: './database'
+
+prom_push_gw: 127.0.0.1:9091
+
+prom_instance: feeder24
+
+api:
+  port: 8181
