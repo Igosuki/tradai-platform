@@ -1,7 +1,11 @@
 all:
   hosts:
-    btc3:
+    trader:
       ansible_host: 139.59.230.40
+      ansible_user: root
+      ansible_ssh_private_key_file: ~/.ssh/btc
+    feeder_24:
+      ansible_host:
       ansible_user: root
       ansible_ssh_private_key_file: ~/.ssh/btc
     monitoring:

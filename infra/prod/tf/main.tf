@@ -24,6 +24,17 @@ resource "digitalocean_droplet" "trader2" {
   tags     = ["trader", "prod"]
 }
 
+resource "digitalocean_droplet" "trader3" {
+  image    = "ubuntu-20-04-x64"
+  name     = "trader-24h"
+  region   = "sgp1"
+  size     = "s-1vcpu-1gb-intel"
+  backups  = true
+  ipv6     = true
+  ssh_keys = [26568141]
+  tags     = ["trader", "prod"]
+}
+
 resource "digitalocean_droplet" "monitoring" {
   image    = "ubuntu-20-04-x64"
   name     = "monitoring"
@@ -67,7 +78,7 @@ resource "digitalocean_firewall" "monitoring" {
 resource "digitalocean_firewall" "trader" {
   name = "trader-monitoring"
 
-  droplet_ids = [digitalocean_droplet.trader2.id]
+  droplet_ids = [digitalocean_droplet.trader2.id, digitalocean_droplet.trader3.id]
 
   inbound_rule {
     protocol         = "tcp"
@@ -97,4 +108,16 @@ resource "digitalocean_firewall" "trader" {
     destination_addresses = ["0.0.0.0/0", "::/0"]
     port_range            = "all"
   }
+}
+
+output "trader2" {
+  value = digitalocean_droplet.trader2.ipv4_address
+}
+
+output "trader3" {
+  value = digitalocean_droplet.trader3.ipv4_address
+}
+
+output "monitoring" {
+  value = digitalocean_droplet.monitoring.ipv4_address
 }

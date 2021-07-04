@@ -1,5 +1,5 @@
 ---
-- hosts: btc3
+- hosts: {{ INVENTORY_HOST }}
   name: Install the trading system
   remote_user: root
   tasks:
