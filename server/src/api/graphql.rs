@@ -119,8 +119,7 @@ where
     let get_req = web::Query::<GetGraphQLRequest>::from_query(req.query_string())?;
     let req = GraphQLRequest::from(get_req.into_inner());
     let gql_response = req.execute(schema, context).await;
-    let body_response =
-        serde_json::to_string(&gql_response).map_err(|_e| actix_web::web::HttpResponse::internal_server_error())?;
+    let body_response = serde_json::to_string(&gql_response)?;
     let mut response = match gql_response.is_ok() {
         true => HttpResponse::Ok(),
         false => HttpResponse::BadRequest(),
@@ -159,8 +158,7 @@ where
         )),
     }?;
     let gql_batch_response = req.execute(schema, context).await;
-    let gql_response = serde_json::to_string(&gql_batch_response)
-        .map_err(|_e| actix_web::web::HttpResponse::internal_server_error())?;
+    let gql_response = serde_json::to_string(&gql_batch_response)?;
     let mut response = match gql_batch_response.is_ok() {
         true => HttpResponse::Ok(),
         false => HttpResponse::BadRequest(),

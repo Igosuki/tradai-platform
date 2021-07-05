@@ -4,7 +4,7 @@ use std::fs::File;
 use std::sync::Arc;
 
 use actix_web::{body::Body,
-                web::{self, HttpResponse as HttpResponse2},
+                web::{self},
                 Error, HttpResponse, ResponseError};
 use derive_more::Display;
 use futures::lock::Mutex;
@@ -43,11 +43,12 @@ pub enum ApiError {
 }
 
 impl ResponseError for ApiError {
-    fn error_response(&self) -> HttpResponse2<Body> {
+    fn error_response(&self) -> HttpResponse<Body> {
         match self {
-            ExchangeNotFound(_e) => HttpResponse2::not_found(),
-            ApiError::Coinnect(e) => HttpResponse2::internal_server_error().set_body(e.to_string().into()),
-            ApiError::IoError(e) => HttpResponse2::internal_server_error().set_body(e.to_string().into()), // _ => HttpResponse::InternalServerError().finish()
+            ExchangeNotFound(_e) => HttpResponse::NotFound().finish(),
+            ApiError::Coinnect(e) => HttpResponse::InternalServerError().body(e.to_string()),
+            ApiError::IoError(e) => HttpResponse::InternalServerError().body(e.to_string()),
+            _ => HttpResponse::InternalServerError().finish(),
         }
     }
 }
