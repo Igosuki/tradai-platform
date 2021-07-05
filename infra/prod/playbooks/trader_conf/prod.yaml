@@ -26,11 +26,11 @@ strategies:
     dry_mode: false
     sample_freq: 1min
     initial_cap: 100.0
-    threshold_short: 0.01
-    threshold_long: -0.01
+    threshold_short: 0.02
+    threshold_long: -0.02
     threshold_eval_freq: 1
     dynamic_threshold: true
-    threshold_window_size: 10000
+    threshold_window_size: 1000
     stop_loss: -0.1
     stop_gain: 0.075
     exchange: Binance
@@ -41,11 +41,11 @@ strategies:
     dry_mode: false
     sample_freq: 1min
     initial_cap: 100.0
-    threshold_short: 0.01
-    threshold_long: -0.01
+    threshold_short: 0.02
+    threshold_long: -0.02
     threshold_eval_freq: 1
     dynamic_threshold: true
-    threshold_window_size: 10000
+    threshold_window_size: 1000
     stop_loss: -0.1
     stop_gain: 0.075
     exchange: Binance
@@ -56,11 +56,11 @@ strategies:
     dry_mode: false
     sample_freq: 1min
     initial_cap: 100.0
-    threshold_short: 0.01
-    threshold_long: -0.01
+    threshold_short: 0.02
+    threshold_long: -0.02
     threshold_eval_freq: 1
     dynamic_threshold: true
-    threshold_window_size: 10000
+    threshold_window_size: 1000
     stop_loss: -0.1
     stop_gain: 0.075
     exchange: Binance
