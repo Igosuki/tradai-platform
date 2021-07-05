@@ -3,13 +3,6 @@
   name: Install the trading system
   remote_user: root
   pre_tasks:
-    - name: Configuration
-      copy:
-        src: ./trader_conf/
-        dest: /root/config
-        owner: root
-        group: root
-        mode: '0644'
     - name: Trader Binary
       copy:
         src: ../../../cargo-target/x86_64-unknown-linux-gnu/release/trader
