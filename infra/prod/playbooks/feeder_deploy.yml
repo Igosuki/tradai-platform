@@ -1,6 +1,6 @@
 ---
-- hosts: {{ INVENTORY_HOST }}
-  name: Install the feeder
+- hosts: "{{ INVENTORY_HOST }}"
+  name: Deploy the feeder
   remote_user: root
   pre_tasks:
     - name: Configuration

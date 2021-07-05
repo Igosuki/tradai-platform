@@ -1,5 +1,5 @@
 ---
-- hosts: {{ INVENTORY_HOST }}
+- hosts: "{{ INVENTORY_HOST }}"
   name: Install the trading system
   remote_user: root
   tasks:
@@ -20,7 +20,7 @@
       file:
         path: /root/.config
         state: directory
-    - name: install cloner systemd timer file
+    - name: install rclone conf
       template: src=rclone/rclone.conf.j2 dest=/root/.config/rclone.conf
     - name: install cloner systemd unit file
       template: src=system.d/cloner.service.j2 dest=/etc/systemd/system/cloner.service

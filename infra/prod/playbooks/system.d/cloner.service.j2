@@ -9,7 +9,7 @@ User=root
 Group=root
 UMask=007
 
-ExecStart=rclone move --min-age=1h /root/data/ spaces:btcfeed/data
+ExecStart=rclone move --min-age={{FEEDER_DATA_MOVE_MIN_AGE | default('1h') }} /root/data/ spaces:btcfeed/{{FEEDER_REMOTE_DIRECTORY | default('data') }}
 
 WorkingDirectory=/root
 

@@ -19,12 +19,12 @@ outputs:
   - type: AvroFileLogger
     file_rotation:
       max_file_size: 50 Mb
-      max_file_time: 1800
+      max_file_time: 36000
     basedir: './data24'
 
 data_dir: './data24'
 
-keys: ./infra/prod/playbooks/trader_conf/keys_real.json
+keys: /root/config/keys_real.json
 
 db_storage_path: './database'
 
@@ -33,4 +33,4 @@ prom_push_gw: 127.0.0.1:9091
 prom_instance: feeder24
 
 api:
-  port: 8181
+  port: 8184
