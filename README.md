@@ -4,7 +4,14 @@ Requires a `config/$TRADER_ENV.yaml` file in the cwd.
 
 See test.yaml for a reference implementation.
 
-### Running infrastructure 
+### Running development infrastructure 
+
+```
+cd infra/dev
+docker-compose up -d
+```
+
+### Running production infrastructure 
 
 Install terraform 
 ```
