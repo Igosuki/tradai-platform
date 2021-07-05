@@ -79,10 +79,10 @@ actix-rt = "2.2"
 actix_derive = "0.6"
 actix = "0.11"
 actix-codec = "0.4"
-actix-cors = { git = "https://github.com/Igosuki/actix-extras.git" }
+actix-cors = "0.6.0-beta.2"
 
 # Juniper
-juniper = { git = "https://github.com/graphql-rust/juniper", features = ["expose-test-schema"] }
+juniper = { version = "0.15", features = ["expose-test-schema"] }
 
 # Crypto
 #coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
