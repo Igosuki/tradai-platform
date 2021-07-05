@@ -22,6 +22,9 @@ extern crate serde;
 extern crate derivative;
 #[macro_use]
 extern crate measure_time;
+#[cfg(test)]
+#[macro_use]
+extern crate lazy_static;
 
 use actix::{Actor, Addr, Context, Handler, ResponseActFuture, Running, WrapFuture};
 use anyhow::Result;

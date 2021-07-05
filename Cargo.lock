@@ -5144,6 +5144,7 @@ dependencies = [
  "httpmock",
  "itertools",
  "juniper",
+ "lazy_static 1.4.0",
  "log",
  "matches",
  "math",
