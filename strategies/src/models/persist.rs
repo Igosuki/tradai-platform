@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use db::Storage;
 use db::StorageExt;
+use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -113,6 +114,7 @@ pub struct PersistentVec<T> {
     is_loaded: bool,
 }
 
+/// Values are written and sorted by time
 impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
     pub fn new(db: Arc<Box<dyn Storage>>, key: &str, max_size: usize, window_size: usize) -> Self {
         db.ensure_table(key).unwrap();
@@ -145,7 +147,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
         }
     }
 
-    pub(crate) fn window(&self) -> Window<T> { self.rows.iter().map(|r| &r.1).rev().take(self.window_size) }
+    pub fn window(&self) -> Window<T> { self.rows.iter().map(|r| &r.1).rev().take(self.window_size).rev() }
 
     pub fn len(&self) -> usize { self.rows.len() }
 
@@ -155,6 +157,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
             .get_all(&self.key)?
             .into_iter()
             .map(|v| TimedValue(v.0.parse::<i64>().unwrap(), v.1))
+            .sorted_by_key(|t| t.0)
             .collect();
         self.last_load_attempt = Some(Utc::now());
         self.is_loaded = true;
@@ -185,6 +188,7 @@ mod test {
 
     use super::ModelValue;
     use super::PersistentModel;
+    use crate::models::persist::PersistentVec;
     use crate::types::BookPosition;
     use chrono::{DateTime, Utc};
     use db::get_or_create;
@@ -192,11 +196,12 @@ mod test {
     use quickcheck::{Arbitrary, Gen};
     use std::sync::Arc;
     use test::Bencher;
+    use util::test::test_dir;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct MockLinearModel;
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
     pub struct TestRow {
         pub time: DateTime<Utc>,
         pub pos: BookPosition, // crypto_1
@@ -211,11 +216,6 @@ mod test {
             }
         }
     }
-
-    // fn test_db() -> Db {
-    //     let tempdir = TempDir::new().unwrap();
-    //     Db::new(tempdir.into_path().to_str().unwrap(), "temp".to_string())
-    // }
 
     #[bench]
     fn test_save_load_model(b: &mut Bencher) {
@@ -232,5 +232,28 @@ mod test {
         let _gen = Gen::new(500);
         b.iter(|| table.update_model(|m, _a| m.clone(), ()).unwrap());
         table.try_loading().unwrap();
+    }
+
+    #[test]
+    fn test_save_load_model_is_sorted() {
+        let id = "test_vec";
+        let max_size = 10;
+        let test_dir = test_dir();
+        let test_path = test_dir.into_path();
+        let window: Vec<TestRow> = {
+            let db = Arc::new(get_or_create(test_path.clone(), vec![]));
+            let mut table = PersistentVec::new(db.clone(), id, max_size, max_size / 2);
+            let mut gen = Gen::new(500);
+            for _ in 0..max_size {
+                table.push(&TestRow::arbitrary(&mut gen))
+            }
+            table.window().map(|r| r.clone()).collect()
+        };
+        let db = Arc::new(get_or_create(test_path.clone(), vec![]));
+        let mut table: PersistentVec<TestRow> = PersistentVec::new(db.clone(), id, max_size, max_size / 2);
+        let load = table.load();
+        assert!(load.is_ok(), "{:?}", load);
+        let window_after_load: Vec<TestRow> = table.window().map(|r| r.clone()).collect();
+        assert_eq!(window, window_after_load);
     }
 }

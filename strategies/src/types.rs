@@ -101,7 +101,7 @@ pub enum DataTableError {
     MissingAsks,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BookPosition {
     pub mid: f64,
     // mid = (top_ask + top_bid) / 2, alias: crypto1_m
@@ -155,14 +155,26 @@ mod test {
 
     use crate::types::BookPosition;
 
+    lazy_static! {
+        static ref MAX_ALLOWED_F64: f64 = 1.0_f64.powf(10.0);
+    }
+
+    fn zero_if_nan(x: f64) -> f64 {
+        if x.is_nan() || x.is_infinite() {
+            0.0
+        } else {
+            x
+        }
+    }
+
     impl Arbitrary for BookPosition {
         fn arbitrary(g: &mut Gen) -> BookPosition {
             BookPosition {
-                ask: f64::arbitrary(g),
-                ask_q: f64::arbitrary(g),
-                bid: f64::arbitrary(g),
-                bid_q: f64::arbitrary(g),
-                mid: f64::arbitrary(g),
+                ask: zero_if_nan(f64::arbitrary(g)),
+                ask_q: zero_if_nan(f64::arbitrary(g)),
+                bid: zero_if_nan(f64::arbitrary(g)),
+                bid_q: zero_if_nan(f64::arbitrary(g)),
+                mid: zero_if_nan(f64::arbitrary(g)),
             }
         }
     }
