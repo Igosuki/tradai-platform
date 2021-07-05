@@ -237,7 +237,7 @@ mod test {
     #[test]
     fn test_save_load_model_is_sorted() {
         let id = "test_vec";
-        let max_size = 10;
+        let max_size = 11;
         let test_dir = test_dir();
         let test_path = test_dir.into_path();
         let window: Vec<TestRow> = {
