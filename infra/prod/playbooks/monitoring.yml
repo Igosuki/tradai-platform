@@ -36,14 +36,16 @@
       - job_name: 'pushgateway'
         static_configs:
           - targets:
-            - 139.59.230.40:9091
+            - "{{ hostvars.trader.ansible_host }}:9091"
+            - "{{ hostvars.feeder24.ansible_host }}:9091"
         scrape_interval: 5s
         honor_labels: true
       - job_name: 'node-exporter'
         scrape_interval: 5s
         static_configs:
           - targets:
-            - 139.59.230.40:9100
+            - "{{ hostvars.trader.ansible_host }}:9100"
+            - "{{ hostvars.feeder24.ansible_host }}:9100"
             - localhost:9100
       - job_name: 'prometheus'
         scrape_interval: 5s
