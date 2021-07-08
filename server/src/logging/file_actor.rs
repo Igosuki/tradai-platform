@@ -270,15 +270,16 @@ mod test {
         let new_dir = dir_str;
         System::new().block_on(async move {
             let addr = SyncArbiter::start(1, move || actor(new_dir.clone().as_str()));
-            let order_book_event = LiveEventEnveloppe(
-                Exchange::Binance,
-                LiveEvent::LiveOrderbook(Orderbook {
+            let order_book_event = LiveEventEnveloppe {
+                xch: Exchange::Binance,
+                e: LiveEvent::LiveOrderbook(Orderbook {
                     timestamp: chrono::Utc::now().timestamp(),
                     pair: "BTC_USDT".into(),
                     asks: vec![(0.1, 0.1), (0.2, 0.2)],
                     bids: vec![(0.1, 0.1), (0.2, 0.2)],
+                    last_order_id: None,
                 }),
-            );
+            };
             println!("Sending...");
             for _ in 0..100000 {
                 addr.do_send(order_book_event.clone());
