@@ -3,10 +3,12 @@ extern crate clap;
 
 use chrono::{Duration, TimeZone, Utc};
 use clap::{App, Arg};
+use db::get_or_create;
 use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
 use std::ops::Sub;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Instant;
 use strategies::input::CsvRecord;
 use strategies::naive_pair_trading::covar_model::DataRow;
@@ -86,7 +88,8 @@ fn main() {
     let right_records = &records[1];
     println!("Right records count : {}", right_records.len());
 
-    let mut data_table = NaiveTradingStrategy::make_lm_table(&left_pair, &right_pair, &db_storage_path, window_size);
+    let db = Arc::new(get_or_create(db_storage_path, vec![]));
+    let mut data_table = NaiveTradingStrategy::make_lm_table(&left_pair, &right_pair, db, window_size);
     let mut right_only: i32 = 0;
     let mut left_only: i32 = 0;
     let mut both: i32 = 0;
@@ -131,7 +134,7 @@ fn main() {
     });
     println!("Saving Model...");
     data_table.update_model().unwrap();
-    data_table.load_model();
+    data_table.try_loading_model();
     assert!(data_table.has_model());
     println!("{:?}", data_table.model().unwrap());
     println!("Execution took {} seconds", now.elapsed().as_secs());
