@@ -1,6 +1,6 @@
 use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
 use actix::{Actor, Handler, Running, SyncContext};
-use avro_rs::encode::encode;
+use avro_rs::encode;
 use avro_rs::{types::{ToAvro, Value},
               Codec, Schema, Writer};
 use chrono::Duration;
@@ -113,7 +113,7 @@ impl AvroFileActor {
 
                 // Schema based avro file writer
                 let mut writer = Writer::new(&schema, file);
-                writer.marker = marker;
+                writer.set_marker(marker);
 
                 let rc = Rc::new(RefCell::new(writer));
                 let _v = v.insert(rc.clone());
