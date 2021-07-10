@@ -121,7 +121,7 @@ mod test {
     #[bench]
     fn db_serde_put_bench(b: &mut Bencher) {
         let table = "foos";
-        let mut db = db(vec![table.to_string()]);
+        let db = db(vec![table.to_string()]);
         //let mut vec: Vec<Foobar> = Vec::new();
         let size = 10_i32;
         let mut inserts = vec![];
@@ -145,8 +145,8 @@ mod test {
     fn db_put_get_delete() {
         let table = "foos";
         let key = "foo".as_bytes();
-        let mut db = db(vec![table.to_string()]);
-        let mut rw_cmp = |k, v| {
+        let db = db(vec![table.to_string()]);
+        let rw_cmp = |k, v| {
             let result = bincode::serialize(&v).unwrap();
             let r = db._put(table, k, &result.as_slice());
             assert!(
@@ -178,8 +178,8 @@ mod test {
     fn db_serde_put_get_delete() {
         let table = "foos";
         let key = "foo".as_bytes();
-        let mut db = db(vec![table.to_string()]);
-        let mut rw_cmp = |k, v: Foobar| {
+        let db = db(vec![table.to_string()]);
+        let rw_cmp = |k, v: Foobar| {
             let r = db.put(table, k, v.clone());
             assert!(
                 r.is_ok(),
@@ -208,7 +208,7 @@ mod test {
     #[test]
     fn serde_get_ranged_cf() {
         let table = "rows";
-        let mut db = db(vec![table.to_string()]);
+        let db = db(vec![table.to_string()]);
         let size = 10_i32.pow(3) as i32;
         let before = Utc::now();
         let mut items = vec![];
@@ -230,7 +230,7 @@ mod test {
     #[test]
     fn get_ranged_cf() {
         let table = "rows";
-        let mut db = db(vec![table.to_string()]);
+        let db = db(vec![table.to_string()]);
         let size = 10_i32.pow(3) as i32;
         let before = Utc::now();
         let mut items = vec![];
@@ -259,7 +259,7 @@ mod test {
     fn delete_ranged_cf() {
         init();
         let table = "rows";
-        let mut db = db(vec![table.to_string()]);
+        let db = db(vec![table.to_string()]);
         let size = 10_i32.pow(4) as i32;
         let before = Utc::now();
         let mut then = Utc::now();
