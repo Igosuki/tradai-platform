@@ -1,3 +1,19 @@
+VENV := precommit_venv
+HOOKS := .git/hooks/pre-commit
+
+# PRE-COMMIT HOOKS
+
+$(VENV): .requirements-precommit.txt
+	virtualenv -p python3 $(VENV)
+	$(VENV)/bin/pip install -r .requirements-precommit.txt
+
+.PHONY: env
+env: $(VENV)
+
+.PHONY: clean-env
+clean-env:
+	rm -rf $(VENV)
+
 ## Cargo
 CARGO_BIN ?= `which cargo`
 TARGET_PATH ?= `pwd`/target/release
@@ -11,6 +27,20 @@ FUNZZY_BIN ?= `which funzzy`
 PWD ?= `pwd`
 
 HOME ?= `echo $HOME`
+
+$(HOOKS): $(VENV) .pre-commit-config.yaml
+	$(VENV)/bin/pre-commit install -f --install-hooks
+	@$(CARGO_BIN) fmt --help > /dev/null || rustup component add rustfmt
+	@$(CARGO_BIN) clippy --help > /dev/null || rustup component add clippy
+	@$(CARGO_BIN) readme --help > /dev/null || cargo install cargo-readme
+
+.PHONY: install-hooks
+install-hooks: $(HOOKS)
+
+.PHONY: clean-hooks
+clean-hooks:
+	rm -rf $(HOOKS)
+
 
 .PHONY: build
 build:
@@ -43,9 +73,17 @@ bench:
 profile:
 	@$(CARGO_BIN) flamegraph --dev --bin=trader --features flame_it
 
+.PHONY: lint
+lint:
+	@$(CARGO_BIN) clippy --all-targets --all-features -Z unstable-options -- -Dclippy::all -Dunused_imports
+
 .PHONY: lintfix
 lintfix:
-	@$(CARGO_BIN) clippy --fix -Z unstable-options
+	@$(CARGO_BIN) clippy --fix --all-targets --all-features -Z unstable-options -- -Dclippy::all -Dunused_imports
+
+.PHONY: clean-lint
+clean-lint:
+	find . -type f -name *.rs.bk -delete
 
 ## alias rust-musl-builder-nightly='docker run --cpus=$(nproc) --rm -it --user rust $MUSL_FLAGS -v "$HOME/.cargo/git":/home/rust/.cargo/git -v "$(pwd)/cargo-registry":/home/rust/.cargo/registry -v "$(pwd)/cargo-target":/home/rust/src/target -v "$(pwd)":/home/rust/src ekidd/rust-musl-builder:nightly-2020-06-17'
 release:
