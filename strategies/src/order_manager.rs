@@ -421,7 +421,6 @@ mod test {
     use std::path::Path;
     use std::sync::Arc;
 
-    use coinnect_rt::coinnect;
     use coinnect_rt::exchange::Exchange::Binance;
     use coinnect_rt::exchange::MockApi;
     use coinnect_rt::exchange::{Exchange, ExchangeApi};
@@ -429,6 +428,7 @@ mod test {
     use crate::order_manager::OrderManager;
     use crate::order_types::{Rejection, StagedOrder, Transaction, TransactionStatus};
     use crate::types::TradeKind;
+    use coinnect_rt::coinnect::Coinnect;
     use coinnect_rt::types::{AddOrderRequest, OrderInfo, OrderQuery, OrderUpdate};
 
     #[actix_rt::test]
@@ -451,7 +451,7 @@ mod test {
     fn test_pair() -> String { "BTC_USDT".to_string() }
 
     async fn it_order_manager<S: AsRef<Path>>(dir: S, exchange: Exchange) -> OrderManager {
-        let api = coinnect::build_exchange_api(test_keys().into(), &exchange, true)
+        let api = Coinnect::build_exchange_api(test_keys().into(), &exchange, true)
             .await
             .unwrap();
         let om_path = format!("{}/om_{}", dir.as_ref().display(), exchange);

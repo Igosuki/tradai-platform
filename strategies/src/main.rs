@@ -15,7 +15,7 @@ use strategies::naive_pair_trading::covar_model::DataRow;
 use strategies::naive_pair_trading::NaiveTradingStrategy;
 use util::date::{DateRange, DurationRangeType};
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     env_logger::init();
     let matches = App::new("Trader Naive Model Loader")
         .version("1.0")
@@ -76,7 +76,6 @@ fn main() {
     };
 
     Utc.timestamp(0, 0);
-    let now = Instant::now();
     let records = strategies::input::load_records_from_csv(
         &DateRange(midnight.date(), end.date(), DurationRangeType::Days, 1),
         &base_path,
@@ -133,9 +132,9 @@ fn main() {
         });
     });
     println!("Saving Model...");
-    data_table.update_model().unwrap();
-    data_table.try_loading_model();
+    data_table.update_model()?;
+    data_table.try_loading_model()?;
     assert!(data_table.has_model());
     println!("{:?}", data_table.model().unwrap());
-    println!("Execution took {} seconds", now.elapsed().as_secs());
+    Ok(())
 }

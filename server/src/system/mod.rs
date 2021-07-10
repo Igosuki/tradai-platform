@@ -212,7 +212,7 @@ async fn order_managers(
         if !conf.use_account {
             continue;
         }
-        let api = coinnect_rt::coinnect::build_exchange_api(keys_path.clone(), &xch, conf.use_test)
+        let api = Coinnect::build_exchange_api(keys_path.clone(), &xch, conf.use_test)
             .await
             .unwrap();
         let om_path = format!("{}/om_{}", db_path, xch);
