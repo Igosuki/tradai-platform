@@ -76,8 +76,9 @@ fn main() -> io::Result<()> {
     }
     if any_changes {
         let mut file = File::with_options().write(true).create(true).open(gen_path.as_path())?;
-        let x = dest_path.as_path();
-        let source = Source::DirPath(x);
+        let glob = dest_path.join("*.avsc");
+        let x = glob.as_path();
+        let source = Source::GlobPattern(x.to_str().unwrap());
         let g = Generator::new().unwrap();
         g.gen(&source, &mut file).unwrap();
     }
