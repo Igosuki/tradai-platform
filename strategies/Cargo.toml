@@ -111,7 +111,3 @@ pretty_assertions = "0.7"
 test-env-log = "0.2"
 hdrhistogram = "7"
 lazy_static = "1.4"
-
-[patch.crates-io]
-pathfinder_simd = { git="https://github.com/servo/pathfinder", version = "0.5.1" }
-

@@ -1,8 +1,9 @@
 use crate::graphql_schemas::root::create_schema;
 use actix::Addr;
 use actix_cors::Cors;
+use actix_web::web::Data;
 use actix_web::{http, HttpServer};
-use coinnect_rt::coinnect::build_exchanges;
+use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use futures::lock::Mutex;
 use std::collections::HashMap;
@@ -19,8 +20,8 @@ pub async fn httpserver(
     port: i32,
 ) -> std::io::Result<()> {
     // Make and start the api
-    let apis = build_exchanges(Arc::new(exchanges.clone()), keys_path.clone()).await;
-    let data = Arc::new(Mutex::new(apis));
+    let apis = Coinnect::build_exchange_apis(Arc::new(exchanges.clone()), keys_path.clone()).await;
+    let api_m = Arc::new(Mutex::new(apis));
     let app = move || {
         let schema = create_schema();
 
@@ -33,10 +34,10 @@ pub async fn httpserver(
             .max_age(3600);
         actix_web::App::new()
             .wrap(cors)
-            .data(schema)
-            .data(data.clone())
-            .data(strategies.clone())
-            .data(order_managers.clone())
+            .app_data(Data::new(schema))
+            .app_data(Data::new(api_m.clone()))
+            .app_data(Data::new(strategies.clone()))
+            .app_data(Data::new(order_managers.clone()))
             .configure(crate::api::config_app)
     };
     debug!("Starting api server on {} ...", port);

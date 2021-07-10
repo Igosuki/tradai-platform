@@ -118,9 +118,9 @@ mod tests {
     use futures::lock::Mutex;
     use tokio::time::timeout;
 
-    use coinnect_rt::coinnect;
+    use coinnect_rt::coinnect::Coinnect;
     use coinnect_rt::exchange::Exchange::Binance;
-    use coinnect_rt::exchange::{Exchange, ExchangeApi};
+    use coinnect_rt::exchange::{Exchange, ExchangeApi, ExchangeSettings};
     use coinnect_rt::types::OrderType;
     use strategies::{Strategy, StrategyKey};
 
@@ -133,8 +133,19 @@ mod tests {
     #[actix_rt::test]
     async fn test_add_order() {
         let schema = create_schema();
-        let exchanges = coinnect::ExchangeConfig::new("../config/keys_real_test.json".to_string(), vec![Binance]);
-        let exchanges_map = coinnect::build_test_exchanges(exchanges).await;
+        let exchanges = [(Exchange::Binance, ExchangeSettings {
+            orderbook: None,
+            orderbook_depth: None,
+            trades: None,
+            fees: 0.1,
+            use_account: true,
+            use_test: false,
+        })]
+        .iter()
+        .cloned()
+        .collect();
+        let exchanges_map =
+            Coinnect::build_exchange_apis(Arc::new(exchanges), "../config/keys_real_test.json".into()).await;
         let data: Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>> = Arc::new(Mutex::new(exchanges_map));
         let mut guard = data.lock().await;
         let binance_api: &mut Box<dyn ExchangeApi> = guard.get_mut(&Exchange::Binance).unwrap();
