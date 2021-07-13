@@ -1,8 +1,7 @@
 use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
 use actix::{Actor, Handler, Running, SyncContext};
 use avro_rs::encode;
-use avro_rs::{types::{ToAvro, Value},
-              Codec, Schema, Writer};
+use avro_rs::{types::Value, Codec, Schema, Writer};
 use chrono::Duration;
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use derive_more::Display;
@@ -227,11 +226,11 @@ fn avro_header(schema: &Schema, marker: Vec<u8>) -> Result<Vec<u8>, Error> {
 
     let mut metadata = HashMap::with_capacity(2);
     metadata.insert("avro.schema", Value::Bytes(schema_bytes));
-    metadata.insert("avro.codec", Codec::Null.avro());
+    metadata.insert("avro.codec", Codec::Null.into());
 
     let mut header = Vec::new();
     header.extend_from_slice(AVRO_OBJECT_HEADER);
-    encode(&metadata.avro(), &Schema::Map(Box::new(Schema::Bytes)), &mut header);
+    encode(&metadata.into(), &Schema::Map(Box::new(Schema::Bytes)), &mut header);
     header.extend_from_slice(&marker);
 
     Ok(header)
