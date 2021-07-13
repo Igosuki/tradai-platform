@@ -1,3 +1,4 @@
-[target.x86_64-unknown-linux-gnu]
-rustc-flags=["-Clink-arg=-Wl", "--allow-multiple-definition"]
+[target.nightly-x86_64-unknown-linux-gnu]
+rustflags = ["-Clink-arg=-Wl", "--allow-multiple-definition"]
+
 
