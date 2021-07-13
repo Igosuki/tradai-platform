@@ -48,7 +48,7 @@ impl ResponseError for ApiError {
             ExchangeNotFound(_e) => HttpResponse::NotFound().finish(),
             ApiError::Coinnect(e) => HttpResponse::InternalServerError().body(e.to_string()),
             ApiError::IoError(e) => HttpResponse::InternalServerError().body(e.to_string()),
-            _ => HttpResponse::InternalServerError().finish(),
+            //_ => HttpResponse::InternalServerError().finish(),
         }
     }
 }

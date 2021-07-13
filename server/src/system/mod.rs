@@ -46,7 +46,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     let mut strat_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
     let mut strategy_actors = vec![];
     let mut order_managers_addr = HashMap::new();
-    // order managers
+
     let db_path_str = Arc::new(settings_v.db_storage_path.clone());
     let keys_path = PathBuf::from(settings_v.keys.clone());
     if fs::metadata(keys_path.clone()).is_err() {
@@ -55,8 +55,19 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
             anyhow!("key file doesn't exist at {:?}", keys_path.clone()),
         ));
     }
+
+    // Temporarily load symbol cache from here
+    {
+        let apis = Coinnect::build_exchange_apis(Arc::new(exchanges.clone()), keys_path.clone()).await;
+        futures::future::join_all(apis.into_iter().map(|(xchg, api)| {
+            let exchange = xchg.clone();
+            Coinnect::load_pair_registry(exchange, api)
+        }))
+        .await;
+    }
+
     // strategies, cf strategies crate
-    let arc = Arc::clone(&settings);
+    let settings_arc = Arc::clone(&settings);
 
     for output in settings_v.outputs.clone() {
         match output {
@@ -76,7 +87,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
                         order_managers_addr.insert(xchg.clone(), om_system.om.clone());
                     }
                 }
-                let strategies = strategies(arc.clone(), oms.clone()).await;
+                let strategies = strategies(settings_arc.clone(), oms.clone()).await;
                 for a in strategies.clone() {
                     strat_recipients.push(a.1.clone().recipient());
                     strategy_actors.push(a.clone());
