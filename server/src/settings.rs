@@ -153,7 +153,7 @@ impl Settings {
             .flatten()
             .flatten()
             .collect();
-            let pairs_fn: fn(&Pair) -> Option<&&str> = coinnect_rt::utils::pair_fn(xchg);
+            let pairs_fn = coinnect_rt::pair::pair_to_symbol_fn(&xchg);
             let (invalid_pairs, valid_pairs): (_, Vec<Pair>) =
                 pairs.clone().into_iter().partition(|p| pairs_fn(p).is_none());
             info!("Invalid pairs : {:?}", invalid_pairs);
