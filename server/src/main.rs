@@ -41,4 +41,5 @@ use std::io;
 
 #[actix_rt::main]
 #[cfg_attr(feature = "flame_it", flame)]
+#[allow(unused_braces)]
 async fn main() -> io::Result<()> { trader::runner::with_config(trader::system::start).await }
