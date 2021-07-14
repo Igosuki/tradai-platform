@@ -391,7 +391,7 @@ dependencies = [
 [[package]]
 name = "actix-web-actors"
 version = "4.0.0-beta.6"
-source = "git+https://github.com/actix/actix-web?branch=master#2504c2ecb0906d261688cd61d93444d4f0537cde"
+source = "git+https://github.com/actix/actix-web?branch=master#293c52c3ef42663d90d4b09acd22869ee6919788"
 dependencies = [
  "actix 0.12.0",
  "actix-codec 0.4.0",
@@ -498,9 +498,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.41"
+version = "1.0.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15af2628f6890fe2609a3b91bef4c83450512802e59489f9c1cb1fa5df064a61"
+checksum = "595d3cfa7a60d4555cb5067b99f07142a08ea778de5cf993f7b75c7d8fabc486"
 
 [[package]]
 name = "arrayref"
@@ -1101,9 +1101,9 @@ checksum = "631ae5198c9be5e753e5cc215e1bd73c2b466a3565173db433f52bb9d3e66dba"
 
 [[package]]
 name = "cc"
-version = "1.0.68"
+version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a72c244c1ff497a746a7e1fb3d14bd08420ecda70c8f25c7112f2781652d787"
+checksum = "e70cc2f62c6ce1868963827bd677764c62d07c3d9a3e1fb1177ee1a9ab199eb2"
 dependencies = [
  "jobserver",
 ]
@@ -1243,6 +1243,7 @@ dependencies = [
  "bstr",
  "bytes 1.0.1",
  "chrono",
+ "clap 3.0.0-beta.2",
  "data-encoding",
  "derive_more",
  "env_logger 0.8.4",
@@ -1258,7 +1259,7 @@ dependencies = [
  "libflate",
  "log",
  "openssl",
- "ordered-float 2.6.0",
+ "ordered-float 2.7.0",
  "pin-project 1.0.7",
  "prometheus",
  "protobuf",
@@ -1270,6 +1271,7 @@ dependencies = [
  "sha2",
  "signalr_rs",
  "string_cache",
+ "structopt",
  "strum 0.20.0",
  "strum_macros 0.20.1",
  "thiserror",
@@ -2725,9 +2727,9 @@ dependencies = [
 
 [[package]]
 name = "instant"
-version = "0.1.9"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61124eeebbd69b8190558df225adf7e4caafce0d743919e5d6b19652314ec5ec"
+checksum = "bee0328b1209d157ef001c94dd85b4f8f64139adb0eac2659f4b08382b2f474d"
 dependencies = [
  "cfg-if 1.0.0",
 ]
@@ -3684,9 +3686,9 @@ dependencies = [
 
 [[package]]
 name = "ordered-float"
-version = "2.6.0"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6dea6388d3d5498ec651701f14edbaf463c924b5d8829fb2848ccf0bcc7b3c69"
+checksum = "039f02eb0f69271f26abe3202189275d7aa2258b903cb0281b5de710a2570ff3"
 dependencies = [
  "num-traits 0.2.14",
 ]
@@ -5151,7 +5153,7 @@ dependencies = [
  "openssl",
  "opentelemetry",
  "opentelemetry-jaeger",
- "ordered-float 2.6.0",
+ "ordered-float 2.7.0",
  "parse_duration",
  "plotlib",
  "plotters",
@@ -5267,9 +5269,9 @@ dependencies = [
 
 [[package]]
 name = "subtle"
-version = "2.4.0"
+version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e81da0851ada1f3e9d4312c704aa4f8806f0f9d69faaf8df2f3464b4a9437c2"
+checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
 name = "subtle-encoding"
@@ -5299,9 +5301,9 @@ dependencies = [
 
 [[package]]
 name = "synstructure"
-version = "0.12.4"
+version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b834f2d66f734cb897113e34aaff2f1ab4719ca946f9a7358dba8f8064148701"
+checksum = "474aaa926faa1603c40b7885a9eaea29b444d1cb2850cb7c0e37bb1a4182f4fa"
 dependencies = [
  "proc-macro2",
  "quote",
