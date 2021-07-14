@@ -99,3 +99,9 @@ flamegraph:
 
 macramdisk:
 	diskutil erasevolume HFS+ 'RAM Disk' `hdiutil attach -nobrowse -nomount ram://262144`
+
+docker-up:
+	docker-compose -f infra/dev/docker_compose.yaml up -d
+
+docker-down:
+	docker-compose -f infra/dev/docker_compose.yaml down
