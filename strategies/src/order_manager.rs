@@ -10,12 +10,11 @@ use coinnect_rt::error::Error as CoinnectError;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::exchange_bot::Ping;
 use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, OrderEnforcement, OrderQuery,
-                         OrderStatus, OrderType, OrderUpdate, TradeType};
+                         OrderStatus, OrderType, OrderUpdate};
 use db::get_or_create;
 use uuid::Uuid;
 
 use crate::order_types::{OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
-use crate::types::TradeKind;
 use crate::wal::{Wal, WalCmp};
 
 #[derive(Debug, Clone)]
@@ -119,14 +118,10 @@ impl OrderManager {
     /// Registers an order, and passes it to be later processed
     #[tracing::instrument(skip(self), level = "info")]
     pub(crate) async fn stage_order(&mut self, staged_order: StagedOrder) -> Result<Transaction> {
-        let side = match staged_order.op_kind {
-            TradeKind::Buy => TradeType::Buy,
-            TradeKind::Sell => TradeType::Sell,
-        };
         let order_id = Uuid::new_v4().to_string();
         let add_order = OrderQuery::AddOrder(AddOrderRequest {
             pair: staged_order.pair,
-            side,
+            side: staged_order.op_kind.into(),
             order_id: Some(order_id.clone()),
             quantity: Some(staged_order.qty),
             price: Some(staged_order.price),
