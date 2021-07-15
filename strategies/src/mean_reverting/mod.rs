@@ -61,7 +61,7 @@ impl MeanRevertingStrategy {
         let strat_db_path = format!("{}_{}.{}", MEAN_REVERTING_DB_KEY, n.exchange.to_string(), n.pair);
         pb.push(strat_db_path);
         let db = Arc::new(get_or_create(pb.as_path(), vec![]));
-        let state = MeanRevertingState::new(n, db.clone(), om);
+        let state = MeanRevertingState::new(n, fees_rate, db.clone(), om);
         let ema_model = Self::make_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
         let threshold_table = n.threshold_window_size.map(|thresold_window_size| {
             WindowedModel::new(
@@ -213,7 +213,7 @@ impl MeanRevertingStrategy {
         self.maybe_eval_threshold(lr.time);
 
         if self.state.no_position_taken() {
-            self.state.update_units(&lr.pos, self.fees_rate);
+            self.state.update_units(&lr.pos);
         }
 
         // If a position is taken, resolve pending operations
@@ -227,15 +227,15 @@ impl MeanRevertingStrategy {
                 self.state.threshold_short()
             );
             let position = self.short_position(lr.pos.bid, lr.time);
-            return self.state.open(position, self.fees_rate).await;
+            return self.state.open(position).await;
         }
 
         // Possibly close a short position
         if self.state.is_short() {
-            self.state.set_short_position_return(self.fees_rate, lr.pos.ask);
+            self.state.set_short_position_return(lr.pos.ask);
             if (self.state.apo() < 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::Short)) {
                 let position = self.short_position(lr.pos.ask, lr.time);
-                return self.state.close(position, self.fees_rate).await;
+                return self.state.close(position).await;
             }
         }
 
@@ -243,15 +243,15 @@ impl MeanRevertingStrategy {
         if (self.state.apo() < self.state.threshold_long()) && self.state.no_position_taken() {
             info!("Entering long position with threshold {}", self.state.threshold_long());
             let position = self.long_position(lr.pos.ask, lr.time);
-            return self.state.open(position, self.fees_rate).await;
+            return self.state.open(position).await;
         }
 
         // Possibly close a long position
         if self.state.is_long() {
-            self.state.set_long_position_return(self.fees_rate, lr.pos.bid);
+            self.state.set_long_position_return(lr.pos.bid);
             if (self.state.apo() > 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::Long)) {
                 let position = self.long_position(lr.pos.bid, lr.time);
-                return self.state.close(position, self.fees_rate).await;
+                return self.state.close(position).await;
             }
         }
 
