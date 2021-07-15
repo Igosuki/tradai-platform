@@ -152,6 +152,7 @@ impl Settings {
             .into_iter()
             .flatten()
             .flatten()
+            .map(|s| s.into())
             .collect();
             let (invalid_pairs, valid_pairs): (_, Vec<Pair>) = pairs
                 .clone()

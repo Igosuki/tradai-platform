@@ -8,6 +8,9 @@ extern crate serde_derive;
 
 #[cfg(test)]
 extern crate test;
+#[cfg(test)]
+#[macro_use]
+extern crate float_cmp;
 
 mod error;
 pub mod iter;

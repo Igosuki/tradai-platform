@@ -112,8 +112,8 @@ impl NaiveTradingStrategy {
                 "n/a"
             };
             info!("---- Stop-{} executed ({} position) ----", expr, match pk {
-                PositionKind::SHORT => "short",
-                PositionKind::LONG => "long",
+                PositionKind::Short => "short",
+                PositionKind::Long => "long",
             },)
         }
     }
@@ -141,11 +141,10 @@ impl NaiveTradingStrategy {
     }
 
     fn set_model_from_table(&mut self) {
-        let lmb = self.data_table.model();
-        lmb.map(|lm| {
+        if let Some(lm) = self.data_table.model() {
             self.state.set_beta(lm.value.beta);
             self.state.set_alpha(lm.value.alpha);
-        });
+        }
     }
 
     fn eval_linear_model(&mut self) {
@@ -176,7 +175,7 @@ impl NaiveTradingStrategy {
 
     fn short_position(&self, right_price: f64, left_price: f64, time: DateTime<Utc>) -> Position {
         Position {
-            kind: PositionKind::SHORT,
+            kind: PositionKind::Short,
             right_price,
             left_price,
             time,
@@ -187,7 +186,7 @@ impl NaiveTradingStrategy {
 
     fn long_position(&self, right_price: f64, left_price: f64, time: DateTime<Utc>) -> Position {
         Position {
-            kind: PositionKind::LONG,
+            kind: PositionKind::Long,
             right_price,
             left_price,
             time,
@@ -203,8 +202,8 @@ impl NaiveTradingStrategy {
 
     fn return_value(&self, pk: &PositionKind) -> f64 {
         match pk {
-            PositionKind::SHORT => self.state.short_position_return(),
-            PositionKind::LONG => self.state.long_position_return(),
+            PositionKind::Short => self.state.short_position_return(),
+            PositionKind::Long => self.state.long_position_return(),
         }
     }
 
@@ -248,9 +247,9 @@ impl NaiveTradingStrategy {
             self.state
                 .set_short_position_return(self.fees_rate, lr.right.ask, lr.left.bid);
             if (self.state.res() <= self.res_threshold_short && self.state.res() < 0.0)
-                || self.should_stop(&PositionKind::SHORT)
+                || self.should_stop(&PositionKind::Short)
             {
-                self.maybe_log_stop_loss(PositionKind::SHORT);
+                self.maybe_log_stop_loss(PositionKind::Short);
                 let position = self.short_position(lr.right.ask, lr.left.bid, lr.time);
                 let op = self.state.close(position, self.fees_rate).await;
                 self.metrics.log_position(&op.pos, &op.kind);
@@ -270,9 +269,9 @@ impl NaiveTradingStrategy {
             self.state
                 .set_long_position_return(self.fees_rate, lr.right.bid, lr.left.ask);
             if (self.state.res() >= self.res_threshold_long && self.state.res() > 0.0)
-                || self.should_stop(&PositionKind::LONG)
+                || self.should_stop(&PositionKind::Long)
             {
-                self.maybe_log_stop_loss(PositionKind::LONG);
+                self.maybe_log_stop_loss(PositionKind::Long);
                 let position = self.long_position(lr.right.bid, lr.left.ask, lr.time);
                 let op = self.state.close(position, self.fees_rate).await;
                 self.metrics.log_position(&op.pos, &op.kind);
@@ -320,7 +319,7 @@ impl NaiveTradingStrategy {
             self.eval_latest(row).await;
             self.log_state();
         }
-        self.metrics.log_row(&row);
+        self.metrics.log_row(row);
         if should_sample {
             self.data_table.push(row);
         }
@@ -377,7 +376,7 @@ impl StrategyInterface for NaiveTradingStrategy {
         match q {
             DataQuery::Operations => Some(DataResult::NaiveOperations(self.get_operations())),
             DataQuery::Dump => Some(DataResult::Dump(self.dump_db())),
-            DataQuery::CurrentOperation => Some(DataResult::NaiveOperation(self.get_ongoing_op().clone())),
+            DataQuery::CurrentOperation => Some(DataResult::NaiveOperation(Box::new(self.get_ongoing_op().clone()))),
             DataQuery::CancelOngoingOp => Some(DataResult::OngongOperationCancelation(self.cancel_ongoing_op())),
             DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
         }
@@ -388,11 +387,11 @@ impl StrategyInterface for NaiveTradingStrategy {
     fn channels(&self) -> Vec<Channel> {
         vec![
             Channel::Orderbooks {
-                xch: self.exchange.clone(),
+                xch: self.exchange,
                 pair: self.left_pair.clone().into(),
             },
             Channel::Orderbooks {
-                xch: self.exchange.clone(),
+                xch: self.exchange,
                 pair: self.right_pair.clone().into(),
             },
         ]

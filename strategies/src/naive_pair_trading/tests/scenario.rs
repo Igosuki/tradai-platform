@@ -196,12 +196,12 @@ async fn complete_backtest() {
     .await;
     println!("Dataset loaded in memory...");
     // align data
-    let mut elapsed = 0 as u128;
-    let mut iterations = 0 as u128;
+    let mut elapsed = 0_u128;
+    let mut iterations = 0_u128;
     let left_records = records[0].clone();
     let right_records = records[1].clone();
-    assert!(left_records.len() > 0, "no left pair records in dataset");
-    assert!(right_records.len() > 0, "no right pair records in dataset");
+    assert!(!left_records.is_empty(), "no left pair records in dataset");
+    assert!(!right_records.is_empty(), "no right pair records in dataset");
     let (zip, other) = left_records.iter().zip(right_records.iter()).tee();
     let (_left, _right) = other.tee();
     let mut logs: Vec<StrategyLog> = Vec::new();

@@ -10,8 +10,8 @@ pub enum DataResult {
     NaiveOperations(Vec<NaiveOperation>),
     MeanRevertingOperations(Vec<MeanRevertingOperation>),
     Dump(String),
-    NaiveOperation(Option<NaiveOperation>),
-    MeanRevertingOperation(Option<MeanRevertingOperation>),
+    NaiveOperation(Box<Option<NaiveOperation>>),
+    MeanRevertingOperation(Box<Option<MeanRevertingOperation>>),
     OngongOperationCancelation(bool),
     State(String),
 }

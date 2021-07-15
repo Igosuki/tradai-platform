@@ -74,7 +74,7 @@ impl MeanRevertingStrategy {
         });
 
         let mut strat = Self {
-            exchange: n.exchange.clone(),
+            exchange: n.exchange,
             pair: n.pair.clone(),
             fees_rate,
             sample_freq: n.sample_freq(),
@@ -100,10 +100,9 @@ impl MeanRevertingStrategy {
     fn load(&mut self) -> crate::error::Result<()> {
         {
             self.model.try_loading_model()?;
-            let lmb = self.model.value();
-            lmb.map(|lm| {
+            if let Some(lm) = self.model.value() {
                 self.state.set_apo(lm.apo);
-            });
+            }
         }
         {
             if let Some(threshold_table) = &mut self.threshold_table {
@@ -155,7 +154,7 @@ impl MeanRevertingStrategy {
 
     fn short_position(&self, price: f64, time: DateTime<Utc>) -> Position {
         Position {
-            kind: PositionKind::SHORT,
+            kind: PositionKind::Short,
             price,
             time,
             pair: self.pair.to_string(),
@@ -164,7 +163,7 @@ impl MeanRevertingStrategy {
 
     fn long_position(&self, price: f64, time: DateTime<Utc>) -> Position {
         Position {
-            kind: PositionKind::LONG,
+            kind: PositionKind::Long,
             price,
             time,
             pair: self.pair.to_string(),
@@ -234,7 +233,7 @@ impl MeanRevertingStrategy {
         // Possibly close a short position
         if self.state.is_short() {
             self.state.set_short_position_return(self.fees_rate, lr.pos.ask);
-            if (self.state.apo() < 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::SHORT)) {
+            if (self.state.apo() < 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::Short)) {
                 let position = self.short_position(lr.pos.ask, lr.time);
                 return self.state.close(position, self.fees_rate).await;
             }
@@ -250,7 +249,7 @@ impl MeanRevertingStrategy {
         // Possibly close a long position
         if self.state.is_long() {
             self.state.set_long_position_return(self.fees_rate, lr.pos.bid);
-            if (self.state.apo() > 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::LONG)) {
+            if (self.state.apo() > 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::Long)) {
                 let position = self.long_position(lr.pos.bid, lr.time);
                 return self.state.close(position, self.fees_rate).await;
             }
@@ -261,8 +260,8 @@ impl MeanRevertingStrategy {
 
     fn return_value(&self, pk: &PositionKind) -> f64 {
         match pk {
-            PositionKind::SHORT => self.state.short_position_return(),
-            PositionKind::LONG => self.state.long_position_return(),
+            PositionKind::Short => self.state.short_position_return(),
+            PositionKind::Long => self.state.long_position_return(),
         }
     }
 
@@ -276,7 +275,9 @@ impl MeanRevertingStrategy {
             self.last_sample_time = row.time;
             // TODO: log error
             let last_apo = self.state.apo();
-            self.threshold_table.as_mut().map(|t| t.push(&last_apo));
+            if let Some(t) = self.threshold_table.as_mut() {
+                t.push(&last_apo)
+            }
             self.model
                 .update_model(row.clone())
                 .map(|_| {
@@ -294,11 +295,11 @@ impl MeanRevertingStrategy {
             }
             self.log_state();
         }
-        self.metrics.log_row(&row);
+        self.metrics.log_row(row);
     }
 
     pub(crate) fn handles(&self, e: &LiveEventEnveloppe) -> bool {
-        &self.exchange == &e.xch
+        self.exchange == e.xch
             && match &e.e {
                 LiveEvent::LiveOrderbook(ob) => ob.pair == self.pair,
                 _ => false,
@@ -327,7 +328,9 @@ impl StrategyInterface for MeanRevertingStrategy {
         match q {
             DataQuery::Operations => Some(DataResult::MeanRevertingOperations(self.get_operations())),
             DataQuery::Dump => Some(DataResult::Dump(self.dump_db())),
-            DataQuery::CurrentOperation => Some(DataResult::MeanRevertingOperation(self.get_ongoing_op().clone())),
+            DataQuery::CurrentOperation => Some(DataResult::MeanRevertingOperation(Box::new(
+                self.get_ongoing_op().clone(),
+            ))),
             DataQuery::CancelOngoingOp => Some(DataResult::OngongOperationCancelation(self.cancel_ongoing_op())),
             DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
         }
@@ -337,7 +340,7 @@ impl StrategyInterface for MeanRevertingStrategy {
 
     fn channels(&self) -> Vec<Channel> {
         vec![Channel::Orderbooks {
-            xch: self.exchange.clone(),
+            xch: self.exchange,
             pair: self.pair.clone(),
         }]
     }

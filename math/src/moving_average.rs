@@ -74,49 +74,44 @@ impl fmt::Display for ExponentialMovingAverage {
 mod test {
     use crate::moving_average::ExponentialMovingAverage;
     use crate::traits::Next;
+    use crate::traits::Reset;
 
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use crate::traits::Reset;
+    #[test]
+    fn test_new() {
+        assert!(ExponentialMovingAverage::new(2.0, 0).is_err());
+        assert!(ExponentialMovingAverage::new(2.0, 1).is_ok());
+    }
 
-        #[test]
-        fn test_new() {
-            assert!(ExponentialMovingAverage::new(2.0, 0).is_err());
-            assert!(ExponentialMovingAverage::new(2.0, 1).is_ok());
-        }
+    #[test]
+    fn test_next() {
+        let mut ema = ExponentialMovingAverage::new(2.0, 3).unwrap();
 
-        #[test]
-        fn test_next() {
-            let mut ema = ExponentialMovingAverage::new(2.0, 3).unwrap();
+        assert!(approx_eq!(f64, ema.next(2.0), 2.0));
+        assert!(approx_eq!(f64, ema.next(5.0), 3.5));
+        assert!(approx_eq!(f64, ema.next(1.0), 2.25));
+        assert!(approx_eq!(f64, ema.next(6.25), 4.25));
+    }
 
-            assert_eq!(ema.next(2.0), 2.0);
-            assert_eq!(ema.next(5.0), 3.5);
-            assert_eq!(ema.next(1.0), 2.25);
-            assert_eq!(ema.next(6.25), 4.25);
-        }
+    #[test]
+    fn test_reset() {
+        let mut ema = ExponentialMovingAverage::new(2.0, 5).unwrap();
 
-        #[test]
-        fn test_reset() {
-            let mut ema = ExponentialMovingAverage::new(2.0, 5).unwrap();
+        assert!(approx_eq!(f64, ema.next(4.0), 4.0));
+        ema.next(10.0);
+        ema.next(15.0);
+        ema.next(20.0);
+        assert!(!approx_eq!(f64, ema.next(4.0), 4.0));
 
-            assert_eq!(ema.next(4.0), 4.0);
-            ema.next(10.0);
-            ema.next(15.0);
-            ema.next(20.0);
-            assert_ne!(ema.next(4.0), 4.0);
+        ema.reset();
+        assert!(approx_eq!(f64, ema.next(4.0), 4.0));
+    }
 
-            ema.reset();
-            assert_eq!(ema.next(4.0), 4.0);
-        }
+    #[test]
+    fn test_default() { ExponentialMovingAverage::default(); }
 
-        #[test]
-        fn test_default() { ExponentialMovingAverage::default(); }
-
-        #[test]
-        fn test_display() {
-            let ema = ExponentialMovingAverage::new(2.0, 7).unwrap();
-            assert_eq!(format!("{}", ema), "EMA(7)");
-        }
+    #[test]
+    fn test_display() {
+        let ema = ExponentialMovingAverage::new(2.0, 7).unwrap();
+        assert_eq!(format!("{}", ema), "EMA(7)");
     }
 }

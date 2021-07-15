@@ -306,6 +306,5 @@ mod test {
             thread::sleep(std::time::Duration::from_secs(1));
             System::current().stop();
         });
-        assert_eq!(true, true);
     }
 }

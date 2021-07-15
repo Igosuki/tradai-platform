@@ -163,7 +163,7 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Get the current naive strat operation")]
-    async fn current_naive_operation(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Option<Operation>> {
+    async fn current_naive_operation(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Box<Option<Operation>>> {
         context
             .with_strat(tk, DataQuery::CurrentOperation, |dr| match dr {
                 DataResult::NaiveOperation(op) => Ok(op),
@@ -173,7 +173,7 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Get the current naive strat operation")]
-    async fn current_mean_operation(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Option<MeanOperation>> {
+    async fn current_mean_operation(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Box<Option<MeanOperation>>> {
         context
             .with_strat(tk, DataQuery::CurrentOperation, |dr| match dr {
                 DataResult::MeanRevertingOperation(op) => Ok(op),

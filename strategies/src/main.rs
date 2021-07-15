@@ -9,7 +9,6 @@ use itertools::Itertools;
 use std::ops::Sub;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Instant;
 use strategies::input::CsvRecord;
 use strategies::naive_pair_trading::covar_model::DataRow;
 use strategies::naive_pair_trading::NaiveTradingStrategy;
@@ -127,8 +126,8 @@ fn main() -> anyhow::Result<()> {
         }
         data_table.push(&DataRow {
             time: row_time,
-            left: l.clone().into(),
-            right: r.clone().into(),
+            left: (*l).clone().into(),
+            right: (*r).clone().into(),
         });
     });
     println!("Saving Model...");

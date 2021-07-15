@@ -28,7 +28,7 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
         let max_size = max_size_o.unwrap_or_else(|| 2 * window_size);
         Self {
             rows: PersistentVec::new(db.clone(), &format!("{}_rows", id), max_size, window_size),
-            model: PersistentModel::new(db, &format!("{}", id), None),
+            model: PersistentModel::new(db, id, None),
             window_fn,
         }
     }

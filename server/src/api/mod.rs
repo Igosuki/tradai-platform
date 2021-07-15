@@ -127,6 +127,7 @@ mod tests {
     use crate::api::config_app;
     use crate::graphql_schemas::root::create_schema;
     use actix_web::http::header::ContentType;
+    use actix_web::web::Data;
 
     fn strats() -> HashMap<StrategyKey, Strategy> { HashMap::new() }
 
@@ -153,11 +154,11 @@ mod tests {
         drop(guard);
         let price = 35000.02000000;
         let strats: Arc<HashMap<StrategyKey, Strategy>> = Arc::new(strats());
-        let mut app = test::init_service(
+        let app = test::init_service(
             App::new()
-                .data(data.clone())
-                .data(schema)
-                .data(strats)
+                .app_data(Data::new(data.clone()))
+                .app_data(Data::new(schema))
+                .app_data(Data::new(strats))
                 .configure(config_app),
         )
         .await;
@@ -179,7 +180,7 @@ mod tests {
             .insert_header(ContentType::json())
             .set_payload(string)
             .to_request();
-        let resp = timeout(Duration::from_secs(10), test::call_service(&mut app, req)).await;
+        let resp = timeout(Duration::from_secs(10), test::call_service(&app, req)).await;
         assert!(resp.is_ok(), "response: {:?}", resp);
         let resp = resp.unwrap();
         let status = resp.status();

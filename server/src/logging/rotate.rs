@@ -12,7 +12,7 @@ pub struct RotatingFile<L> {
     inner: File,
     path: Box<PathBuf>,
     rotation_policy: L,
-    naming_policy: fn(&PathBuf) -> Option<PathBuf>,
+    naming_policy: fn(&Path) -> Option<PathBuf>,
     on_new_header: Option<Vec<u8>>,
 }
 
@@ -29,7 +29,7 @@ where
     pub fn new(
         path: Box<PathBuf>,
         rotation_policy: L,
-        new_name: fn(&PathBuf) -> Option<PathBuf>,
+        new_name: fn(&Path) -> Option<PathBuf>,
         on_new_header: Option<Vec<u8>>,
     ) -> Result<Self> {
         Ok(RotatingFile {

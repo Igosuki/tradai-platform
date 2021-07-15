@@ -15,8 +15,8 @@ impl RocksDbStorage {
         let mut options = Options::default();
         options.create_if_missing(true);
         options.create_missing_column_families(true);
-        let mut tables = tables.clone();
-        let query = DB::list_cf(&options, db_path.as_ref().clone());
+        let mut tables = tables;
+        let query = DB::list_cf(&options, db_path.as_ref());
         if let Ok(cfs) = query {
             tables.extend_from_slice(cfs.as_slice());
         }
@@ -51,16 +51,15 @@ impl Storage for RocksDbStorage {
     }
 
     fn _get(&self, table: &str, key: &[u8]) -> Result<Vec<u8>> {
-        let k = key.as_ref();
         let cf = self.cf(table)?;
         self.inner
-            .get_cf(cf, k)
+            .get_cf(cf, key)
             .map_err(|e| e.into())
-            .and_then(|r| r.ok_or_else(|| Error::NotFound(String::from_utf8(k.into()).unwrap())))
+            .and_then(|r| r.ok_or_else(|| Error::NotFound(String::from_utf8(key.into()).unwrap())))
     }
 
     fn _get_ranged(&self, table: &str, from: &[u8]) -> Result<Vec<Bytes>> {
-        let mode = IteratorMode::From(from.as_ref(), Direction::Forward);
+        let mode = IteratorMode::From(from, Direction::Forward);
         let cf = self.cf(table)?;
         Ok(self.inner.iterator_cf(cf, mode).map(|(_k, v)| v).collect())
     }
@@ -86,7 +85,7 @@ impl Storage for RocksDbStorage {
     }
 
     fn ensure_table(&self, name: &str) -> Result<()> {
-        if let None = self.inner.cf_handle(name) {
+        if self.inner.cf_handle(name).is_none() {
             self.inner
                 .create_cf(name, &RocksDbStorage::default_cf_options())
                 .map_err(|e| e.into())
@@ -135,7 +134,7 @@ mod test {
         }
         b.iter(|| {
             for (i, insert) in inserts.clone() {
-                let r = db._put(table, format!("foo{}", i).as_bytes(), &insert.as_slice());
+                let r = db._put(table, format!("foo{}", i).as_bytes(), insert.as_slice());
                 assert!(r.is_ok(), "failed to write all foos {:?}", r);
             }
         });
@@ -148,7 +147,7 @@ mod test {
         let db = db(vec![table.to_string()]);
         let rw_cmp = |k, v| {
             let result = bincode::serialize(&v).unwrap();
-            let r = db._put(table, k, &result.as_slice());
+            let r = db._put(table, k, result.as_slice());
             assert!(
                 r.is_ok(),
                 "failed to write {} {:?} {:?}",
@@ -169,8 +168,8 @@ mod test {
             number: 11,
         });
         db._delete(table, key).unwrap();
-        let foo = db._get(table, key);
-        matches!(foo, Err(Error::NotFound(x)) if x == "foo");
+        let get_result = db._get(table, key);
+        matches!(get_result, Err(Error::NotFound(x)) if x == "foo");
         //assert_eq!(Err(Error::NotFound(String::from_utf8_lossy(key).to_string())), foo);
     }
 
@@ -200,8 +199,8 @@ mod test {
             number: 11,
         });
         db.delete(table, key).unwrap();
-        let foo: crate::error::Result<Foobar> = db.get(table, key);
-        matches!(foo, Err(Error::NotFound(x)) if x == "foo");
+        let get_result: crate::error::Result<Foobar> = db.get(table, key);
+        matches!(get_result, Err(Error::NotFound(x)) if x == "foo");
         //assert_eq!(Err(Error::NotFound(String::from_utf8_lossy(key).to_string())), foo);
     }
 
@@ -242,7 +241,7 @@ mod test {
             items.push(v.clone());
             let result = bincode::serialize(&v).unwrap();
             let key = &format!("{}", Utc::now());
-            let r = db._put(table, key.as_bytes(), &result.as_slice());
+            let r = db._put(table, key.as_bytes(), result.as_slice());
             assert!(r.is_ok(), "failed to write {} {:?} {:?}", key, v, r);
         }
 
@@ -273,7 +272,7 @@ mod test {
             items.push(v.clone());
             let result = bincode::serialize(&v).unwrap();
             let key = &format!("{}", Utc::now());
-            let r = db._put(table, key.as_bytes(), &result.as_slice());
+            let r = db._put(table, key.as_bytes(), result.as_slice());
             assert!(r.is_ok(), "failed to write {} {:?} {:?}", key, v, r);
             if i == size / 2 {
                 then = Utc::now();

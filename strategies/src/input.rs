@@ -41,28 +41,28 @@ pub struct CsvRecord {
     pub bq5: f64,
 }
 
-impl Into<BookPosition> for CsvRecord {
-    fn into(self) -> BookPosition {
+impl From<CsvRecord> for BookPosition {
+    fn from(csvr: CsvRecord) -> BookPosition {
         let asks = [
-            (self.a1, self.aq1),
-            (self.a2, self.aq2),
-            (self.a3, self.aq3),
-            (self.a4, self.aq4),
-            (self.a5, self.aq5),
+            (csvr.a1, csvr.aq1),
+            (csvr.a2, csvr.aq2),
+            (csvr.a3, csvr.aq3),
+            (csvr.a4, csvr.aq4),
+            (csvr.a5, csvr.aq5),
         ];
         let bids = [
-            (self.b1, self.bq1),
-            (self.b2, self.bq2),
-            (self.b3, self.bq3),
-            (self.b4, self.bq4),
-            (self.b5, self.bq5),
+            (csvr.b1, csvr.bq1),
+            (csvr.b2, csvr.bq2),
+            (csvr.b3, csvr.bq3),
+            (csvr.b4, csvr.bq4),
+            (csvr.b5, csvr.bq5),
         ];
         BookPosition::new(&asks, &bids)
     }
 }
 
-impl<'a> Into<BookPosition> for &'a CsvRecord {
-    fn into(self) -> BookPosition { self.clone().into() }
+impl<'a> From<&'a CsvRecord> for BookPosition {
+    fn from(csvr: &'a CsvRecord) -> Self { csvr.clone().into() }
 }
 
 pub fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
@@ -90,7 +90,7 @@ pub fn partition_path(exchange: &str, ts: i64, channel: &str, pair: &str) -> Opt
     )
 }
 
-pub fn load_records_from_csv<R>(dr: &DateRange, base_path: &PathBuf, pairs: Vec<String>, glob_str: &str) -> Vec<Vec<R>>
+pub fn load_records_from_csv<R>(dr: &DateRange, base_path: &Path, pairs: Vec<String>, glob_str: &str) -> Vec<Vec<R>>
 where
     Vec<R>: FromIterator<CsvRecord>,
 {
@@ -150,7 +150,7 @@ pub async fn load_csv_dataset(
         .and_then(|oss| oss.into_string().ok())
         .unwrap_or_else(|| "..".to_string());
 
-    let base_path = Path::new(&bp).join("data").join(exchange_name).join(channel.clone());
+    let base_path = Path::new(&bp).join("data").join(exchange_name).join(channel);
     let bpc = Arc::new(bp);
     let channelc = Arc::new(channel.to_string());
     let exchange_namec = Arc::new(exchange_name.to_string());

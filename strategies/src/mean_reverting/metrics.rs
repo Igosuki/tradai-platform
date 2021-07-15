@@ -95,7 +95,7 @@ impl MeanRevertingStrategyMetrics {
         }
     }
 
-    fn log_all_with_state(&self, gauges: &Vec<StateGauge>, state: &MeanRevertingState) {
+    fn log_all_with_state(&self, gauges: &[StateGauge], state: &MeanRevertingState) {
         for (state_gauge_name, state_gauge_fn) in gauges {
             if let Some(g) = self.common_gauges.get(state_gauge_name) {
                 g.with_label_values(&[]).set(state_gauge_fn(state))

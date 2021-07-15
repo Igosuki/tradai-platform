@@ -29,9 +29,9 @@ impl<T: std::cmp::PartialOrd + Copy> Stopper<T> {
     pub(crate) fn maybe_stop(&self, ret: T) -> bool {
         if self.should_stop(ret) {
             let stop_type = if ret > self.stop_gain {
-                StopEvent::GAIN
+                StopEvent::Gain
             } else if ret < self.stop_loss {
-                StopEvent::LOSS
+                StopEvent::Loss
             } else {
                 StopEvent::NA
             };

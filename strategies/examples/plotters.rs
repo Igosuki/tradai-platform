@@ -13,8 +13,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     root.fill(&WHITE)?;
 
     let (to_date, from_date) = (
-        parse_time(&data[0].0) + Duration::days(1),
-        parse_time(&data[29].0) - Duration::days(1),
+        parse_time(data[0].0) + Duration::days(1),
+        parse_time(data[29].0) - Duration::days(1),
     );
 
     let mut chart = ChartBuilder::on(&root)
