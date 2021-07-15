@@ -10,8 +10,9 @@ Group=root
 UMask=007
 
 ExecStart=/root/feeder -c $FEEDER_CONF
-
+KillSignal=SIGTERM
 WatchdogSec=172800
+WatchdogSignal=SIGTERM
 Restart=always
 
 WorkingDirectory=/root
