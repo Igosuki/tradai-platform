@@ -278,6 +278,8 @@ impl MeanRevertingState {
 
     fn set_units_to_sell(&mut self, v: f64) { self.units_to_sell = v; }
 
+    fn set_nominal_position(&mut self, v: f64) { self.nominal_position = v; }
+
     pub fn set_threshold_short(&mut self, v: f64) { self.threshold_short = v; }
 
     pub fn set_threshold_long(&mut self, v: f64) { self.threshold_long = v; }
@@ -286,7 +288,7 @@ impl MeanRevertingState {
 
     pub fn threshold_long(&self) -> f64 { self.threshold_long }
 
-    fn clear_ongoing_operation(&mut self, last_price: f64, _cummulative_qty: f64) {
+    fn clear_ongoing_operation(&mut self, last_price: f64, cummulative_qty: f64) {
         match self.ongoing_op.clone() {
             Some(Operation {
                 kind: OperationKind::Close,
@@ -302,6 +304,7 @@ impl MeanRevertingState {
                 pos,
                 ..
             }) => {
+                self.set_nominal_position(cummulative_qty);
                 self.update_open_value(&pos.kind, last_price);
             }
             _ => {}
@@ -377,10 +380,10 @@ impl MeanRevertingState {
     fn update_open_value(&mut self, kind: &PositionKind, price: f64) {
         match kind {
             PositionKind::Short => {
-                self.value_strat += self.units_to_sell * price;
+                self.value_strat += self.nominal_position * price;
             }
             PositionKind::Long => {
-                self.value_strat -= self.units_to_buy * price * (1.0 + self.fees_rate);
+                self.value_strat -= self.nominal_position * price * (1.0 + self.fees_rate);
             }
         }
     }
