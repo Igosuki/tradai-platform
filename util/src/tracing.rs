@@ -15,12 +15,11 @@ pub fn setup_flame_subscriber() -> impl Drop {
 }
 
 fn tracing_log_subscriber() -> Subscriber {
-    let collector = tracing_subscriber::fmt()
+    tracing_subscriber::fmt()
         // filter spans/events with level TRACE or higher.
         .with_max_level(Level::INFO)
         // build but do not install the subscriber.
-        .finish();
-    collector
+        .finish()
 }
 
 ///  ```rust

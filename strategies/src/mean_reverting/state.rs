@@ -38,8 +38,8 @@ pub struct Operation {
 impl Operation {
     fn new(pos: Position, op_kind: OperationKind, qty: f64, dry_mode: bool) -> Self {
         let trade_kind = match (&pos.kind, &op_kind) {
-            (PositionKind::SHORT, OperationKind::OPEN) | (PositionKind::LONG, OperationKind::CLOSE) => TradeKind::SELL,
-            (PositionKind::LONG, OperationKind::OPEN) | (PositionKind::SHORT, OperationKind::CLOSE) => TradeKind::BUY,
+            (PositionKind::Short, OperationKind::Open) | (PositionKind::Long, OperationKind::Close) => TradeKind::Sell,
+            (PositionKind::Long, OperationKind::Open) | (PositionKind::Short, OperationKind::Close) => TradeKind::Buy,
         };
         Operation {
             id: Uuid::new_v4().to_string(),
@@ -75,14 +75,14 @@ impl TradeOperation {
     }
 }
 
-impl Into<StagedOrder> for TradeOperation {
-    fn into(self) -> StagedOrder {
+impl From<TradeOperation> for StagedOrder {
+    fn from(to: TradeOperation) -> Self {
         StagedOrder {
-            op_kind: self.kind,
-            pair: self.pair.into(),
-            qty: self.qty,
-            price: self.price,
-            dry_run: self.dry_mode,
+            op_kind: to.kind,
+            pair: to.pair.into(),
+            qty: to.qty,
+            price: to.price,
+            dry_run: to.dry_mode,
         }
     }
 }
@@ -210,7 +210,7 @@ impl MeanRevertingState {
         let mut ops: Vec<Operation> = self.get_operations();
         ops.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
         if let Some(o) = ops.last() {
-            if OperationKind::OPEN == o.kind {
+            if OperationKind::Open == o.kind {
                 self.set_position(o.pos.kind.clone());
             }
         }
@@ -236,9 +236,9 @@ impl MeanRevertingState {
 
     pub(super) fn no_position_taken(&self) -> bool { self.position.is_none() }
 
-    pub(super) fn is_long(&self) -> bool { self.position.eq(&Some(PositionKind::LONG)) }
+    pub(super) fn is_long(&self) -> bool { self.position.eq(&Some(PositionKind::Long)) }
 
-    pub(super) fn is_short(&self) -> bool { self.position.eq(&Some(PositionKind::SHORT)) }
+    pub(super) fn is_short(&self) -> bool { self.position.eq(&Some(PositionKind::Short)) }
 
     pub(super) fn set_position(&mut self, k: PositionKind) { self.position = Some(k); }
 
@@ -307,7 +307,7 @@ impl MeanRevertingState {
 
     fn clear_ongoing_operation(&mut self) {
         if let Some(Operation {
-            kind: OperationKind::CLOSE,
+            kind: OperationKind::Close,
             ..
         }) = self.ongoing_op
         {
@@ -340,7 +340,7 @@ impl MeanRevertingState {
                             Ok(())
                         } else {
                             // Need to resolve the operation, potentially with a new price
-                            let current_price = self.new_price(&current_bp, &o.kind)?;
+                            let current_price = self.new_price(current_bp, &o.kind)?;
                             let new_trade = o.trade.with_new_price(current_price);
                             if let Err(e) = self
                                 .ts
@@ -369,16 +369,16 @@ impl MeanRevertingState {
         self.set_position(position_kind.clone());
         self.traded_price = pos.price;
         match position_kind {
-            PositionKind::SHORT => {
+            PositionKind::Short => {
                 self.nominal_position = self.units_to_sell;
                 self.value_strat += self.units_to_sell * pos.price;
             }
-            PositionKind::LONG => {
+            PositionKind::Long => {
                 self.nominal_position = self.units_to_buy;
-                self.value_strat = self.value_strat - self.units_to_buy * pos.price * (1.0 + fees);
+                self.value_strat -= self.units_to_buy * pos.price * (1.0 + fees);
             }
         };
-        let mut op = Operation::new(pos, OperationKind::OPEN, self.nominal_position, self.dry_mode);
+        let mut op = Operation::new(pos, OperationKind::Open, self.nominal_position, self.dry_mode);
         self.stage_operation(&mut op).await?;
         Ok(op)
     }
@@ -387,14 +387,14 @@ impl MeanRevertingState {
     pub(super) async fn close(&mut self, pos: Position, fees: f64) -> Result<Operation> {
         let position_kind: PositionKind = pos.kind.clone();
         match position_kind {
-            PositionKind::SHORT => {
-                self.value_strat = self.value_strat - self.nominal_position * pos.price;
+            PositionKind::Short => {
+                self.value_strat -= self.nominal_position * pos.price;
             }
-            PositionKind::LONG => {
-                self.value_strat = self.value_strat + self.nominal_position * pos.price * (1.0 - fees);
+            PositionKind::Long => {
+                self.value_strat += self.nominal_position * pos.price * (1.0 - fees);
             }
         };
-        let mut op = Operation::new(pos, OperationKind::CLOSE, self.nominal_position, self.dry_mode);
+        let mut op = Operation::new(pos, OperationKind::Close, self.nominal_position, self.dry_mode);
         self.stage_operation(&mut op).await?;
         Ok(op)
     }
@@ -418,7 +418,7 @@ impl MeanRevertingState {
         self.save_operation(op);
         let reqs = self.ts.stage_order(op.trade.clone().into()).await;
         op.transaction = reqs.ok();
-        self.save_operation(&op);
+        self.save_operation(op);
         let transaction_result = match &op.transaction {
             None => Err(anyhow!("Failed transaction")),
             _ => Ok(()),
@@ -486,8 +486,8 @@ impl MeanRevertingState {
                 apo: self.apo(),
                 value_strat: self.value_strat,
                 pos_return: match pos {
-                    PositionKind::SHORT => self.short_position_return,
-                    PositionKind::LONG => self.long_position_return,
+                    PositionKind::Short => self.short_position_return,
+                    PositionKind::Long => self.long_position_return,
                 },
                 pnl: self.pnl(),
                 nominal_position: self.nominal_position,
@@ -497,10 +497,10 @@ impl MeanRevertingState {
     }
     fn new_price(&self, bp: &BookPosition, operation_kind: &OperationKind) -> Result<f64> {
         match (&self.position, operation_kind) {
-            (Some(PositionKind::SHORT), OperationKind::OPEN) | (Some(PositionKind::LONG), OperationKind::CLOSE) => {
+            (Some(PositionKind::Short), OperationKind::Open) | (Some(PositionKind::Long), OperationKind::Close) => {
                 Ok(bp.ask)
             }
-            (Some(PositionKind::SHORT), OperationKind::CLOSE) | (Some(PositionKind::LONG), OperationKind::OPEN) => {
+            (Some(PositionKind::Short), OperationKind::Close) | (Some(PositionKind::Long), OperationKind::Open) => {
                 Ok(bp.bid)
             }
             _ => {

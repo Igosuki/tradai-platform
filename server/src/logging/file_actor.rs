@@ -71,12 +71,12 @@ impl AvroFileActor {
     }
 
     /// Finds the next incremental file name for this path
-    fn next_file_part_name(previous: &PathBuf) -> Option<PathBuf> {
+    fn next_file_part_name(previous: &Path) -> Option<PathBuf> {
         let previous_name = previous.file_stem().and_then(|os_str| os_str.to_str())?;
         let i = previous_name.rfind('-')?;
         let (stem, num) = previous_name.split_at(i + 1);
         let next_name = format!("{}{:04}.{}", stem, num.parse::<i32>().ok()? + 1, AVRO_EXTENSION);
-        let mut next = previous.clone();
+        let mut next = previous.to_path_buf();
         next.set_file_name(next_name);
         next.set_extension(AVRO_EXTENSION);
         Some(next)
@@ -106,12 +106,12 @@ impl AvroFileActor {
                     Box::new(file_path),
                     self.rotation_policy.clone(),
                     AvroFileActor::next_file_part_name,
-                    Some(avro_header(&schema, marker.clone())?),
+                    Some(avro_header(schema, marker.clone())?),
                 )
                 .map_err(Error::IOError)?;
 
                 // Schema based avro file writer
-                let mut writer = Writer::new(&schema, file);
+                let mut writer = Writer::new(schema, file);
                 writer.set_marker(marker);
 
                 let rc = Rc::new(RefCell::new(writer));

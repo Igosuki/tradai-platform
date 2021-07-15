@@ -54,22 +54,13 @@ impl WalCmp for TransactionStatus {
             return false;
         }
         match self {
-            Self::Staged(_) => match v {
-                Self::New(_) | Self::PartiallyFilled(_) | Self::Rejected(_) | Self::Filled(_) => true,
-                _ => false,
-            },
-            Self::New(_) => match v {
-                Self::PartiallyFilled(_) | Self::Rejected(_) | Self::Filled(_) => true,
-                _ => false,
-            },
-            Self::PartiallyFilled(_) => match v {
-                Self::Rejected(_) | Self::Filled(_) => true,
-                _ => false,
-            },
-            Self::Filled(_) => match v {
-                Self::Rejected(_) => true,
-                _ => false,
-            },
+            Self::Staged(_) => matches!(
+                v,
+                Self::New(_) | Self::PartiallyFilled(_) | Self::Rejected(_) | Self::Filled(_)
+            ),
+            Self::New(_) => matches!(v, Self::PartiallyFilled(_) | Self::Rejected(_) | Self::Filled(_)),
+            Self::PartiallyFilled(_) => matches!(v, Self::Rejected(_) | Self::Filled(_)),
+            Self::Filled(_) => matches!(v, Self::Rejected(_)),
             Self::Rejected(_) => false,
         }
     }
@@ -82,26 +73,13 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn is_filled(&self) -> bool {
-        match self.status {
-            TransactionStatus::Filled(_) => true,
-            _ => false,
-        }
-    }
+    pub fn is_filled(&self) -> bool { matches!(self.status, TransactionStatus::Filled(_)) }
 
     pub fn is_bad_request(&self) -> bool {
-        match self.status {
-            TransactionStatus::Rejected(Rejection::BadRequest(_)) => true,
-            _ => false,
-        }
+        matches!(self.status, TransactionStatus::Rejected(Rejection::BadRequest(_)))
     }
 
-    pub fn is_rejected(&self) -> bool {
-        match self.status {
-            TransactionStatus::Rejected(_) => true,
-            _ => false,
-        }
-    }
+    pub fn is_rejected(&self) -> bool { matches!(self.status, TransactionStatus::Rejected(_)) }
 
     pub fn variant_eq(&self, b: &Transaction) -> bool {
         std::mem::discriminant(&self.status) == std::mem::discriminant(&b.status)
@@ -151,7 +129,7 @@ mod test {
             status: statuses[0].clone(),
         };
         let tr1 = Transaction {
-            id: order_id.clone(),
+            id: order_id,
             status: statuses[1].clone(),
         };
         assert!(tr0.variant_eq(&tr0));

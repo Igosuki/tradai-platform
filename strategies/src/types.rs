@@ -9,27 +9,28 @@ use thiserror::Error;
 use coinnect_rt::types::{Orderbook, TradeType};
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum TradeKind {
     #[strum(serialize = "buy")]
-    BUY,
+    Buy,
     #[strum(serialize = "sell")]
-    SELL,
+    Sell,
 }
 
-impl Into<TradeType> for TradeKind {
-    fn into(self) -> TradeType {
-        match self {
-            TradeKind::BUY => TradeType::Buy,
-            TradeKind::SELL => TradeType::Sell,
+impl From<TradeKind> for TradeType {
+    fn from(tk: TradeKind) -> TradeType {
+        match tk {
+            TradeKind::Buy => TradeType::Buy,
+            TradeKind::Sell => TradeType::Sell,
         }
     }
 }
 
-impl Into<i32> for TradeKind {
-    fn into(self) -> i32 {
-        match self {
-            TradeKind::BUY => 0,
-            TradeKind::SELL => 1,
+impl From<TradeKind> for i32 {
+    fn from(tk: TradeKind) -> i32 {
+        match tk {
+            TradeKind::Buy => 0,
+            TradeKind::Sell => 1,
         }
     }
 }
@@ -38,23 +39,25 @@ impl Into<i32> for TradeKind {
 #[serde(rename_all = "lowercase")]
 pub enum PositionKind {
     #[strum(serialize = "short")]
-    SHORT,
+    Short,
     #[strum(serialize = "long")]
-    LONG,
+    Long,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum OperationKind {
     #[strum(serialize = "open")]
-    OPEN,
+    Open,
     #[strum(serialize = "close")]
-    CLOSE,
+    Close,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum StopEvent {
-    GAIN,
-    LOSS,
+    Gain,
+    Loss,
     NA,
 }
 

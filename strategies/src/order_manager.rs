@@ -39,7 +39,7 @@ impl TransactionService {
     /// Returns whether it changed, and the latest transaction retrieved
     pub async fn latest_transaction_change(&self, tr: &Transaction) -> anyhow::Result<(bool, Transaction)> {
         let new_tr = self.om.send(OrderId(tr.id.clone())).await??;
-        Ok((!new_tr.variant_eq(&tr), new_tr))
+        Ok((!new_tr.variant_eq(tr), new_tr))
     }
 
     /// Retry staging an order if it was rejected
@@ -120,8 +120,8 @@ impl OrderManager {
     #[tracing::instrument(skip(self), level = "info")]
     pub(crate) async fn stage_order(&mut self, staged_order: StagedOrder) -> Result<Transaction> {
         let side = match staged_order.op_kind {
-            TradeKind::BUY => TradeType::Buy,
-            TradeKind::SELL => TradeType::Sell,
+            TradeKind::Buy => TradeType::Buy,
+            TradeKind::Sell => TradeType::Sell,
         };
         let order_id = Uuid::new_v4().to_string();
         let add_order = OrderQuery::AddOrder(AddOrderRequest {
@@ -221,16 +221,16 @@ impl OrderManager {
 
 #[allow(clippy::unnested_or_patterns)]
 fn equivalent_status(trs: &TransactionStatus, os: &OrderStatus) -> bool {
-    match (trs, os) {
+    matches!(
+        (trs, os),
         (TransactionStatus::Filled(_), OrderStatus::Filled)
-        | (TransactionStatus::Rejected(_), OrderStatus::Rejected)
-        | (TransactionStatus::Rejected(_), OrderStatus::PendingCancel)
-        | (TransactionStatus::Rejected(_), OrderStatus::Canceled)
-        | (TransactionStatus::Rejected(_), OrderStatus::Expired)
-        | (TransactionStatus::Staged(_), OrderStatus::New)
-        | (TransactionStatus::PartiallyFilled(_), OrderStatus::PartialyFilled) => true,
-        _ => false,
-    }
+            | (TransactionStatus::Rejected(_), OrderStatus::Rejected)
+            | (TransactionStatus::Rejected(_), OrderStatus::PendingCancel)
+            | (TransactionStatus::Rejected(_), OrderStatus::Canceled)
+            | (TransactionStatus::Rejected(_), OrderStatus::Expired)
+            | (TransactionStatus::Staged(_), OrderStatus::New)
+            | (TransactionStatus::PartiallyFilled(_), OrderStatus::PartialyFilled)
+    )
 }
 
 impl Actor for OrderManager {
@@ -255,30 +255,27 @@ impl Actor for OrderManager {
                     let non_filled_orders = futures::future::join_all(
                         orders_read_lock
                             .iter()
-                            .filter(|(_k, v)| match v {
-                                TransactionStatus::PartiallyFilled(_) | TransactionStatus::Staged(_) => true,
-                                _ => false,
+                            .filter(|(_k, v)| {
+                                matches!(v, TransactionStatus::PartiallyFilled(_) | TransactionStatus::Staged(_))
                             })
                             .map(|(tr_id, _tr_status)| act.api.get_order(tr_id.clone())),
                     )
                     .await;
                     let mut notifications = vec![];
-                    for lo in non_filled_orders {
-                        if let Ok(order) = lo {
-                            let order_id = order.orig_order_id.clone();
-                            if let Some(tr_status) = orders_read_lock.get(&order_id) {
-                                if !equivalent_status(&tr_status, &order.status) {
-                                    notifications.push(AccountEventEnveloppe(
-                                        Exchange::Binance,
-                                        AccountEvent::OrderUpdate(order.into()),
-                                    ));
-                                }
-                            } else {
+                    for order in non_filled_orders.into_iter().flatten() {
+                        let order_id = order.orig_order_id.clone();
+                        if let Some(tr_status) = orders_read_lock.get(&order_id) {
+                            if !equivalent_status(tr_status, &order.status) {
                                 notifications.push(AccountEventEnveloppe(
                                     Exchange::Binance,
                                     AccountEvent::OrderUpdate(order.into()),
                                 ));
                             }
+                        } else {
+                            notifications.push(AccountEventEnveloppe(
+                                Exchange::Binance,
+                                AccountEvent::OrderUpdate(order.into()),
+                            ));
                         }
                     }
                     notifications
@@ -464,7 +461,7 @@ mod test {
         let mut order_manager = it_order_manager(test_dir, Binance).await;
         let registered = order_manager
             .stage_order(StagedOrder {
-                op_kind: TradeKind::BUY,
+                op_kind: TradeKind::Buy,
                 pair: test_pair().into(),
                 qty: 0.0,
                 price: 0.0,
@@ -504,7 +501,7 @@ mod test {
                 .into_iter()
                 .map(|status| {
                     Transaction {
-                        status: status.clone(),
+                        status,
                         id: order_id.clone(),
                     }
                 })

@@ -21,9 +21,9 @@ pub enum TradeTypeInput {
     Buy,
 }
 
-impl Into<TradeType> for TradeTypeInput {
-    fn into(self) -> TradeType {
-        match self {
+impl From<TradeTypeInput> for TradeType {
+    fn from(ti: TradeTypeInput) -> TradeType {
+        match ti {
             TradeTypeInput::Sell => TradeType::Sell,
             TradeTypeInput::Buy => TradeType::Buy,
         }
@@ -36,9 +36,9 @@ pub enum OrderTypeInput {
     Market,
 }
 
-impl Into<OrderType> for OrderTypeInput {
-    fn into(self) -> OrderType {
-        match self {
+impl From<OrderTypeInput> for OrderType {
+    fn from(oti: OrderTypeInput) -> OrderType {
+        match oti {
             OrderTypeInput::Limit => OrderType::Limit,
             OrderTypeInput::Market => OrderType::Market,
         }
@@ -57,16 +57,16 @@ pub struct AddOrderInput {
     pub dry_run: bool,
 }
 
-impl Into<OrderQuery> for AddOrderInput {
-    fn into(self) -> OrderQuery {
+impl From<AddOrderInput> for OrderQuery {
+    fn from(aoi: AddOrderInput) -> OrderQuery {
         OrderQuery::AddOrder(AddOrderRequest {
-            order_type: self.order_type.into(),
-            side: self.side.into(),
-            quantity: Some(self.quantity),
-            pair: self.pair.into(),
-            price: Some(self.price),
+            order_type: aoi.order_type.into(),
+            side: aoi.side.into(),
+            quantity: Some(aoi.quantity),
+            pair: aoi.pair.into(),
+            price: Some(aoi.price),
             enforcement: Some(OrderEnforcement::FOK),
-            dry_run: self.dry_run,
+            dry_run: aoi.dry_run,
             order_id: Some(Uuid::new_v4().to_string()),
             ..AddOrderRequest::default()
         })

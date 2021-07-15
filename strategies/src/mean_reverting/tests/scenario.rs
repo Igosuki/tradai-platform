@@ -191,7 +191,7 @@ async fn complete_backtest() {
     let dt0 = Utc.ymd(2020, 3, 25);
     let dt1 = Utc.ymd(2020, 6, 10);
     // align data
-    let mut elapsed = 0 as u128;
+    let mut elapsed = 0_u128;
     let now = Instant::now();
     let csv_records = input::load_csv_dataset(
         &DateRange(dt0, dt1, DurationRangeType::Days, 1),
@@ -267,7 +267,7 @@ async fn complete_backtest() {
     assert_eq!(Some(78767.08484500754), last_position.map(|p| p.value()));
 }
 
-fn write_trade_events(test_results_dir: &String, trade_events: &Vec<(OperationEvent, TradeEvent)>) {
+fn write_trade_events(test_results_dir: &str, trade_events: &[(OperationEvent, TradeEvent)]) {
     let mut trade_events_wtr =
         csv::Writer::from_path(format!("{}/{}_trade_events.csv", test_results_dir, PAIR)).unwrap();
     trade_events_wtr
@@ -290,7 +290,7 @@ fn write_trade_events(test_results_dir: &String, trade_events: &Vec<(OperationEv
     trade_events_wtr.flush().unwrap();
 }
 
-fn write_ema_values(test_results_dir: &String, model_values: &Vec<(DateTime<Utc>, MeanRevertingModelValue, f64)>) {
+fn write_ema_values(test_results_dir: &str, model_values: &[(DateTime<Utc>, MeanRevertingModelValue, f64)]) {
     let mut ema_values_wtr = csv::Writer::from_path(format!("{}/{}_ema_values.csv", test_results_dir, PAIR)).unwrap();
     ema_values_wtr
         .write_record(&["ts", "short_ema", "long_ema", "apo", "value_strat"])
@@ -309,7 +309,7 @@ fn write_ema_values(test_results_dir: &String, model_values: &Vec<(DateTime<Utc>
     ema_values_wtr.flush().unwrap();
 }
 
-fn write_thresholds(test_results_dir: &String, strategy_logs: &mut Vec<StrategyLog>) {
+fn write_thresholds(test_results_dir: &str, strategy_logs: &mut Vec<StrategyLog>) {
     {
         info_time!("Write strategy logs");
         let mut thresholds_wtr =

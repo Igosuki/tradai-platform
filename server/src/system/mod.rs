@@ -59,10 +59,10 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     // Temporarily load symbol cache from here
     {
         let apis = Coinnect::build_exchange_apis(Arc::new(exchanges.clone()), keys_path.clone()).await;
-        futures::future::join_all(apis.into_iter().map(|(xchg, api)| {
-            let exchange = xchg.clone();
-            Coinnect::load_pair_registry(exchange, api)
-        }))
+        futures::future::join_all(
+            apis.into_iter()
+                .map(|(xchg, api)| Coinnect::load_pair_registry(xchg, api)),
+        )
         .await;
     }
 
@@ -83,8 +83,8 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
                 let oms = Arc::new(order_managers(keys_path.clone(), &db_path_str, Arc::new(exchanges.clone())).await);
                 if !oms.is_empty() {
                     termination_handles.push(Box::pin(bots::poll_account_bots(oms.clone())));
-                    for (xchg, om_system) in oms.clone().iter() {
-                        order_managers_addr.insert(xchg.clone(), om_system.om.clone());
+                    for (&xchg, om_system) in oms.clone().iter() {
+                        order_managers_addr.insert(xchg, om_system.om.clone());
                     }
                 }
                 let strategies = strategies(settings_arc.clone(), oms.clone()).await;
@@ -223,7 +223,7 @@ async fn order_managers(
         if !conf.use_account {
             continue;
         }
-        let api = Coinnect::build_exchange_api(keys_path.clone(), &xch, conf.use_test)
+        let api = Coinnect::build_exchange_api(keys_path.clone(), xch, conf.use_test)
             .await
             .unwrap();
         let om_path = format!("{}/om_{}", db_path, xch);

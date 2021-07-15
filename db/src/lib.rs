@@ -84,7 +84,7 @@ impl Db {
 
         let mut builder = Rkv::environment_builder::<Lmdb>();
         builder.set_max_dbs(5);
-        builder.set_map_size((10 as i32).pow(8) as usize);
+        builder.set_map_size(10_i32.pow(8) as usize);
         Rkv::from_builder(path, builder)
     }
 
@@ -115,11 +115,9 @@ impl Db {
         self.with_db(|env, store| {
             let reader = env.read().unwrap();
             let mut strings: Vec<String> = Vec::new();
-            for r in store.iter_start(&reader).unwrap() {
-                if let Ok((kb, ov)) = r {
-                    let result: Option<&str> = std::str::from_utf8(kb).ok();
-                    strings.push(format!("{:?}:{:?}", result, ov))
-                }
+            for (kb, ov) in store.iter_start(&reader).unwrap().flatten() {
+                let result: Option<&str> = std::str::from_utf8(kb).ok();
+                strings.push(format!("{:?}:{:?}", result, ov))
             }
             strings
         })
@@ -432,7 +430,7 @@ mod test {
 
     fn db() -> Db {
         let dir = test_dir();
-        Db::new(&dir.as_ref().to_str().unwrap(), "mydb".to_string())
+        Db::new(dir.as_ref().to_str().unwrap(), "mydb".to_string())
     }
 
     #[derive(Debug, Serialize, Deserialize, PartialEq)]

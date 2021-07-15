@@ -37,7 +37,7 @@ mod test {
                 price: 0.1,
                 dry_run: false,
                 qty: 0.1,
-                op_kind: TradeKind::BUY,
+                op_kind: TradeKind::Buy,
             })
             .await;
         // Strategy
@@ -47,7 +47,7 @@ mod test {
         assert!(res.is_ok());
         if let Ok(tr) = res {
             assert_ne!(tr.id, "".to_string());
-            assert_ne!(true, matches!(tr.status, TransactionStatus::Rejected(_)));
+            assert!(!matches!(tr.status, TransactionStatus::Rejected(_)));
         }
     }
 }

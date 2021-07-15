@@ -83,7 +83,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
     pub fn value(&self) -> Option<T> { self.last_model.clone().map(|s| s.value) }
 
     pub fn try_loading(&mut self) -> crate::error::Result<()> {
-        if let None = self.last_model_load_attempt {
+        if self.last_model_load_attempt.is_none() {
             self.load()?;
         }
         if self.is_loaded {
@@ -167,7 +167,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
     pub fn is_filled(&self) -> bool { self.len() > self.window_size }
 
     pub fn try_loading(&mut self) -> crate::error::Result<()> {
-        if let None = self.last_load_attempt {
+        if self.last_load_attempt.is_none() {
             self.load()?;
         }
         if self.is_loaded {
@@ -247,13 +247,13 @@ mod test {
             for _ in 0..max_size {
                 table.push(&TestRow::arbitrary(&mut gen))
             }
-            table.window().map(|r| r.clone()).collect()
+            table.window().cloned().collect()
         };
-        let db = Arc::new(get_or_create(test_path.clone(), vec![]));
+        let db = Arc::new(get_or_create(test_path, vec![]));
         let mut table: PersistentVec<TestRow> = PersistentVec::new(db.clone(), id, max_size, max_size / 2);
         let load = table.load();
         assert!(load.is_ok(), "{:?}", load);
-        let window_after_load: Vec<TestRow> = table.window().map(|r| r.clone()).collect();
+        let window_after_load: Vec<TestRow> = table.window().cloned().collect();
         assert_eq!(window, window_after_load);
     }
 }

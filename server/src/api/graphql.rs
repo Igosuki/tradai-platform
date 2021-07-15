@@ -67,10 +67,7 @@ where
             operation_name,
             variables,
         } = get_req;
-        let variables = match variables {
-            Some(variables) => Some(serde_json::from_str(&variables).unwrap()),
-            None => None,
-        };
+        let variables = variables.map(|variables| serde_json::from_str(&variables).unwrap());
         Self::new(query, operation_name, variables)
     }
 }
