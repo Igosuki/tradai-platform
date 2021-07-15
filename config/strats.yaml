@@ -23,7 +23,7 @@ outputs:
   - type: Strategies
 
 strategies:
-  - type: MeanReverting
+  - type: mean_reverting
     pair: 'BTC_USDT'
     short_window_size: 100
     long_window_size: 1000
@@ -38,6 +38,7 @@ strategies:
     stop_loss: -0.1
     stop_gain: 0.075
     exchange: Binance
+    order_mode: market
 
 data_dir: './data'
 

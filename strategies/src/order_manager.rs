@@ -9,8 +9,7 @@ use async_std::sync::RwLock;
 use coinnect_rt::error::Error as CoinnectError;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::exchange_bot::Ping;
-use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, OrderEnforcement, OrderQuery,
-                         OrderStatus, OrderType, OrderUpdate};
+use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, OrderQuery, OrderStatus, OrderUpdate};
 use db::get_or_create;
 use uuid::Uuid;
 
@@ -118,24 +117,17 @@ impl OrderManager {
     /// Registers an order, and passes it to be later processed
     #[tracing::instrument(skip(self), level = "info")]
     pub(crate) async fn stage_order(&mut self, staged_order: StagedOrder) -> Result<Transaction> {
+        let is_dry_order = staged_order.dry_run();
+        let mut request = staged_order.request;
         let order_id = Uuid::new_v4().to_string();
-        let add_order = OrderQuery::AddOrder(AddOrderRequest {
-            pair: staged_order.pair,
-            side: staged_order.op_kind.into(),
-            order_id: Some(order_id.clone()),
-            quantity: Some(staged_order.qty),
-            price: Some(staged_order.price),
-            order_type: OrderType::Limit,
-            enforcement: Some(OrderEnforcement::FOK),
-            dry_run: staged_order.dry_run,
-            ..AddOrderRequest::default()
-        });
+        request.order_id = Some(order_id.clone());
+        let add_order = OrderQuery::AddOrder(request);
         let staged_transaction = TransactionStatus::Staged(add_order.clone());
         self.register(order_id.clone(), staged_transaction.clone()).await?;
         Ok(Transaction {
             id: order_id.clone(),
             status: // Dry mode simulates transactions as filled
-            if staged_order.dry_run {
+            if is_dry_order {
                 let filled_transaction = TransactionStatus::Filled(OrderUpdate::default());
                 self.register(order_id.clone(), filled_transaction.clone()).await?;
                 filled_transaction
@@ -419,9 +411,8 @@ mod test {
 
     use crate::order_manager::OrderManager;
     use crate::order_types::{Rejection, StagedOrder, Transaction, TransactionStatus};
-    use crate::types::TradeKind;
     use coinnect_rt::coinnect::Coinnect;
-    use coinnect_rt::types::{AddOrderRequest, OrderInfo, OrderQuery, OrderUpdate};
+    use coinnect_rt::types::{AddOrderRequest, OrderInfo, OrderQuery, OrderUpdate, TradeType};
 
     #[actix_rt::test]
     async fn test_append_rejected() {
@@ -456,11 +447,14 @@ mod test {
         let mut order_manager = it_order_manager(test_dir, Binance).await;
         let registered = order_manager
             .stage_order(StagedOrder {
-                op_kind: TradeKind::Buy,
-                pair: test_pair().into(),
-                qty: 0.0,
-                price: 0.0,
-                dry_run: false,
+                request: AddOrderRequest {
+                    pair: test_pair().into(),
+                    price: Some(0.0),
+                    dry_run: true,
+                    quantity: Some(0.0),
+                    side: TradeType::Buy,
+                    ..AddOrderRequest::default()
+                },
             })
             .await;
         println!("{:?}", registered);

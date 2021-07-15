@@ -7,6 +7,7 @@ use crate::naive_pair_trading::options::Options;
 use crate::naive_pair_trading::state::MovingState;
 use crate::naive_pair_trading::{covar_model, DataRow, NaiveTradingStrategy};
 use crate::order_manager::test_util;
+use crate::types::OrderMode;
 use coinnect_rt::exchange::Exchange;
 use db::get_or_create;
 use itertools::Itertools;
@@ -181,6 +182,7 @@ async fn complete_backtest() {
             stop_gain: 0.075,
             initial_cap: 100.0,
             dry_mode: Some(true),
+            order_mode: OrderMode::Limit,
         },
         order_manager_addr,
     );

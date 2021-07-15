@@ -9,10 +9,11 @@ use uuid::Uuid;
 
 use db::{Storage, StorageExt};
 
+use crate::naive_pair_trading::options::Options;
 use crate::order_manager::OrderManager;
 use crate::order_types::{OrderId, StagedOrder, Transaction};
 use crate::query::MutableField;
-use crate::types::{BookPosition, OperationEvent, StratEvent, TradeEvent};
+use crate::types::{BookPosition, OperationEvent, OrderMode, StratEvent, TradeEvent, TradeOperation};
 use crate::types::{OperationKind, PositionKind, TradeKind};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -38,23 +39,6 @@ pub struct Operation {
     pub right_transaction: Option<Transaction>,
     pub left_trade: TradeOperation,
     pub right_trade: TradeOperation,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
-pub struct TradeOperation {
-    kind: TradeKind,
-    pair: String,
-    qty: f64,
-    price: f64,
-}
-
-impl TradeOperation {
-    pub fn with_new_price(&self, new_price: f64) -> TradeOperation {
-        TradeOperation {
-            price: new_price,
-            ..self.clone()
-        }
-    }
 }
 
 #[juniper::graphql_object]
@@ -146,6 +130,7 @@ pub(super) struct MovingState {
     ongoing_op: Option<Operation>,
     /// Remote operations are ran dry, meaning no actual action will be performed when possible
     dry_mode: bool,
+    order_mode: OrderMode,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -161,12 +146,12 @@ struct TransientState {
 }
 
 impl MovingState {
-    pub fn new(initial_value: f64, db: Arc<Box<dyn Storage>>, om: Addr<OrderManager>, dry_mode: bool) -> MovingState {
+    pub fn new(n: &Options, db: Arc<Box<dyn Storage>>, om: Addr<OrderManager>) -> MovingState {
         db.ensure_table(STATE_KEY).unwrap();
         db.ensure_table(OPERATIONS_KEY).unwrap();
         let mut state = MovingState {
             position: None,
-            value_strat: initial_value,
+            value_strat: n.initial_cap,
             units_to_buy_long_spread: 0.0,
             units_to_buy_short_spread: 0.0,
             beta_val: 0.0,
@@ -179,11 +164,12 @@ impl MovingState {
             traded_price_left: 0.0,
             short_position_return: 0.0,
             long_position_return: 0.0,
-            pnl: initial_value,
+            pnl: n.initial_cap,
             db,
             om,
             ongoing_op: None,
-            dry_mode,
+            dry_mode: n.dry_mode(),
+            order_mode: n.order_mode,
         };
         state.reload_state();
         state
@@ -341,12 +327,14 @@ impl MovingState {
                 qty: spread * self.beta_val,
                 pair: pos.left_pair,
                 kind: left_op,
+                dry_mode: self.dry_mode,
             },
             right_trade: TradeOperation {
                 price: pos.right_price,
                 qty: spread,
                 pair: pos.right_pair,
                 kind: right_op,
+                dry_mode: self.dry_mode,
             },
         }
     }
@@ -527,14 +515,11 @@ impl MovingState {
     }
 
     async fn stage_order(&self, trade_op: TradeOperation) -> Result<Transaction> {
+        let staged_order = StagedOrder {
+            request: trade_op.to_request(&self.order_mode),
+        };
         self.om
-            .send(StagedOrder {
-                op_kind: trade_op.kind,
-                pair: trade_op.pair.into(),
-                qty: trade_op.qty,
-                price: trade_op.price,
-                dry_run: self.dry_mode,
-            })
+            .send(staged_order)
             .await?
             .map_err(|e| anyhow!("mailbox error {}", e))
     }

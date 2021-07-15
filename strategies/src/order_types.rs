@@ -1,10 +1,9 @@
 use actix::Message;
 use anyhow::Result;
-use coinnect_rt::types::{OrderInfo, OrderQuery, OrderStatus, OrderUpdate, Pair};
+use coinnect_rt::types::{AddOrderRequest, OrderInfo, OrderQuery, OrderStatus, OrderUpdate};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 
-use crate::types::TradeKind;
 use crate::wal::WalCmp;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -89,11 +88,11 @@ impl Transaction {
 #[derive(Message, Debug)]
 #[rtype(result = "Result<Transaction>")]
 pub(crate) struct StagedOrder {
-    pub op_kind: TradeKind,
-    pub pair: Pair,
-    pub qty: f64,
-    pub price: f64,
-    pub dry_run: bool,
+    pub request: AddOrderRequest,
+}
+
+impl StagedOrder {
+    pub fn dry_run(&self) -> bool { self.request.dry_run }
 }
 
 #[derive(Message, Debug)]
