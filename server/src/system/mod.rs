@@ -7,8 +7,7 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use actix::{Actor, Addr, Recipient, SyncArbiter};
-use actix_rt::signal::unix::{signal, Signal, SignalKind};
-use futures::{future::select_all, pin_mut, select, FutureExt};
+use futures::{future::select_all, select, FutureExt};
 
 use coinnect_rt::binance::BinanceCreds;
 use coinnect_rt::coinnect::Coinnect;
@@ -23,6 +22,7 @@ use crate::logging::file_actor::{AvroFileActor, FileActorOptions};
 use crate::nats::{NatsConsumer, NatsProducer, Subject};
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
 use crate::{logging, server};
+use tokio::signal::unix::{signal, SignalKind};
 
 pub mod bots;
 
@@ -168,8 +168,26 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     termination_handles.push(Box::pin(server));
 
     // Handle interrupts for graceful shutdown
-    // await_termination().await?;
-    select_all(termination_handles).await.0
+    let mut terminate = signal(SignalKind::terminate())?;
+    let mut interrupt = signal(SignalKind::interrupt())?;
+    let mut userint = signal(SignalKind::user_defined1())?;
+    select! {
+        r = select_all(termination_handles).fuse() => {
+            r.0
+        },
+        _ = terminate.recv().fuse() => {
+            info!("Caught termination signal");
+            Ok(())
+        }
+        _ = interrupt.recv().fuse() => {
+            info!("Caught interrupt signal");
+            Ok(())
+        }
+        _ = userint.recv().fuse() => {
+            info!("Caught user int signal");
+            Ok(())
+        }
+    }
 }
 
 fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor> {
@@ -251,22 +269,6 @@ async fn order_managers(
         });
     }
     bots
-}
-
-#[allow(dead_code)]
-async fn await_termination() -> std::io::Result<()> {
-    let _stream: Signal = signal(SignalKind::terminate())?;
-    let mut stream: Signal = signal(SignalKind::interrupt())?;
-    let mut stream2: Signal = signal(SignalKind::user_defined1())?;
-    let t1 = stream.recv().fuse();
-    let t2 = stream2.recv().fuse();
-    pin_mut!(t1, t2);
-
-    select! {
-        _ = t1 => info!("Interrupt"),
-        _ = t2 => info!("SigUSR1"),
-    }
-    Ok(())
 }
 
 pub async fn poll<T: Actor>(addr: Addr<T>) -> std::io::Result<()> {
