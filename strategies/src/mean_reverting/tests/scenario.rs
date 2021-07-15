@@ -15,7 +15,7 @@ use crate::mean_reverting::MeanRevertingStrategy;
 use crate::order_manager::test_util::mock_manager;
 //use crate::test_util::tracing::setup_opentelemetry;
 use crate::test_util::init;
-use crate::types::{OperationEvent, TradeEvent};
+use crate::types::{OperationEvent, OrderMode, TradeEvent};
 use db::get_or_create;
 use std::sync::Arc;
 use tracing_futures::Instrument;
@@ -184,6 +184,7 @@ async fn complete_backtest() {
             long_window_size: 1000,
             sample_freq: "1min".to_string(),
             exchange: Exchange::Binance,
+            order_mode: OrderMode::Limit,
         },
         order_manager_addr,
     );

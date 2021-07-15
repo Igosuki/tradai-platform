@@ -6,7 +6,7 @@ use log::Level::Debug;
 use strum_macros::{AsRefStr, EnumString};
 use thiserror::Error;
 
-use coinnect_rt::types::{Orderbook, TradeType};
+use coinnect_rt::types::{AddOrderRequest, OrderEnforcement, OrderType, Orderbook, TradeType};
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -59,6 +59,56 @@ pub enum StopEvent {
     Gain,
     Loss,
     NA,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OrderMode {
+    Market,
+    Limit,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
+pub struct TradeOperation {
+    pub kind: TradeKind,
+    pub pair: String,
+    pub qty: f64,
+    pub price: f64,
+    pub dry_mode: bool,
+}
+
+impl TradeOperation {
+    pub fn with_new_price(&self, new_price: f64) -> TradeOperation {
+        TradeOperation {
+            price: new_price,
+            ..self.clone()
+        }
+    }
+
+    pub fn to_request(&self, mode: &OrderMode) -> AddOrderRequest {
+        let mut request: AddOrderRequest = self.clone().into();
+        match mode {
+            OrderMode::Limit => {
+                request.order_type = OrderType::Limit;
+                request.enforcement = Some(OrderEnforcement::FOK);
+            }
+            OrderMode::Market => request.order_type = OrderType::Market,
+        }
+        request
+    }
+}
+
+impl From<TradeOperation> for AddOrderRequest {
+    fn from(to: TradeOperation) -> Self {
+        AddOrderRequest {
+            pair: to.pair.into(),
+            side: to.kind.into(),
+            quantity: Some(to.qty),
+            price: Some(to.price),
+            dry_run: to.dry_mode,
+            ..AddOrderRequest::default()
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

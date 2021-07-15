@@ -13,7 +13,7 @@ use crate::mean_reverting::options::Options;
 use crate::order_manager::{OrderManager, TransactionService};
 use crate::order_types::{StagedOrder, Transaction};
 use crate::query::MutableField;
-use crate::types::{BookPosition, OperationEvent, StratEvent, TradeEvent};
+use crate::types::{BookPosition, OperationEvent, OrderMode, StratEvent, TradeEvent, TradeOperation};
 use crate::types::{OperationKind, PositionKind, TradeKind};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -53,36 +53,6 @@ impl Operation {
                 kind: trade_kind,
                 dry_mode,
             },
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
-pub struct TradeOperation {
-    kind: TradeKind,
-    pair: String,
-    qty: f64,
-    price: f64,
-    dry_mode: bool,
-}
-
-impl TradeOperation {
-    pub fn with_new_price(&self, new_price: f64) -> TradeOperation {
-        TradeOperation {
-            price: new_price,
-            ..self.clone()
-        }
-    }
-}
-
-impl From<TradeOperation> for StagedOrder {
-    fn from(to: TradeOperation) -> Self {
-        StagedOrder {
-            op_kind: to.kind,
-            pair: to.pair.into(),
-            qty: to.qty,
-            price: to.price,
-            dry_run: to.dry_mode,
         }
     }
 }
@@ -163,6 +133,7 @@ pub(super) struct MeanRevertingState {
     ongoing_op: Option<Operation>,
     /// Remote operations are ran dry, meaning no actual action will be performed when possible
     dry_mode: bool,
+    order_mode: OrderMode,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -201,6 +172,7 @@ impl MeanRevertingState {
             ts: TransactionService::new(om),
             ongoing_op: None,
             dry_mode: options.dry_mode(),
+            order_mode: options.order_mode,
         };
         state.reload_state();
         state
@@ -342,9 +314,12 @@ impl MeanRevertingState {
                             // Need to resolve the operation, potentially with a new price
                             let current_price = self.new_price(current_bp, &o.kind)?;
                             let new_trade = o.trade.with_new_price(current_price);
+                            let staged_order = StagedOrder {
+                                request: new_trade.to_request(&self.order_mode),
+                            };
                             if let Err(e) = self
                                 .ts
-                                .maybe_retry_trade(transaction.clone(), new_trade.clone().into())
+                                .maybe_retry_trade(transaction.clone(), staged_order)
                                 .await
                                 .map(|tr| new_op.transaction = Some(tr))
                             {
@@ -416,7 +391,10 @@ impl MeanRevertingState {
     #[tracing::instrument(skip(self), level = "debug")]
     async fn stage_operation(&mut self, op: &mut Operation) -> Result<()> {
         self.save_operation(op);
-        let reqs = self.ts.stage_order(op.trade.clone().into()).await;
+        let staged_order = StagedOrder {
+            request: op.trade.to_request(&self.order_mode),
+        };
+        let reqs = self.ts.stage_order(staged_order).await;
         op.transaction = reqs.ok();
         self.save_operation(op);
         let transaction_result = match &op.transaction {

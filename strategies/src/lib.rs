@@ -100,6 +100,7 @@ impl Strategy {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
 pub enum StrategySettings {
     Naive(NaiveStrategyOptions),
     MeanReverting(MeanRevertingStrategyOptions),

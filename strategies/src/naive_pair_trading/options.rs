@@ -1,3 +1,4 @@
+use crate::types::OrderMode;
 use chrono::Duration;
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::Pair;
@@ -17,6 +18,7 @@ pub struct Options {
     pub stop_gain: f64,
     pub initial_cap: f64,
     pub dry_mode: Option<bool>,
+    pub order_mode: OrderMode,
 }
 
 impl Options {

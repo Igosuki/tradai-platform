@@ -72,7 +72,7 @@ impl NaiveTradingStrategy {
             stop_gain: n.stop_gain,
             beta_eval_window_size: n.window_size,
             beta_eval_freq: n.beta_eval_freq,
-            state: MovingState::new(n.initial_cap, db.clone(), om, n.dry_mode()),
+            state: MovingState::new(n, db.clone(), om),
             data_table: Self::make_lm_table(&n.left, &n.right, db, n.window_size as usize),
             right_pair: n.right.to_string(),
             left_pair: n.left.to_string(),

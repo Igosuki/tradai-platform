@@ -1,10 +1,9 @@
 #[cfg(test)]
 mod test {
-    use coinnect_rt::types::Pair;
+    use coinnect_rt::types::{AddOrderRequest, Pair, TradeType};
 
     use crate::order_types::{StagedOrder, TransactionStatus};
     use crate::test_util::{binance_account_ws, local_api};
-    use crate::types::TradeKind;
 
     #[allow(dead_code)]
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
@@ -33,11 +32,14 @@ mod test {
         let pair: Pair = "BTC_USDT".to_string().into();
         let staged_result = om
             .send(StagedOrder {
-                pair,
-                price: 0.1,
-                dry_run: false,
-                qty: 0.1,
-                op_kind: TradeKind::Buy,
+                request: AddOrderRequest {
+                    pair,
+                    price: Some(0.1),
+                    dry_run: false,
+                    quantity: Some(0.1),
+                    side: TradeType::Buy,
+                    ..AddOrderRequest::default()
+                },
             })
             .await;
         // Strategy
