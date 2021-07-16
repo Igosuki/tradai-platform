@@ -4053,6 +4053,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "portfolio"
+version = "0.1.0"
+dependencies = [
+ "actix 0.11.1",
+ "actix-rt 2.2.0",
+ "actix_derive",
+ "anyhow",
+ "coinnect_rt",
+ "thiserror",
+]
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
