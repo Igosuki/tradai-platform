@@ -8,7 +8,8 @@ members = [
     "db",
     "strategies",
     "util",
-    "models"
+    "models",
+    "portfolio"
 ]
 
 [patch.crates-io]
