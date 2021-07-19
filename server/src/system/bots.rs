@@ -3,14 +3,15 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use actix::Recipient;
+use actix::{Actor, Handler, Recipient};
 
 use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
-use coinnect_rt::exchange_bot::ExchangeBot;
+use coinnect_rt::exchange_bot::{ExchangeBot, Ping};
 use coinnect_rt::types::LiveEventEnveloppe;
 
 use crate::system::BotAndActorHandles;
+use actix::dev::ToEnvelope;
 use strategies::order_manager::OrderManager;
 
 pub async fn exchange_bots(
@@ -46,5 +47,17 @@ pub async fn poll_account_bots(
         for system in systems.values() {
             system.ping();
         }
+    }
+}
+
+pub async fn poll_account_bot<T>(system: BotAndActorHandles<T>) -> std::io::Result<()>
+where
+    T: Actor + Handler<Ping>,
+    <T as Actor>::Context: ToEnvelope<T, Ping>,
+{
+    let mut interval = tokio::time::interval(Duration::from_secs(10));
+    loop {
+        interval.tick().await;
+        system.ping();
     }
 }

@@ -7,6 +7,7 @@ use serde::de;
 use serde::{Deserialize, Deserializer};
 
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
+use coinnect_rt::metrics::PrometheusOptions;
 use coinnect_rt::types::Pair;
 use portfolio::balance::BalanceReporterOptions;
 use strategies::StrategySettings;
@@ -118,8 +119,7 @@ pub struct Settings {
     #[serde(default)]
     pub strategies: Vec<StrategySettings>,
     pub db_storage_path: String,
-    pub prom_push_gw: String,
-    pub prom_instance: String,
+    pub prometheus: PrometheusOptions,
     #[serde(default)]
     pub telemetry: OpenTelemetrySettings,
     pub balance_reporter: Option<BalanceReporterOptions>,

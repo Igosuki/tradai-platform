@@ -98,20 +98,18 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
 
     // balance reporter
     if let Some(balance_reporter_opts) = &settings_v.balance_reporter {
-        balance_reporter(
+        let bot = balance_reporter(
             balance_reporter_opts,
             apis.clone(),
             exchanges_conf.clone(),
             keys_path.clone(),
         )
         .await?;
+        termination_handles.push(Box::pin(bots::poll_account_bot(bot)));
     }
 
     // metrics actor
-    let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(
-        &settings_v.prom_push_gw,
-        &settings_v.prom_instance,
-    ));
+    let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(&settings_v.prometheus));
 
     for stream_settings in &settings_v.streams {
         match stream_settings {

@@ -1,0 +1,21 @@
+exchanges:
+  binance:
+    use_account: true
+    use_test: true
+    fees: 0.001
+
+balance_reporter:
+  refresh_rate: 10s
+
+data_dir: './data'
+
+keys: ./config/keys_real_test.json
+
+db_storage_path: './database'
+
+prometheus:
+  push_gateway: 127.0.0.1:9091
+  instance: balance_reporter
+
+api:
+  port: 8186
