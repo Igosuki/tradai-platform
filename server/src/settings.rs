@@ -122,7 +122,7 @@ pub struct Settings {
     pub prom_instance: String,
     #[serde(default)]
     pub telemetry: OpenTelemetrySettings,
-    pub balance_reporter: BalanceReporterOptions,
+    pub balance_reporter: Option<BalanceReporterOptions>,
 }
 
 impl Settings {
