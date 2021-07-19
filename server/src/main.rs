@@ -11,8 +11,6 @@ extern crate lazy_static;
 extern crate log;
 extern crate trader;
 
-use std::io;
-
 //lazy_static! {
 //    static ref CONFIG_FILE: String = {
 //        let trader_env : String = std::env::var("TRADER_ENV").unwrap_or("development".to_string());
@@ -42,4 +40,4 @@ use std::io;
 #[actix_rt::main]
 #[cfg_attr(feature = "flame_it", flame)]
 #[allow(unused_braces)]
-async fn main() -> io::Result<()> { trader::runner::with_config(trader::system::start).await }
+async fn main() -> anyhow::Result<()> { trader::runner::with_config(trader::system::start).await }

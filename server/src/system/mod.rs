@@ -26,19 +26,19 @@ use tokio::signal::unix::{signal, SignalKind};
 
 pub mod bots;
 
-pub struct AccountSystem {
+pub struct OrderManagerModule {
     pub om: Addr<OrderManager>,
     pub bot: Box<dyn ExchangeBot>,
 }
 
-impl AccountSystem {
+impl OrderManagerModule {
     fn ping(&self) {
         self.bot.ping();
         self.om.do_send(coinnect_rt::exchange_bot::Ping);
     }
 }
 
-pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
+pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     let settings_v = settings.read().unwrap();
     let exchanges = settings_v.exchanges.clone();
     let mut termination_handles: Vec<Pin<Box<dyn Future<Output = std::io::Result<()>>>>> = vec![];
@@ -50,10 +50,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     let db_path_str = Arc::new(settings_v.db_storage_path.clone());
     let keys_path = PathBuf::from(settings_v.keys.clone());
     if fs::metadata(keys_path.clone()).is_err() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            anyhow!("key file doesn't exist at {:?}", keys_path.clone()),
-        ));
+        return Err(anyhow!("key file doesn't exist at {:?}", keys_path.clone()));
     }
 
     // Temporarily load symbol cache from here
@@ -108,7 +105,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
                 let mut all_recipients = vec![];
                 all_recipients.extend(strat_recipients.clone());
                 all_recipients.extend(output_recipients.clone());
-                let bots = bots::exchange_bots(exchanges.clone(), keys_path.clone(), all_recipients).await;
+                let bots = bots::exchange_bots(exchanges.clone(), keys_path.clone(), all_recipients).await?;
                 if !bots.is_empty() {
                     termination_handles.push(Box::pin(bots::poll_bots(bots)));
                 }
@@ -173,7 +170,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> std::io::Result<()> {
     let mut userint = signal(SignalKind::user_defined1())?;
     select! {
         r = select_all(termination_handles).fuse() => {
-            r.0
+            r.0.map_err(|e| anyhow!(e))
         },
         _ = terminate.recv().fuse() => {
             info!("Caught termination signal");
@@ -203,7 +200,7 @@ fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor> {
     })
 }
 
-async fn strategies(settings: Arc<RwLock<Settings>>, oms: Arc<HashMap<Exchange, AccountSystem>>) -> Vec<Strategy> {
+async fn strategies(settings: Arc<RwLock<Settings>>, oms: Arc<HashMap<Exchange, OrderManagerModule>>) -> Vec<Strategy> {
     println!("creating strat actors");
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
@@ -235,8 +232,8 @@ async fn order_managers(
     keys_path: PathBuf,
     db_path: &str,
     exchanges: Arc<HashMap<Exchange, ExchangeSettings>>,
-) -> HashMap<Exchange, AccountSystem> {
-    let mut bots: HashMap<Exchange, AccountSystem> = HashMap::new();
+) -> HashMap<Exchange, OrderManagerModule> {
+    let mut bots: HashMap<Exchange, OrderManagerModule> = HashMap::new();
     for (xch, conf) in exchanges.iter() {
         if !conf.use_account {
             continue;
@@ -263,7 +260,7 @@ async fn order_managers(
                 unimplemented!()
             }
         };
-        bots.insert(*xch, AccountSystem {
+        bots.insert(*xch, OrderManagerModule {
             om: order_manager_addr.clone(),
             bot,
         });

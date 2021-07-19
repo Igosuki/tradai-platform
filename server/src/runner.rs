@@ -23,10 +23,10 @@ struct CliOptions {
     telemetry: bool,
 }
 
-pub async fn with_config<F, T>(system_fn: F) -> std::io::Result<()>
+pub async fn with_config<F, T>(system_fn: F) -> anyhow::Result<()>
 where
     F: FnOnce(Arc<RwLock<Settings>>) -> T,
-    T: Future<Output = std::io::Result<()>> + 'static,
+    T: Future<Output = anyhow::Result<()>> + 'static,
 {
     #[cfg(feature = "gprof")]
     HEAP_PROFILER.lock().unwrap().start("./trader.hprof").unwrap();

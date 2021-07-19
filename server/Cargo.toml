@@ -18,6 +18,7 @@ path = "src/main.rs"
 models = { path = "../models" }
 strategies = { path = "../strategies"}
 util = { path = "../util" }
+portfolio = { path = "../portfolio" }
 
 # Rust lang extensions
 lazy_static = "1.4"

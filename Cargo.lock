@@ -5884,6 +5884,7 @@ dependencies = [
  "once_cell",
  "openssl",
  "parse_duration",
+ "portfolio",
  "pretty_assertions",
  "prometheus",
  "rand 0.8.4",
