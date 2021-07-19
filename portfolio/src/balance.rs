@@ -126,8 +126,7 @@ impl Actor for BalanceReporter {
         Box::pin(
             async move {
                 for (xchg, api) in zis.apis.iter() {
-                    let api_arc = Arc::new(api);
-                    if let Ok(balances) = api_arc.clone().balances().await {
+                    if let Ok(balances) = api.balances().await {
                         zis.with_reporter(*xchg, |balance_report| {
                             balance_report.init(&balances);
                         });

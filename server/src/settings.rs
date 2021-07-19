@@ -8,6 +8,7 @@ use serde::{Deserialize, Deserializer};
 
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::types::Pair;
+use portfolio::balance::BalanceReporterOptions;
 use strategies::StrategySettings;
 
 fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
@@ -121,6 +122,7 @@ pub struct Settings {
     pub prom_instance: String,
     #[serde(default)]
     pub telemetry: OpenTelemetrySettings,
+    pub balance_reporter: BalanceReporterOptions,
 }
 
 impl Settings {
