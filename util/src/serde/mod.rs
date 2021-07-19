@@ -1,3 +1,6 @@
+use serde::de::Error;
+use serde::{Deserialize, Deserializer};
+
 pub mod date_time_format {
     use crate::rust_decimal::prelude::ToPrimitive;
     use chrono::{DateTime, TimeZone, Utc};
@@ -27,4 +30,12 @@ pub mod date_time_format {
             .or_else(|_| Utc.datetime_from_str(&s, DATE_FORMAT))
             .map_err(serde::de::Error::custom)
     }
+}
+
+pub fn string_duration<'de, D>(deserializer: D) -> Result<core::time::Duration, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let val: String = Deserialize::deserialize(deserializer)?;
+    parse_duration::parse(&val).map_err(D::Error::custom)
 }

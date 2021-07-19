@@ -12,6 +12,7 @@ tokio = { version = "1.5", features = ["full"], optional = true }
 serde = "1"
 rust_decimal = "1.11"
 tempdir = "0.3"
+parse_duration = "2.1"
 
 # Tracing
 tracing = "0.1"

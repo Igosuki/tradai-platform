@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
 use util::date::DateRange;
-use util::serdes::date_time_format;
+use util::serde::date_time_format;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CsvRecord {

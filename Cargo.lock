@@ -4060,8 +4060,12 @@ dependencies = [
  "actix-rt 2.2.0",
  "actix_derive",
  "anyhow",
+ "chrono",
  "coinnect_rt",
+ "prometheus",
+ "serde 1.0.126",
  "thiserror",
+ "util",
 ]
 
 [[package]]
@@ -6125,6 +6129,7 @@ dependencies = [
  "chrono",
  "opentelemetry",
  "opentelemetry-jaeger",
+ "parse_duration",
  "rust_decimal",
  "serde 1.0.126",
  "tempdir",
