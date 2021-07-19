@@ -6,12 +6,12 @@ use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use actix::{Actor, Addr, Recipient, SyncArbiter};
+use actix::{Actor, Addr, Handler, Recipient, SyncArbiter};
 use futures::{future::select_all, select, FutureExt};
 
 use coinnect_rt::coinnect::Coinnect;
-use coinnect_rt::exchange::{Exchange, ExchangeSettings};
-use coinnect_rt::exchange_bot::ExchangeBot;
+use coinnect_rt::exchange::{Exchange, ExchangeApi, ExchangeSettings};
+use coinnect_rt::exchange_bot::{ExchangeBot, Ping};
 use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::{AccountEventEnveloppe, LiveEventEnveloppe};
 use strategies::order_manager::OrderManager;
@@ -21,19 +21,28 @@ use crate::logging::file_actor::{AvroFileActor, FileActorOptions};
 use crate::nats::{NatsConsumer, NatsProducer, Subject};
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
 use crate::{logging, server};
+use actix::dev::ToEnvelope;
+use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use tokio::signal::unix::{signal, SignalKind};
 
 pub mod bots;
 
-pub struct OrderManagerModule {
-    pub om: Addr<OrderManager>,
-    pub bot: Box<dyn ExchangeBot>,
+pub struct BotAndActorHandles<T: Actor> {
+    pub act: Addr<T>,
+    pub bot: Vec<Box<dyn ExchangeBot>>,
 }
 
-impl OrderManagerModule {
+impl<T> BotAndActorHandles<T>
+where
+    T: Actor + Handler<Ping>,
+    <T as Actor>::Context: ToEnvelope<T, Ping>,
+{
     fn ping(&self) {
-        self.bot.ping();
-        self.om.do_send(coinnect_rt::exchange_bot::Ping);
+        for bot in &self.bot {
+            bot.ping();
+        }
+
+        self.act.do_send(coinnect_rt::exchange_bot::Ping);
     }
 }
 
@@ -52,15 +61,10 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
         return Err(anyhow!("key file doesn't exist at {:?}", keys_path.clone()));
     }
 
+    let exchanges_conf = Arc::new(exchanges.clone());
+    let apis = Arc::new(Coinnect::build_exchange_apis(exchanges_conf.clone(), keys_path.clone()).await);
     // Temporarily load symbol cache from here
-    {
-        let apis = Coinnect::build_exchange_apis(Arc::new(exchanges.clone()), keys_path.clone()).await;
-        futures::future::join_all(
-            apis.into_iter()
-                .map(|(xchg, api)| Coinnect::load_pair_registry(xchg, api)),
-        )
-        .await;
-    }
+    Coinnect::load_pair_registries(apis.clone()).await?;
 
     // strategies, cf strategies crate
     let settings_arc = Arc::clone(&settings);
@@ -76,11 +80,11 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 output_recipients.push(NatsProducer::start(producer).recipient())
             }
             OutputSettings::Strategies => {
-                let oms = Arc::new(order_managers(keys_path.clone(), &db_path_str, Arc::new(exchanges.clone())).await?);
+                let oms = Arc::new(order_managers(keys_path.clone(), &db_path_str, exchanges_conf.clone()).await?);
                 if !oms.is_empty() {
                     termination_handles.push(Box::pin(bots::poll_account_bots(oms.clone())));
                     for (&xchg, om_system) in oms.clone().iter() {
-                        order_managers_addr.insert(xchg, om_system.om.clone());
+                        order_managers_addr.insert(xchg, om_system.act.clone());
                     }
                 }
                 let strategies = strategies(settings_arc.clone(), oms.clone()).await;
@@ -90,6 +94,17 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 }
             }
         }
+    }
+
+    // balance reporter
+    if let Some(balance_reporter_opts) = &settings_v.balance_reporter {
+        balance_reporter(
+            balance_reporter_opts,
+            apis.clone(),
+            exchanges_conf.clone(),
+            keys_path.clone(),
+        )
+        .await?;
     }
 
     // metrics actor
@@ -104,7 +119,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 let mut all_recipients = vec![];
                 all_recipients.extend(strat_recipients.clone());
                 all_recipients.extend(output_recipients.clone());
-                let bots = bots::exchange_bots(exchanges.clone(), keys_path.clone(), all_recipients).await?;
+                let bots = bots::exchange_bots(exchanges_conf.clone(), keys_path.clone(), all_recipients).await?;
                 if !bots.is_empty() {
                     termination_handles.push(Box::pin(bots::poll_bots(bots)));
                 }
@@ -155,10 +170,9 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     );
     // API Server
     let server = server::httpserver(
-        exchanges.clone(),
+        apis.clone(),
         strats_map,
         Arc::new(order_managers_addr),
-        keys_path.clone(),
         settings_v.api.port.0,
     );
     termination_handles.push(Box::pin(server));
@@ -199,7 +213,10 @@ fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor> {
     })
 }
 
-async fn strategies(settings: Arc<RwLock<Settings>>, oms: Arc<HashMap<Exchange, OrderManagerModule>>) -> Vec<Strategy> {
+async fn strategies(
+    settings: Arc<RwLock<Settings>>,
+    oms: Arc<HashMap<Exchange, BotAndActorHandles<OrderManager>>>,
+) -> Vec<Strategy> {
     println!("creating strat actors");
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
@@ -219,10 +236,34 @@ async fn strategies(settings: Arc<RwLock<Settings>>, oms: Arc<HashMap<Exchange, 
                 db_path_a,
                 fees,
                 strategy_settings,
-                order_manager.map(|sys| sys.om.clone()),
+                order_manager.map(|sys| sys.act.clone()),
             )
         })
         .collect()
+}
+
+async fn balance_reporter(
+    options: &BalanceReporterOptions,
+    apis: Arc<HashMap<Exchange, Box<dyn ExchangeApi>>>,
+    exchanges: Arc<HashMap<Exchange, ExchangeSettings>>,
+    keys_path: PathBuf,
+) -> anyhow::Result<BotAndActorHandles<BalanceReporter>> {
+    let mut bots: Vec<Box<dyn ExchangeBot>> = vec![];
+    let balance_reporter = BalanceReporter::new(apis.clone(), options.clone());
+    let balance_reporter_addr = BalanceReporter::start(balance_reporter);
+    for (xch, conf) in exchanges.iter() {
+        if !conf.use_account {
+            continue;
+        }
+        let recipients: Vec<Recipient<AccountEventEnveloppe>> = vec![balance_reporter_addr.clone().recipient()];
+        let creds = Coinnect::credentials_for(*xch, keys_path.clone())?;
+        let bot = Coinnect::new_account_stream(*xch, creds, recipients, conf.use_test).await?;
+        bots.push(bot);
+    }
+    Ok(BotAndActorHandles {
+        act: balance_reporter_addr,
+        bot: bots,
+    })
 }
 
 /// Get an order manager for each exchange
@@ -231,8 +272,8 @@ async fn order_managers(
     keys_path: PathBuf,
     db_path: &str,
     exchanges: Arc<HashMap<Exchange, ExchangeSettings>>,
-) -> anyhow::Result<HashMap<Exchange, OrderManagerModule>> {
-    let mut bots: HashMap<Exchange, OrderManagerModule> = HashMap::new();
+) -> anyhow::Result<HashMap<Exchange, BotAndActorHandles<OrderManager>>> {
+    let mut bots: HashMap<Exchange, BotAndActorHandles<OrderManager>> = HashMap::new();
     for (xch, conf) in exchanges.iter() {
         if !conf.use_account {
             continue;
@@ -246,9 +287,9 @@ async fn order_managers(
         let recipients: Vec<Recipient<AccountEventEnveloppe>> = vec![order_manager_addr.clone().recipient()];
         let creds = Coinnect::credentials_for(*xch, keys_path.clone())?;
         let bot = Coinnect::new_account_stream(*xch, creds, recipients, conf.use_test).await?;
-        bots.insert(*xch, OrderManagerModule {
-            om: order_manager_addr.clone(),
-            bot,
+        bots.insert(*xch, BotAndActorHandles {
+            act: order_manager_addr.clone(),
+            bot: vec![bot],
         });
     }
     Ok(bots)
