@@ -9,7 +9,6 @@ use std::time::Duration;
 use actix::{Actor, Addr, Recipient, SyncArbiter};
 use futures::{future::select_all, select, FutureExt};
 
-use coinnect_rt::binance::BinanceCreds;
 use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::exchange_bot::ExchangeBot;
@@ -77,7 +76,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 output_recipients.push(NatsProducer::start(producer).recipient())
             }
             OutputSettings::Strategies => {
-                let oms = Arc::new(order_managers(keys_path.clone(), &db_path_str, Arc::new(exchanges.clone())).await);
+                let oms = Arc::new(order_managers(keys_path.clone(), &db_path_str, Arc::new(exchanges.clone())).await?);
                 if !oms.is_empty() {
                     termination_handles.push(Box::pin(bots::poll_account_bots(oms.clone())));
                     for (&xchg, om_system) in oms.clone().iter() {
@@ -232,7 +231,7 @@ async fn order_managers(
     keys_path: PathBuf,
     db_path: &str,
     exchanges: Arc<HashMap<Exchange, ExchangeSettings>>,
-) -> HashMap<Exchange, OrderManagerModule> {
+) -> anyhow::Result<HashMap<Exchange, OrderManagerModule>> {
     let mut bots: HashMap<Exchange, OrderManagerModule> = HashMap::new();
     for (xch, conf) in exchanges.iter() {
         if !conf.use_account {
@@ -241,31 +240,18 @@ async fn order_managers(
         let api = Coinnect::build_exchange_api(keys_path.clone(), xch, conf.use_test)
             .await
             .unwrap();
-        let om_path = format!("{}/om_{}", db_path, xch);
-        let order_manager = OrderManager::new(Arc::new(api), Path::new(&om_path));
+        let om_db_path = format!("{}/om_{}", db_path, xch);
+        let order_manager = OrderManager::new(Arc::new(api), Path::new(&om_db_path));
         let order_manager_addr = OrderManager::start(order_manager);
         let recipients: Vec<Recipient<AccountEventEnveloppe>> = vec![order_manager_addr.clone().recipient()];
-        let bot = match xch {
-            Exchange::Binance => {
-                let creds = Box::new(
-                    BinanceCreds::new_from_file(coinnect_rt::binance::credentials::ACCOUNT_KEY, keys_path.clone())
-                        .unwrap(),
-                );
-                Coinnect::new_account_stream(*xch, creds.clone(), recipients, conf.use_test)
-                    .await
-                    .unwrap()
-            }
-            _ => {
-                error!("Account streams are unsupported for {}", xch);
-                unimplemented!()
-            }
-        };
+        let creds = Coinnect::credentials_for(*xch, keys_path.clone())?;
+        let bot = Coinnect::new_account_stream(*xch, creds, recipients, conf.use_test).await?;
         bots.insert(*xch, OrderManagerModule {
             om: order_manager_addr.clone(),
             bot,
         });
     }
-    bots
+    Ok(bots)
 }
 
 pub async fn poll<T: Actor>(addr: Addr<T>) -> std::io::Result<()> {
