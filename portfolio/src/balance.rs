@@ -1,6 +1,7 @@
 use actix::{Actor, AsyncContext, Context, ContextFutureSpawner, Handler, ResponseActFuture, WrapFuture};
 use chrono::{DateTime, Utc};
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
+use coinnect_rt::exchange_bot::Ping;
 use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, Asset, BalanceInformation, BalanceUpdate, Balances};
 use prometheus::GaugeVec;
 use std::collections::hash_map::Entry;
@@ -169,4 +170,10 @@ impl Handler<AccountEventEnveloppe> for BalanceReporter {
             .into_actor(self),
         )
     }
+}
+
+impl Handler<Ping> for BalanceReporter {
+    type Result = ();
+
+    fn handle(&mut self, _msg: Ping, _ctx: &mut Context<Self>) {}
 }

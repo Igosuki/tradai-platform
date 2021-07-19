@@ -1,17 +1,10 @@
 exchanges:
-  #  Bitstamp:
-  #    orderbook:
-  #      symbols: ['BTC_USD']
-  #      trades:
-  #        symbols: ['BTC_USD']
   binance:
     use_account: true
     use_test: true
     fees: 0.001
     orderbook:
       symbols: ['BTC_USDT']
-#    trades:
-#      symbols: ['BTC_USDT', 'BCH_USDT', 'ETH_USDT', 'ETC_USDT', 'XRP_USDT', 'EOS_USDT', 'BNB_USDT', 'LTC_USDT', 'DASH_USDT', 'ETH_BTC', 'BCH_BTC', 'ETC_BTC', 'ADA_BTC', 'BTC_TUSD', 'STEEM_BTC', 'LTC_BTC', 'ZEC_BTC', 'BTC_EUR', 'ETH_EUR']
 
 streams:
   - type: Nats
@@ -46,9 +39,9 @@ keys: ./config/keys_real_test.json
 
 db_storage_path: './database'
 
-prom_push_gw: 127.0.0.1:9091
-
-prom_instance: trader
+prometheus:
+  push_gateway: 127.0.0.1:9091
+  instance: trader
 
 api:
   port: 8182

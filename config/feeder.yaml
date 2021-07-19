@@ -30,9 +30,9 @@ keys: ./config/keys_real_test.json
 
 db_storage_path: './database'
 
-prom_push_gw: 127.0.0.1:9091
-
-prom_instance: feeder
+prometheus:
+  push_gateway: 127.0.0.1:9091
+  instance: feeder
 
 api:
   port: 8180

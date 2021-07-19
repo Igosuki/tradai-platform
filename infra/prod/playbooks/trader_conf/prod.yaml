@@ -12,6 +12,9 @@ exchanges:
     orderbook:
       symbols: ['BTC_USDT', 'LTC_USDT', 'ETC_USDT']
 
+balance_reporter:
+  refresh_rate: 60s
+
 streams:
   - type: ExchangeBots
 
@@ -74,9 +77,9 @@ keys: /root/config/keys_real.json
 
 db_storage_path: './database'
 
-prom_push_gw: 127.0.0.1:9091
-
-prom_instance: trader
+prometheus:
+  push_gateway: 127.0.0.1:9091
+  instance: trader
 
 api:
   port: 8180
