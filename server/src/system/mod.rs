@@ -18,11 +18,13 @@ use strategies::order_manager::OrderManager;
 use strategies::{self, Strategy, StrategyKey};
 
 use crate::logging::file_actor::{AvroFileActor, FileActorOptions};
+use crate::logging::LiveEventPartitioner;
 use crate::nats::{NatsConsumer, NatsProducer, Subject};
+use crate::server;
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
-use crate::{logging, server};
 use actix::dev::ToEnvelope;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
+use std::rc::Rc;
 use tokio::signal::unix::{signal, SignalKind};
 
 pub mod bots;
@@ -198,7 +200,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     }
 }
 
-fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor> {
+fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<LiveEventEnveloppe>> {
     SyncArbiter::start(2, move || {
         let dir = Path::new(settings.basedir.as_str());
         fs::create_dir_all(&dir).unwrap();
@@ -206,7 +208,7 @@ fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor> {
             base_dir: dir.to_str().unwrap().to_string(),
             max_file_size: settings.file_rotation.max_file_size,
             max_file_time: settings.file_rotation.max_file_time,
-            partitioner: logging::live_event_partitioner,
+            partitioner: Rc::new(LiveEventPartitioner),
         })
     })
 }

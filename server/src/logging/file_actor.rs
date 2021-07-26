@@ -1,4 +1,5 @@
 use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
+use crate::logging::Partitioner;
 use actix::{Actor, Handler, Running, SyncContext};
 use avro_rs::encode;
 use avro_rs::{types::Value, Codec, Schema, Writer};
@@ -20,17 +21,14 @@ use uuid::Uuid;
 
 type RotatingWriter = Writer<'static, RotatingFile<SizeAndExpirationPolicy>>;
 
-type Partition = PathBuf;
-type Partitioner = fn(&LiveEventEnveloppe) -> Option<Partition>;
-
-pub struct FileActorOptions {
+pub struct FileActorOptions<T> {
     pub base_dir: String,
     /// Max file size in bytes
     pub max_file_size: u64,
     /// Max time before closing file
     pub max_file_time: Duration,
     /// Record partitioner
-    pub partitioner: Partitioner,
+    pub partitioner: Rc<dyn Partitioner<T>>,
 }
 
 #[derive(Debug, Display)]
@@ -44,9 +42,9 @@ pub enum Error {
 
 impl std::error::Error for Error {}
 
-pub struct AvroFileActor {
+pub struct AvroFileActor<T> {
     base_path: PathBuf,
-    partitioner: Partitioner,
+    partitioner: Rc<dyn Partitioner<T>>,
     writers: Rc<RefCell<HashMap<PathBuf, Rc<RefCell<RotatingWriter>>>>>,
     rotation_policy: SizeAndExpirationPolicy,
     session_uuid: Uuid,
@@ -54,11 +52,15 @@ pub struct AvroFileActor {
 
 const AVRO_EXTENSION: &str = "avro";
 
-impl AvroFileActor {
-    pub fn new(options: &FileActorOptions) -> Self {
+trait ToAvroSchema {
+    fn schema(&self) -> Option<&Schema>;
+}
+
+impl<T: ToAvroSchema> AvroFileActor<T> {
+    pub fn new(options: &FileActorOptions<T>) -> Self {
         let base_path = Path::new(options.base_dir.as_str()).to_path_buf();
         Self {
-            partitioner: options.partitioner,
+            partitioner: options.partitioner.clone(),
             writers: Rc::new(RefCell::new(HashMap::new())),
             base_path,
             session_uuid: Uuid::new_v4(),
@@ -84,15 +86,16 @@ impl AvroFileActor {
 
     /// Returns (creating it if necessary) the current rotating file writer for the partition
     #[cfg_attr(feature = "flame_it", flame)]
-    fn writer_for(&mut self, e: &LiveEventEnveloppe) -> Result<Rc<RefCell<RotatingWriter>>, Error> {
-        let partition = (self.partitioner)(e).ok_or(Error::NoPartitionError)?;
-        match self.writers.borrow_mut().entry(partition.clone()) {
+    fn writer_for(&mut self, e: &T) -> Result<Rc<RefCell<RotatingWriter>>, Error> {
+        let partition = self.partitioner.partition(e).ok_or(Error::NoPartitionError)?;
+        let partition_path = partition.to_path();
+        match self.writers.borrow_mut().entry(partition_path.clone()) {
             Entry::Vacant(v) => {
-                let buf = self.base_path.join(partition);
+                let buf = self.base_path.join(partition_path);
                 // Create base directory for partition if necessary
                 fs::create_dir_all(&buf).map_err(Error::IOError)?;
 
-                let schema = self.schema_for(&e.e).ok_or(Error::NoSchemaError)?;
+                let schema = e.schema().ok_or(Error::NoSchemaError)?;
 
                 // Rotating file
                 let file_path = buf.join(format!("{}-{:04}.{}", self.session_uuid, 0, AVRO_EXTENSION));
@@ -105,13 +108,13 @@ impl AvroFileActor {
                 let file = RotatingFile::new(
                     Box::new(file_path),
                     self.rotation_policy.clone(),
-                    AvroFileActor::next_file_part_name,
-                    Some(avro_header(schema, marker.clone())?),
+                    AvroFileActor::<T>::next_file_part_name,
+                    Some(avro_header(&schema, marker.clone())?),
                 )
                 .map_err(Error::IOError)?;
 
                 // Schema based avro file writer
-                let mut writer = Writer::new(schema, file);
+                let mut writer = Writer::new(&schema, file);
                 writer.set_marker(marker);
 
                 let rc = Rc::new(RefCell::new(writer));
@@ -121,37 +124,30 @@ impl AvroFileActor {
             Entry::Occupied(o) => Ok(o.get().clone()),
         }
     }
+}
 
-    /// Lookup the avro schema for the event type
-    fn schema_for(&self, e: &LiveEvent) -> Option<&'static Schema> {
-        match e {
-            LiveEvent::LiveTrade(_) => Some(&*avro_gen::models::LIVETRADE_SCHEMA),
-            LiveEvent::LiveOrder(_) => Some(&*avro_gen::models::LIVEORDER_SCHEMA),
-            LiveEvent::LiveOrderbook(_) => Some(&*avro_gen::models::ORDERBOOK_SCHEMA),
-            _ => None,
-        }
+fn append_log<S: std::fmt::Debug + Serialize>(
+    writer: &mut RefMut<Writer<RotatingFile<SizeAndExpirationPolicy>>>,
+    s: S,
+) -> Result<i32, Error> {
+    if log_enabled!(Trace) {
+        trace!("Avro bean {:?}", s);
     }
-
-    fn append_log<S: std::fmt::Debug + Serialize>(
-        writer: &mut RefMut<Writer<RotatingFile<SizeAndExpirationPolicy>>>,
-        s: S,
-    ) -> Result<i32, Error> {
-        if log_enabled!(Trace) {
-            trace!("Avro bean {:?}", s);
-        }
-        match writer.append_ser(s) {
-            Err(e) => {
-                if log_enabled!(Trace) {
-                    trace!("Error writing avro bean {:?}", e);
-                }
-                Err(Error::WriterError)
+    match writer.append_ser(s) {
+        Err(e) => {
+            if log_enabled!(Trace) {
+                trace!("Error writing avro bean {:?}", e);
             }
-            _ => Ok(0),
+            Err(Error::WriterError)
         }
+        _ => Ok(0),
     }
 }
 
-impl Actor for AvroFileActor {
+impl<T> Actor for AvroFileActor<T>
+where
+    T: 'static,
+{
     type Context = SyncContext<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
@@ -174,7 +170,18 @@ impl Actor for AvroFileActor {
     }
 }
 
-impl Handler<LiveEventEnveloppe> for AvroFileActor {
+impl ToAvroSchema for LiveEventEnveloppe {
+    fn schema(&self) -> Option<&Schema> {
+        match &self.e {
+            LiveEvent::LiveTrade(_) => Some(&*avro_gen::models::LIVETRADE_SCHEMA),
+            LiveEvent::LiveOrder(_) => Some(&*avro_gen::models::LIVEORDER_SCHEMA),
+            LiveEvent::LiveOrderbook(_) => Some(&*avro_gen::models::ORDERBOOK_SCHEMA),
+            _ => None,
+        }
+    }
+}
+
+impl Handler<LiveEventEnveloppe> for AvroFileActor<LiveEventEnveloppe> {
     type Result = anyhow::Result<()>;
 
     fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
@@ -196,7 +203,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
                     event_ms: lt.event_ms,
                     amount: lt.amount,
                 };
-                AvroFileActor::append_log(&mut writer, lt)
+                append_log(&mut writer, lt)
             }
             LiveEvent::LiveOrderbook(lt) => {
                 let orderbook = OB {
@@ -205,7 +212,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor {
                     asks: lt.asks.iter().map(|(p, v)| vec![*p, *v]).collect(),
                     bids: lt.bids.iter().map(|(p, v)| vec![*p, *v]).collect(),
                 };
-                AvroFileActor::append_log(&mut writer, orderbook)
+                append_log(&mut writer, orderbook)
             }
             _ => Ok(0),
         };
@@ -248,15 +255,16 @@ mod test {
     use fs_extra::dir::get_dir_content;
 
     use super::*;
+    use crate::logging::LiveEventPartitioner;
 
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
-    fn actor(base_dir: &str) -> AvroFileActor {
+    fn actor(base_dir: &str) -> AvroFileActor<LiveEventEnveloppe> {
         AvroFileActor::new(&FileActorOptions {
             max_file_size: 100_000,
             max_file_time: Duration::seconds(1),
             base_dir: String::from(base_dir),
-            partitioner: crate::logging::live_event_partitioner,
+            partitioner: Rc::new(LiveEventPartitioner),
         })
     }
 
