@@ -22,6 +22,9 @@ extern crate serde;
 extern crate derivative;
 #[macro_use]
 extern crate measure_time;
+#[macro_use]
+extern crate prometheus;
+
 #[cfg(test)]
 #[macro_use]
 extern crate lazy_static;
@@ -35,7 +38,6 @@ use coinnect_rt::types::{LiveEventEnveloppe, Pair};
 use derive_more::Display;
 use serde::Deserialize;
 use std::str::FromStr;
-
 use strum_macros::EnumString;
 use uuid::Uuid;
 
@@ -207,6 +209,7 @@ impl Handler<FieldMutation> for StrategyActor {
     }
 }
 
+// TODO: strategies should define when to stop trading
 #[async_trait]
 pub trait StrategyInterface {
     async fn add_event(&mut self, le: LiveEventEnveloppe) -> anyhow::Result<()>;
@@ -284,7 +287,7 @@ mod test {
         }
     }
 
-    /// TODO : this test does nothing
+    /// TODO: this test does nothing
     #[test]
     fn test_workflow() {
         init();
