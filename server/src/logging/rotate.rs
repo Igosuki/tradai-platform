@@ -51,7 +51,6 @@ where
             naming_policy,
             ..
         } = self;
-        // TODO: use a rwlock
         let new_path = (naming_policy)(path.as_ref())
             .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, RotatingFileError))?;
         self.rotation_policy.set_last_flush(Utc::now());

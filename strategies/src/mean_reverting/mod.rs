@@ -273,20 +273,23 @@ impl MeanRevertingStrategy {
         // A model is available
         if should_sample {
             self.last_sample_time = row.time;
-            // TODO: log error
             let last_apo = self.state.apo();
             if let Some(t) = self.threshold_table.as_mut() {
                 t.push(&last_apo)
             }
-            self.model
+            let model_update = self
+                .model
                 .update_model(row.clone())
-                .map(|_| {
-                    if let Some(m) = self.model.value() {
-                        trace!("apo {}", m.apo);
-                        self.state.set_apo(m.apo);
-                    }
+                .map_err(|e| e.into())
+                .and_then(|_| {
+                    self.model
+                        .value()
+                        .ok_or_else(|| crate::error::Error::ModelLoadError("no mean reverting model value".to_string()))
                 })
-                .unwrap();
+                .map(|m| self.state.set_apo(m.apo));
+            if model_update.is_err() {
+                self.metrics.log_error("model_update");
+            }
         }
         if self.can_eval() {
             match self.eval_latest(row).await {

@@ -1,46 +1,43 @@
 use crate::mean_reverting::ema_model::SinglePosRow;
 use crate::mean_reverting::state::{MeanRevertingState, Position};
 use crate::types::OperationKind;
-use prometheus::{GaugeVec, Opts, Registry};
+use prometheus::{CounterVec, GaugeVec, Opts, Registry};
 use std::collections::HashMap;
 
-type StateGauge = (String, fn(&MeanRevertingState) -> f64);
+type StateIndicatorFn = (String, fn(&MeanRevertingState) -> f64);
 
 pub struct MeanRevertingStrategyMetrics {
     common_gauges: HashMap<String, GaugeVec>,
-    threshold_gauges: Vec<StateGauge>,
-    state_gauges: Vec<StateGauge>,
+    threshold_indicator_fns: Vec<StateIndicatorFn>,
+    state_indicator_fns: Vec<StateIndicatorFn>,
+    error_counter: CounterVec,
 }
 
 impl MeanRevertingStrategyMetrics {
     pub fn for_strat(registry: &Registry, pair: &str) -> MeanRevertingStrategyMetrics {
         let mut gauges: HashMap<String, GaugeVec> = HashMap::new();
-
+        let const_labels = labels! {"pair" => pair};
         {
             let pos_labels = &["pos", "op"];
-            let pos_gauge_names = vec!["mr_position"];
-            for gauge_name in pos_gauge_names {
-                let gauge_vec_opts =
-                    Opts::new(gauge_name, &format!("gauge for {}", gauge_name)).const_label("pair", pair);
-                let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
-                gauges.insert(gauge_name.to_string(), gauge_vec.clone());
-                registry.register(Box::new(gauge_vec.clone())).unwrap();
-            }
+            let gauge_name = "mr_position";
+            let gauge_vec = register_gauge_vec!(
+                opts!(gauge_name, format!("gauge for {}", gauge_name), const_labels),
+                pos_labels
+            )
+            .unwrap();
+            gauges.insert(gauge_name.to_string(), gauge_vec);
         }
 
         {
-            let pos_labels = &[];
-            let mid_names = vec!["mr_mid"];
-            for gauge_name in mid_names {
-                let gauge_vec_opts =
-                    Opts::new(gauge_name, &format!("gauge for {}", gauge_name)).const_label("pair", pair);
-                let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
-                gauges.insert(gauge_name.to_string(), gauge_vec.clone());
-                registry.register(Box::new(gauge_vec.clone())).unwrap();
-            }
+            let gauge_name = "mr_mid";
+            let gauge_vec =
+                register_gauge_vec!(opts!(gauge_name, format!("gauge for {}", gauge_name), const_labels), &[
+                ])
+                .unwrap();
+            gauges.insert(gauge_name.to_string(), gauge_vec);
         }
 
-        let threshold_gauges: Vec<StateGauge> = vec![
+        let threshold_gauges: Vec<StateIndicatorFn> = vec![
             ("mr_threshold_short".to_string(), |x: &MeanRevertingState| {
                 x.threshold_short()
             }),
@@ -49,17 +46,21 @@ impl MeanRevertingStrategyMetrics {
             }),
         ];
         {
-            let pos_labels = &[];
             for (gauge_name, _) in threshold_gauges.clone() {
-                let string = format!("threshold gauge for {}", gauge_name.clone());
-                let gauge_vec_opts = Opts::new(&gauge_name, &string).const_label("pair", pair);
-                let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
+                let gauge_vec = register_gauge_vec!(
+                    opts!(
+                        &gauge_name,
+                        format!("threshold gauge for {}", gauge_name.clone()),
+                        const_labels
+                    ),
+                    &[]
+                )
+                .unwrap();
                 gauges.insert(gauge_name.clone(), gauge_vec.clone());
-                registry.register(Box::new(gauge_vec.clone())).unwrap();
             }
         }
 
-        let state_gauges: Vec<StateGauge> = vec![
+        let state_gauges: Vec<StateIndicatorFn> = vec![
             ("apo".to_string(), |x| x.apo()),
             ("threshold_long".to_string(), |x| x.threshold_long()),
             ("threshold_short".to_string(), |x| x.threshold_short()),
@@ -82,10 +83,16 @@ impl MeanRevertingStrategyMetrics {
             }
         }
 
+        let error_vec = register_counter_vec!(opts!("error", "Total number of process errors.", const_labels), &[
+            "kind"
+        ])
+        .unwrap();
+
         MeanRevertingStrategyMetrics {
             common_gauges: gauges,
-            threshold_gauges: threshold_gauges.clone(),
-            state_gauges: state_gauges.clone(),
+            threshold_indicator_fns: threshold_gauges.clone(),
+            state_indicator_fns: state_gauges.clone(),
+            error_counter: error_vec,
         }
     }
 
@@ -95,7 +102,7 @@ impl MeanRevertingStrategyMetrics {
         }
     }
 
-    fn log_all_with_state(&self, gauges: &[StateGauge], state: &MeanRevertingState) {
+    fn log_all_with_state(&self, gauges: &[StateIndicatorFn], state: &MeanRevertingState) {
         for (state_gauge_name, state_gauge_fn) in gauges {
             if let Some(g) = self.common_gauges.get(state_gauge_name) {
                 g.with_label_values(&[]).set(state_gauge_fn(state))
@@ -103,10 +110,12 @@ impl MeanRevertingStrategyMetrics {
         }
     }
 
-    pub(super) fn log_state(&self, state: &MeanRevertingState) { self.log_all_with_state(&self.state_gauges, state); }
+    pub(super) fn log_state(&self, state: &MeanRevertingState) {
+        self.log_all_with_state(&self.state_indicator_fns, state);
+    }
 
     pub(super) fn log_thresholds(&self, state: &MeanRevertingState) {
-        self.log_all_with_state(&self.threshold_gauges, state);
+        self.log_all_with_state(&self.threshold_indicator_fns, state);
     }
 
     pub(super) fn log_row(&self, lr: &SinglePosRow) {
@@ -114,4 +123,6 @@ impl MeanRevertingStrategyMetrics {
             g.with_label_values(&[]).set(lr.pos.mid);
         };
     }
+
+    pub(super) fn log_error(&self, label: &str) { self.error_counter.with_label_values(&[label]).inc(); }
 }
