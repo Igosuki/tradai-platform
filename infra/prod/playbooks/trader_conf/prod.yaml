@@ -13,7 +13,7 @@ exchanges:
       symbols: ['BTC_USDT', 'LTC_USDT', 'ETC_USDT']
 
 balance_reporter:
-  refresh_rate: 60s
+  refresh_rate: 10s
 
 streams:
   - type: ExchangeBots
