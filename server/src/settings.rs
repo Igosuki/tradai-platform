@@ -30,6 +30,15 @@ where
     Ok(size_bytes.get_bytes() as u64)
 }
 
+fn decode_duration_str<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+where
+    Duration: Sized,
+    D: Deserializer<'de>,
+{
+    let val: String = Deserialize::deserialize(deserializer)?;
+    Duration::from_std(parse_duration::parse(&val).map_err(serde::de::Error::custom)?).map_err(serde::de::Error::custom)
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct FileRotation {
     /// Max file size in bytes
@@ -82,7 +91,7 @@ pub struct NatsSettings {
 pub struct AvroFileLoggerSettings {
     pub file_rotation: FileRotation,
     pub basedir: String,
-    #[serde(deserialize_with = "decode_duration")]
+    #[serde(deserialize_with = "decode_duration_str")]
     pub partitions_grace_period: Duration,
 }
 
