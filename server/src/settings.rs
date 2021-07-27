@@ -82,6 +82,8 @@ pub struct NatsSettings {
 pub struct AvroFileLoggerSettings {
     pub file_rotation: FileRotation,
     pub basedir: String,
+    #[serde(deserialize_with = "decode_duration")]
+    pub partitions_grace_period: Duration,
 }
 
 #[derive(Debug, Deserialize, Clone)]

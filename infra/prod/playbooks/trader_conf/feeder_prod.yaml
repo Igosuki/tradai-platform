@@ -23,6 +23,7 @@ outputs:
       max_file_size: 50 Mb
       max_file_time: 1800
     basedir: './data'
+    partitions_grace_period: 1mn
 
 data_dir: './data'
 

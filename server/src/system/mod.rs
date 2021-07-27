@@ -18,7 +18,7 @@ use strategies::order_manager::OrderManager;
 use strategies::{self, Strategy, StrategyKey};
 
 use crate::logging::file_actor::{AvroFileActor, FileActorOptions};
-use crate::logging::LiveEventPartitioner;
+use crate::logging::live_event::LiveEventPartitioner;
 use crate::nats::{NatsConsumer, NatsProducer, Subject};
 use crate::server;
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
@@ -208,7 +208,7 @@ fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<LiveEventE
             base_dir: dir.to_str().unwrap().to_string(),
             max_file_size: settings.file_rotation.max_file_size,
             max_file_time: settings.file_rotation.max_file_time,
-            partitioner: Rc::new(LiveEventPartitioner),
+            partitioner: Rc::new(LiveEventPartitioner::new(settings.partitions_grace_period)),
         })
     })
 }

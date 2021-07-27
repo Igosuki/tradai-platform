@@ -1,23 +1,24 @@
-use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
-use crate::logging::Partitioner;
-use actix::{Actor, Handler, Running, SyncContext};
-use avro_rs::encode;
-use avro_rs::{types::Value, Codec, Schema, Writer};
-use chrono::Duration;
-use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
-use derive_more::Display;
-use log::Level::*;
-use models::avro_gen::{self,
-                       models::{LiveTrade as LT, Orderbook as OB}};
-use rand::random;
-use serde::Serialize;
 use std::cell::{RefCell, RefMut};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+
+use actix::{Actor, Running, SyncContext};
+use avro_rs::encode;
+use avro_rs::{types::Value, Codec, Schema, Writer};
+use chrono::Duration;
+use derive_more::Display;
+use log::Level::*;
+use rand::random;
+use serde::Serialize;
+use thiserror::Error;
 use uuid::Uuid;
+
+use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
+use crate::logging::{Partition, Partitioner};
+use std::io::Write;
 
 type RotatingWriter = Writer<'static, RotatingFile<SizeAndExpirationPolicy>>;
 
@@ -31,7 +32,7 @@ pub struct FileActorOptions<T> {
     pub partitioner: Rc<dyn Partitioner<T>>,
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, Error)]
 pub enum Error {
     NoWriterError,
     WriterError,
@@ -40,23 +41,24 @@ pub enum Error {
     IOError(std::io::Error),
 }
 
-impl std::error::Error for Error {}
-
 pub struct AvroFileActor<T> {
     base_path: PathBuf,
     partitioner: Rc<dyn Partitioner<T>>,
-    writers: Rc<RefCell<HashMap<PathBuf, Rc<RefCell<RotatingWriter>>>>>,
+    writers: Rc<RefCell<HashMap<Partition, Rc<RefCell<RotatingWriter>>>>>,
     rotation_policy: SizeAndExpirationPolicy,
     session_uuid: Uuid,
 }
 
 const AVRO_EXTENSION: &str = "avro";
 
-trait ToAvroSchema {
-    fn schema(&self) -> Option<&Schema>;
+pub trait ToAvroSchema {
+    fn schema(&self) -> Option<&'static Schema>;
 }
 
-impl<T: ToAvroSchema> AvroFileActor<T> {
+impl<T: ToAvroSchema> AvroFileActor<T>
+where
+    T: 'static,
+{
     pub fn new(options: &FileActorOptions<T>) -> Self {
         let base_path = Path::new(options.base_dir.as_str()).to_path_buf();
         Self {
@@ -86,12 +88,12 @@ impl<T: ToAvroSchema> AvroFileActor<T> {
 
     /// Returns (creating it if necessary) the current rotating file writer for the partition
     #[cfg_attr(feature = "flame_it", flame)]
-    fn writer_for(&mut self, e: &T) -> Result<Rc<RefCell<RotatingWriter>>, Error> {
+    pub(crate) fn writer_for(&mut self, e: &T) -> Result<Rc<RefCell<RotatingWriter>>, Error> {
         let partition = self.partitioner.partition(e).ok_or(Error::NoPartitionError)?;
-        let partition_path = partition.to_path();
-        match self.writers.borrow_mut().entry(partition_path.clone()) {
+        let path = partition.path.clone();
+        match self.writers.borrow_mut().entry(partition) {
             Entry::Vacant(v) => {
-                let buf = self.base_path.join(partition_path);
+                let buf = self.base_path.join(path);
                 // Create base directory for partition if necessary
                 fs::create_dir_all(&buf).map_err(Error::IOError)?;
 
@@ -109,12 +111,12 @@ impl<T: ToAvroSchema> AvroFileActor<T> {
                     Box::new(file_path),
                     self.rotation_policy.clone(),
                     AvroFileActor::<T>::next_file_part_name,
-                    Some(avro_header(&schema, marker.clone())?),
+                    Some(avro_header(schema, marker.clone())?),
                 )
                 .map_err(Error::IOError)?;
 
                 // Schema based avro file writer
-                let mut writer = Writer::new(&schema, file);
+                let mut writer = Writer::new(schema, file);
                 writer.set_marker(marker);
 
                 let rc = Rc::new(RefCell::new(writer));
@@ -124,34 +126,20 @@ impl<T: ToAvroSchema> AvroFileActor<T> {
             Entry::Occupied(o) => Ok(o.get().clone()),
         }
     }
-}
 
-fn append_log<S: std::fmt::Debug + Serialize>(
-    writer: &mut RefMut<Writer<RotatingFile<SizeAndExpirationPolicy>>>,
-    s: S,
-) -> Result<i32, Error> {
-    if log_enabled!(Trace) {
-        trace!("Avro bean {:?}", s);
-    }
-    match writer.append_ser(s) {
-        Err(e) => {
-            if log_enabled!(Trace) {
-                trace!("Error writing avro bean {:?}", e);
-            }
-            Err(Error::WriterError)
-        }
-        _ => Ok(0),
+    pub(crate) fn remove_expired_entries(&self) {
+        let mut ref_mut = self.writers.borrow_mut();
+        ref_mut.retain(|partition, _| !partition.is_expired());
     }
 }
 
-impl<T> Actor for AvroFileActor<T>
+impl<T: ToAvroSchema> Actor for AvroFileActor<T>
 where
     T: 'static,
 {
     type Context = SyncContext<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        // ctx.set_mailbox_capacity(ctx.);
         info!("AvroFileActor : started");
     }
     fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
@@ -170,62 +158,28 @@ where
     }
 }
 
-impl ToAvroSchema for LiveEventEnveloppe {
-    fn schema(&self) -> Option<&Schema> {
-        match &self.e {
-            LiveEvent::LiveTrade(_) => Some(&*avro_gen::models::LIVETRADE_SCHEMA),
-            LiveEvent::LiveOrder(_) => Some(&*avro_gen::models::LIVEORDER_SCHEMA),
-            LiveEvent::LiveOrderbook(_) => Some(&*avro_gen::models::ORDERBOOK_SCHEMA),
-            _ => None,
-        }
+/// Append an avro serializable to this writer
+pub fn append_log<S: std::fmt::Debug + Serialize, W: Write>(
+    writer: &mut RefMut<Writer<W>>,
+    s: S,
+) -> Result<i32, Error> {
+    if log_enabled!(Trace) {
+        trace!("Avro bean {:?}", s);
     }
-}
-
-impl Handler<LiveEventEnveloppe> for AvroFileActor<LiveEventEnveloppe> {
-    type Result = anyhow::Result<()>;
-
-    fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
-        let rc = self.writer_for(&msg);
-        if let Err(rc_err) = rc {
-            if log_enabled!(Debug) {
-                debug!("Could not acquire writer for partition {:?}", rc_err);
+    match writer.append_ser(s) {
+        Err(e) => {
+            if log_enabled!(Trace) {
+                trace!("Error writing avro bean {:?}", e);
             }
-            return Err(anyhow!(rc_err));
+            Err(Error::WriterError)
         }
-        let rc_ok = rc.unwrap();
-        let mut writer = rc_ok.borrow_mut();
-        let appended = match msg.e {
-            LiveEvent::LiveTrade(lt) => {
-                let lt = LT {
-                    pair: lt.pair.to_string(),
-                    tt: lt.tt.into(),
-                    price: lt.price,
-                    event_ms: lt.event_ms,
-                    amount: lt.amount,
-                };
-                append_log(&mut writer, lt)
-            }
-            LiveEvent::LiveOrderbook(lt) => {
-                let orderbook = OB {
-                    pair: lt.pair.to_string(),
-                    event_ms: lt.timestamp,
-                    asks: lt.asks.iter().map(|(p, v)| vec![*p, *v]).collect(),
-                    bids: lt.bids.iter().map(|(p, v)| vec![*p, *v]).collect(),
-                };
-                append_log(&mut writer, orderbook)
-            }
-            _ => Ok(0),
-        };
-        if let Err(e) = appended.and_then(|_| writer.flush().map_err(|_e| Error::WriterError)) {
-            trace!("Failed to flush writer {:?}", e);
-            return Err(anyhow!(e));
-        }
-        Ok(())
+        _ => Ok(0),
     }
 }
 
 const AVRO_OBJECT_HEADER: &[u8] = &[b'O', b'b', b'j', 1u8];
 
+/// Get a byte array of avro file header with byte encoded metadata
 fn avro_header(schema: &Schema, marker: Vec<u8>) -> Result<Vec<u8>, Error> {
     let schema_bytes = serde_json::to_string(schema)
         .map_err(|_e| Error::NoSchemaError)?
@@ -249,13 +203,14 @@ mod test {
 
     use actix::SyncArbiter;
     use actix_rt::System;
-
-    use coinnect_rt::exchange::Exchange;
-    use coinnect_rt::types::Orderbook;
     use fs_extra::dir::get_dir_content;
 
+    use coinnect_rt::exchange::Exchange;
+    use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe, Orderbook};
+
+    use crate::logging::live_event::LiveEventPartitioner;
+
     use super::*;
-    use crate::logging::LiveEventPartitioner;
 
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
@@ -264,7 +219,7 @@ mod test {
             max_file_size: 100_000,
             max_file_time: Duration::seconds(1),
             base_dir: String::from(base_dir),
-            partitioner: Rc::new(LiveEventPartitioner),
+            partitioner: Rc::new(LiveEventPartitioner::new(Duration::seconds(1))),
         })
     }
 
