@@ -1,16 +1,16 @@
 [workspace]
 
 members = [
-    "server",
-    "coinnect",
     "binance-rs",
-    "math",
+    "coinnect",
     "db",
-    "strategies",
-    "util",
+    "math",
     "models",
     "portfolio"
-]
+,
+    "server",
+    "strategies",
+    "util"]
 
 [patch.crates-io]
-pathfinder_simd = { git="https://github.com/servo/pathfinder", version = "0.5.1" }
+pathfinder_simd = { git = "https://github.com/servo/pathfinder", version = "0.5.1" }
