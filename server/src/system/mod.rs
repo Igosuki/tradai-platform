@@ -6,12 +6,11 @@ use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use actix::{Actor, Addr, Handler, Recipient, SyncArbiter};
+use actix::{Actor, Addr, Recipient, SyncArbiter};
 use futures::{future::select_all, select, FutureExt};
 
 use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::{Exchange, ExchangeApi, ExchangeSettings};
-use coinnect_rt::exchange_bot::{ExchangeBot, Ping};
 use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::{AccountEventEnveloppe, LiveEventEnveloppe};
 use strategies::order_manager::OrderManager;
@@ -22,42 +21,17 @@ use crate::logging::live_event::LiveEventPartitioner;
 use crate::nats::{NatsConsumer, NatsProducer, Subject};
 use crate::server;
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
-use actix::dev::ToEnvelope;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use std::rc::Rc;
 use tokio::signal::unix::{signal, SignalKind};
 
 pub mod bots;
 
-pub struct BotAndActorHandles<T: Actor> {
-    pub act: Addr<T>,
-    pub bot: Vec<Box<dyn ExchangeBot>>,
-}
-
-impl<T> BotAndActorHandles<T>
-where
-    T: Actor + Handler<Ping>,
-    <T as Actor>::Context: ToEnvelope<T, Ping>,
-{
-    fn ping(&self) {
-        for bot in &self.bot {
-            bot.ping();
-        }
-
-        self.act.do_send(coinnect_rt::exchange_bot::Ping);
-    }
-}
-
 pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     let settings_v = settings.read().unwrap();
     let exchanges = settings_v.exchanges.clone();
-    let mut termination_handles: Vec<Pin<Box<dyn Future<Output = std::io::Result<()>>>>> = vec![];
-    let mut output_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
-    let mut strat_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
-    let mut strategy_actors = vec![];
-    let mut order_managers_addr = HashMap::new();
-
     let db_path_str = Arc::new(settings_v.db_storage_path.clone());
+
     let keys_path = PathBuf::from(settings_v.keys.clone());
     if fs::metadata(keys_path.clone()).is_err() {
         return Err(anyhow!("key file doesn't exist at {:?}", keys_path.clone()));
@@ -66,7 +40,16 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     let exchanges_conf = Arc::new(exchanges.clone());
     let apis = Arc::new(Coinnect::build_exchange_apis(exchanges_conf.clone(), keys_path.clone()).await);
     // Temporarily load symbol cache from here
+    // TODO: do this to a read-only memory mapped file somewhere else that is used as a cache
     Coinnect::load_pair_registries(apis.clone()).await?;
+
+    let mut termination_handles: Vec<Pin<Box<dyn Future<Output = std::io::Result<()>>>>> = vec![];
+    let mut broadcast_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
+    let mut strat_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
+    let mut account_recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>> =
+        apis.keys().map(|xch| (*xch, vec![])).collect();
+    let mut strategy_actors = vec![];
+    let mut order_managers_addr = HashMap::new();
 
     // strategies, cf strategies crate
     let settings_arc = Arc::clone(&settings);
@@ -74,19 +57,22 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     for output in settings_v.outputs.clone() {
         match output {
             OutputSettings::AvroFileLogger(logger_settings) => {
-                output_recipients.push(file_actor(logger_settings).recipient())
+                broadcast_recipients.push(file_actor(logger_settings).recipient())
             }
             OutputSettings::Nats(nats_settings) => {
                 let producer = NatsProducer::new(&nats_settings.host, &nats_settings.username, &nats_settings.password)
                     .map_err(|e| std::io::Error::new(std::io::ErrorKind::NotConnected, e))?;
-                output_recipients.push(NatsProducer::start(producer).recipient())
+                broadcast_recipients.push(NatsProducer::start(producer).recipient())
             }
             OutputSettings::Strategies => {
                 let oms = Arc::new(order_managers(keys_path.clone(), &db_path_str, exchanges_conf.clone()).await?);
                 if !oms.is_empty() {
-                    termination_handles.push(Box::pin(bots::poll_account_bots(oms.clone())));
-                    for (&xchg, om_system) in oms.clone().iter() {
-                        order_managers_addr.insert(xchg, om_system.act.clone());
+                    termination_handles.push(Box::pin(bots::poll_pingables(
+                        oms.values().map(|addr| addr.clone().recipient()).collect(),
+                    )));
+                    for (xchg, addr) in oms.clone().iter() {
+                        account_recipients.get_mut(xchg).unwrap().push(addr.clone().recipient());
+                        order_managers_addr.insert(*xchg, addr.clone());
                     }
                 }
                 let strategies = strategies(settings_arc.clone(), oms.clone()).await;
@@ -100,14 +86,14 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
 
     // balance reporter
     if let Some(balance_reporter_opts) = &settings_v.balance_reporter {
-        let bot = balance_reporter(
-            balance_reporter_opts,
-            apis.clone(),
-            exchanges_conf.clone(),
-            keys_path.clone(),
-        )
-        .await?;
-        termination_handles.push(Box::pin(bots::poll_account_bot(bot)));
+        let reporter_addr = balance_reporter(balance_reporter_opts, apis.clone()).await?;
+        for xch in apis.keys() {
+            account_recipients
+                .get_mut(xch)
+                .unwrap()
+                .push(reporter_addr.clone().recipient());
+        }
+        termination_handles.push(Box::pin(bots::poll_pingables(vec![reporter_addr.recipient()])));
     }
 
     // metrics actor
@@ -118,8 +104,15 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
             StreamSettings::ExchangeBots => {
                 let mut all_recipients = vec![];
                 all_recipients.extend(strat_recipients.clone());
-                all_recipients.extend(output_recipients.clone());
+                all_recipients.extend(broadcast_recipients.clone());
                 let bots = bots::exchange_bots(exchanges_conf.clone(), keys_path.clone(), all_recipients).await?;
+                if !bots.is_empty() {
+                    termination_handles.push(Box::pin(bots::poll_bots(bots)));
+                }
+            }
+            StreamSettings::AccountBots => {
+                let bots =
+                    bots::account_bots(exchanges_conf.clone(), keys_path.clone(), account_recipients.clone()).await?;
                 if !bots.is_empty() {
                     termination_handles.push(Box::pin(bots::poll_bots(bots)));
                 }
@@ -144,14 +137,14 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                     );
                     termination_handles.push(Box::pin(poll(consumer)));
                 }
-                if !output_recipients.is_empty() {
+                if !broadcast_recipients.is_empty() {
                     let consumer = NatsConsumer::start(
                         NatsConsumer::new(
                             &nats_settings.host,
                             &nats_settings.username,
                             &nats_settings.username,
                             vec![<LiveEventEnveloppe as Subject>::glob()],
-                            output_recipients.clone(),
+                            broadcast_recipients.clone(),
                         )
                         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
                     );
@@ -213,11 +206,8 @@ fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<LiveEventE
     })
 }
 
-async fn strategies(
-    settings: Arc<RwLock<Settings>>,
-    oms: Arc<HashMap<Exchange, BotAndActorHandles<OrderManager>>>,
-) -> Vec<Strategy> {
-    println!("creating strat actors");
+async fn strategies(settings: Arc<RwLock<Settings>>, oms: Arc<HashMap<Exchange, Addr<OrderManager>>>) -> Vec<Strategy> {
+    info!("Starting strategies...");
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
     let settings_v = arc1.read().unwrap();
@@ -230,14 +220,9 @@ async fn strategies(
         .map(move |strategy_settings| {
             let db_path_a = db_path_str.clone();
             let exchanges_conf = exchanges.clone();
-            let fees = exchanges_conf.get(&strategy_settings.exchange()).unwrap().fees;
-            let order_manager = oms.get(&strategy_settings.exchange());
-            Strategy::new(
-                db_path_a,
-                fees,
-                strategy_settings,
-                order_manager.map(|sys| sys.act.clone()),
-            )
+            let exchange = strategy_settings.exchange();
+            let fees = exchanges_conf.get(&exchange).unwrap().fees;
+            Strategy::new(db_path_a, fees, strategy_settings, oms.get(&exchange).cloned())
         })
         .collect()
 }
@@ -245,25 +230,10 @@ async fn strategies(
 async fn balance_reporter(
     options: &BalanceReporterOptions,
     apis: Arc<HashMap<Exchange, Box<dyn ExchangeApi>>>,
-    exchanges: Arc<HashMap<Exchange, ExchangeSettings>>,
-    keys_path: PathBuf,
-) -> anyhow::Result<BotAndActorHandles<BalanceReporter>> {
-    let mut bots: Vec<Box<dyn ExchangeBot>> = vec![];
+) -> anyhow::Result<Addr<BalanceReporter>> {
     let balance_reporter = BalanceReporter::new(apis.clone(), options.clone());
     let balance_reporter_addr = BalanceReporter::start(balance_reporter);
-    for (xch, conf) in exchanges.iter() {
-        if !conf.use_account {
-            continue;
-        }
-        let recipients: Vec<Recipient<AccountEventEnveloppe>> = vec![balance_reporter_addr.clone().recipient()];
-        let creds = Coinnect::credentials_for(*xch, keys_path.clone())?;
-        let bot = Coinnect::new_account_stream(*xch, creds, recipients, conf.use_test).await?;
-        bots.push(bot);
-    }
-    Ok(BotAndActorHandles {
-        act: balance_reporter_addr,
-        bot: bots,
-    })
+    Ok(balance_reporter_addr)
 }
 
 /// Get an order manager for each exchange
@@ -272,8 +242,8 @@ async fn order_managers(
     keys_path: PathBuf,
     db_path: &str,
     exchanges: Arc<HashMap<Exchange, ExchangeSettings>>,
-) -> anyhow::Result<HashMap<Exchange, BotAndActorHandles<OrderManager>>> {
-    let mut bots: HashMap<Exchange, BotAndActorHandles<OrderManager>> = HashMap::new();
+) -> anyhow::Result<HashMap<Exchange, Addr<OrderManager>>> {
+    let mut oms: HashMap<Exchange, Addr<OrderManager>> = HashMap::new();
     for (xch, conf) in exchanges.iter() {
         if !conf.use_account {
             continue;
@@ -283,16 +253,9 @@ async fn order_managers(
             .unwrap();
         let om_db_path = format!("{}/om_{}", db_path, xch);
         let order_manager = OrderManager::new(Arc::new(api), Path::new(&om_db_path));
-        let order_manager_addr = OrderManager::start(order_manager);
-        let recipients: Vec<Recipient<AccountEventEnveloppe>> = vec![order_manager_addr.clone().recipient()];
-        let creds = Coinnect::credentials_for(*xch, keys_path.clone())?;
-        let bot = Coinnect::new_account_stream(*xch, creds, recipients, conf.use_test).await?;
-        bots.insert(*xch, BotAndActorHandles {
-            act: order_manager_addr.clone(),
-            bot: vec![bot],
-        });
+        oms.insert(*xch, OrderManager::start(order_manager));
     }
-    Ok(bots)
+    Ok(oms)
 }
 
 pub async fn poll<T: Actor>(addr: Addr<T>) -> std::io::Result<()> {

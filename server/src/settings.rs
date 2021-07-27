@@ -108,6 +108,7 @@ pub enum OutputSettings {
 pub enum StreamSettings {
     Nats(NatsSettings),
     ExchangeBots,
+    AccountBots,
 }
 
 fn default_as_false() -> bool { false }
