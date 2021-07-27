@@ -43,7 +43,11 @@ impl Partitioner<LiveEventEnveloppe> for LiveEventPartitioner {
                 .join(channel)
                 .join(format!("pr={}", pair))
                 .join(format!("dt={}", dt_par));
-            Partition::new(path, Some(ts.date().and_hms(0, 0, 0).add(self.grace_period)))
+            let date = ts.date();
+            Partition::new(
+                path,
+                Some(date.and_hms(0, 0, 0).add(Duration::days(1)).add(self.grace_period)),
+            )
         })
     }
 }

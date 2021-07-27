@@ -7,8 +7,8 @@ streams:
 outputs:
   - type: AvroFileLogger
     file_rotation:
-      max_file_size: 50 Mb
-      max_file_time: 1800
+      max_file_size: 1 Mb
+      max_file_time: 60
     basedir: './data'
     partitions_grace_period: 1s
 

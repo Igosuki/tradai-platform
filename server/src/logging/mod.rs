@@ -14,7 +14,7 @@ pub struct Partition {
 impl Partition {
     fn new(path: PathBuf, expires_at: Option<DateTime<Utc>>) -> Self { Self { path, expires_at } }
 
-    fn is_expired(&self) -> bool { self.expires_at.map(|expiry| expiry > Utc::now()).unwrap_or(false) }
+    fn is_expired(&self) -> bool { self.expires_at.map(|expiry| expiry < Utc::now()).unwrap_or(false) }
 }
 
 pub trait Partitioner<T> {
