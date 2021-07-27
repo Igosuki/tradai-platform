@@ -3,7 +3,6 @@ name = "strategies"
 version = "0.1.0"
 authors = ["Guillaume Balaine <igosuki@gmail.com>"]
 edition = "2018"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
@@ -23,93 +22,93 @@ binary = ["clap"]
 actix = "0.12"
 actix-rt = "2.2"
 actix_derive = "0.6"
-
-futures = { version = "0.3", features = ["async-await", "alloc"] }
-tokio = { version = "1.5", features = ["full"] }
-
-# graph_ql
-juniper = { version = "0.15", features = ["expose-test-schema"] }
-
-# std
-itertools = "0.10"
-chrono = { version = "0.4", features = ["serde"] }
-parse_duration = "2.1"
-log = "0.4"
-env_logger = "0.8"
-uuid = { version = "0.8", features = ["v4"] }
-ordered-float = "2.1"
-glob = "0.3"
-strum = "0.20"
-strum_macros = "0.20"
-async-trait = "0.1"
-async-std = "1.6"
-derivative = "2.1.1"
-
-# Error
-thiserror = "1.0"
 anyhow = "1.0"
+async-std = "1.6"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
 
-# codec
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["float_roundtrip"] }
-derive_more = "0.99"
-csv = "1.1"
+# bin
+clap = { version = "2.33", optional = true }
 
 # Crypto
 #coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
 coinnect_rt = { path = "../coinnect" }
+csv = "1.1"
+db = { path = "../db" }
+derivative = "2.1.1"
+derive_more = "0.99"
+env_logger = "0.8"
+
+futures = { version = "0.3", features = ["async-await", "alloc"] }
+glob = "0.3"
+
+# std
+itertools = "0.10"
+
+# graph_ql
+juniper = { version = "0.15", features = ["expose-test-schema"] }
+log = "0.4"
+
+# Internal
+math = { path = "../math" }
+
+# Macros
+measure_time = "0.6"
+opentelemetry = { version = "0.14", default-features = false, features = ["trace"] }
+opentelemetry-jaeger = "0.13"
+ordered-float = "2.1"
+parse_duration = "2.1"
 
 # metrics
 prometheus = { version = "0.12", features = ["nightly", "push", "process", "gen"] }
 
-# Internal
-math = { path = "../math" }
-db = { path = "../db" }
-util = { path = "../util" }
-
-# bin
-clap = { version = "2.33", optional = true }
+# codec
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
+strum = "0.20"
+strum_macros = "0.20"
 tempfile = "3.1"
 
-# Macros
-measure_time = "0.6"
+# Error
+thiserror = "1.0"
+tokio = { version = "1.5", features = ["full"] }
 
 # Tracing
 tracing = "0.1"
+tracing-flame = "0.1"
 tracing-futures = "0.2"
 tracing-log = { version = "0.1", features = ["env_logger"] }
-tracing-timing = "0.5"
 tracing-opentelemetry = "0.13"
-tracing-flame = "0.1"
 tracing-subscriber = { version = "0.2", features = ["tracing-log", "env-filter"] }
-opentelemetry = { version = "0.14", default-features = false, features = ["trace"] }
-opentelemetry-jaeger = "0.13"
+tracing-timing = "0.5"
+util = { path = "../util" }
+uuid = { version = "0.8", features = ["v4"] }
 
 [dev-dependencies]
-util = { path = "../util" }
-plotlib = "0.5"
-plotters = "0.3"
-tempdir = "0.3"
-quickcheck = "1.0"
-httpmock = "0.5"
+actix-codec = "0.4"
+actix-connect = "2.0"
+actix-http = "3.0.0-beta.6"
+actix-http-test = "3.0.0-beta.4"
+actix-server = "2.0.0-beta.5"
 # actix
 awc = "3.0.0-beta.5"
-actix-http-test = "3.0.0-beta.4"
-actix-http = "3.0.0-beta.6"
-actix-connect = "2.0"
-actix-server = "2.0.0-beta.5"
-actix-codec = "0.4"
+bytes = "1.0"
+bytestring = "1.0.0"
+fake = { version = "2.4", features = ['chrono'] }
+hdrhistogram = "7"
 
 # util
 http = "0.2"
-bytes = "1.0"
-bytestring = "1.0.0"
-openssl = "0.10"
-socket2 = "0.4"
-matches = "0.1"
-fake = { version = "2.4", features=['chrono'] }
-rand = "0.8"
-pretty_assertions = "0.7"
-test-env-log = "0.2"
-hdrhistogram = "7"
+httpmock = "0.5"
 lazy_static = "1.4"
+matches = "0.1"
+openssl = "0.10"
+plotlib = "0.5"
+plotters = "0.3"
+pretty_assertions = "0.7"
+quickcheck = "1.0"
+rand = "0.8"
+socket2 = "0.4"
+tempdir = "0.3"
+test-env-log = "0.2"
+util = { path = "../util" }
