@@ -60,6 +60,13 @@ All features
 make build_all
 ```
 
+#### N.B.
+Currently the build will on pass on LINUX with multiple-definitions enabled :
+```
+# .cargo/config.toml
+rustflags = ["-Clink-arg=-Wl,--allow-multiple-definition"]
+```
+
 ### Releasing
 
 If missing, build the rust-musl-builder-nightly docker image : 

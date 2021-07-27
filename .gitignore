@@ -17,3 +17,4 @@ database
 strategies/default
 test_results
 strategy_logs.json
+.cargo
