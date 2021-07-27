@@ -21,7 +21,7 @@ outputs:
       max_file_size: 50 Mb
       max_file_time: 36000
     basedir: './data24'
-    partitions_grace_period: 1mn
+    partitions_grace_period: 1min
 
 data_dir: './data24'
 
