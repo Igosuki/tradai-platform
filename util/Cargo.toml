@@ -7,8 +7,8 @@ edition = "2018"
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
-opentelemetry = { version = "0.14", default-features = false, features = ["trace"] }
-opentelemetry-jaeger = "0.13"
+opentelemetry = { version = "0.15", default-features = false, features = ["trace"] }
+opentelemetry-jaeger = "0.14"
 parse_duration = "2.1"
 rust_decimal = "1.11"
 serde = "1"
@@ -20,7 +20,7 @@ tracing = "0.1"
 tracing-flame = "0.1"
 tracing-futures = "0.2"
 tracing-log = { version = "0.1", features = ["env_logger"] }
-tracing-opentelemetry = "0.13"
+tracing-opentelemetry = "0.14"
 tracing-subscriber = { version = "0.2", features = ["tracing-log", "env-filter"] }
 tracing-timing = "0.5"
 
