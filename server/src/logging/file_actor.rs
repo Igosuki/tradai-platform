@@ -202,7 +202,7 @@ mod test {
     use std::thread;
 
     use actix::SyncArbiter;
-    use actix_rt::System;
+    use actix::System;
     use fs_extra::dir::get_dir_content;
 
     use coinnect_rt::exchange::Exchange;

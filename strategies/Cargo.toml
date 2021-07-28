@@ -20,7 +20,6 @@ binary = ["clap"]
 [dependencies]
 # actix
 actix = "0.12"
-actix-rt = "2.2"
 actix_derive = "0.6"
 anyhow = "1.0"
 async-std = "1.6"

@@ -37,7 +37,7 @@ extern crate trader;
 //                 .unwrap());
 //}
 
-#[actix_rt::main]
+#[actix::main]
 #[cfg_attr(feature = "flame_it", flame)]
 #[allow(unused_braces)]
 async fn main() -> anyhow::Result<()> { trader::runner::with_config(trader::system::start).await }

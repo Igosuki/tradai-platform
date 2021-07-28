@@ -6,11 +6,12 @@ members = [
     "db",
     "math",
     "models",
-    "portfolio"
-,
+    "portfolio",
+    "metrics",
     "server",
     "strategies",
-    "util"]
+    "util"
+]
 
 [patch.crates-io]
 pathfinder_simd = { git = "https://github.com/servo/pathfinder", version = "0.5.1" }

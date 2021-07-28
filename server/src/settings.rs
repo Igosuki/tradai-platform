@@ -7,8 +7,8 @@ use serde::de;
 use serde::{Deserialize, Deserializer};
 
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
-use coinnect_rt::metrics::PrometheusOptions;
 use coinnect_rt::types::Pair;
+use metrics::prom::PrometheusOptions;
 use portfolio::balance::BalanceReporterOptions;
 use strategies::StrategySettings;
 
