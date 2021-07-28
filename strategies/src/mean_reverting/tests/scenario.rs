@@ -153,7 +153,7 @@ async fn moving_average_model_backtest() {
     assert!(apo != 0.0, "apo should not be 0, was: {}", apo);
 }
 
-#[actix_rt::test]
+#[actix::test]
 async fn complete_backtest() {
     init();
     //setup_opentelemetry();

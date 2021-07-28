@@ -255,7 +255,7 @@ pub fn from_settings(
 mod test {
     use std::thread;
 
-    use actix_rt::System;
+    use actix::System;
 
     use coinnect_rt::exchange::Exchange;
     use coinnect_rt::types::{LiveEvent, Orderbook};

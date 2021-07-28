@@ -11,8 +11,8 @@ use futures::{future::select_all, select, FutureExt};
 
 use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::{Exchange, ExchangeApi, ExchangeSettings};
-use coinnect_rt::metrics::PrometheusPushActor;
 use coinnect_rt::types::{AccountEventEnveloppe, LiveEventEnveloppe};
+use metrics::prom::PrometheusPushActor;
 use strategies::order_manager::OrderManager;
 use strategies::{self, Strategy, StrategyKey};
 

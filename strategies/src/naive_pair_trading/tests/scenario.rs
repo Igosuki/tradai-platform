@@ -158,7 +158,7 @@ async fn model_backtest() {
     assert!(beta > 0.0, "beta {:?} should be positive", beta);
 }
 
-#[actix_rt::test]
+#[actix::test]
 async fn complete_backtest() {
     init();
     let path = util::test::test_dir();

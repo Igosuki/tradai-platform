@@ -131,7 +131,7 @@ mod tests {
 
     fn strats() -> HashMap<StrategyKey, Strategy> { HashMap::new() }
 
-    #[actix_rt::test]
+    #[actix::test]
     async fn test_add_order() {
         let schema = create_schema();
         let exchanges = [(Exchange::Binance, ExchangeSettings {

@@ -8,7 +8,7 @@ mod test {
     #[allow(dead_code)]
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
-    #[actix_rt::test]
+    #[actix::test]
     async fn test_trade_workflow() {
         // System
         // Account stream

@@ -414,7 +414,7 @@ mod test {
     use coinnect_rt::coinnect::Coinnect;
     use coinnect_rt::types::{AddOrderRequest, OrderInfo, OrderQuery, OrderUpdate, TradeType};
 
-    #[actix_rt::test]
+    #[actix::test]
     async fn test_append_rejected() {
         let path = "default";
         let capi: Box<dyn ExchangeApi> = Box::new(MockApi);
@@ -441,7 +441,7 @@ mod test {
         OrderManager::new(Arc::new(api), Path::new(&om_path))
     }
 
-    #[actix_rt::test]
+    #[actix::test]
     async fn test_binance_stage_order_invalid() {
         let test_dir = util::test::test_dir();
         let mut order_manager = it_order_manager(test_dir, Binance).await;
@@ -461,7 +461,7 @@ mod test {
         assert!(registered.is_ok(), "{:?}", registered);
     }
 
-    #[actix_rt::test]
+    #[actix::test]
     async fn test_register_transactions() {
         let test_dir = util::test::test_dir();
         let mut order_manager = it_order_manager(test_dir, Binance).await;

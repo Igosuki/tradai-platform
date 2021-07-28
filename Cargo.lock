@@ -1204,7 +1204,6 @@ dependencies = [
  "actix",
  "actix-codec 0.4.0",
  "actix-http",
- "actix-rt 2.2.0",
  "actix-web",
  "actix-web-actors",
  "actix_derive",
@@ -1239,7 +1238,6 @@ dependencies = [
  "ordered-float 2.7.0",
  "pin-project 1.0.8",
  "prometheus",
- "protobuf",
  "quickcheck",
  "quickcheck_macros",
  "regex",
@@ -3202,6 +3200,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "metrics"
+version = "0.1.0"
+dependencies = [
+ "actix",
+ "actix-http",
+ "awc",
+ "lazy_static 1.4.0",
+ "libc",
+ "log",
+ "prometheus",
+ "protobuf",
+ "serde 1.0.126",
+ "thiserror",
+ "tokio 1.9.0",
+]
+
+[[package]]
 name = "mime"
 version = "0.3.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4035,7 +4050,6 @@ name = "portfolio"
 version = "0.1.0"
 dependencies = [
  "actix",
- "actix-rt 2.2.0",
  "actix_derive",
  "anyhow",
  "chrono",
@@ -5126,7 +5140,6 @@ dependencies = [
  "actix-connect",
  "actix-http",
  "actix-http-test",
- "actix-rt 2.2.0",
  "actix-server",
  "actix_derive",
  "anyhow",
@@ -5836,7 +5849,6 @@ dependencies = [
  "actix",
  "actix-codec 0.4.0",
  "actix-cors",
- "actix-rt 2.2.0",
  "actix-web",
  "actix_derive",
  "anyhow",
@@ -5866,6 +5878,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "libc",
  "log",
+ "metrics",
  "models",
  "native-tls",
  "nats",
