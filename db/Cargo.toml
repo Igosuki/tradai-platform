@@ -27,10 +27,10 @@ log = "0.4"
 # Optional dependencies to be used later
 # Flatdata is write once read many and fast memory mapping a structured file
 #flatdata = "0.5"
-measure_time = "0.6"
+measure_time = "0.7"
 # DB
 rkv = "0.17"
-rocksdb = { version = "0.16", features = ["multi-threaded-cf"] }
+rocksdb = { version = "0.17", features = ["multi-threaded-cf"] }
 serde = { version = "1.0", features = ["derive"] }
 # codec
 serde_json = { version = "1.0", features = ["float_roundtrip"] }
@@ -39,7 +39,7 @@ serde_json = { version = "1.0", features = ["float_roundtrip"] }
 thiserror = "1.0"
 
 [dev-dependencies]
-env_logger = "0.8"
+env_logger = "0.9"
 pretty_assertions = "0.7"
 rand = "0.8"
 tempdir = "0.3"
