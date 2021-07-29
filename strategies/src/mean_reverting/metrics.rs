@@ -65,6 +65,7 @@ impl MeanRevertingStrategyMetrics {
             ("threshold_long".to_string(), |x| x.threshold_long()),
             ("threshold_short".to_string(), |x| x.threshold_short()),
             ("value_strat".to_string(), |x| x.value_strat()),
+            ("previous_value_strat".to_string(), |x| x.previous_value_strat()),
             ("return".to_string(), |x| {
                 x.long_position_return() + x.short_position_return()
             }),
