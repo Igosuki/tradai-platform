@@ -219,7 +219,7 @@ mod test {
             max_file_size: 100_000,
             max_file_time: Duration::seconds(1),
             base_dir: String::from(base_dir),
-            partitioner: Rc::new(LiveEventPartitioner::new(Duration::seconds(1))),
+            partitioner: Rc::new(LiveEventPartitioner::new(Duration::seconds(10))),
         })
     }
 
