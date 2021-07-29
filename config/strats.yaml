@@ -45,3 +45,4 @@ prometheus:
 
 api:
   port: 8182
+  cors: permissive

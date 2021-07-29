@@ -7,7 +7,6 @@ use actix_web::{body::Body,
                 web::{self},
                 Error, HttpResponse, ResponseError};
 use derive_more::Display;
-use futures::lock::Mutex;
 use serde::{Deserialize, Serialize};
 
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
@@ -61,7 +60,7 @@ async fn graphiql_handler() -> Result<HttpResponse, Error> { self::graphql::grap
 
 async fn playground_handler() -> Result<HttpResponse, Error> { self::graphql::playground_handler("/", None).await }
 
-type ExchangeData = web::Data<Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>>>;
+type ExchangeData = web::Data<Arc<HashMap<Exchange, Box<dyn ExchangeApi>>>>;
 type StratsData = web::Data<Arc<HashMap<StrategyKey, Strategy>>>;
 type OrderManagerData = web::Data<Arc<HashMap<Exchange, Addr<OrderManager>>>>;
 

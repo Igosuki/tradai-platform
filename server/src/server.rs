@@ -1,31 +1,40 @@
-use crate::graphql_schemas::root::create_schema;
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use actix::Addr;
 use actix_cors::Cors;
 use actix_web::web::Data;
 use actix_web::{http, HttpServer};
+
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
-use std::collections::HashMap;
-use std::sync::Arc;
 use strategies::order_manager::OrderManager;
 use strategies::{Strategy, StrategyKey};
 
+use crate::graphql_schemas::root::create_schema;
+use crate::settings::{ApiSettings, CorsMode};
+
 pub async fn httpserver(
+    settings: &ApiSettings,
     apis: Arc<HashMap<Exchange, Box<dyn ExchangeApi>>>,
     strategies: Arc<HashMap<StrategyKey, Strategy>>,
     order_managers: Arc<HashMap<Exchange, Addr<OrderManager>>>,
-    port: i32,
 ) -> std::io::Result<()> {
     // Make and start the api
+    let port = settings.port.0;
+    let cors_mode = settings.cors.clone();
     let app = move || {
         let schema = create_schema();
 
-        let cors = Cors::default()
-            .allowed_origin(&format!("http://localhost:{}", port))
-            .allowed_methods(vec!["GET", "POST"])
-            .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
-            .allowed_header(http::header::CONTENT_TYPE)
-            .supports_credentials()
-            .max_age(3600);
+        let cors = match cors_mode {
+            CorsMode::Restricted => Cors::default()
+                .allowed_origin(&format!("http://localhost:{}", port))
+                .allowed_methods(vec!["GET", "POST", "OPTIONS"])
+                .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+                .allowed_header(http::header::CONTENT_TYPE)
+                .supports_credentials()
+                .max_age(3600),
+            CorsMode::Permissive => Cors::permissive(),
+        };
         actix_web::App::new()
             .wrap(cors)
             .app_data(Data::new(schema))
