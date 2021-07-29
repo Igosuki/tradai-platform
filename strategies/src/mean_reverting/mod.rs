@@ -192,7 +192,7 @@ impl MeanRevertingStrategy {
                     )
                     .into(),
                 );
-                tracing::debug!(target: "threshold_events", "set_threshold_short");
+                tracing::trace!(target: "threshold_events", "set_threshold_short");
                 self.state.set_threshold_long(
                     min(
                         OrderedFloat(self.threshold_long_0),
@@ -200,9 +200,9 @@ impl MeanRevertingStrategy {
                     )
                     .into(),
                 );
-                tracing::debug!(target: "threshold_events", "set_threshold_long");
+                tracing::trace!(target: "threshold_events", "set_threshold_long");
                 self.metrics.log_thresholds(&self.state);
-                tracing::debug!(target: "threshold_events", "log_thresholds");
+                tracing::trace!(target: "threshold_events", "log_thresholds");
                 self.last_threshold_time = current_time;
             }
         }

@@ -1,13 +1,13 @@
-use std::collections::HashMap;
-#[cfg(feature = "flame_it")]
-use std::fs::File;
-use std::sync::Arc;
-
 use actix_web::{body::Body,
                 web::{self},
                 Error, HttpResponse, ResponseError};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+#[cfg(feature = "flame_it")]
+use std::fs::File;
+use std::str::FromStr;
+use std::sync::Arc;
 
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{OrderType, Pair, Price, Volume};
@@ -16,6 +16,7 @@ use strategies::{Strategy, StrategyKey};
 use crate::api::ApiError::ExchangeNotFound;
 use crate::graphql_schemas::root::{Context, Schema};
 use actix::Addr;
+use coinnect_rt::pair::pair_confs;
 use strategies::order_manager::OrderManager;
 
 mod graphql;
@@ -95,12 +96,19 @@ pub async fn dump_profiler(q: web::Query<HashMap<String, String>>) -> Result<Htt
     Ok(HttpResponse::Ok().finish())
 }
 
+async fn exchange_conf(q: web::Query<HashMap<String, String>>) -> Result<HttpResponse, Error> {
+    let exchange = Exchange::from_str(q.get("exchange").expect("exchange parameter")).map_err(ApiError::Coinnect)?;
+    let confs = pair_confs(&exchange).map_err(ApiError::Coinnect)?;
+    Ok(HttpResponse::Ok().json(confs))
+}
+
 pub fn config_app(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::resource("/")
             .route(web::post().to(graphql))
             .route(web::get().to(graphql)),
     );
+    cfg.service(web::resource("/exchange_conf").route(web::get().to(exchange_conf)));
     cfg.service(web::resource("/playground").route(web::get().to(playground_handler)));
     cfg.service(web::resource("/graphiql").route(web::get().to(graphiql_handler)));
     #[cfg(feature = "flame_it")]
@@ -113,8 +121,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use actix_web::{http::StatusCode, test, App};
-    use futures::lock::Mutex;
+    use actix_web::{http::StatusCode, test, web, App};
     use tokio::time::timeout;
 
     use coinnect_rt::coinnect::Coinnect;
@@ -125,14 +132,18 @@ mod tests {
 
     use crate::api::config_app;
     use crate::graphql_schemas::root::create_schema;
+    use actix::Addr;
     use actix_web::http::header::ContentType;
     use actix_web::web::Data;
+    use strategies::order_manager::OrderManager;
 
     fn strats() -> HashMap<StrategyKey, Strategy> { HashMap::new() }
 
-    #[actix::test]
-    async fn test_add_order() {
-        let schema = create_schema();
+    fn oms() -> Arc<HashMap<Exchange, Addr<OrderManager>>> { Default::default() }
+
+    type ExchangeApis = Arc<HashMap<Exchange, Box<dyn ExchangeApi>>>;
+
+    async fn test_apis() -> ExchangeApis {
         let exchanges = [(Exchange::Binance, ExchangeSettings {
             orderbook: None,
             orderbook_depth: None,
@@ -144,28 +155,34 @@ mod tests {
         .iter()
         .cloned()
         .collect();
-        let exchanges_map =
-            Coinnect::build_exchange_apis(Arc::new(exchanges), "../config/keys_real_test.json".into()).await;
-        let data: Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>> = Arc::new(Mutex::new(exchanges_map));
-        let mut guard = data.lock().await;
-        let binance_api: &mut Box<dyn ExchangeApi> = guard.get_mut(&Exchange::Binance).unwrap();
-        let _ob = binance_api.orderbook("BTC_USDT".into()).await.unwrap();
-        drop(guard);
-        let price = 35000.02000000;
-        let strats: Arc<HashMap<StrategyKey, Strategy>> = Arc::new(strats());
-        let app = test::init_service(
-            App::new()
-                .app_data(Data::new(data.clone()))
-                .app_data(Data::new(schema))
-                .app_data(Data::new(strats))
-                .configure(config_app),
-        )
-        .await;
+        let apis =
+            Arc::new(Coinnect::build_exchange_apis(Arc::new(exchanges), "../config/keys_real_test.json".into()).await);
+        Coinnect::load_pair_registries(apis.clone()).await.unwrap();
+        apis.clone()
+    }
 
+    fn build_test_api(apis: ExchangeApis, cfg: &mut web::ServiceConfig) {
+        let schema = create_schema();
+        let strats: Arc<HashMap<StrategyKey, Strategy>> = Arc::new(strats());
+        cfg.app_data(Data::new(apis.clone()))
+            .app_data(Data::new(schema))
+            .app_data(Data::new(strats))
+            .app_data(Data::new(Arc::new(oms())));
+        config_app(cfg);
+    }
+
+    #[actix::test]
+    async fn test_add_order() {
+        let apis = test_apis().await;
+        let app = App::new().configure(|cfg| build_test_api(apis.clone(), cfg));
+        let app = test::init_service(app).await;
+        let binance_api = apis.get(&Exchange::Binance).unwrap();
+        let _ob = binance_api.orderbook("BTC_USDT".into()).await.unwrap();
+        let price = 35000.02000000;
         let _o = crate::api::Order {
             exchg: Binance,
             t: OrderType::Limit,
-            pair: "BTC_USD".into(),
+            pair: "BTC_USDT".into(),
             qty: 0.00000100,
             price,
         };
