@@ -26,6 +26,10 @@
       template: src=system.d/cloner.service.j2 dest=/etc/systemd/system/cloner.service
     - name: install cloner systemd timer file
       template: src=system.d/cloner.timer.j2 dest=/etc/systemd/system/cloner.timer
+    - name: install cleaner systemd unit file
+      template: src=system.d/cleaner.service.j2 dest=/etc/systemd/system/cleaner.service
+    - name: install cleaner systemd timer file
+      template: src=system.d/cleaner.timer.j2 dest=/etc/systemd/system/cleaner.timer
     - name: install node exporter ext systemd service file
       template: src=node_exporter_ext/du.service.j2 dest=/etc/systemd/system/node_exporter_ext_du.service
     - name: install node exporter ext systemd timer file
