@@ -49,7 +49,7 @@ impl TransactionService {
             self.stage_order(order).await
         } else {
             // TODO: Timeout can be managed here
-            Err(anyhow!("Nor rejected nor filled"))
+            Ok(tr)
         }
     }
 }

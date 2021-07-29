@@ -321,13 +321,13 @@ impl MeanRevertingState {
                 match &o.transaction {
                     Some(olt) => {
                         let pending_transaction = self.ts.latest_transaction_change(olt).await?;
-                        // One of the operations has changed, update the ongoing operation
-                        let mut new_op = o.clone();
-                        let transaction = &pending_transaction.1;
-                        // Transaction changed
-                        if pending_transaction.0 {
-                            new_op.transaction = Some(transaction.clone());
+                        if !pending_transaction.0 {
+                            return Ok(());
                         }
+                        // One of the operations has changed, update the ongoing operation
+                        let transaction = &pending_transaction.1;
+                        let mut new_op = o.clone();
+                        new_op.transaction = Some(transaction.clone());
                         // Operation filled, clear position
                         let result = if transaction.is_filled() {
                             debug!("Transaction is {} for operation {}", transaction.status, &o.id);
