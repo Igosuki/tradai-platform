@@ -136,6 +136,7 @@ pub(super) struct MeanRevertingState {
     order_mode: OrderMode,
     is_trading: bool,
     fees_rate: f64,
+    previous_value_strat: f64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -150,6 +151,7 @@ struct TransientState {
     threshold_short: f64,
     threshold_long: f64,
     apo: f64,
+    previous_value_strat: f64,
 }
 
 impl MeanRevertingState {
@@ -182,6 +184,7 @@ impl MeanRevertingState {
             order_mode: options.order_mode,
             is_trading: true,
             fees_rate,
+            previous_value_strat: options.initial_cap,
         };
         state.reload_state();
         state
@@ -212,6 +215,7 @@ impl MeanRevertingState {
                 let op: Option<Operation> = self.get_operation(&op_key);
                 self.set_ongoing_op(op);
             }
+            self.previous_value_strat = ps.previous_value_strat;
         }
     }
 
@@ -245,6 +249,8 @@ impl MeanRevertingState {
     pub(super) fn pnl(&self) -> f64 { self.pnl }
 
     pub(super) fn value_strat(&self) -> f64 { self.value_strat }
+
+    pub(super) fn previous_value_strat(&self) -> f64 { self.previous_value_strat }
 
     pub(super) fn set_apo(&mut self, apo: f64) { self.apo = apo; }
 
@@ -295,7 +301,7 @@ impl MeanRevertingState {
                 pos,
                 ..
             }) => {
-                self.update_close_value(&pos.kind, last_price);
+                self.update_close_value(self.previous_value_strat, &pos.kind, last_price);
                 self.set_pnl();
                 self.clear_position();
             }
@@ -305,7 +311,7 @@ impl MeanRevertingState {
                 ..
             }) => {
                 self.set_nominal_position(cummulative_qty);
-                self.update_open_value(&pos.kind, last_price);
+                self.update_open_value(self.previous_value_strat, &pos.kind, last_price);
             }
             _ => {}
         }
@@ -377,13 +383,24 @@ impl MeanRevertingState {
         }
     }
 
-    fn update_open_value(&mut self, kind: &PositionKind, price: f64) {
+    fn update_open_value(&mut self, previous_value_strat: f64, kind: &PositionKind, price: f64) {
         match kind {
             PositionKind::Short => {
-                self.value_strat += self.nominal_position * price;
+                self.value_strat = previous_value_strat + self.nominal_position * price;
             }
             PositionKind::Long => {
-                self.value_strat -= self.nominal_position * price * (1.0 + self.fees_rate);
+                self.value_strat = previous_value_strat - self.nominal_position * price * (1.0 + self.fees_rate);
+            }
+        }
+    }
+
+    fn update_close_value(&mut self, previous_value_strat: f64, kind: &PositionKind, price: f64) {
+        match kind {
+            PositionKind::Short => {
+                self.value_strat = previous_value_strat - self.nominal_position * price;
+            }
+            PositionKind::Long => {
+                self.value_strat = previous_value_strat + self.nominal_position * price * (1.0 - self.fees_rate);
             }
         }
     }
@@ -393,27 +410,18 @@ impl MeanRevertingState {
         let position_kind = pos.kind.clone();
         self.set_position(position_kind.clone());
         self.traded_price = pos.price;
+        self.previous_value_strat = self.value_strat;
         self.update_nominal_position(&position_kind);
-        self.update_open_value(&position_kind, pos.price);
+        self.update_open_value(self.value_strat, &position_kind, pos.price);
         let mut op = Operation::new(pos, OperationKind::Open, self.nominal_position, self.dry_mode);
         self.stage_operation(&mut op).await?;
         Ok(op)
     }
 
-    fn update_close_value(&mut self, kind: &PositionKind, price: f64) {
-        match kind {
-            PositionKind::Short => {
-                self.value_strat -= self.nominal_position * price;
-            }
-            PositionKind::Long => {
-                self.value_strat += self.nominal_position * price * (1.0 - self.fees_rate);
-            }
-        }
-    }
-
     #[tracing::instrument(skip(self), level = "debug")]
     pub(super) async fn close(&mut self, pos: Position) -> Result<Operation> {
-        self.update_close_value(&pos.kind, pos.price);
+        self.previous_value_strat = self.value_strat;
+        self.update_close_value(self.value_strat, &pos.kind, pos.price);
         let mut op = Operation::new(pos, OperationKind::Close, self.nominal_position, self.dry_mode);
         self.stage_operation(&mut op).await?;
         Ok(op)
@@ -466,6 +474,7 @@ impl MeanRevertingState {
             threshold_short: self.threshold_short,
             threshold_long: self.threshold_long,
             apo: self.apo,
+            previous_value_strat: self.previous_value_strat,
         }) {
             error!("Error saving state: {:?}", e);
         }
