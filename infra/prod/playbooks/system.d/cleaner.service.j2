@@ -1,0 +1,20 @@
+[Unit]
+Description=Rclone Data Cleaner
+After=network-online.target
+
+[Service]
+Type=oneshot
+
+User=root
+Group=root
+UMask=007
+
+ExecStart=rclone --rmdirs --config=/root/.config/rclone.conf delete --min-age={{FEEDER_DATA_EXPIRY_AGE | default('1h') }} spaces:btcfeed/{{FEEDER_REMOTE_DIRECTORY | default('data') }}
+
+WorkingDirectory=/root
+
+# Configures the time to wait before service is stopped forcefully.
+TimeoutStopSec=300
+
+[Install]
+WantedBy=multi-user.target
