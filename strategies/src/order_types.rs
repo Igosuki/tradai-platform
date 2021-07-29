@@ -91,10 +91,6 @@ pub(crate) struct StagedOrder {
     pub request: AddOrderRequest,
 }
 
-impl StagedOrder {
-    pub fn dry_run(&self) -> bool { self.request.dry_run }
-}
-
 #[derive(Message, Debug)]
 #[rtype(result = "Result<()>")]
 pub struct PassOrder {
