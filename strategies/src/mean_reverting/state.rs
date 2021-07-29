@@ -1,22 +1,21 @@
 use std::panic;
 
 use actix::Addr;
-use anyhow::Result;
 use chrono::{DateTime, Utc};
+use db::{Storage, StorageExt};
 use log::Level::Debug;
 use serde::{Deserialize, Serialize, Serializer};
+use std::collections::HashMap;
+use std::sync::Arc;
 use uuid::Uuid;
 
-use db::{Storage, StorageExt};
-
+use crate::error::{Error, Result};
 use crate::mean_reverting::options::Options;
 use crate::order_manager::{OrderManager, TransactionService};
 use crate::order_types::{StagedOrder, Transaction, TransactionStatus};
 use crate::query::MutableField;
 use crate::types::{BookPosition, OperationEvent, OrderMode, StratEvent, TradeEvent, TradeOperation};
 use crate::types::{OperationKind, PositionKind, TradeKind};
-use std::collections::HashMap;
-use std::sync::Arc;
 
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct Position {
@@ -154,6 +153,24 @@ struct TransientState {
     previous_value_strat: f64,
 }
 
+impl From<&mut MeanRevertingState> for TransientState {
+    fn from(trs: &mut MeanRevertingState) -> Self {
+        TransientState {
+            value_strat: trs.value_strat,
+            pnl: trs.pnl,
+            nominal_position: Some(trs.nominal_position),
+            ongoing_op: trs.ongoing_op.as_ref().map(|o| o.id.clone()),
+            units_to_buy: trs.units_to_buy,
+            traded_price: trs.traded_price,
+            units_to_sell: trs.units_to_sell,
+            threshold_short: trs.threshold_short,
+            threshold_long: trs.threshold_long,
+            apo: trs.apo,
+            previous_value_strat: trs.previous_value_strat,
+        }
+    }
+}
+
 impl MeanRevertingState {
     pub fn new(
         options: &Options,
@@ -200,23 +217,27 @@ impl MeanRevertingState {
         }
         let previous_state: Option<TransientState> = self.db.get(STATE_KEY, &self.key).ok();
         if let Some(ps) = previous_state {
-            self.set_units_to_sell(ps.units_to_sell);
-            self.set_units_to_buy(ps.units_to_buy);
-            self.set_threshold_short(ps.threshold_short);
-            self.set_threshold_long(ps.threshold_long);
-            self.value_strat = ps.value_strat;
-            self.pnl = ps.pnl;
-            self.traded_price = ps.traded_price;
-            self.apo = ps.apo;
-            if let Some(np) = ps.nominal_position {
-                self.nominal_position = np;
-            }
-            if let Some(op_key) = ps.ongoing_op {
-                let op: Option<Operation> = self.get_operation(&op_key);
-                self.set_ongoing_op(op);
-            }
-            self.previous_value_strat = ps.previous_value_strat;
+            self.load_from(ps)
         }
+    }
+
+    fn load_from(&mut self, ps: TransientState) {
+        self.set_units_to_sell(ps.units_to_sell);
+        self.set_units_to_buy(ps.units_to_buy);
+        self.set_threshold_short(ps.threshold_short);
+        self.set_threshold_long(ps.threshold_long);
+        self.value_strat = ps.value_strat;
+        self.pnl = ps.pnl;
+        self.traded_price = ps.traded_price;
+        self.apo = ps.apo;
+        if let Some(np) = ps.nominal_position {
+            self.nominal_position = np;
+        }
+        if let Some(op_key) = ps.ongoing_op {
+            let op: Option<Operation> = self.get_operation(&op_key);
+            self.set_ongoing_op(op);
+        }
+        self.previous_value_strat = ps.previous_value_strat;
     }
 
     pub(super) fn no_position_taken(&self) -> bool { self.position.is_none() }
@@ -360,12 +381,12 @@ impl MeanRevertingState {
                                 error!("Failed to retry trade {:?}, {:?} : {}", &transaction, &new_trade, e);
                             }
                             self.set_ongoing_op(Some(new_op.clone()));
-                            Err(anyhow!("Some operations have not been filled or had to be restaged"))
+                            Err(Error::OperationRestaged)
                         };
                         self.save_operation(&new_op);
                         result
                     }
-                    _ => Err(anyhow!("No transaction to resolve in operation")),
+                    _ => Err(Error::NoTransactionInOperation),
                 }
             }
             None => Ok(()),
@@ -407,6 +428,7 @@ impl MeanRevertingState {
 
     #[tracing::instrument(skip(self), level = "debug")]
     pub(super) async fn open(&mut self, pos: Position) -> Result<Operation> {
+        let previous_state: TransientState = self.into();
         let position_kind = pos.kind.clone();
         self.set_position(position_kind.clone());
         self.traded_price = pos.price;
@@ -414,17 +436,22 @@ impl MeanRevertingState {
         self.update_nominal_position(&position_kind);
         self.update_open_value(self.value_strat, &position_kind, pos.price);
         let mut op = Operation::new(pos, OperationKind::Open, self.nominal_position, self.dry_mode);
-        self.stage_operation(&mut op).await?;
-        Ok(op)
+        self.stage_operation(&mut op).await.map_err(|e| {
+            self.load_from(previous_state);
+            e
+        })
     }
 
     #[tracing::instrument(skip(self), level = "debug")]
     pub(super) async fn close(&mut self, pos: Position) -> Result<Operation> {
+        let previous_state: TransientState = self.into();
         self.previous_value_strat = self.value_strat;
         self.update_close_value(self.value_strat, &pos.kind, pos.price);
         let mut op = Operation::new(pos, OperationKind::Close, self.nominal_position, self.dry_mode);
-        self.stage_operation(&mut op).await?;
-        Ok(op)
+        self.stage_operation(&mut op).await.map_err(|e| {
+            self.load_from(previous_state);
+            e
+        })
     }
 
     fn clear_position(&mut self) {
@@ -442,40 +469,25 @@ impl MeanRevertingState {
     }
 
     #[tracing::instrument(skip(self), level = "debug")]
-    async fn stage_operation(&mut self, op: &mut Operation) -> Result<()> {
+    async fn stage_operation(&mut self, op: &mut Operation) -> Result<Operation> {
         self.save_operation(op);
         let staged_order = StagedOrder {
             request: op.trade.to_request(&self.order_mode),
         };
-        let reqs = self.ts.stage_order(staged_order).await;
-        op.transaction = reqs.ok();
-        self.save_operation(op);
-        let transaction_result = match &op.transaction {
-            None => Err(anyhow!("Failed transaction")),
-            _ => Ok(()),
-        };
-
-        self.set_ongoing_op(Some(op.clone()));
-        op.log();
-        self.save();
-        self.log_indicators(&op.pos.kind);
-        transaction_result
+        self.ts.stage_order(staged_order).await.map(|tr| {
+            op.transaction = Some(tr);
+            self.save_operation(op);
+            self.set_ongoing_op(Some(op.clone()));
+            op.log();
+            self.save();
+            self.log_indicators(&op.pos.kind);
+            op.clone()
+        })
     }
 
     fn save(&mut self) {
-        if let Err(e) = self.db.put(STATE_KEY, &self.key, TransientState {
-            value_strat: self.value_strat,
-            pnl: self.pnl,
-            nominal_position: Some(self.nominal_position),
-            ongoing_op: self.ongoing_op.as_ref().map(|o| o.id.clone()),
-            units_to_buy: self.units_to_buy,
-            traded_price: self.traded_price,
-            units_to_sell: self.units_to_sell,
-            threshold_short: self.threshold_short,
-            threshold_long: self.threshold_long,
-            apo: self.apo,
-            previous_value_strat: self.previous_value_strat,
-        }) {
+        let ts: TransientState = self.into();
+        if let Err(e) = self.db.put(STATE_KEY, &self.key, ts) {
             error!("Error saving state: {:?}", e);
         }
     }
@@ -539,15 +551,13 @@ impl MeanRevertingState {
             }
             _ => {
                 // Return early as there is nothing to be done, this should never happen
-                Err(anyhow!(
-                    "Tried to determine new price for transaction when no position is taken"
-                ))
+                Err(Error::InvalidPosition)
             }
         }
     }
 }
 
-fn round_serialize<S>(x: &f64, s: S) -> Result<S::Ok, S::Error>
+fn round_serialize<S>(x: &f64, s: S) -> std::result::Result<S::Ok, S::Error>
 where
     S: Serializer,
 {

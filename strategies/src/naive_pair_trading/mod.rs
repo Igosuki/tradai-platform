@@ -1,9 +1,10 @@
-use anyhow::Result;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use log::Level::Debug;
 use std::convert::TryInto;
 use std::ops::{Add, Mul, Sub};
 use std::sync::Arc;
+
+use crate::error::*;
 
 pub mod covar_model;
 pub mod metrics;
@@ -346,7 +347,7 @@ impl NaiveTradingStrategy {
 
 #[async_trait]
 impl StrategyInterface for NaiveTradingStrategy {
-    async fn add_event(&mut self, le: LiveEventEnveloppe) -> anyhow::Result<()> {
+    async fn add_event(&mut self, le: LiveEventEnveloppe) -> Result<()> {
         if let LiveEvent::LiveOrderbook(ob) = le.e {
             let string = ob.pair.clone();
             if string == self.left_pair {

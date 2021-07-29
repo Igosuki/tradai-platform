@@ -10,6 +10,7 @@
 #![feature(in_band_lifetimes)]
 #![feature(inherent_associated_types)]
 #![feature(fn_traits)]
+#![feature(result_cloned)]
 
 extern crate log;
 #[macro_use]
@@ -30,7 +31,6 @@ extern crate prometheus;
 extern crate lazy_static;
 
 use actix::{Actor, Addr, Context, Handler, ResponseActFuture, Running, WrapFuture};
-use anyhow::Result;
 use async_std::sync::Arc;
 use async_std::sync::RwLock;
 use coinnect_rt::exchange::Exchange;
@@ -59,6 +59,8 @@ mod test_util;
 mod types;
 mod util;
 mod wal;
+
+use error::*;
 
 #[derive(Clone)]
 pub enum Channel {
@@ -178,7 +180,7 @@ impl Handler<LiveEventEnveloppe> for StrategyActor {
             async move {
                 let arc = lock.clone();
                 let mut act = arc.write().await;
-                act.add_event(msg).await
+                act.add_event(msg).await.map_err(|e| anyhow!(e))
             }
             .into_actor(self),
         )
@@ -220,7 +222,7 @@ impl Handler<FieldMutation> for StrategyActor {
 // TODO: strategies should define when to stop trading
 #[async_trait]
 pub trait StrategyInterface {
-    async fn add_event(&mut self, le: LiveEventEnveloppe) -> anyhow::Result<()>;
+    async fn add_event(&mut self, le: LiveEventEnveloppe) -> Result<()>;
 
     fn data(&mut self, q: DataQuery) -> Option<DataResult>;
 
@@ -281,11 +283,11 @@ mod test {
 
     #[async_trait]
     impl StrategyInterface for DummyStrat {
-        async fn add_event(&mut self, _: LiveEventEnveloppe) -> anyhow::Result<()> { Ok(()) }
+        async fn add_event(&mut self, _: LiveEventEnveloppe) -> Result<()> { Ok(()) }
 
         fn data(&mut self, _q: DataQuery) -> Option<DataResult> { unimplemented!() }
 
-        fn mutate(&mut self, _m: FieldMutation) -> anyhow::Result<()> { unimplemented!() }
+        fn mutate(&mut self, _m: FieldMutation) -> Result<()> { unimplemented!() }
 
         fn channels(&self) -> Vec<Channel> {
             vec![Channel::Orderbooks {
