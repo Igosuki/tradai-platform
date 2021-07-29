@@ -19,7 +19,7 @@ use crate::naive_pair_trading::state::Operation;
 use crate::order_manager::OrderManager;
 use crate::query::{FieldMutation, MutableField};
 use crate::types::{BookPosition, PositionKind};
-use crate::{Channel, DataQuery, DataResult, StrategyInterface};
+use crate::{Channel, DataQuery, DataResult, StrategyInterface, StrategyStatus};
 use actix::Addr;
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
@@ -379,6 +379,7 @@ impl StrategyInterface for NaiveTradingStrategy {
             DataQuery::CurrentOperation => Some(DataResult::NaiveOperation(Box::new(self.get_ongoing_op().clone()))),
             DataQuery::CancelOngoingOp => Some(DataResult::OngongOperationCancelation(self.cancel_ongoing_op())),
             DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
+            DataQuery::Status => Some(DataResult::Status(StrategyStatus::Running)),
         }
     }
 

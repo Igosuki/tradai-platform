@@ -67,6 +67,14 @@ pub enum Channel {
     Orderbooks { xch: Exchange, pair: Pair },
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StrategyStatus {
+    Stopped,
+    Running,
+    NotTrading,
+}
+
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display)]
 pub enum StrategyType {
     #[strum(serialize = "naive")]

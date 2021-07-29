@@ -1,5 +1,6 @@
 use crate::mean_reverting::state::Operation as MeanRevertingOperation;
 use crate::naive_pair_trading::state::Operation as NaiveOperation;
+use crate::StrategyStatus;
 use actix_derive::{Message, MessageResponse};
 use serde::{Deserialize, Serialize};
 
@@ -14,6 +15,7 @@ pub enum DataResult {
     MeanRevertingOperation(Box<Option<MeanRevertingOperation>>),
     OngongOperationCancelation(bool),
     State(String),
+    Status(StrategyStatus),
 }
 
 #[derive(Deserialize, Serialize, Message)]
@@ -29,6 +31,8 @@ pub enum DataQuery {
     CancelOngoingOp,
     /// Latest state
     State,
+    /// Status
+    Status,
 }
 
 #[derive(Deserialize, Serialize, juniper::GraphQLEnum)]

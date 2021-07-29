@@ -16,7 +16,7 @@ use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation, MutableField};
 use crate::types::PositionKind;
 use crate::util::Stopper;
-use crate::{Channel, StrategyInterface};
+use crate::{Channel, StrategyInterface, StrategyStatus};
 use coinnect_rt::exchange::Exchange;
 use db::{get_or_create, Storage};
 use math::iter::QuantileExt;
@@ -308,6 +308,14 @@ impl MeanRevertingStrategy {
                 _ => false,
             }
     }
+
+    pub(crate) fn status(&self) -> StrategyStatus {
+        if self.state.is_trading() {
+            StrategyStatus::Running
+        } else {
+            StrategyStatus::NotTrading
+        }
+    }
 }
 
 #[async_trait]
@@ -336,6 +344,7 @@ impl StrategyInterface for MeanRevertingStrategy {
             ))),
             DataQuery::CancelOngoingOp => Some(DataResult::OngongOperationCancelation(self.cancel_ongoing_op())),
             DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
+            DataQuery::Status => Some(DataResult::Status(self.status())),
         }
     }
 

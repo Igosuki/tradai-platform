@@ -499,6 +499,8 @@ impl MeanRevertingState {
         serde_json::to_string(&dump).unwrap()
     }
 
+    pub(crate) fn is_trading(&self) -> bool { self.is_trading }
+
     fn get_operation(&self, uuid: &str) -> Option<Operation> { self.db.get(OPERATIONS_KEY, uuid).ok() }
 
     fn log_indicators(&self, pos: &PositionKind) {

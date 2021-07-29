@@ -141,6 +141,19 @@ impl QueryRoot {
             .await
     }
 
+    #[graphql(description = "Current strategy status")]
+    async fn strat_status(context: &Context, tk: TypeAndKeyInput) -> FieldResult<String> {
+        context
+            .with_strat(tk, DataQuery::Status, |dr| {
+                if let DataResult::Status(status) = dr {
+                    Ok(serde_json::to_string(&status).unwrap())
+                } else {
+                    unhandled_data_result()
+                }
+            })
+            .await
+    }
+
     #[graphql(description = "Get all positions for this naive strat")]
     async fn naive_operations(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<Operation>> {
         context
