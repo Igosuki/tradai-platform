@@ -116,7 +116,6 @@ impl OrderManager {
     /// Registers an order, and passes it to be later processed
     #[tracing::instrument(skip(self), level = "info")]
     pub(crate) async fn stage_order(&mut self, staged_order: StagedOrder) -> Result<Transaction> {
-        let is_dry_order = staged_order.dry_run();
         let mut request = staged_order.request;
         let order_id = Uuid::new_v4().to_string();
         request.order_id = Some(order_id.clone());
@@ -125,35 +124,40 @@ impl OrderManager {
         self.register(order_id.clone(), staged_transaction.clone()).await?;
         Ok(Transaction {
             id: order_id.clone(),
-            status: // Dry mode simulates transactions as filled
-            if is_dry_order {
-                let filled_transaction = TransactionStatus::Filled(OrderUpdate::default());
-                self.register(order_id.clone(), filled_transaction.clone()).await?;
-                filled_transaction
-            } else {
-                staged_transaction
-            },
+            status: staged_transaction,
         })
     }
 
     /// Directly passes an order query
     #[tracing::instrument(skip(self), level = "info")]
     pub(crate) async fn pass_order(&mut self, order: PassOrder) -> Result<()> {
-        let order_info = self.api.order(order.query.clone()).await;
-        if let PassOrder {
-            query: OrderQuery::AddOrder(AddOrderRequest { dry_run: true, .. }),
+        // Dry mode simulates transactions as filled
+        let written_transaction = if let PassOrder {
+            query:
+                OrderQuery::AddOrder(AddOrderRequest {
+                    dry_run: true,
+                    quantity: Some(qty),
+                    price: Some(price),
+                    ..
+                }),
             ..
         } = order
         {
-            info!("dry run order {:?} response {:?}", order, order_info);
-            return order_info.map(|_| ()).map_err(|e| e.into());
-        }
-        let written_transaction = match order_info {
-            Ok(o) => TransactionStatus::New(o),
-            Err(e) => TransactionStatus::Rejected(match e {
-                CoinnectError::InvalidPrice => Rejection::InvalidPrice,
-                _ => Rejection::BadRequest(format!("{}", e)),
-            }),
+            let update = OrderUpdate {
+                cummulative_filled_qty: qty,
+                last_executed_price: price,
+                ..OrderUpdate::default()
+            };
+            TransactionStatus::Filled(update)
+        } else {
+            let order_info = self.api.order(order.query.clone()).await;
+            match order_info {
+                Ok(o) => TransactionStatus::New(o),
+                Err(e) => TransactionStatus::Rejected(match e {
+                    CoinnectError::InvalidPrice => Rejection::InvalidPrice,
+                    _ => Rejection::BadRequest(format!("{}", e)),
+                }),
+            }
         };
         self.register(order.id.clone(), written_transaction.clone()).await?;
         Ok(())
