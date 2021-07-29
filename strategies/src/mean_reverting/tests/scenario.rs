@@ -189,8 +189,8 @@ async fn complete_backtest() {
         order_manager_addr,
     );
     // Read downsampled streams
-    let dt0 = Utc.ymd(2020, 3, 25);
-    let dt1 = Utc.ymd(2020, 6, 10);
+    let dt0 = Utc.ymd(2020, 3, 27);
+    let dt1 = Utc.ymd(2020, 4, 8);
     // align data
     let mut elapsed = 0_u128;
     let now = Instant::now();
@@ -264,8 +264,8 @@ async fn complete_backtest() {
     let copied = std::fs::copy(&out_file, "graphs/mean_reverting_plot_latest.svg");
     assert!(copied.is_ok(), "{}", format!("{:?} : {}", copied, out_file));
 
-    assert_eq!(Some(7308.47998046875), last_position.map(|p| p.pos.price));
-    assert_eq!(Some(78767.08484500754), last_position.map(|p| p.value()));
+    assert_eq!(Some(78767.08484500754), last_position.map(|p| p.pos.price));
+    assert_eq!(Some(90.98012915244145), last_position.map(|p| p.value()));
 }
 
 fn write_trade_events(test_results_dir: &str, trade_events: &[(OperationEvent, TradeEvent)]) {
