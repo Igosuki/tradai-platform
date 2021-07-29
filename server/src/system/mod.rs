@@ -162,12 +162,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
             .collect(),
     );
     // API Server
-    let server = server::httpserver(
-        apis.clone(),
-        strats_map,
-        Arc::new(order_managers_addr),
-        settings_v.api.port.0,
-    );
+    let server = server::httpserver(&settings_v.api, apis.clone(), strats_map, Arc::new(order_managers_addr));
     termination_handles.push(Box::pin(server));
 
     // Handle interrupts for graceful shutdown

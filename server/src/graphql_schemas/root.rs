@@ -2,7 +2,6 @@ use crate::graphql_schemas::types::*;
 use actix::{Addr, MailboxError};
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::OrderQuery;
-use futures::lock::Mutex;
 use futures::Stream;
 use juniper::{FieldError, FieldResult, RootNode};
 use std::collections::HashMap;
@@ -19,7 +18,7 @@ use strategies::{order_manager, Strategy, StrategyKey};
 
 pub struct Context {
     pub strats: Arc<HashMap<StrategyKey, Strategy>>,
-    pub exchanges: Arc<Mutex<HashMap<Exchange, Box<dyn ExchangeApi>>>>,
+    pub exchanges: Arc<HashMap<Exchange, Box<dyn ExchangeApi>>>,
     pub order_managers: Arc<HashMap<Exchange, Addr<OrderManager>>>,
 }
 
@@ -236,8 +235,7 @@ impl MutationRoot {
     #[graphql(description = "Add an order (for testing)")]
     async fn add_order(context: &Context, input: AddOrderInput) -> FieldResult<OrderResult> {
         let exchg: Exchange = input.exchg.clone().into();
-        let mut api_lock = context.exchanges.lock().await;
-        let api = api_lock.get_mut(&exchg).ok_or_else(|| {
+        let api = context.exchanges.get(&exchg).ok_or_else(|| {
             FieldError::new(
                 "Exchange type not found",
                 graphql_value!({ "not_found": "exchange type not found" }),

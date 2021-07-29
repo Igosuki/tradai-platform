@@ -61,6 +61,19 @@ impl Default for Port {
 pub struct ApiSettings {
     #[serde(default)]
     pub port: Port,
+    #[serde(default)]
+    pub cors: CorsMode,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum CorsMode {
+    Permissive,
+    Restricted,
+}
+
+impl Default for CorsMode {
+    fn default() -> Self { Self::Restricted }
 }
 
 #[derive(Debug, Deserialize)]
