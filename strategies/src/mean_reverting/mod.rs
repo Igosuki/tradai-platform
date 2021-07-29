@@ -1,11 +1,17 @@
 use actix::Addr;
-use anyhow::Result;
 use chrono::{DateTime, Duration, TimeZone, Utc};
+use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe, Pair};
+use db::{get_or_create, Storage};
 use itertools::Itertools;
+use math::iter::QuantileExt;
+use ordered_float::OrderedFloat;
+use std::cmp::{max, min};
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
+use crate::error::Result;
 use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
 use crate::mean_reverting::options::Options;
@@ -17,12 +23,6 @@ use crate::query::{DataQuery, DataResult, FieldMutation, MutableField};
 use crate::types::PositionKind;
 use crate::util::Stopper;
 use crate::{Channel, StrategyInterface, StrategyStatus};
-use coinnect_rt::exchange::Exchange;
-use db::{get_or_create, Storage};
-use math::iter::QuantileExt;
-use ordered_float::OrderedFloat;
-use std::cmp::{max, min};
-use std::sync::Arc;
 
 mod ema_model;
 mod metrics;
@@ -209,9 +209,7 @@ impl MeanRevertingStrategy {
     }
 
     #[tracing::instrument(skip(self), level = "debug")]
-    async fn eval_latest(&mut self, lr: &SinglePosRow) -> Result<Operation> {
-        self.maybe_eval_threshold(lr.time);
-
+    async fn eval_latest(&mut self, lr: &SinglePosRow) -> Result<&Option<Operation>> {
         if self.state.no_position_taken() {
             self.state.update_units(&lr.pos);
         }
@@ -227,35 +225,31 @@ impl MeanRevertingStrategy {
                 self.state.threshold_short()
             );
             let position = self.short_position(lr.pos.bid, lr.time);
-            return self.state.open(position).await;
+            self.state.open(position).await?;
         }
-
         // Possibly close a short position
-        if self.state.is_short() {
+        else if self.state.is_short() {
             self.state.set_short_position_return(lr.pos.ask);
             if (self.state.apo() < 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::Short)) {
                 let position = self.short_position(lr.pos.ask, lr.time);
-                return self.state.close(position).await;
+                self.state.close(position).await?;
             }
         }
-
         // Possibly open a long position
-        if (self.state.apo() < self.state.threshold_long()) && self.state.no_position_taken() {
+        else if (self.state.apo() < self.state.threshold_long()) && self.state.no_position_taken() {
             info!("Entering long position with threshold {}", self.state.threshold_long());
             let position = self.long_position(lr.pos.ask, lr.time);
-            return self.state.open(position).await;
+            self.state.open(position).await?;
         }
-
         // Possibly close a long position
-        if self.state.is_long() {
+        else if self.state.is_long() {
             self.state.set_long_position_return(lr.pos.bid);
             if (self.state.apo() > 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::Long)) {
                 let position = self.long_position(lr.pos.bid, lr.time);
-                return self.state.close(position).await;
+                self.state.close(position).await?;
             }
         }
-
-        Err(anyhow!("Evaluation led to nothing"))
+        Ok(self.state.ongoing_op())
     }
 
     fn return_value(&self, pk: &PositionKind) -> f64 {
@@ -292,9 +286,16 @@ impl MeanRevertingStrategy {
             }
         }
         if self.can_eval() {
-            match self.eval_latest(row).await {
-                Ok(op) => self.metrics.log_position(&op.pos, &op.kind),
-                Err(e) => trace!("{}", e),
+            self.maybe_eval_threshold(row.time);
+            if self.state.is_trading() {
+                match self.eval_latest(row).await {
+                    Ok(Some(op)) => {
+                        let op = op.clone();
+                        self.metrics.log_position(&op.pos, &op.kind);
+                    }
+                    Err(_e) => self.metrics.log_error("evaluation_failure"),
+                    _ => {}
+                }
             }
             self.log_state();
         }
@@ -320,7 +321,7 @@ impl MeanRevertingStrategy {
 
 #[async_trait]
 impl StrategyInterface for MeanRevertingStrategy {
-    async fn add_event(&mut self, le: LiveEventEnveloppe) -> anyhow::Result<()> {
+    async fn add_event(&mut self, le: LiveEventEnveloppe) -> Result<()> {
         if !self.handles(&le) {
             return Ok(());
         }

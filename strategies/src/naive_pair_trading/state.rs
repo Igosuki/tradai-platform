@@ -1,22 +1,21 @@
 use std::panic;
 
 use actix::Addr;
-use anyhow::Result;
 use chrono::{DateTime, Utc};
+use db::{Storage, StorageExt};
 use log::Level::Info;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::Arc;
 use uuid::Uuid;
 
-use db::{Storage, StorageExt};
-
+use crate::error::*;
 use crate::naive_pair_trading::options::Options;
 use crate::order_manager::OrderManager;
 use crate::order_types::{OrderId, StagedOrder, Transaction};
 use crate::query::MutableField;
 use crate::types::{BookPosition, OperationEvent, OrderMode, StratEvent, TradeEvent, TradeOperation};
 use crate::types::{OperationKind, PositionKind, TradeKind};
-use std::collections::HashMap;
-use std::sync::Arc;
 
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct Position {
@@ -341,12 +340,16 @@ impl MovingState {
 
     /// Fetches the latest version of this transaction for the order id
     /// Returns whether it changed, and the latest transaction retrieved
-    async fn latest_transaction_change(&self, tr: &Transaction) -> anyhow::Result<(bool, Transaction)> {
-        let new_tr = self.om.send(OrderId(tr.id.clone())).await??;
+    async fn latest_transaction_change(&self, tr: &Transaction) -> Result<(bool, Transaction)> {
+        let new_tr = self
+            .om
+            .send(OrderId(tr.id.clone()))
+            .await
+            .map_err(|_| Error::OrderManagerMailboxError)??;
         Ok((!new_tr.variant_eq(tr), new_tr))
     }
 
-    async fn maybe_retry_trade(&self, tr: Transaction, trade: &TradeOperation) -> anyhow::Result<Transaction> {
+    async fn maybe_retry_trade(&self, tr: Transaction, trade: &TradeOperation) -> Result<Transaction> {
         if tr.is_rejected() {
             // Changed and rejected, retry transaction
             // TODO need to handle rejections in a finer grained way
@@ -354,7 +357,7 @@ impl MovingState {
             self.stage_order(trade.clone()).await
         } else {
             // TODO: Timeout can be managed here
-            Err(anyhow!("Nor rejected nor filled"))
+            Ok(tr)
         }
     }
 
@@ -440,12 +443,12 @@ impl MovingState {
                                 error!("Failed to retry right trade {:?}, {:?} : {}", &rts, &new_right_trade, e);
                             }
                             self.set_ongoing_op(Some(new_op.clone()));
-                            Err(anyhow!("Some operations have not been filled or had to be restaged"))
+                            Err(Error::OperationRestaged)
                         };
                         self.save_operation(&new_op);
                         result
                     }
-                    _ => Err(anyhow!("One of the transactions didn't go through")),
+                    _ => Err(Error::NoTransactionInOperation),
                 }
             }
             None => Ok(()),
@@ -520,8 +523,8 @@ impl MovingState {
         };
         self.om
             .send(staged_order)
-            .await?
-            .map_err(|e| anyhow!("mailbox error {}", e))
+            .await
+            .map_err(|_| Error::OrderManagerMailboxError)?
     }
 
     fn save_operation(&mut self, op: &Operation) {

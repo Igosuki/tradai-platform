@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, Running, WrapFuture};
 use actix_derive::{Message, MessageResponse};
-use anyhow::Result;
+
 use async_std::sync::RwLock;
 use coinnect_rt::error::Error as CoinnectError;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
@@ -13,6 +13,8 @@ use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, O
 use db::get_or_create;
 use uuid::Uuid;
 
+use crate::error::Error;
+use crate::error::Result;
 use crate::order_types::{OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
 use crate::wal::{Wal, WalCmp};
 
@@ -29,19 +31,23 @@ impl TransactionService {
     pub async fn stage_order(&self, staged_order: StagedOrder) -> Result<Transaction> {
         self.om
             .send(staged_order)
-            .await?
-            .map_err(|e| anyhow!("mailbox error {}", e))
+            .await
+            .map_err(|_| Error::OrderManagerMailboxError)?
     }
 
     /// Fetches the latest version of this transaction for the order id
     /// Returns whether it changed, and the latest transaction retrieved
-    pub async fn latest_transaction_change(&self, tr: &Transaction) -> anyhow::Result<(bool, Transaction)> {
-        let new_tr = self.om.send(OrderId(tr.id.clone())).await??;
+    pub async fn latest_transaction_change(&self, tr: &Transaction) -> crate::error::Result<(bool, Transaction)> {
+        let new_tr = self
+            .om
+            .send(OrderId(tr.id.clone()))
+            .await
+            .map_err(|_| Error::OrderManagerMailboxError)??;
         Ok((!new_tr.variant_eq(tr), new_tr))
     }
 
     /// Retry staging an order if it was rejected
-    pub async fn maybe_retry_trade(&self, tr: Transaction, order: StagedOrder) -> anyhow::Result<Transaction> {
+    pub async fn maybe_retry_trade(&self, tr: Transaction, order: StagedOrder) -> Result<Transaction> {
         if tr.is_rejected() {
             // Changed and rejected, retry transaction
             // TODO need to handle rejections in a finer grained way
@@ -62,7 +68,7 @@ pub enum DataResult {
 }
 
 #[derive(Deserialize, Serialize, Message)]
-#[rtype(result = "Result<Option<DataResult>, anyhow::Error>")]
+#[rtype(result = "Result<Option<DataResult>>")]
 pub enum DataQuery {
     /// All transactions history
     Transactions,
@@ -96,22 +102,15 @@ impl OrderManager {
     pub(crate) async fn update_order(&mut self, order: OrderUpdate) -> Result<()> {
         let order_id = order.orig_order_id.clone();
         let tr = if order.new_status.is_rejection() {
-            Some(TransactionStatus::Rejected(Rejection::from_status(
-                order.new_status,
-                order.rejection_reason,
-            )))
+            TransactionStatus::Rejected(Rejection::from_status(order.new_status, order.rejection_reason))
         } else if order.new_status == OrderStatus::PartialyFilled {
-            Some(TransactionStatus::PartiallyFilled(order))
+            TransactionStatus::PartiallyFilled(order)
         } else if order.new_status == OrderStatus::Filled {
-            Some(TransactionStatus::Filled(order))
+            TransactionStatus::Filled(order)
         } else {
-            None
+            return Ok(());
         };
-        if let Some(transaction) = tr {
-            self.register(order_id, transaction).await
-        } else {
-            Err(anyhow!("Unknown order update"))
-        }
+        self.register(order_id, tr).await
     }
 
     /// Registers an order, and passes it to be later processed
@@ -147,7 +146,7 @@ impl OrderManager {
         } = order
         {
             info!("dry run order {:?} response {:?}", order, order_info);
-            return order_info.map(|_| ()).map_err(|e| anyhow!(e));
+            return order_info.map(|_| ()).map_err(|e| e.into());
         }
         let written_transaction = match order_info {
             Ok(o) => TransactionStatus::New(o),
@@ -195,14 +194,11 @@ impl OrderManager {
 
     /// Returns all history of transactions
     pub(crate) fn transactions(&self) -> Result<Vec<Transaction>> {
-        self.transactions_wal
-            .get_all()
-            .map(|r| {
-                r.into_iter()
-                    .map(|(_ts, (id, status))| Transaction { status, id })
-                    .collect()
-            })
-            .map_err(|e| e.into())
+        self.transactions_wal.get_all().map(|r| {
+            r.into_iter()
+                .map(|(_ts, (id, status))| Transaction { status, id })
+                .collect()
+        })
     }
 }
 
@@ -287,14 +283,14 @@ impl Actor for OrderManager {
 }
 
 impl Handler<AccountEventEnveloppe> for OrderManager {
-    type Result = ResponseActFuture<Self, Result<()>>;
+    type Result = ResponseActFuture<Self, anyhow::Result<()>>;
 
     fn handle(&mut self, msg: AccountEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
         let mut zis = self.clone();
         Box::pin(
             async move {
                 match msg.1 {
-                    AccountEvent::OrderUpdate(update) => zis.update_order(update).await,
+                    AccountEvent::OrderUpdate(update) => zis.update_order(update).await.map_err(|e| anyhow!(e)),
                     // Ignore anything besides order updates
                     _ => Ok(()),
                 }
@@ -348,8 +344,8 @@ impl Handler<OrderId> for OrderManager {
                 let order_id = order.0.clone();
                 zis.get_order(order_id.clone())
                     .await
+                    .ok_or_else(|| Error::OrderNotFound(order_id.clone()))
                     .map(move |status| Transaction { id: order_id, status })
-                    .ok_or_else(|| anyhow!("No order found"))
             }
             .into_actor(self),
         )
@@ -361,10 +357,7 @@ impl Handler<DataQuery> for OrderManager {
 
     fn handle(&mut self, query: DataQuery, _ctx: &mut Self::Context) -> Self::Result {
         match query {
-            DataQuery::Transactions => self
-                .transactions()
-                .map(|r| Some(DataResult::Transactions(r)))
-                .map_err(|e| anyhow!(e)),
+            DataQuery::Transactions => self.transactions().map(|r| Some(DataResult::Transactions(r))),
         }
     }
 }

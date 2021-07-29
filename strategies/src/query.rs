@@ -1,3 +1,4 @@
+use crate::error::*;
 use crate::mean_reverting::state::Operation as MeanRevertingOperation;
 use crate::naive_pair_trading::state::Operation as NaiveOperation;
 use crate::StrategyStatus;
@@ -19,7 +20,7 @@ pub enum DataResult {
 }
 
 #[derive(Deserialize, Serialize, Message)]
-#[rtype(result = "Result<Option<DataResult>, anyhow::Error>")]
+#[rtype(result = "Result<Option<DataResult>>")]
 pub enum DataQuery {
     /// All operations history
     Operations,
@@ -46,7 +47,7 @@ pub enum MutableField {
 }
 
 #[derive(Deserialize, Serialize, Message, juniper::GraphQLInputObject)]
-#[rtype(result = "Result<(), anyhow::Error>")]
+#[rtype(result = "Result<()>")]
 pub struct FieldMutation {
     pub field: MutableField,
     pub value: f64,

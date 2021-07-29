@@ -1,9 +1,9 @@
 use actix::Message;
-use anyhow::Result;
 use coinnect_rt::types::{AddOrderRequest, OrderInfo, OrderQuery, OrderStatus, OrderUpdate};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 
+use crate::error::*;
 use crate::wal::WalCmp;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
