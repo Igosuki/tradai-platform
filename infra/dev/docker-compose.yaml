@@ -97,7 +97,11 @@ services:
     restart: always
     deploy:
       mode: global
-
+    depends_on:
+      - nats
+      - nats-1
+      - nats-2
+      - jaeger
   grafana:
     image: grafana/grafana
     user: "104"
