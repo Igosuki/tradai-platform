@@ -2,8 +2,9 @@ use std::io;
 
 use actix_http::ws;
 use bytestring::ByteString;
-use coinnect_rt::binance::{BinanceApi, BinanceCreds};
-use coinnect_rt::exchange::ExchangeApi;
+use coinnect_rt::binance::BinanceApi;
+use coinnect_rt::credential::{BasicCredentials, Credentials};
+use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use futures::Future;
 use httpmock::MockServer;
 
@@ -33,10 +34,10 @@ pub fn account_ws() -> Box<WSEndpoint> {
 
 pub async fn local_api() -> (MockServer, Box<dyn ExchangeApi>) {
     let server = MockServer::start();
-    let creds = BinanceCreds::empty();
+    let creds: Box<dyn Credentials> = Box::new(BasicCredentials::empty(Exchange::Binance));
     let mock_server_address = server.address().to_string();
     println!("mock server address : {}", mock_server_address);
-    let api = BinanceApi::new_with_host(Box::new(creds), mock_server_address)
+    let api = BinanceApi::new_with_host(creds.as_ref(), mock_server_address)
         .await
         .unwrap();
     (server, Box::new(api))

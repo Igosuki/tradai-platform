@@ -184,7 +184,7 @@ impl Settings {
             let (invalid_pairs, valid_pairs): (_, Vec<Pair>) = pairs
                 .clone()
                 .into_iter()
-                .partition(|p| coinnect_rt::pair::pair_to_symbol(&xchg, p).is_none());
+                .partition(|p| coinnect_rt::pair::pair_to_symbol(&xchg, p).is_err());
             info!("Invalid pairs : {:?}", invalid_pairs);
             info!("Valid pairs : {:?}", valid_pairs);
         }
