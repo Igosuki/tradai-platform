@@ -34,6 +34,8 @@ $(HOOKS): $(VENV) .pre-commit-config.yaml
 	@$(CARGO_BIN) clippy --help > /dev/null || rustup component add clippy
 	@$(CARGO_BIN) readme --help > /dev/null || cargo install cargo-readme
 
+### CI
+
 .PHONY: install-hooks
 install-hooks: $(HOOKS)
 
@@ -41,20 +43,47 @@ install-hooks: $(HOOKS)
 clean-hooks:
 	rm -rf $(HOOKS)
 
+.PHONY: all
+all: release
+
+### BUILD
+
+.PHONY: clean
+clean:
+	@$(CARGO_BIN) clean
 
 .PHONY: build
 build:
 	@$(CARGO_BIN) build
 
+.PHONY: compile
+compile:
+	@$(CARGO_BIN) build --all-features --all-targets
+
 .PHONY: build_all
 build_all:
 	@$(CARGO_BIN) build --all-features
 
-.PHONY: test
+.PHONY: build_test
+build_test:
+	@$(CARGO_BIN) test --message-format=json-diagnostic-rendered-ansi --color=always --no-run --lib $(TEST_NAME) --manifest-path $(MANIFEST_PATH)
+
+### TESTS
+
+.PHONY: macramdisk
+macramdisk:
+	diskutil erasevolume HFS+ 'RAM Disk' `hdiutil attach -nobrowse -nomount ram://262144`
+
+.PHONY: linuxramdisk
+linuxramdisk:
+	sudo mount -t tmpfs -o size=2048M tmpfs /media/ramdisk
+
+.PHONY: test_all
 test_all: ## Tests all features
 	@$(CARGO_BIN) test --all-features
 
-test: ## Tests all features
+.PHONY: test
+test: ## Tests all features and targets, skipping coinnect
 	RUST_LOG=info BITCOINS_REPO=$(shell pwd) $(CARGO_BIN) test --all-targets -- --skip coinnect_tests --skip gdax_tests --nocapture
 
 .PHONY: coverage
@@ -69,9 +98,19 @@ test_watcher:
 bench:
 	@$(CARGO_BIN) bench
 
+### PROFILING
+
 .PHONY: profile
 profile:
 	@$(CARGO_BIN) flamegraph --dev --bin=trader --features flame_it
+
+.PHONY: flamegraph
+flamegraph:
+	perf script | inferno-collapse-perf > stacks.folded
+	inferno-flamegraph stacks.folded > flamegraph.svg
+	firefox flamegraph.svg
+
+### LINT
 
 .PHONY: lint
 lint:
@@ -85,22 +124,16 @@ lintfix:
 clean-lint:
 	find . -type f -name *.rs.bk -delete
 
+### RELEASE
+
 ## alias rust-musl-builder-nightly='docker run --cpus=$(nproc) --rm -it --user rust $MUSL_FLAGS -v "$HOME/.cargo/git":/home/rust/.cargo/git -v "$(pwd)/cargo-registry":/home/rust/.cargo/registry -v "$(pwd)/cargo-target":/home/rust/src/target -v "$(pwd)":/home/rust/src ekidd/rust-musl-builder:nightly-2020-06-17'
+#$(rust-musl-builder-nightly) cargo build --release --target=x86_64-unknown-linux-gnu
+.PHONY: release
 release:
-	$(rust-musl-builder-nightly) cargo build --release --target=x86_64-unknown-linux-gnu
+	docker run --cpus=$(shell nproc) --rm -it -v "$(PWD)/cargo-git":/home/rust/.cargo/git -v "$(PWD)/cargo-registry":/home/rust/.cargo/registry -v "$(PWD)/cargo-target":/home/rust/src/target -v "$(PWD)":/home/rust/src -e LIB_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -e CFLAGS=-I/usr/local/musl/include -e CC=musl-gcc rust-musl-builder-nightly cargo build --release --target=x86_64-unknown-linux-gnu
 
-build_test:
-	@$(CARGO_BIN) test --message-format=json-diagnostic-rendered-ansi --color=always --no-run --lib $(TEST_NAME) --manifest-path $(MANIFEST_PATH)
+### DOCKER
 
-flamegraph:
-	perf script | inferno-collapse-perf > stacks.folded
-	inferno-flamegraph stacks.folded > flamegraph.svg
-	firefox flamegraph.svg
-
-macramdisk:
-	diskutil erasevolume HFS+ 'RAM Disk' `hdiutil attach -nobrowse -nomount ram://262144`
-
-# Docker
 docker-up:
 	docker-compose -f infra/dev/docker-compose.yaml up -d
 
