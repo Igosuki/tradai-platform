@@ -18,3 +18,4 @@ strategies/default
 test_results
 strategy_logs.json
 .cargo
+precommit_venv

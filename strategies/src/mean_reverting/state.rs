@@ -1,13 +1,14 @@
+use std::collections::HashMap;
 use std::panic;
+use std::sync::Arc;
 
 use actix::Addr;
 use chrono::{DateTime, Utc};
-use db::{Storage, StorageExt};
 use log::Level::Debug;
 use serde::{Deserialize, Serialize, Serializer};
-use std::collections::HashMap;
-use std::sync::Arc;
 use uuid::Uuid;
+
+use db::{Storage, StorageExt};
 
 use crate::error::{Error, Result};
 use crate::mean_reverting::options::Options;
@@ -208,13 +209,6 @@ impl MeanRevertingState {
     }
 
     fn reload_state(&mut self) {
-        let mut ops: Vec<Operation> = self.get_operations();
-        ops.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
-        if let Some(o) = ops.last() {
-            if OperationKind::Open == o.kind {
-                self.set_position(o.pos.kind.clone());
-            }
-        }
         let previous_state: Option<TransientState> = self.db.get(STATE_KEY, &self.key).ok();
         if let Some(ps) = previous_state {
             self.load_from(ps)
@@ -235,6 +229,9 @@ impl MeanRevertingState {
         }
         if let Some(op_key) = ps.ongoing_op {
             let op: Option<Operation> = self.get_operation(&op_key);
+            if let Some(o) = &op {
+                self.set_position(o.pos.kind.clone());
+            }
             self.set_ongoing_op(op);
         }
         self.previous_value_strat = ps.previous_value_strat;
@@ -242,9 +239,9 @@ impl MeanRevertingState {
 
     pub(super) fn no_position_taken(&self) -> bool { self.position.is_none() }
 
-    pub(super) fn is_long(&self) -> bool { self.position.eq(&Some(PositionKind::Long)) }
+    pub(super) fn is_long(&self) -> bool { matches!(self.position, Some(PositionKind::Long)) }
 
-    pub(super) fn is_short(&self) -> bool { self.position.eq(&Some(PositionKind::Short)) }
+    pub(super) fn is_short(&self) -> bool { matches!(self.position, Some(PositionKind::Short)) }
 
     pub(super) fn set_position(&mut self, k: PositionKind) { self.position = Some(k); }
 
