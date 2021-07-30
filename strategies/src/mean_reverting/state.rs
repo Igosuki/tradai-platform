@@ -354,7 +354,9 @@ impl MeanRevertingState {
                         new_op.transaction = Some(transaction.clone());
                         // Operation filled, clear position
                         let result = if transaction.is_filled() {
-                            debug!("Transaction is {} for operation {}", transaction.status, &o.id);
+                            if log_enabled!(Debug) {
+                                debug!("Transaction is {} for operation {}", transaction.status, &o.id);
+                            }
                             if let TransactionStatus::Filled(update) = &transaction.status {
                                 self.clear_ongoing_operation(update.last_executed_price, update.cummulative_filled_qty);
                             }
