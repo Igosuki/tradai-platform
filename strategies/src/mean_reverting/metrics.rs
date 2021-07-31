@@ -1,7 +1,7 @@
 use crate::mean_reverting::ema_model::SinglePosRow;
 use crate::mean_reverting::state::{MeanRevertingState, Position};
 use crate::types::OperationKind;
-use prometheus::{CounterVec, GaugeVec, Opts, Registry};
+use prometheus::{CounterVec, GaugeVec, Registry};
 use std::collections::HashMap;
 
 type StateIndicatorFn = (String, fn(&MeanRevertingState) -> f64);
@@ -14,7 +14,7 @@ pub struct MeanRevertingStrategyMetrics {
 }
 
 impl MeanRevertingStrategyMetrics {
-    pub fn for_strat(registry: &Registry, pair: &str) -> MeanRevertingStrategyMetrics {
+    pub fn for_strat(_registry: &Registry, pair: &str) -> MeanRevertingStrategyMetrics {
         let mut gauges: HashMap<String, GaugeVec> = HashMap::new();
         let const_labels = labels! {"pair" => pair};
         {
@@ -74,13 +74,17 @@ impl MeanRevertingStrategyMetrics {
             ("nominal_position".to_string(), |x| x.nominal_position()),
         ];
         {
-            let pos_labels = &[];
             for (gauge_name, _) in state_gauges.clone() {
-                let string = format!("state gauge for {}", gauge_name.clone());
-                let gauge_vec_opts = Opts::new(&gauge_name, &string).const_label("pair", pair);
-                let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
+                let gauge_vec = register_gauge_vec!(
+                    opts!(
+                        &gauge_name,
+                        format!("state gauge for {}", gauge_name.clone()),
+                        const_labels
+                    ),
+                    &[]
+                )
+                .unwrap();
                 gauges.insert(gauge_name.clone(), gauge_vec.clone());
-                registry.register(Box::new(gauge_vec.clone())).unwrap();
             }
         }
 
