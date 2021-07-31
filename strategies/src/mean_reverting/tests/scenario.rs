@@ -1,5 +1,5 @@
 use async_std::task;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{Date, DateTime, TimeZone, Utc};
 use coinnect_rt::exchange::Exchange;
 use ordered_float::OrderedFloat;
 use plotters::prelude::*;
@@ -14,6 +14,7 @@ use crate::mean_reverting::state::MeanRevertingState;
 use crate::mean_reverting::MeanRevertingStrategy;
 use crate::order_manager::test_util::mock_manager;
 //use crate::test_util::tracing::setup_opentelemetry;
+use crate::input::CsvRecord;
 use crate::test_util::init;
 use crate::types::{OperationEvent, OrderMode, TradeEvent};
 use db::get_or_create;
@@ -124,24 +125,33 @@ static EXCHANGE: &str = "Binance";
 static CHANNEL: &str = "order_books";
 static PAIR: &str = "BTC_USDT";
 
+async fn load_csv_records(from: Date<Utc>, to: Date<Utc>) -> Vec<Vec<CsvRecord>> {
+    let now = Instant::now();
+    let csv_records = input::load_csv_dataset(
+        &DateRange(from, to, DurationRangeType::Days, 1),
+        vec![PAIR.to_string()],
+        EXCHANGE,
+        CHANNEL,
+    )
+    .await;
+    let num_records = csv_records[0].len();
+    assert!(num_records > 0, "no csv records could be read");
+    info!(
+        "Loaded {} csv records in {:.6} ms",
+        num_records,
+        now.elapsed().as_millis()
+    );
+    csv_records
+}
+
 #[tokio::test]
 async fn moving_average_model_backtest() {
     init();
     let path = util::test::test_dir();
     let db = get_or_create(path.as_ref(), vec![]);
     let mut model = MeanRevertingStrategy::make_model("BTC_USDT", Arc::new(db), 100, 1000);
-    // Read downsampled streams
-    let dt0 = Utc.ymd(2020, 3, 25);
-    let dt1 = Utc.ymd(2020, 6, 10);
-    let records = input::load_csv_dataset(
-        &DateRange(dt0, dt1, DurationRangeType::Days, 1),
-        vec![PAIR.to_string()],
-        EXCHANGE,
-        CHANNEL,
-    )
-    .await;
-    // align data
-    records[0].iter().take(500).for_each(|l| {
+    let csv_records = load_csv_records(Utc.ymd(2020, 3, 27), Utc.ymd(2020, 4, 8)).await;
+    csv_records[0].iter().take(500).for_each(|l| {
         model
             .update_model(SinglePosRow {
                 time: l.event_ms,
@@ -188,26 +198,9 @@ async fn complete_backtest() {
         },
         order_manager_addr,
     );
-    // Read downsampled streams
-    let dt0 = Utc.ymd(2020, 3, 27);
-    let dt1 = Utc.ymd(2020, 4, 8);
-    // align data
     let mut elapsed = 0_u128;
-    let now = Instant::now();
-    let csv_records = input::load_csv_dataset(
-        &DateRange(dt0, dt1, DurationRangeType::Days, 1),
-        vec![PAIR.to_string()],
-        EXCHANGE,
-        CHANNEL,
-    )
-    .await;
-    let num_records = csv_records[0].len();
-    assert!(num_records > 0, "no csv records could be read");
-    info!(
-        "Loaded {} csv records in {:.6} ms",
-        num_records,
-        now.elapsed().as_millis()
-    );
+    let csv_records = load_csv_records(Utc.ymd(2020, 3, 27), Utc.ymd(2020, 4, 8)).await;
+    let num_records = csv_records.len();
     // align data
     let pair_csv_records = csv_records[0].iter();
     let mut strategy_logs: Vec<StrategyLog> = Vec::new();
