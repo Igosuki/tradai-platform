@@ -1,5 +1,7 @@
 #!/bin/sh
 
+BASEDIR=$(dirname "$0")
+
 export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 
-ansible-playbook -i inventory.yml playbooks/trader_deploy.yml
+ansible-playbook -i $BASEDIR/inventory.yml $BASEDIR/playbooks/trader_deploy.yml
