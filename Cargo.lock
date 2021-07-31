@@ -5159,6 +5159,7 @@ dependencies = [
  "chrono",
  "clap 2.33.3",
  "coinnect_rt",
+ "convert_case",
  "csv",
  "db",
  "derivative",

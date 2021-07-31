@@ -293,9 +293,11 @@ impl MeanRevertingStrategy {
                         let op = op.clone();
                         self.metrics.log_position(&op.pos, &op.kind);
                     }
-                    Err(_e) => self.metrics.log_error("evaluation_failure"),
+                    Err(e) => self.metrics.log_error(e.short_name()),
                     _ => {}
                 }
+            } else {
+                self.metrics.log_error("not_trading")
             }
             self.log_state();
         }

@@ -92,7 +92,10 @@ impl TradeOperation {
                 request.order_type = OrderType::Limit;
                 request.enforcement = Some(OrderEnforcement::FOK);
             }
-            OrderMode::Market => request.order_type = OrderType::Market,
+            OrderMode::Market => {
+                request.order_type = OrderType::Market;
+                request.price = None;
+            }
         }
         request
     }

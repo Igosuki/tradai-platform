@@ -12,6 +12,8 @@ pub enum Error {
     ModelLoadError(String),
     #[error("no transaction found in operation")]
     NoTransactionInOperation,
+    #[error("ongoing operation status has not changed")]
+    NoTransactionChange,
     #[error("operation had to be restaged")]
     OperationRestaged,
     #[error("order manager mailbox was full")]
@@ -20,6 +22,23 @@ pub enum Error {
     OrderNotFound(String),
     #[error("invalid position")]
     InvalidPosition,
+}
+
+impl Error {
+    pub(crate) fn short_name(&self) -> &'static str {
+        match self {
+            Error::IOError(_) => "io",
+            Error::Coinnect(_) => "coinnect",
+            Error::Db(_) => "db",
+            Error::ModelLoadError(_) => "model_load",
+            Error::NoTransactionChange => "no_transaction_change",
+            Error::NoTransactionInOperation => "no_transaction_in_operation",
+            Error::OperationRestaged => "operation_restaged",
+            Error::OrderManagerMailboxError => "order_manager_mailbox",
+            Error::OrderNotFound(_) => "order_not_found",
+            Error::InvalidPosition => "invalid_position",
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -346,7 +346,7 @@ impl MeanRevertingState {
                     Some(olt) => {
                         let pending_transaction = self.ts.latest_transaction_change(olt).await?;
                         if !pending_transaction.0 {
-                            return Ok(());
+                            return Err(Error::NoTransactionChange);
                         }
                         // One of the operations has changed, update the ongoing operation
                         let transaction = &pending_transaction.1;
