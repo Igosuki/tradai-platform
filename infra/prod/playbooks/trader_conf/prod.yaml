@@ -37,7 +37,7 @@ strategies:
     stop_loss: -0.1
     stop_gain: 0.075
     exchange: Binance
-    order_mode: market
+    order_mode: limit
   - type: mean_reverting
     pair: 'LTC_USDT'
     short_window_size: 100
@@ -53,7 +53,7 @@ strategies:
     stop_loss: -0.1
     stop_gain: 0.075
     exchange: Binance
-    order_mode: market
+    order_mode: limit
   - type: mean_reverting
     pair: 'ETC_USDT'
     short_window_size: 100
@@ -69,7 +69,7 @@ strategies:
     stop_loss: -0.1
     stop_gain: 0.075
     exchange: Binance
-    order_mode: market
+    order_mode: limit
 
 data_dir: './data'
 
