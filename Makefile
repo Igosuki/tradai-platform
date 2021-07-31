@@ -146,3 +146,8 @@ docker-up:
 
 docker-down:
 	docker-compose -f infra/dev/docker-compose.yaml down
+
+### Deploy
+
+deploy_trader:
+	./infra/prod/deploy_trader.sh
