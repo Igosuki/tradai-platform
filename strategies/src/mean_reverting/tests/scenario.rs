@@ -257,7 +257,7 @@ async fn complete_backtest() {
     let copied = std::fs::copy(&out_file, "graphs/mean_reverting_plot_latest.svg");
     assert!(copied.is_ok(), "{}", format!("{:?} : {}", copied, out_file));
 
-    assert_eq!(Some(78767.08484500754), last_position.map(|p| p.pos.price));
+    assert_eq!(Some(7308.47998046875), last_position.map(|p| p.pos.price));
     assert_eq!(Some(90.98012915244145), last_position.map(|p| p.value()));
 }
 
