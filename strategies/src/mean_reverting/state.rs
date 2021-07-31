@@ -320,7 +320,11 @@ impl MeanRevertingState {
                     self.clear_position();
                 }
                 op.transaction = Some(Transaction {
-                    id: op.id.clone(),
+                    id: op
+                        .transaction
+                        .as_ref()
+                        .map(|tr| tr.id.clone())
+                        .unwrap_or_else(|| op.id.clone()),
                     status: TransactionStatus::Rejected(Rejection::Cancelled(Some("canceled by strategy".to_string()))),
                 });
                 self.save_operation(&op);
