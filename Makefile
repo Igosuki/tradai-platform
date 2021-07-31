@@ -34,6 +34,9 @@ $(HOOKS): $(VENV) .pre-commit-config.yaml
 	@$(CARGO_BIN) clippy --help > /dev/null || rustup component add clippy
 	@$(CARGO_BIN) readme --help > /dev/null || cargo install cargo-readme
 
+mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
+current_dir := $(notdir $(patsubst %/,%,$(dir $(mkfile_path))))
+
 ### CI
 
 .PHONY: install-hooks
@@ -84,7 +87,11 @@ test_all: ## Tests all features
 
 .PHONY: test
 test: ## Tests all features and targets, skipping coinnect
-	RUST_LOG=info BITCOINS_REPO=$(shell pwd) $(CARGO_BIN) test --all-targets -- --skip coinnect_tests --skip gdax_tests --nocapture
+	RUST_LOG=info BITCOINS_REPO=$(current_dir)/.. $(CARGO_BIN) test --all-targets -- --skip coinnect_tests --skip gdax_tests
+
+.PHONY: test_strats
+test_strats: ## Tests strategies
+	RUST_LOG=info BITCOINS_REPO=$(current_dir)/.. $(CARGO_BIN) test --package strategies
 
 .PHONY: coverage
 coverage: ## Tests all features
