@@ -296,11 +296,10 @@ impl MeanRevertingStrategy {
                     Err(e) => self.metrics.log_error(e.short_name()),
                     _ => {}
                 }
-            } else {
-                self.metrics.log_error("not_trading")
             }
             self.log_state();
         }
+        self.metrics.log_is_trading(self.state.is_trading());
         self.metrics.log_row(row);
     }
 
@@ -345,7 +344,7 @@ impl StrategyInterface for MeanRevertingStrategy {
             DataQuery::CurrentOperation => Some(DataResult::MeanRevertingOperation(Box::new(
                 self.get_ongoing_op().clone(),
             ))),
-            DataQuery::CancelOngoingOp => Some(DataResult::OngongOperationCancelation(self.cancel_ongoing_op())),
+            DataQuery::CancelOngoingOp => Some(DataResult::OperationCanceled(self.cancel_ongoing_op())),
             DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
             DataQuery::Status => Some(DataResult::Status(self.status())),
         }

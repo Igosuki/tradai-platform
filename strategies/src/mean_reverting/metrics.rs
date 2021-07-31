@@ -11,6 +11,7 @@ pub struct MeanRevertingStrategyMetrics {
     threshold_indicator_fns: Vec<StateIndicatorFn>,
     state_indicator_fns: Vec<StateIndicatorFn>,
     error_counter: CounterVec,
+    status_gauge: GaugeVec,
 }
 
 impl MeanRevertingStrategyMetrics {
@@ -88,16 +89,23 @@ impl MeanRevertingStrategyMetrics {
             }
         }
 
-        let error_vec = register_counter_vec!(opts!("error", "Total number of process errors.", const_labels), &[
+        let error_counter = register_counter_vec!(opts!("error", "Total number of process errors.", const_labels), &[
             "kind"
         ])
+        .unwrap();
+
+        let status_gauge = register_gauge_vec!(
+            opts!("is_trading", "Whether the strategy is trading or not.", const_labels),
+            &[]
+        )
         .unwrap();
 
         MeanRevertingStrategyMetrics {
             common_gauges: gauges,
             threshold_indicator_fns: threshold_gauges.clone(),
             state_indicator_fns: state_gauges.clone(),
-            error_counter: error_vec,
+            error_counter,
+            status_gauge,
         }
     }
 
@@ -130,4 +138,10 @@ impl MeanRevertingStrategyMetrics {
     }
 
     pub(super) fn log_error(&self, label: &str) { self.error_counter.with_label_values(&[label]).inc(); }
+
+    pub(super) fn log_is_trading(&self, trading: bool) {
+        self.status_gauge
+            .with_label_values(&[])
+            .set(if trading { 1.0 } else { 0.0 });
+    }
 }

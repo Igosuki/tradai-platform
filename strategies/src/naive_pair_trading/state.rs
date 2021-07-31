@@ -40,27 +40,6 @@ pub struct Operation {
     pub right_trade: TradeOperation,
 }
 
-#[juniper::graphql_object]
-impl Operation {
-    #[graphql(description = "the kind of operation")]
-    pub fn kind(&self) -> &OperationKind { &self.kind }
-
-    #[graphql(description = "the position this operation is based on")]
-    pub fn pos(&self) -> &Position { &self.pos }
-
-    #[graphql(description = "the operation of the 'left' crypto pair")]
-    pub fn left_trade(&self) -> &TradeOperation { &self.left_trade }
-
-    #[graphql(description = "the operation of the 'right' crypto pair")]
-    pub fn right_trade(&self) -> &TradeOperation { &self.right_trade }
-
-    #[graphql(description = "left value")]
-    pub fn left_value(&self) -> f64 { self.left_trade.qty * self.pos.left_price * self.left_coef.abs() }
-
-    #[graphql(description = "right value")]
-    pub fn right_value(&self) -> f64 { self.right_trade.qty * self.pos.right_price * self.right_coef.abs() }
-}
-
 impl Operation {
     pub fn left_value(&self) -> f64 { self.left_trade.qty * self.pos.left_price * self.left_coef.abs() }
 

@@ -47,6 +47,21 @@ pub enum TransactionStatus {
     Rejected(Rejection),
 }
 
+/*#[juniper::graphql_union]
+trait TransactionStatusValue {
+    fn as_order_info(&self) -> Option<&OrderInfo> { None }
+}
+
+impl TransactionStatusValue for TransactionStatus {
+    fn as_order_info(&self) -> Option<&OrderInfo> {
+        match self {
+            Self::New(query) => Some(&query),
+            _ => None,
+        }
+    }
+}
+*/
+
 impl WalCmp for TransactionStatus {
     fn is_before(&self, v: &Self) -> bool {
         if std::mem::discriminant(self) == std::mem::discriminant(v) {
@@ -79,6 +94,8 @@ impl Transaction {
     }
 
     pub fn is_rejected(&self) -> bool { matches!(self.status, TransactionStatus::Rejected(_)) }
+
+    pub fn is_cancelled(&self) -> bool { matches!(self.status, TransactionStatus::Rejected(Rejection::Cancelled(_))) }
 
     pub fn variant_eq(&self, b: &Transaction) -> bool {
         std::mem::discriminant(&self.status) == std::mem::discriminant(&b.status)

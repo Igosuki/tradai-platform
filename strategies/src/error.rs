@@ -22,6 +22,8 @@ pub enum Error {
     OrderNotFound(String),
     #[error("invalid position")]
     InvalidPosition,
+    #[error("operation was cancelled")]
+    OperationCancelled,
 }
 
 impl Error {
@@ -37,6 +39,7 @@ impl Error {
             Error::OrderManagerMailboxError => "order_manager_mailbox",
             Error::OrderNotFound(_) => "order_not_found",
             Error::InvalidPosition => "invalid_position",
+            Error::OperationCancelled => "operation_cancelled",
         }
     }
 }
