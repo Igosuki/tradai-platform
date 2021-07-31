@@ -243,7 +243,12 @@ impl Actor for OrderManager {
                         orders_read_lock
                             .iter()
                             .filter(|(_k, v)| {
-                                matches!(v, TransactionStatus::PartiallyFilled(_) | TransactionStatus::Staged(_))
+                                matches!(
+                                    v,
+                                    TransactionStatus::PartiallyFilled(_)
+                                        | TransactionStatus::Staged(_)
+                                        | TransactionStatus::New(_)
+                                )
                             })
                             .map(|(tr_id, _tr_status)| act.api.get_order(tr_id.clone())),
                     )
