@@ -5,3 +5,4 @@ extern crate prometheus;
 
 pub mod balance;
 pub mod error;
+pub mod kline;
