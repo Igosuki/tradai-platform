@@ -56,7 +56,7 @@ pub mod order_types;
 pub mod query;
 #[cfg(test)]
 mod test_util;
-mod types;
+pub mod types;
 mod util;
 mod wal;
 

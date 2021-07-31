@@ -14,7 +14,7 @@ pub enum DataResult {
     Dump(String),
     NaiveOperation(Box<Option<NaiveOperation>>),
     MeanRevertingOperation(Box<Option<MeanRevertingOperation>>),
-    OngongOperationCancelation(bool),
+    OperationCanceled(bool),
     State(String),
     Status(StrategyStatus),
 }

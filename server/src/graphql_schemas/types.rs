@@ -1,4 +1,6 @@
+use chrono::{DateTime, Utc};
 use coinnect_rt::types::{AddOrderRequest, OrderEnforcement, OrderQuery, OrderType, TradeType};
+use strategies::types::{OperationKind, PositionKind, TradeOperation};
 use uuid::Uuid;
 
 #[derive(juniper::GraphQLObject)]
@@ -76,4 +78,74 @@ impl From<AddOrderInput> for OrderQuery {
 #[derive(juniper::GraphQLObject)]
 pub struct OrderResult {
     pub identifier: String,
+}
+
+#[derive(juniper::GraphQLObject)]
+pub struct OperationHistory {
+    id: String,
+    kind: OperationKind,
+    transactions: Vec<TransactionHistory>,
+}
+
+#[derive(juniper::GraphQLObject)]
+pub struct TransactionHistory {
+    value: f64,
+    pair: String,
+    time: DateTime<Utc>,
+    pos: PositionKind,
+    price: f64,
+    last_transaction: Option<String>,
+    trade: TradeOperation,
+    qty: f64,
+}
+
+impl From<strategies::naive_pair_trading::state::Operation> for OperationHistory {
+    fn from(o: strategies::naive_pair_trading::state::Operation) -> Self {
+        Self {
+            id: o.id,
+            kind: o.kind,
+            transactions: vec![
+                TransactionHistory {
+                    value: o.left_trade.qty * o.pos.left_price,
+                    pair: o.pos.left_pair,
+                    time: o.pos.time,
+                    pos: o.pos.kind.clone(),
+                    price: o.pos.left_price,
+                    last_transaction: None,
+                    qty: o.left_trade.qty,
+                    trade: o.left_trade,
+                },
+                TransactionHistory {
+                    value: o.right_trade.qty * o.pos.left_price,
+                    pair: o.pos.right_pair,
+                    time: o.pos.time,
+                    pos: o.pos.kind,
+                    price: o.pos.left_price,
+                    last_transaction: None,
+                    qty: o.right_trade.qty,
+                    trade: o.right_trade,
+                },
+            ],
+        }
+    }
+}
+
+impl From<strategies::mean_reverting::state::Operation> for OperationHistory {
+    fn from(o: strategies::mean_reverting::state::Operation) -> Self {
+        let value = o.value();
+        Self {
+            id: o.id,
+            kind: o.kind,
+            transactions: vec![TransactionHistory {
+                value,
+                pair: o.pos.pair,
+                time: o.pos.time,
+                pos: o.pos.kind.clone(),
+                price: o.pos.price,
+                last_transaction: None,
+                qty: o.trade.qty,
+                trade: o.trade,
+            }],
+        }
+    }
 }

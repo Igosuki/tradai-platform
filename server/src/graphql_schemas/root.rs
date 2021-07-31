@@ -9,8 +9,6 @@ use std::fmt::Debug;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
-use strategies::mean_reverting::state::Operation as MeanOperation;
-use strategies::naive_pair_trading::state::Operation;
 use strategies::order_manager::OrderManager;
 use strategies::order_types::PassOrder;
 use strategies::query::{DataQuery, DataResult, FieldMutation};
@@ -154,41 +152,23 @@ impl QueryRoot {
             .await
     }
 
-    #[graphql(description = "Get all positions for this naive strat")]
-    async fn naive_operations(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<Operation>> {
+    #[graphql(description = "Get all operations for this strat")]
+    async fn operations(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<OperationHistory>> {
         context
             .with_strat(tk, DataQuery::Operations, |dr| match dr {
-                DataResult::NaiveOperations(pos_vec) => Ok(pos_vec),
+                DataResult::NaiveOperations(pos_vec) => Ok(pos_vec.into_iter().map(|o| o.into()).collect()),
+                DataResult::MeanRevertingOperations(pos_vec) => Ok(pos_vec.into_iter().map(|o| o.into()).collect()),
                 _ => unhandled_data_result(),
             })
             .await
     }
 
-    #[graphql(description = "Get all positions for this mean strat")]
-    async fn mean_operations(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<MeanOperation>> {
+    #[graphql(description = "Get the ongoing operation for the strat")]
+    async fn current_operation(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Option<OperationHistory>> {
         context
             .with_strat(tk, DataQuery::Operations, |dr| match dr {
-                DataResult::MeanRevertingOperations(pos_vec) => Ok(pos_vec),
-                _ => unhandled_data_result(),
-            })
-            .await
-    }
-
-    #[graphql(description = "Get the current naive strat operation")]
-    async fn current_naive_operation(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Box<Option<Operation>>> {
-        context
-            .with_strat(tk, DataQuery::CurrentOperation, |dr| match dr {
-                DataResult::NaiveOperation(op) => Ok(op),
-                _ => unhandled_data_result(),
-            })
-            .await
-    }
-
-    #[graphql(description = "Get the current naive strat operation")]
-    async fn current_mean_operation(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Box<Option<MeanOperation>>> {
-        context
-            .with_strat(tk, DataQuery::CurrentOperation, |dr| match dr {
-                DataResult::MeanRevertingOperation(op) => Ok(op),
+                DataResult::NaiveOperation(o) => Ok(o.map(|o| o.into())),
+                DataResult::MeanRevertingOperation(o) => Ok(o.map(|o| o.into())),
                 _ => unhandled_data_result(),
             })
             .await
@@ -239,7 +219,7 @@ impl MutationRoot {
     async fn cancel_ongoing_op(context: &Context, tk: TypeAndKeyInput) -> FieldResult<bool> {
         context
             .with_strat(tk, DataQuery::CancelOngoingOp, |dr| match dr {
-                DataResult::OngongOperationCancelation(was_canceled) => Ok(was_canceled),
+                DataResult::OperationCanceled(was_canceled) => Ok(was_canceled),
                 _ => unhandled_data_result(),
             })
             .await
