@@ -446,8 +446,12 @@ mod test {
 
     fn test_pair() -> String { "BTC_USDT".to_string() }
 
-    async fn it_order_manager<S: AsRef<Path>>(dir: S, exchange: Exchange) -> OrderManager {
-        let api = Coinnect::build_exchange_api(test_keys().into(), &exchange, true)
+    async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
+        keys_file: S2,
+        dir: S,
+        exchange: Exchange,
+    ) -> OrderManager {
+        let api = Coinnect::build_exchange_api(keys_file.as_ref().to_path_buf(), &exchange, true)
             .await
             .unwrap();
         let om_path = format!("{}/om_{}", dir.as_ref().display(), exchange);
@@ -457,7 +461,7 @@ mod test {
     #[actix::test]
     async fn test_binance_stage_order_invalid() {
         let test_dir = util::test::test_dir();
-        let mut order_manager = it_order_manager(test_dir, Binance).await;
+        let mut order_manager = it_order_manager(test_keys(), test_dir, Binance).await;
         let registered = order_manager
             .stage_order(StagedOrder {
                 request: AddOrderRequest {
@@ -470,14 +474,13 @@ mod test {
                 },
             })
             .await;
-        println!("{:?}", registered);
         assert!(registered.is_ok(), "{:?}", registered);
     }
 
     #[actix::test]
     async fn test_register_transactions() {
         let test_dir = util::test::test_dir();
-        let mut order_manager = it_order_manager(test_dir, Binance).await;
+        let mut order_manager = it_order_manager(test_keys(), test_dir, Binance).await;
         let order_id = "1".to_string();
         let statuses = vec![
             TransactionStatus::New(OrderSubmission::default()),
