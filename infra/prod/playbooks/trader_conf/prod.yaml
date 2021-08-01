@@ -17,6 +17,7 @@ balance_reporter:
 
 streams:
   - type: ExchangeBots
+  - type: AccountBots
 
 outputs:
   - type: Strategies
