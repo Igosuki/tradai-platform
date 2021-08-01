@@ -8,7 +8,6 @@ use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
 use std::ops::Sub;
 use std::path::Path;
-use std::sync::Arc;
 use strategies::input::CsvRecord;
 use strategies::naive_pair_trading::covar_model::DataRow;
 use strategies::naive_pair_trading::NaiveTradingStrategy;
@@ -86,7 +85,7 @@ fn main() -> anyhow::Result<()> {
     let right_records = &records[1];
     println!("Right records count : {}", right_records.len());
 
-    let db = Arc::new(get_or_create(db_storage_path, vec![]));
+    let db = get_or_create(db_storage_path, vec![]);
     let mut data_table = NaiveTradingStrategy::make_lm_table(&left_pair, &right_pair, db, window_size);
     let mut right_only: i32 = 0;
     let mut left_only: i32 = 0;

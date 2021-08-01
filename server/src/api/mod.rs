@@ -61,7 +61,7 @@ async fn graphiql_handler() -> Result<HttpResponse, Error> { self::graphql::grap
 
 async fn playground_handler() -> Result<HttpResponse, Error> { self::graphql::playground_handler("/", None).await }
 
-type ExchangeData = web::Data<Arc<HashMap<Exchange, Box<dyn ExchangeApi>>>>;
+type ExchangeData = web::Data<Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>>;
 type StratsData = web::Data<Arc<HashMap<StrategyKey, Strategy>>>;
 type OrderManagerData = web::Data<Arc<HashMap<Exchange, Addr<OrderManager>>>>;
 
@@ -141,7 +141,7 @@ mod tests {
 
     fn oms() -> Arc<HashMap<Exchange, Addr<OrderManager>>> { Default::default() }
 
-    type ExchangeApis = Arc<HashMap<Exchange, Box<dyn ExchangeApi>>>;
+    type ExchangeApis = Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>;
 
     async fn test_apis() -> ExchangeApis {
         let exchanges = [(Exchange::Binance, ExchangeSettings {

@@ -15,7 +15,7 @@ use crate::settings::{ApiSettings, CorsMode};
 
 pub async fn httpserver(
     settings: &ApiSettings,
-    apis: Arc<HashMap<Exchange, Box<dyn ExchangeApi>>>,
+    apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
     strategies: Arc<HashMap<StrategyKey, Strategy>>,
     order_managers: Arc<HashMap<Exchange, Addr<OrderManager>>>,
 ) -> std::io::Result<()> {

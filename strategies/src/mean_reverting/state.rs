@@ -115,7 +115,7 @@ pub(super) struct MeanRevertingState {
     threshold_short: f64,
     threshold_long: f64,
     #[serde(skip_serializing)]
-    db: Arc<Box<dyn Storage>>,
+    db: Arc<dyn Storage>,
     key: String,
     #[serde(skip_serializing)]
     ts: TransactionService,
@@ -162,12 +162,7 @@ impl From<&mut MeanRevertingState> for TransientState {
 }
 
 impl MeanRevertingState {
-    pub fn new(
-        options: &Options,
-        fees_rate: f64,
-        db: Arc<Box<dyn Storage>>,
-        om: Addr<OrderManager>,
-    ) -> MeanRevertingState {
+    pub fn new(options: &Options, fees_rate: f64, db: Arc<dyn Storage>, om: Addr<OrderManager>) -> MeanRevertingState {
         db.ensure_table(STATE_KEY).unwrap();
         db.ensure_table(OPERATIONS_KEY).unwrap();
         let mut state = MeanRevertingState {

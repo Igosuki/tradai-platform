@@ -76,7 +76,7 @@ pub enum DataQuery {
 
 #[derive(Debug, Clone)]
 pub struct OrderManager {
-    api: Arc<Box<dyn ExchangeApi>>,
+    api: Arc<dyn ExchangeApi>,
     orders: Arc<RwLock<HashMap<String, TransactionStatus>>>,
     transactions_wal: Arc<Wal>,
 }
@@ -85,10 +85,10 @@ static TRANSACTIONS_TABLE: &str = "transactions_wal";
 
 // TODO: notify listeners every time a transaction is updated
 impl OrderManager {
-    pub fn new<S: AsRef<Path>>(api: Arc<Box<dyn ExchangeApi>>, db_path: S) -> Self {
-        let wal_db = Arc::new(get_or_create(&format!("{}", db_path.as_ref().display()), vec![
-            TRANSACTIONS_TABLE.to_string(),
-        ]));
+    pub fn new<S: AsRef<Path>>(api: Arc<dyn ExchangeApi>, db_path: S) -> Self {
+        let wal_db = get_or_create(&format!("{}", db_path.as_ref().display()), vec![
+            TRANSACTIONS_TABLE.to_string()
+        ]);
         let wal = Arc::new(Wal::new(wal_db, TRANSACTIONS_TABLE.to_string()));
         let orders = Arc::new(RwLock::new(HashMap::new()));
         OrderManager {
@@ -390,14 +390,13 @@ pub mod test_util {
     use crate::order_manager::OrderManager;
 
     pub fn mock_manager<S: AsRef<Path>>(path: S) -> Addr<OrderManager> {
-        let capi: Box<dyn ExchangeApi> = Box::new(MockApi);
-        let api = Arc::new(capi);
+        let api: Arc<dyn ExchangeApi> = Arc::new(MockApi);
         let order_manager = OrderManager::new(api, path);
         OrderManager::start(order_manager)
     }
 
-    pub fn local_manager<S: AsRef<Path>>(path: S, api: Box<dyn ExchangeApi>) -> Addr<OrderManager> {
-        let order_manager = OrderManager::new(Arc::new(api), path);
+    pub fn local_manager<S: AsRef<Path>>(path: S, api: Arc<dyn ExchangeApi>) -> Addr<OrderManager> {
+        let order_manager = OrderManager::new(api, path);
         OrderManager::start(order_manager)
     }
 }
@@ -419,8 +418,7 @@ mod test {
     #[actix::test]
     async fn test_append_rejected() {
         let path = "default";
-        let capi: Box<dyn ExchangeApi> = Box::new(MockApi);
-        let api = Arc::new(capi);
+        let api: Arc<dyn ExchangeApi> = Arc::new(MockApi);
         let mut order_manager = OrderManager::new(api, Path::new(path));
         let registered = order_manager
             .register(
@@ -440,7 +438,7 @@ mod test {
             .await
             .unwrap();
         let om_path = format!("{}/om_{}", dir.as_ref().display(), exchange);
-        OrderManager::new(Arc::new(api), Path::new(&om_path))
+        OrderManager::new(api, Path::new(&om_path))
     }
 
     #[actix::test]

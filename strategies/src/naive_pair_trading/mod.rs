@@ -63,7 +63,7 @@ impl NaiveTradingStrategy {
             n.left,
             n.right
         );
-        let db = Arc::new(get_or_create(strat_db_path, vec![]));
+        let db = get_or_create(strat_db_path, vec![]);
         Self {
             exchange: n.exchange,
             fees_rate,
@@ -90,7 +90,7 @@ impl NaiveTradingStrategy {
     pub fn make_lm_table(
         left_pair: &str,
         right_pair: &str,
-        db: Arc<Box<dyn Storage>>,
+        db: Arc<dyn Storage>,
         window_size: usize,
     ) -> WindowedModel<DataRow, LinearModelValue> {
         WindowedModel::new(

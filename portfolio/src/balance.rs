@@ -89,14 +89,14 @@ pub struct BalanceReporterOptions {
 
 #[derive(Clone)]
 pub struct BalanceReporter {
-    apis: Arc<HashMap<Exchange, Box<dyn ExchangeApi>>>,
+    apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
     balances: Arc<RwLock<HashMap<Exchange, BalanceReport>>>,
     refresh_rate: Duration,
     metrics: BalanceMetrics,
 }
 
 impl BalanceReporter {
-    pub fn new(apis: Arc<HashMap<Exchange, Box<dyn ExchangeApi>>>, options: BalanceReporterOptions) -> Self {
+    pub fn new(apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>, options: BalanceReporterOptions) -> Self {
         Self {
             apis: apis.clone(),
             balances: Default::default(),

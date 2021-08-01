@@ -15,12 +15,12 @@ pub trait WalCmp {
 
 #[derive(Debug)]
 pub struct Wal {
-    backend: Arc<Box<dyn Storage>>,
+    backend: Arc<dyn Storage>,
     table: String,
 }
 
 impl Wal {
-    pub fn new(backend: Arc<Box<dyn Storage>>, table: String) -> Self { Self { backend, table } }
+    pub fn new(backend: Arc<dyn Storage>, table: String) -> Self { Self { backend, table } }
 
     pub fn get_all_compacted<T: DeserializeOwned + WalCmp>(&self) -> Result<HashMap<String, T>> {
         let mut records: HashMap<String, T> = HashMap::new();

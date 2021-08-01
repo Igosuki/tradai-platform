@@ -16,7 +16,7 @@ use strategies::{order_manager, Strategy, StrategyKey};
 
 pub struct Context {
     pub strats: Arc<HashMap<StrategyKey, Strategy>>,
-    pub exchanges: Arc<HashMap<Exchange, Box<dyn ExchangeApi>>>,
+    pub exchanges: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
     pub order_managers: Arc<HashMap<Exchange, Addr<OrderManager>>>,
 }
 

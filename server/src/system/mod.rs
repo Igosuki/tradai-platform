@@ -224,7 +224,7 @@ async fn strategies(settings: Arc<RwLock<Settings>>, oms: Arc<HashMap<Exchange, 
 
 async fn balance_reporter(
     options: &BalanceReporterOptions,
-    apis: Arc<HashMap<Exchange, Box<dyn ExchangeApi>>>,
+    apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
 ) -> anyhow::Result<Addr<BalanceReporter>> {
     let balance_reporter = BalanceReporter::new(apis.clone(), options.clone());
     let balance_reporter_addr = BalanceReporter::start(balance_reporter);
@@ -247,7 +247,7 @@ async fn order_managers(
             .await
             .unwrap();
         let om_db_path = format!("{}/om_{}", db_path, xch);
-        let order_manager = OrderManager::new(Arc::new(api), Path::new(&om_db_path));
+        let order_manager = OrderManager::new(api, Path::new(&om_db_path));
         oms.insert(*xch, OrderManager::start(order_manager));
     }
     Ok(oms)

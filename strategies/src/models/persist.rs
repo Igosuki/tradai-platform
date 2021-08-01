@@ -20,13 +20,13 @@ pub struct ModelValue<T> {
 pub struct PersistentModel<T> {
     last_model: Option<ModelValue<T>>,
     last_model_load_attempt: Option<DateTime<Utc>>,
-    db: Arc<Box<dyn Storage>>,
+    db: Arc<dyn Storage>,
     key: String,
     is_loaded: bool,
 }
 
 impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
-    pub fn new(db: Arc<Box<dyn Storage>>, key: &str, init: Option<ModelValue<T>>) -> Self {
+    pub fn new(db: Arc<dyn Storage>, key: &str, init: Option<ModelValue<T>>) -> Self {
         //let db = get_or_create(db_path, vec![MODELS_TABLE_NAME.to_string()]);
         db.ensure_table(MODELS_TABLE_NAME).unwrap();
         Self {
@@ -106,7 +106,7 @@ pub struct TimedValue<T>(i64, T);
 #[derive(Debug)]
 pub struct PersistentVec<T> {
     pub rows: Vec<TimedValue<T>>,
-    db: Arc<Box<dyn Storage>>,
+    db: Arc<dyn Storage>,
     max_size: usize,
     pub window_size: usize,
     key: String,
@@ -116,7 +116,7 @@ pub struct PersistentVec<T> {
 
 /// Values are written and sorted by time
 impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
-    pub fn new(db: Arc<Box<dyn Storage>>, key: &str, max_size: usize, window_size: usize) -> Self {
+    pub fn new(db: Arc<dyn Storage>, key: &str, max_size: usize, window_size: usize) -> Self {
         db.ensure_table(key).unwrap();
         Self {
             rows: vec![],
@@ -194,7 +194,6 @@ mod test {
     use db::get_or_create;
     use fake::Fake;
     use quickcheck::{Arbitrary, Gen};
-    use std::sync::Arc;
     use test::Bencher;
     use util::test::test_dir;
 
@@ -222,7 +221,7 @@ mod test {
         let tempdir = TempDir::new().unwrap();
         let db = get_or_create(tempdir.as_ref(), vec![]);
         let mut table: PersistentModel<MockLinearModel> = PersistentModel::new(
-            Arc::new(db),
+            db,
             "default",
             Some(ModelValue {
                 value: MockLinearModel {},
@@ -241,7 +240,7 @@ mod test {
         let test_dir = test_dir();
         let test_path = test_dir.into_path();
         let window: Vec<TestRow> = {
-            let db = Arc::new(get_or_create(test_path.clone(), vec![]));
+            let db = get_or_create(test_path.clone(), vec![]);
             let mut table = PersistentVec::new(db.clone(), id, max_size, max_size / 2);
             let mut gen = Gen::new(500);
             for _ in 0..max_size {
@@ -249,7 +248,7 @@ mod test {
             }
             table.window().cloned().collect()
         };
-        let db = Arc::new(get_or_create(test_path, vec![]));
+        let db = get_or_create(test_path, vec![]);
         let mut table: PersistentVec<TestRow> = PersistentVec::new(db.clone(), id, max_size, max_size / 2);
         let load = table.load();
         assert!(load.is_ok(), "{:?}", load);
