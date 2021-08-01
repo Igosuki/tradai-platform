@@ -4,12 +4,12 @@ use std::sync::Arc;
 
 use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, Running, WrapFuture};
 use actix_derive::{Message, MessageResponse};
-
 use async_std::sync::RwLock;
 use coinnect_rt::error::Error as CoinnectError;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::exchange_bot::Ping;
-use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, OrderQuery, OrderStatus, OrderUpdate};
+use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, AssetType, OrderQuery, OrderStatus,
+                         OrderUpdate};
 use db::get_or_create;
 use uuid::Uuid;
 
@@ -17,6 +17,7 @@ use crate::error::Error;
 use crate::error::Result;
 use crate::order_types::{OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
 use crate::wal::{Wal, WalCmp};
+use coinnect_rt::pair::symbol_to_pair;
 
 #[derive(Debug, Clone)]
 pub(crate) struct TransactionService {
@@ -76,6 +77,7 @@ pub enum DataQuery {
 
 #[derive(Debug, Clone)]
 pub struct OrderManager {
+    xchg: Exchange,
     api: Arc<dyn ExchangeApi>,
     orders: Arc<RwLock<HashMap<String, TransactionStatus>>>,
     transactions_wal: Arc<Wal>,
@@ -92,6 +94,7 @@ impl OrderManager {
         let wal = Arc::new(Wal::new(wal_db, TRANSACTIONS_TABLE.to_string()));
         let orders = Arc::new(RwLock::new(HashMap::new()));
         OrderManager {
+            xchg: api.exchange(),
             api,
             orders,
             transactions_wal: wal,
@@ -250,7 +253,21 @@ impl Actor for OrderManager {
                                         | TransactionStatus::New(_)
                                 )
                             })
-                            .map(|(tr_id, _tr_status)| act.api.get_order(tr_id.clone())),
+                            .map(|(tr_id, tr_status)| {
+                                let pair = match tr_status {
+                                    TransactionStatus::PartiallyFilled(ou) | TransactionStatus::Filled(ou) => {
+                                        symbol_to_pair(&act.xchg, &ou.symbol.clone().into())
+                                    }
+                                    TransactionStatus::New(os) => Ok(os.pair.clone()),
+                                    _ => Err(coinnect_rt::error::Error::PairUnsupported),
+                                };
+                                pair.map(|pair| act.api.get_order(tr_id.clone(), pair, AssetType::Spot))
+                                    .map_err(move |e| {
+                                        info!("failed to get latest order {} : {} ", tr_id.clone(), e);
+                                        e
+                                    })
+                                    .unwrap_or_else(|e| Box::pin(futures::future::err(e)))
+                            }),
                     )
                     .await;
                     let mut notifications = vec![];
@@ -258,16 +275,12 @@ impl Actor for OrderManager {
                         let order_id = order.orig_order_id.clone();
                         if let Some(tr_status) = orders_read_lock.get(&order_id) {
                             if !equivalent_status(tr_status, &order.status) {
-                                notifications.push(AccountEventEnveloppe(
-                                    Exchange::Binance,
-                                    AccountEvent::OrderUpdate(order.into()),
-                                ));
+                                notifications
+                                    .push(AccountEventEnveloppe(act.xchg, AccountEvent::OrderUpdate(order.into())));
                             }
                         } else {
-                            notifications.push(AccountEventEnveloppe(
-                                Exchange::Binance,
-                                AccountEvent::OrderUpdate(order.into()),
-                            ));
+                            notifications
+                                .push(AccountEventEnveloppe(act.xchg, AccountEvent::OrderUpdate(order.into())));
                         }
                     }
                     notifications
@@ -413,7 +426,7 @@ mod test {
     use crate::order_manager::OrderManager;
     use crate::order_types::{Rejection, StagedOrder, Transaction, TransactionStatus};
     use coinnect_rt::coinnect::Coinnect;
-    use coinnect_rt::types::{AddOrderRequest, OrderInfo, OrderQuery, OrderUpdate, TradeType};
+    use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderSubmission, OrderUpdate, TradeType};
 
     #[actix::test]
     async fn test_append_rejected() {
@@ -467,10 +480,7 @@ mod test {
         let mut order_manager = it_order_manager(test_dir, Binance).await;
         let order_id = "1".to_string();
         let statuses = vec![
-            TransactionStatus::New(OrderInfo {
-                timestamp: 0,
-                id: order_id.clone(),
-            }),
+            TransactionStatus::New(OrderSubmission::default()),
             TransactionStatus::Staged(OrderQuery::AddOrder(AddOrderRequest::default())),
             TransactionStatus::Filled(OrderUpdate::default()),
             TransactionStatus::Rejected(Rejection::Other("".to_string())),
@@ -507,9 +517,10 @@ mod test {
         let reg = order_manager
             .register(
                 order_id.clone(),
-                TransactionStatus::New(OrderInfo {
+                TransactionStatus::New(OrderSubmission {
                     timestamp: 0,
                     id: order_id.clone(),
+                    ..OrderSubmission::default()
                 }),
             )
             .await;
