@@ -1,5 +1,5 @@
 use actix::Message;
-use coinnect_rt::types::{AddOrderRequest, OrderInfo, OrderQuery, OrderStatus, OrderUpdate};
+use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderStatus, OrderSubmission, OrderUpdate};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 
@@ -38,7 +38,7 @@ pub enum TransactionStatus {
     #[display(fmt = "staged")]
     Staged(OrderQuery),
     #[display(fmt = "new")]
-    New(OrderInfo),
+    New(OrderSubmission),
     #[display(fmt = "filled")]
     Filled(OrderUpdate),
     #[display(fmt = "partially_filled")]
@@ -107,15 +107,16 @@ pub struct OrderId(pub String);
 #[cfg(test)]
 mod test {
     use crate::order_types::{Rejection, Transaction, TransactionStatus};
-    use coinnect_rt::types::{AddOrderRequest, OrderInfo, OrderQuery, OrderUpdate};
+    use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderSubmission, OrderUpdate};
 
     #[test]
     fn test_variant_eq() {
         let order_id = "1".to_string();
         let statuses = vec![
-            TransactionStatus::New(OrderInfo {
+            TransactionStatus::New(OrderSubmission {
                 timestamp: 0,
                 id: order_id.clone(),
+                ..OrderSubmission::default()
             }),
             TransactionStatus::Staged(OrderQuery::AddOrder(AddOrderRequest::default())),
             TransactionStatus::Filled(OrderUpdate::default()),
