@@ -21,6 +21,7 @@ impl NaiveStrategyMetrics {
             let pos_gauge_names = vec!["position"];
             for gauge_name in pos_gauge_names {
                 let gauge_vec_opts = Opts::new(gauge_name, &format!("gauge for {}", gauge_name))
+                    .namespace("naive_pair_trading")
                     .const_label("left_pair", left_pair)
                     .const_label("right_pair", right_pair);
                 let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
@@ -33,6 +34,7 @@ impl NaiveStrategyMetrics {
             let right_mid_names = vec!["left_mid", "right_mid"];
             for gauge_name in right_mid_names {
                 let gauge_vec_opts = Opts::new(gauge_name, &format!("gauge for {}", gauge_name))
+                    .namespace("naive_pair_trading")
                     .const_label("left_pair", left_pair)
                     .const_label("right_pair", right_pair);
                 let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
@@ -55,6 +57,7 @@ impl NaiveStrategyMetrics {
             for (gauge_name, _) in state_gauges.clone() {
                 let string = format!("state gauge for {}", gauge_name.clone());
                 let gauge_vec_opts = Opts::new(&gauge_name, &string)
+                    .namespace("naive_pair_trading")
                     .const_label("left_pair", left_pair)
                     .const_label("right_pair", right_pair);
                 let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
