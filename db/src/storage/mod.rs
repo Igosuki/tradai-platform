@@ -7,6 +7,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fmt::Debug;
 use std::path::Path;
+use std::sync::Arc;
 
 pub trait Storage: Send + Sync + Debug {
     fn _put(&self, table: &str, key: &[u8], value: &[u8]) -> Result<()>;
@@ -115,6 +116,6 @@ impl<T: Storage + ?Sized> StorageExt for T {
     }
 }
 
-pub fn get_or_create<S: AsRef<Path>>(path: S, tables: Vec<String>) -> Box<dyn Storage> {
-    Box::new(RocksDbStorage::new(path, tables))
+pub fn get_or_create<S: AsRef<Path>>(path: S, tables: Vec<String>) -> Arc<dyn Storage> {
+    Arc::new(RocksDbStorage::new(path, tables))
 }

@@ -13,7 +13,6 @@ use db::get_or_create;
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use std::error::Error;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use util::date::{DateRange, DurationRangeType};
 
@@ -133,7 +132,7 @@ static CHANNEL: &str = "order_books";
 async fn model_backtest() {
     init();
     let path = util::test::test_dir();
-    let db = Arc::new(get_or_create(path.as_ref(), vec![]));
+    let db = get_or_create(path.as_ref(), vec![]);
     let mut dt = NaiveTradingStrategy::make_lm_table("BTC_USDT", "ETH_USDT", db, 500);
     // Read downsampled streams
     let dt0 = Utc.ymd(2020, 3, 25);

@@ -102,7 +102,7 @@ pub(super) struct MovingState {
     long_position_return: f64,
     pnl: f64,
     #[serde(skip_serializing)]
-    db: Arc<Box<dyn Storage>>,
+    db: Arc<dyn Storage>,
     #[serde(skip_serializing)]
     om: Addr<OrderManager>,
     ongoing_op: Option<Operation>,
@@ -124,7 +124,7 @@ struct TransientState {
 }
 
 impl MovingState {
-    pub fn new(n: &Options, db: Arc<Box<dyn Storage>>, om: Addr<OrderManager>) -> MovingState {
+    pub fn new(n: &Options, db: Arc<dyn Storage>, om: Addr<OrderManager>) -> MovingState {
         db.ensure_table(STATE_KEY).unwrap();
         db.ensure_table(OPERATIONS_KEY).unwrap();
         let mut state = MovingState {

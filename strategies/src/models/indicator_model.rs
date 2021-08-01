@@ -16,7 +16,7 @@ pub struct IndicatorModel<T, R> {
 }
 
 impl<T: Serialize + DeserializeOwned + Clone, R: Clone> IndicatorModel<T, R> {
-    pub fn new(id: &str, db: Arc<Box<dyn Storage>>, initial_value: T, update_fn: ModelUpdateFn<T, R>) -> Self {
+    pub fn new(id: &str, db: Arc<dyn Storage>, initial_value: T, update_fn: ModelUpdateFn<T, R>) -> Self {
         Self {
             model: PersistentModel::new(
                 db,

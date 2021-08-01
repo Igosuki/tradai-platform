@@ -18,7 +18,6 @@ use crate::input::CsvRecord;
 use crate::test_util::init;
 use crate::types::{OperationEvent, OrderMode, TradeEvent};
 use db::get_or_create;
-use std::sync::Arc;
 use tracing_futures::Instrument;
 use util::date::now_str;
 
@@ -149,7 +148,7 @@ async fn moving_average_model_backtest() {
     init();
     let path = util::test::test_dir();
     let db = get_or_create(path.as_ref(), vec![]);
-    let mut model = MeanRevertingStrategy::make_model("BTC_USDT", Arc::new(db), 100, 1000);
+    let mut model = MeanRevertingStrategy::make_model("BTC_USDT", db, 100, 1000);
     let csv_records = load_csv_records(Utc.ymd(2020, 3, 27), Utc.ymd(2020, 4, 8)).await;
     csv_records[0].iter().take(500).for_each(|l| {
         model

@@ -20,7 +20,7 @@ pub struct WindowedModel<T: Serialize + DeserializeOwned + Clone, M: Serialize +
 impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone> WindowedModel<T, M> {
     pub fn new(
         id: &str,
-        db: Arc<Box<dyn Storage>>,
+        db: Arc<dyn Storage>,
         window_size: usize,
         max_size_o: Option<usize>,
         window_fn: WindowFn<T, M>,
@@ -72,7 +72,6 @@ mod test {
     use db::get_or_create;
     use fake::Fake;
     use quickcheck::{Arbitrary, Gen};
-    use std::sync::Arc;
     use test::Bencher;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,7 +102,7 @@ mod test {
         let id = "default";
         let max_size = 2000;
         let test_dir = test_dir();
-        let db = Arc::new(get_or_create(test_dir, vec![]));
+        let db = get_or_create(test_dir, vec![]);
         let mut table = WindowedModel::new(id, db, 1000, Some(max_size), sum_window);
         let mut gen = Gen::new(500);
         for _ in 0..max_size {

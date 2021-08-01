@@ -60,7 +60,7 @@ impl MeanRevertingStrategy {
         let mut pb: PathBuf = PathBuf::from(db_path.as_ref());
         let strat_db_path = format!("{}_{}.{}", MEAN_REVERTING_DB_KEY, n.exchange.to_string(), n.pair);
         pb.push(strat_db_path);
-        let db = Arc::new(get_or_create(pb.as_path(), vec![]));
+        let db = get_or_create(pb.as_path(), vec![]);
         let state = MeanRevertingState::new(n, fees_rate, db.clone(), om);
         let ema_model = Self::make_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
         let threshold_table = n.threshold_window_size.map(|thresold_window_size| {
@@ -129,7 +129,7 @@ impl MeanRevertingStrategy {
 
     pub fn make_model(
         pair: &str,
-        db: Arc<Box<dyn Storage>>,
+        db: Arc<dyn Storage>,
         short_window_size: u32,
         long_window_size: u32,
     ) -> IndicatorModel<MeanRevertingModelValue, SinglePosRow> {
