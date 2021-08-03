@@ -200,7 +200,15 @@ impl MeanRevertingState {
         let mut ops: Vec<Operation> = self.get_operations();
         ops.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
         if let Some(o) = ops.last() {
-            if OperationKind::Open == o.kind {
+            if OperationKind::Open == o.kind
+                && !matches!(
+                    o.transaction,
+                    Some(Transaction {
+                        status: TransactionStatus::Rejected(Rejection::Cancelled(_)),
+                        ..
+                    })
+                )
+            {
                 self.set_position(o.pos.kind.clone());
             }
         }
