@@ -197,6 +197,13 @@ impl MeanRevertingState {
         if let Some(ps) = previous_state {
             self.load_from(ps)
         }
+        let mut ops: Vec<Operation> = self.get_operations();
+        ops.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
+        if let Some(o) = ops.last() {
+            if OperationKind::Open == o.kind {
+                self.set_position(o.pos.kind.clone());
+            }
+        }
     }
 
     fn load_from(&mut self, ps: TransientState) {
@@ -210,13 +217,6 @@ impl MeanRevertingState {
         self.apo = ps.apo;
         if let Some(np) = ps.nominal_position {
             self.nominal_position = np;
-        }
-        if let Some(op_key) = ps.ongoing_op {
-            let op: Option<Operation> = self.get_operation(&op_key);
-            if let Some(o) = &op {
-                self.set_position(o.pos.kind.clone());
-            }
-            self.set_ongoing_op(op);
         }
         self.previous_value_strat = ps.previous_value_strat;
     }
