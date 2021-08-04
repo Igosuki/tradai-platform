@@ -48,6 +48,7 @@ use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation};
 
+mod backtester;
 pub mod error;
 pub mod input;
 pub mod mean_reverting;
