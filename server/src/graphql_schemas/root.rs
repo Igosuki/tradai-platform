@@ -177,8 +177,8 @@ impl QueryRoot {
     #[graphql(description = "Get all transactions history for an order manager")]
     async fn transactions(context: &Context, exchange: String) -> FieldResult<Vec<String>> {
         context
-            .with_order_manager(&exchange, order_manager::DataQuery::Transactions, |dr| match dr {
-                Ok(Some(order_manager::DataResult::Transactions(transaction))) => Ok(transaction
+            .with_order_manager(&exchange, order_manager::DataQuery::Transactions, |dr| match dr? {
+                Some(order_manager::DataResult::Transactions(transaction)) => Ok(transaction
                     .into_iter()
                     .map(|t| serde_json::to_string(&t).unwrap())
                     .collect()),
