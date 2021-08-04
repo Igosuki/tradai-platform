@@ -24,20 +24,21 @@ pub(crate) struct Stopper<T> {
 impl<T: std::cmp::PartialOrd + Copy> Stopper<T> {
     pub(crate) fn new(stop_gain: T, stop_loss: T) -> Self { Self { stop_gain, stop_loss } }
 
-    pub(crate) fn should_stop(&self, ret: T) -> bool { ret > self.stop_gain || ret < self.stop_loss }
-
-    pub(crate) fn maybe_stop(&self, ret: T) -> bool {
-        if self.should_stop(ret) {
-            let stop_type = if ret > self.stop_gain {
-                StopEvent::Gain
-            } else if ret < self.stop_loss {
-                StopEvent::Loss
-            } else {
-                StopEvent::NA
-            };
-            StratEvent::Stop { stop: stop_type }.log();
-            return true;
-        }
-        false
+    pub(crate) fn should_stop(&self, ret: T) -> bool {
+        let stop_type = if ret > self.stop_gain {
+            Some(StopEvent::Gain)
+        } else if ret < self.stop_loss {
+            Some(StopEvent::Loss)
+        } else {
+            None
+        };
+        stop_type
+            .map(|stop| {
+                let strat_event = StratEvent::Stop { stop };
+                // TODO: get rid of side effects like these
+                strat_event.log();
+                strat_event
+            })
+            .is_some()
     }
 }

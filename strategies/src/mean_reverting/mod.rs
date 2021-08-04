@@ -230,7 +230,7 @@ impl MeanRevertingStrategy {
         // Possibly close a short position
         else if self.state.is_short() {
             self.state.set_short_position_return(lr.pos.ask);
-            if (self.state.apo() < 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::Short)) {
+            if (self.state.apo() < 0.0) || self.stopper.should_stop(self.return_value(&PositionKind::Short)) {
                 let position = self.short_position(lr.pos.ask, lr.time);
                 self.state.close(position).await?;
             }
@@ -244,7 +244,7 @@ impl MeanRevertingStrategy {
         // Possibly close a long position
         else if self.state.is_long() {
             self.state.set_long_position_return(lr.pos.bid);
-            if (self.state.apo() > 0.0) || self.stopper.maybe_stop(self.return_value(&PositionKind::Long)) {
+            if (self.state.apo() > 0.0) || self.stopper.should_stop(self.return_value(&PositionKind::Long)) {
                 let position = self.long_position(lr.pos.bid, lr.time);
                 self.state.close(position).await?;
             }
