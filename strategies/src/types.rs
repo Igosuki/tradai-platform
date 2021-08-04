@@ -58,7 +58,6 @@ pub enum OperationKind {
 pub enum StopEvent {
     Gain,
     Loss,
-    NA,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
