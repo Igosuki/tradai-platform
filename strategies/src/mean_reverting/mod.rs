@@ -229,8 +229,8 @@ impl MeanRevertingStrategy {
         }
         // Possibly close a short position
         else if self.state.is_short() {
-            self.state.set_short_position_return(lr.pos.ask);
-            if (self.state.apo() < 0.0) || self.stopper.should_stop(self.return_value(&PositionKind::Short)) {
+            self.state.set_position_return(lr.pos.ask);
+            if (self.state.apo() < 0.0) || self.stopper.should_stop(self.state.position_return()) {
                 let position = self.short_position(lr.pos.ask, lr.time);
                 self.state.close(position).await?;
             }
@@ -243,20 +243,13 @@ impl MeanRevertingStrategy {
         }
         // Possibly close a long position
         else if self.state.is_long() {
-            self.state.set_long_position_return(lr.pos.bid);
-            if (self.state.apo() > 0.0) || self.stopper.should_stop(self.return_value(&PositionKind::Long)) {
+            self.state.set_position_return(lr.pos.bid);
+            if (self.state.apo() > 0.0) || self.stopper.should_stop(self.state.position_return()) {
                 let position = self.long_position(lr.pos.bid, lr.time);
                 self.state.close(position).await?;
             }
         }
         Ok(self.state.ongoing_op())
-    }
-
-    fn return_value(&self, pk: &PositionKind) -> f64 {
-        match pk {
-            PositionKind::Short => self.state.short_position_return(),
-            PositionKind::Long => self.state.long_position_return(),
-        }
     }
 
     fn can_eval(&self) -> bool { self.models_loaded() }

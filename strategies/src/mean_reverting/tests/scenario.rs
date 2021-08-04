@@ -29,8 +29,7 @@ struct StrategyLog {
     threshold_long: f64,
     apo: f64,
     pnl: f64,
-    long_position_return: f64,
-    short_position_return: f64,
+    position_return: f64,
     nominal_position: f64,
     value: MeanRevertingModelValue,
 }
@@ -49,9 +48,8 @@ impl StrategyLog {
             threshold_long: state.threshold_long(),
             apo: state.apo(),
             pnl: state.pnl(),
-            long_position_return: state.long_position_return(),
+            position_return: state.position_return(),
             value,
-            short_position_return: state.short_position_return(),
             nominal_position: state.nominal_position(),
         }
     }
@@ -65,9 +63,7 @@ fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn
         ("Prices and EMA", vec![|x| x.mid, |x| x.value.short_ema.current, |x| {
             x.value.long_ema.current
         }]),
-        ("Open Position Return", vec![|x| x.short_position_return, |x| {
-            x.long_position_return
-        }]),
+        ("Open Position Return", vec![|x| x.position_return]),
         ("APO", vec![|x| x.apo]),
         ("PnL", vec![|x| x.pnl]),
         ("Nominal (units)", vec![|x| x.nominal_position]),
