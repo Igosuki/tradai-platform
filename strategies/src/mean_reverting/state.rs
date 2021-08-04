@@ -545,10 +545,10 @@ impl MeanRevertingState {
     fn new_price(&self, bp: &BookPosition, operation_kind: &OperationKind) -> Result<f64> {
         match (&self.position, operation_kind) {
             (Some(PositionKind::Short), OperationKind::Open) | (Some(PositionKind::Long), OperationKind::Close) => {
-                Ok(bp.ask)
+                Ok(bp.bid)
             }
             (Some(PositionKind::Short), OperationKind::Close) | (Some(PositionKind::Long), OperationKind::Open) => {
-                Ok(bp.bid)
+                Ok(bp.ask)
             }
             _ => {
                 // Return early as there is nothing to be done, this should never happen
