@@ -107,8 +107,7 @@ pub(super) struct MeanRevertingState {
     apo: f64,
     nominal_position: f64,
     traded_price: f64,
-    short_position_return: f64,
-    long_position_return: f64,
+    position_return: f64,
     units_to_buy: f64,
     units_to_sell: f64,
     pnl: f64,
@@ -171,8 +170,7 @@ impl MeanRevertingState {
             apo: 0.0,
             nominal_position: 0.0,
             traded_price: 0.0,
-            short_position_return: 0.0,
-            long_position_return: 0.0,
+            position_return: 0.0,
             units_to_buy: 0.0,
             units_to_sell: 0.0,
             pnl: options.initial_cap,
@@ -258,21 +256,23 @@ impl MeanRevertingState {
     #[allow(dead_code)]
     pub(super) fn nominal_position(&self) -> f64 { self.nominal_position }
 
-    pub(super) fn set_long_position_return(&mut self, current_price: f64) {
-        self.long_position_return = (self.nominal_position
-            * (current_price * (1.0 - self.fees_rate) - self.traded_price))
-            / (self.nominal_position * self.traded_price);
+    pub(super) fn set_position_return(&mut self, current_price: f64) {
+        match self.position {
+            Some(PositionKind::Long) => {
+                self.position_return = (self.nominal_position
+                    * (current_price * (1.0 - self.fees_rate) - self.traded_price))
+                    / (self.nominal_position * self.traded_price)
+            }
+            Some(PositionKind::Short) => {
+                self.position_return = self.nominal_position
+                    * (self.traded_price - current_price * (1.0 + self.fees_rate))
+                    / (self.nominal_position * self.traded_price)
+            }
+            _ => {}
+        }
     }
 
-    pub(super) fn set_short_position_return(&mut self, current_price: f64) {
-        self.short_position_return = self.nominal_position
-            * (self.traded_price - current_price * (1.0 + self.fees_rate))
-            / (self.nominal_position * self.traded_price);
-    }
-
-    pub(super) fn short_position_return(&self) -> f64 { self.short_position_return }
-
-    pub(super) fn long_position_return(&self) -> f64 { self.long_position_return }
+    pub(super) fn position_return(&self) -> f64 { self.position_return }
 
     pub(super) fn update_units(&mut self, bp: &BookPosition) {
         self.units_to_buy = self.value_strat / bp.ask * (1.0 + self.fees_rate);
@@ -452,8 +452,7 @@ impl MeanRevertingState {
 
     fn clear_position(&mut self) {
         self.position = None;
-        self.long_position_return = 0.0;
-        self.short_position_return = 0.0;
+        self.position_return = 0.0;
         self.nominal_position = 0.0;
     }
 
@@ -480,7 +479,7 @@ impl MeanRevertingState {
                 self.set_ongoing_op(Some(op.clone()));
                 op.log();
                 self.save();
-                self.log_indicators(&op.pos.kind);
+                self.log_indicators();
                 op.clone()
             })
             .map_err(|e| {
@@ -529,17 +528,14 @@ impl MeanRevertingState {
     #[allow(dead_code)]
     fn get_operation(&self, uuid: &str) -> Option<Operation> { self.db.get(OPERATIONS_KEY, uuid).ok() }
 
-    fn log_indicators(&self, pos: &PositionKind) {
+    fn log_indicators(&self) {
         if log_enabled!(Debug) {
             let indicator = MeanRevertingStateIndicator {
                 units_to_buy: self.units_to_buy,
                 units_to_sell: self.units_to_sell,
                 apo: self.apo(),
                 value_strat: self.value_strat,
-                pos_return: match pos {
-                    PositionKind::Short => self.short_position_return,
-                    PositionKind::Long => self.long_position_return,
-                },
+                pos_return: self.position_return,
                 pnl: self.pnl(),
                 nominal_position: self.nominal_position,
             };
