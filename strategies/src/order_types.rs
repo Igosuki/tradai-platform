@@ -1,10 +1,12 @@
 use actix::Message;
-use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderStatus, OrderSubmission, OrderUpdate};
+use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderStatus, OrderSubmission, OrderUpdate, Pair};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 
 use crate::error::*;
 use crate::wal::WalCmp;
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::pair::symbol_to_pair;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "reject_type", content = "__field0")]
@@ -45,6 +47,22 @@ pub enum TransactionStatus {
     PartiallyFilled(OrderUpdate),
     #[display(fmt = "rejected")]
     Rejected(Rejection),
+}
+
+impl TransactionStatus {
+    pub(crate) fn is_incomplete(&self) -> bool {
+        matches!(self, Self::PartiallyFilled(_) | Self::Staged(_) | Self::New(_))
+    }
+
+    pub(crate) fn get_pair(&self, xchg: Exchange) -> Result<Pair> {
+        match self {
+            TransactionStatus::PartiallyFilled(ou) | TransactionStatus::Filled(ou) => {
+                symbol_to_pair(&xchg, &ou.symbol.clone().into()).map_err(|e| e.into())
+            }
+            TransactionStatus::New(os) => Ok(os.pair.clone()),
+            _ => Err(coinnect_rt::error::Error::PairUnsupported.into()),
+        }
+    }
 }
 
 impl WalCmp for TransactionStatus {
