@@ -5,19 +5,20 @@ use std::sync::Arc;
 use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, Running, WrapFuture};
 use actix_derive::{Message, MessageResponse};
 use async_std::sync::RwLock;
+use futures::FutureExt;
+use uuid::Uuid;
+
 use coinnect_rt::error::Error as CoinnectError;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::exchange_bot::Ping;
-use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, AssetType, OrderQuery, OrderStatus,
-                         OrderUpdate};
+use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, AssetType, Order, OrderQuery,
+                         OrderStatus, OrderUpdate, Pair};
 use db::get_or_create;
-use uuid::Uuid;
 
 use crate::error::Error;
 use crate::error::Result;
 use crate::order_types::{OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
 use crate::wal::{Wal, WalCmp};
-use coinnect_rt::pair::symbol_to_pair;
 
 #[derive(Debug, Clone)]
 pub(crate) struct TransactionService {
@@ -182,6 +183,14 @@ impl OrderManager {
         reader.get(&order_id).cloned()
     }
 
+    /// Get the latest remote status for this order id
+    pub(crate) async fn fetch_order(&self, order_id: String, pair: Pair, asset_type: AssetType) -> Result<Order> {
+        self.api
+            .get_order(order_id, pair, asset_type)
+            .map(|r| r.map_err(|e| e.into()))
+            .await
+    }
+
     /// Registers a transaction
     pub(crate) async fn register(&mut self, order_id: String, tr: TransactionStatus) -> Result<()> {
         self.transactions_wal.append(order_id.clone(), tr.clone())?;
@@ -241,39 +250,19 @@ impl Actor for OrderManager {
                     }
                     let orders_read_lock = act.orders.read().await;
                     // Fetch all latest orders
-                    info!("Fetching remote orders for all unfilled transactions");
-                    let non_filled_orders = futures::future::join_all(
-                        orders_read_lock
-                            .iter()
-                            .filter(|(_k, v)| {
-                                matches!(
-                                    v,
-                                    TransactionStatus::PartiallyFilled(_)
-                                        | TransactionStatus::Staged(_)
-                                        | TransactionStatus::New(_)
-                                )
-                            })
-                            .map(|(tr_id, tr_status)| {
-                                let pair = match tr_status {
-                                    TransactionStatus::PartiallyFilled(ou) | TransactionStatus::Filled(ou) => {
-                                        symbol_to_pair(&act.xchg, &ou.symbol.clone().into())
-                                    }
-                                    TransactionStatus::New(os) => Ok(os.pair.clone()),
-                                    _ => Err(coinnect_rt::error::Error::PairUnsupported),
-                                };
-                                pair.map(|pair| act.api.get_order(tr_id.clone(), pair, AssetType::Spot))
-                                    .map_err(move |e| {
-                                        info!("failed to get latest order {} : {} ", tr_id.clone(), e);
-                                        e
-                                    })
+                    info!("Fetching remote orders for all unfilled transactions on {}", act.xchg);
+                    let non_filled_order_futs =
+                        futures::future::join_all(orders_read_lock.iter().filter(|(_k, v)| v.is_incomplete()).map(
+                            |(tr_id, tr_status)| {
+                                let pair = tr_status.get_pair(act.xchg);
+                                pair.map(|pair| act.fetch_order(tr_id.clone(), pair, AssetType::Spot).boxed())
                                     .unwrap_or_else(|e| Box::pin(futures::future::err(e)))
-                            }),
-                    )
-                    .await;
+                            },
+                        ))
+                        .await;
                     let mut notifications = vec![];
-                    for order in non_filled_orders.into_iter().flatten() {
-                        let order_id = order.orig_order_id.clone();
-                        if let Some(tr_status) = orders_read_lock.get(&order_id) {
+                    for order in non_filled_order_futs.into_iter().flatten() {
+                        if let Some(tr_status) = orders_read_lock.get(&order.orig_order_id) {
                             if !equivalent_status(tr_status, &order.status) {
                                 notifications
                                     .push(AccountEventEnveloppe(act.xchg, AccountEvent::OrderUpdate(order.into())));
@@ -419,14 +408,14 @@ mod test {
     use std::path::Path;
     use std::sync::Arc;
 
+    use coinnect_rt::coinnect::Coinnect;
     use coinnect_rt::exchange::Exchange::Binance;
     use coinnect_rt::exchange::MockApi;
     use coinnect_rt::exchange::{Exchange, ExchangeApi};
+    use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderSubmission, OrderUpdate, TradeType};
 
     use crate::order_manager::OrderManager;
     use crate::order_types::{Rejection, StagedOrder, Transaction, TransactionStatus};
-    use coinnect_rt::coinnect::Coinnect;
-    use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderSubmission, OrderUpdate, TradeType};
 
     #[actix::test]
     async fn test_append_rejected() {
