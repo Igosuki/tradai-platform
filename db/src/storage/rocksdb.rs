@@ -1,8 +1,12 @@
-use crate::error::*;
-use crate::storage::Storage;
-use rocksdb::{BoundColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode, Options, DB};
 use std::path::Path;
 use std::sync::Arc;
+
+use rocksdb::{BoundColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode, Options, DB};
+
+use ext::ResultExt;
+
+use crate::error::*;
+use crate::storage::Storage;
 
 type Bytes = Box<[u8]>;
 
@@ -48,14 +52,14 @@ impl RocksDbStorage {
 impl Storage for RocksDbStorage {
     fn _put(&self, table: &str, key: &[u8], value: &[u8]) -> Result<()> {
         let cf = self.cf(table)?;
-        self.inner.put_cf(&cf, key, value).map_err(|e| e.into())
+        Ok(self.inner.put_cf(&cf, key, value)?)
     }
 
     fn _get(&self, table: &str, key: &[u8]) -> Result<Vec<u8>> {
         let cf = self.cf(table)?;
         self.inner
             .get_cf(&cf, key)
-            .map_err(|e| e.into())
+            .err_into()
             .and_then(|r| r.ok_or_else(|| Error::NotFound(String::from_utf8(key.into()).unwrap())))
     }
 
@@ -77,19 +81,19 @@ impl Storage for RocksDbStorage {
 
     fn _delete(&self, table: &str, key: &[u8]) -> Result<()> {
         let cf = self.cf(table)?;
-        self.inner.delete_cf(&cf, key).map_err(|e| e.into())
+        self.inner.delete_cf(&cf, key).err_into()
     }
 
     fn _delete_range(&self, table: &str, from: &[u8], to: &[u8]) -> Result<()> {
         let cf = self.cf(table)?;
-        self.inner.delete_range_cf(&cf, from, to).map_err(|e| e.into())
+        self.inner.delete_range_cf(&cf, from, to).err_into()
     }
 
     fn ensure_table(&self, name: &str) -> Result<()> {
         if self.inner.cf_handle(name).is_none() {
             self.inner
                 .create_cf(name, &RocksDbStorage::default_cf_options())
-                .map_err(|e| e.into())
+                .err_into()
         } else {
             Ok(())
         }
@@ -101,12 +105,14 @@ mod test {
     extern crate test;
     extern crate util;
 
+    use test::Bencher;
+
+    use chrono::Utc;
+
     use crate::error::Error;
     use crate::storage::rocksdb::RocksDbStorage;
     use crate::storage::Storage;
     use crate::StorageExt;
-    use chrono::Utc;
-    use test::Bencher;
 
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 

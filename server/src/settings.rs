@@ -8,6 +8,7 @@ use serde::{Deserialize, Deserializer};
 
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::types::Pair;
+use itertools::Itertools;
 use metrics::prom::PrometheusOptions;
 use portfolio::balance::BalanceReporterOptions;
 use strategies::StrategySettings;
@@ -179,7 +180,7 @@ impl Settings {
             .into_iter()
             .flatten()
             .flatten()
-            .map(|s| s.into())
+            .map_into()
             .collect();
             let (invalid_pairs, valid_pairs): (_, Vec<Pair>) = pairs
                 .clone()

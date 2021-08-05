@@ -57,7 +57,7 @@ impl TransactionStatus {
     pub(crate) fn get_pair(&self, xchg: Exchange) -> Result<Pair> {
         match self {
             TransactionStatus::PartiallyFilled(ou) | TransactionStatus::Filled(ou) => {
-                symbol_to_pair(&xchg, &ou.symbol.clone().into()).map_err(|e| e.into())
+                Ok(symbol_to_pair(&xchg, &ou.symbol.clone().into())?)
             }
             TransactionStatus::New(os) => Ok(os.pair.clone()),
             _ => Err(coinnect_rt::error::Error::PairUnsupported.into()),

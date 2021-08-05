@@ -44,17 +44,18 @@ impl Wal {
     }
 
     pub fn get_all<T: DeserializeOwned>(&self) -> Result<Vec<(i64, (String, T))>> {
-        self.backend.get_all::<T>(&self.table).map_err(|e| e.into()).map(|v| {
-            v.into_iter()
-                .map(|(k, v)| {
-                    let (t, k) = match k.split_once(WAL_KEY_SEP) {
-                        Some((ts_str, key)) => (ts_str.parse::<i64>().unwrap(), key.to_string()),
-                        None => (0i64, k),
-                    };
-                    (t, (k, v))
-                })
-                .collect()
-        })
+        let v = self.backend.get_all::<T>(&self.table)?;
+        let res = v
+            .into_iter()
+            .map(|(k, v)| {
+                let (t, k) = match k.split_once(WAL_KEY_SEP) {
+                    Some((ts_str, key)) => (ts_str.parse::<i64>().unwrap(), key.to_string()),
+                    None => (0i64, k),
+                };
+                (t, (k, v))
+            })
+            .collect();
+        Ok(res)
     }
 
     pub fn append<T: Serialize>(&self, k: String, t: T) -> Result<()> {

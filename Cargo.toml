@@ -4,6 +4,7 @@ members = [
     "binance-rs",
     "coinnect",
     "db",
+    "ext",
     "math",
     "models",
     "portfolio",

@@ -1,13 +1,17 @@
-pub mod mem;
-pub mod rocksdb;
-
-use crate::error::*;
-use crate::RocksDbStorage;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use std::fmt::Debug;
 use std::path::Path;
 use std::sync::Arc;
+
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+
+use ext::ResultExt;
+
+use crate::error::*;
+use crate::RocksDbStorage;
+
+pub mod mem;
+pub mod rocksdb;
 
 pub trait Storage: Send + Sync + Debug {
     fn _put(&self, table: &str, key: &[u8], value: &[u8]) -> Result<()>;
@@ -71,7 +75,7 @@ impl<T: Storage + ?Sized> StorageExt for T {
         V: DeserializeOwned,
     {
         let record = self._get(table, key.as_ref())?;
-        serde_json::from_slice(record.as_slice()).map_err(|e| e.into())
+        Ok(serde_json::from_slice(record.as_slice())?)
     }
 
     fn get_ranged<F, V>(&self, table: &str, from: F) -> Result<Vec<V>>
@@ -80,10 +84,7 @@ impl<T: Storage + ?Sized> StorageExt for T {
         V: DeserializeOwned,
     {
         let items = self._get_ranged(table, from.as_ref())?;
-        items
-            .iter()
-            .map(|v| serde_json::from_slice(v).map_err(|e| e.into()))
-            .collect()
+        items.iter().map(|v| serde_json::from_slice(v).err_into()).collect()
     }
 
     fn get_all<V>(&self, table: &str) -> Result<Vec<(String, V)>>
@@ -93,11 +94,7 @@ impl<T: Storage + ?Sized> StorageExt for T {
         let items = self._get_all(table)?;
         items
             .iter()
-            .map(|(k, v)| {
-                serde_json::from_slice::<V>(v)
-                    .map(|v| (k.clone(), v))
-                    .map_err(|e| e.into())
-            })
+            .map(|(k, v)| serde_json::from_slice::<V>(v).map(|v| (k.clone(), v)).err_into())
             .collect()
     }
 

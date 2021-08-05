@@ -1,15 +1,18 @@
-use actix::Addr;
-use chrono::{DateTime, Duration, TimeZone, Utc};
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe, Pair};
-use db::{get_or_create, Storage};
-use itertools::Itertools;
-use math::iter::QuantileExt;
-use ordered_float::OrderedFloat;
 use std::cmp::{max, min};
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+use actix::Addr;
+use chrono::{DateTime, Duration, TimeZone, Utc};
+use itertools::Itertools;
+use ordered_float::OrderedFloat;
+
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe, Pair};
+use db::{get_or_create, Storage};
+use ext::ResultExt;
+use math::iter::QuantileExt;
 
 use crate::error::Result;
 use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
@@ -265,7 +268,7 @@ impl MeanRevertingStrategy {
             let model_update = self
                 .model
                 .update_model(row.clone())
-                .map_err(|e| e.into())
+                .err_into()
                 .and_then(|_| {
                     self.model
                         .value()

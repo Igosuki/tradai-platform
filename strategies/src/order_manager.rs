@@ -185,10 +185,7 @@ impl OrderManager {
 
     /// Get the latest remote status for this order id
     pub(crate) async fn fetch_order(&self, order_id: String, pair: Pair, asset_type: AssetType) -> Result<Order> {
-        self.api
-            .get_order(order_id, pair, asset_type)
-            .map(|r| r.map_err(|e| e.into()))
-            .await
+        Ok(self.api.get_order(order_id, pair, asset_type).await?)
     }
 
     /// Registers a transaction

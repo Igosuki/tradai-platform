@@ -2,7 +2,6 @@ use crate::types::BookPosition;
 use chrono::prelude::*;
 use chrono::{DateTime, Utc};
 use glob::glob;
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{BufReader, Result};
@@ -68,14 +67,7 @@ impl<'a> From<&'a CsvRecord> for BookPosition {
 pub fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
     let f = File::open(path)?;
     let mut rdr = csv::Reader::from_reader(BufReader::new(f));
-    let vec: Vec<CsvRecord> = rdr
-        .deserialize()
-        .map(|r| {
-            let record: Result<CsvRecord> = r.map_err(|e| e.into());
-            record.ok()
-        })
-        .while_some()
-        .collect(); // just skip invalid rows
+    let vec: Vec<CsvRecord> = rdr.deserialize().flatten().collect(); // just skip invalid rows
     Ok(vec)
 }
 
