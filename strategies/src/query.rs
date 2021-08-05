@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 pub enum DataResult {
     NaiveOperations(Vec<NaiveOperation>),
     MeanRevertingOperations(Vec<MeanRevertingOperation>),
-    Dump(String),
     NaiveOperation(Box<Option<NaiveOperation>>),
     MeanRevertingOperation(Box<Option<MeanRevertingOperation>>),
     OperationCanceled(bool),
@@ -24,8 +23,6 @@ pub enum DataResult {
 pub enum DataQuery {
     /// All operations history
     Operations,
-    /// Dumps operation and state tables into a json string
-    Dump,
     /// Currently ongoing operation
     CurrentOperation,
     /// Cancel the ongoing operation

@@ -340,8 +340,6 @@ impl NaiveTradingStrategy {
 
     fn cancel_ongoing_op(&mut self) -> bool { self.state.cancel_ongoing_op() }
 
-    fn dump_db(&self) -> String { self.state.dump_db() }
-
     fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> { self.state.change_state(field, v) }
 }
 
@@ -376,7 +374,6 @@ impl StrategyInterface for NaiveTradingStrategy {
     fn data(&mut self, q: DataQuery) -> Option<DataResult> {
         match q {
             DataQuery::Operations => Some(DataResult::NaiveOperations(self.get_operations())),
-            DataQuery::Dump => Some(DataResult::Dump(self.dump_db())),
             DataQuery::CurrentOperation => Some(DataResult::NaiveOperation(Box::new(self.get_ongoing_op().clone()))),
             DataQuery::CancelOngoingOp => Some(DataResult::OperationCanceled(self.cancel_ongoing_op())),
             DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),

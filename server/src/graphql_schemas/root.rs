@@ -1,18 +1,22 @@
-use crate::graphql_schemas::types::*;
-use actix::{Addr, MailboxError};
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
-use coinnect_rt::types::OrderQuery;
-use futures::Stream;
-use juniper::{FieldError, FieldResult, RootNode};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
+
+use actix::{Addr, MailboxError};
+use futures::Stream;
+use juniper::{FieldError, FieldResult, RootNode};
+
+use coinnect_rt::exchange::{Exchange, ExchangeApi};
+use coinnect_rt::types::OrderQuery;
 use strategies::order_manager::OrderManager;
 use strategies::order_types::PassOrder;
 use strategies::query::{DataQuery, DataResult, FieldMutation};
 use strategies::{order_manager, Strategy, StrategyKey};
+
+use crate::graphql_schemas::types::*;
+use itertools::Itertools;
 
 pub struct Context {
     pub strats: Arc<HashMap<StrategyKey, Strategy>>,
@@ -113,19 +117,6 @@ impl QueryRoot {
             .collect())
     }
 
-    #[graphql(description = "Dump the stored state for a strategy")]
-    async fn dump_strat_db(context: &Context, tk: TypeAndKeyInput) -> FieldResult<String> {
-        context
-            .with_strat(tk, DataQuery::Dump, |dr| {
-                if let DataResult::Dump(dump) = dr {
-                    Ok(dump)
-                } else {
-                    unhandled_data_result()
-                }
-            })
-            .await
-    }
-
     #[graphql(description = "Dump the current in memory state for a strategy")]
     async fn strat_state(context: &Context, tk: TypeAndKeyInput) -> FieldResult<String> {
         context
@@ -155,10 +146,15 @@ impl QueryRoot {
     #[graphql(description = "Get all operations for this strat")]
     async fn operations(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<OperationHistory>> {
         context
-            .with_strat(tk, DataQuery::Operations, |dr| match dr {
-                DataResult::NaiveOperations(pos_vec) => Ok(pos_vec.into_iter().map(|o| o.into()).collect()),
-                DataResult::MeanRevertingOperations(pos_vec) => Ok(pos_vec.into_iter().map(|o| o.into()).collect()),
-                _ => unhandled_data_result(),
+            .with_strat(tk, DataQuery::Operations, |dr| {
+                match dr {
+                    DataResult::NaiveOperations(pos_vec) => Ok(pos_vec.into_iter().map(|o| o.into()).collect()),
+                    DataResult::MeanRevertingOperations(pos_vec) => Ok(pos_vec.into_iter().map(|o| o.into()).collect()),
+                    _ => unhandled_data_result(),
+                }
+                .map(|operations: Vec<OperationHistory>| {
+                    operations.into_iter().sorted_by(|a, b| a.ts.cmp(&b.ts)).rev().collect()
+                })
             })
             .await
     }

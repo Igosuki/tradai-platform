@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::panic;
 use std::sync::Arc;
 
@@ -510,17 +509,6 @@ impl MeanRevertingState {
             .get_all::<Operation>(OPERATIONS_KEY)
             .map(|v| v.into_iter().map(|kv| kv.1).collect())
             .unwrap_or_else(|_| Vec::new())
-    }
-
-    pub fn dump_db(&self) -> String {
-        let mut dump: HashMap<String, serde_json::Value> = HashMap::new();
-        if let Ok(operations) = self.db.get_all::<Vec<Operation>>(OPERATIONS_KEY) {
-            dump.insert("operations".to_string(), serde_json::to_value(&operations).unwrap());
-        }
-        if let Ok(state) = self.db.get_all::<TransientState>(STATE_KEY) {
-            dump.insert("state".to_string(), serde_json::to_value(&state).unwrap());
-        }
-        serde_json::to_string(&dump).unwrap()
     }
 
     pub(crate) fn is_trading(&self) -> bool { self.is_trading }
