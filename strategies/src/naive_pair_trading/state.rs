@@ -5,7 +5,6 @@ use chrono::{DateTime, Utc};
 use db::{Storage, StorageExt};
 use log::Level::Info;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -557,17 +556,6 @@ impl MovingState {
         self.db
             .get_ranged(OPERATIONS_KEY, OPERATIONS_KEY)
             .unwrap_or_else(|_| Vec::new())
-    }
-
-    pub fn dump_db(&self) -> String {
-        let mut dump: HashMap<String, serde_json::Value> = HashMap::new();
-        if let Ok(operations) = self.db.get_all::<Vec<Operation>>(OPERATIONS_KEY) {
-            dump.insert("operations".to_string(), serde_json::to_value(&operations).unwrap());
-        }
-        if let Ok(state) = self.db.get_all::<TransientState>(STATE_KEY) {
-            dump.insert("state".to_string(), serde_json::to_value(&state).unwrap());
-        }
-        serde_json::to_string(&dump).unwrap()
     }
 
     #[allow(dead_code)]

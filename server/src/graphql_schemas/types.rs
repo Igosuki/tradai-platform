@@ -85,6 +85,7 @@ pub struct OperationHistory {
     id: String,
     kind: OperationKind,
     transactions: Vec<TransactionHistory>,
+    pub ts: DateTime<Utc>,
 }
 
 #[derive(juniper::GraphQLObject)]
@@ -104,6 +105,7 @@ impl From<strategies::naive_pair_trading::state::Operation> for OperationHistory
         Self {
             id: o.id,
             kind: o.kind,
+            ts: o.pos.time,
             transactions: vec![
                 TransactionHistory {
                     value: o.left_trade.qty * o.pos.left_price,
@@ -136,6 +138,7 @@ impl From<strategies::mean_reverting::state::Operation> for OperationHistory {
         Self {
             id: o.id,
             kind: o.kind,
+            ts: o.pos.time,
             transactions: vec![TransactionHistory {
                 value,
                 pair: o.pos.pair,
