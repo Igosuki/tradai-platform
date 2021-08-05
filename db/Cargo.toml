@@ -14,6 +14,8 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ext = { path = "../ext" }
+
 anyhow = "1.0"
 
 bincode = "1.3"

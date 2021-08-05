@@ -16,6 +16,7 @@ use strategies::query::{DataQuery, DataResult, FieldMutation};
 use strategies::{order_manager, Strategy, StrategyKey};
 
 use crate::graphql_schemas::types::*;
+use ext::MapInto;
 use itertools::Itertools;
 
 pub struct Context {
@@ -148,8 +149,8 @@ impl QueryRoot {
         context
             .with_strat(tk, DataQuery::Operations, |dr| {
                 match dr {
-                    DataResult::NaiveOperations(pos_vec) => Ok(pos_vec.into_iter().map(|o| o.into()).collect()),
-                    DataResult::MeanRevertingOperations(pos_vec) => Ok(pos_vec.into_iter().map(|o| o.into()).collect()),
+                    DataResult::NaiveOperations(pos_vec) => Ok(pos_vec.map_into()),
+                    DataResult::MeanRevertingOperations(pos_vec) => Ok(pos_vec.map_into()),
                     _ => unhandled_data_result(),
                 }
                 .map(|operations: Vec<OperationHistory>| {
@@ -163,8 +164,8 @@ impl QueryRoot {
     async fn current_operation(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Option<OperationHistory>> {
         context
             .with_strat(tk, DataQuery::Operations, |dr| match dr {
-                DataResult::NaiveOperation(o) => Ok(o.map(|o| o.into())),
-                DataResult::MeanRevertingOperation(o) => Ok(o.map(|o| o.into())),
+                DataResult::NaiveOperation(o) => Ok(o.map_into()),
+                DataResult::MeanRevertingOperation(o) => Ok(o.map_into()),
                 _ => unhandled_data_result(),
             })
             .await

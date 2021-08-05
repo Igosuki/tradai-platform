@@ -257,7 +257,7 @@ impl Db {
                 })
                 .collect::<Result<Vec<()>, rkv::StoreError>>()
                 .unwrap();
-            writer.commit().map_err(|e| e.into())
+            Ok(writer.commit()?)
         })
     }
 
@@ -272,10 +272,6 @@ impl Db {
     {
         self.write(|writer, store| store.put(writer, &key, &v.into()))
     }
-
-    // fn commit<I: BackendRwTransaction>(w: Writer<I>) -> WriteResult {
-    //     w.commit().map_err(|e| e.into())
-    // }
 }
 
 #[cfg(test)]
