@@ -18,4 +18,4 @@ prometheus:
   instance: balance_reporter
 
 api:
-  port: 8186
+  port: 0
