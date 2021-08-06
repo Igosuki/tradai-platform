@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["Guillaume Balaine <igosuki@gmail.com>"]
 edition = "2018"
 
+build = "build.rs"
+
 [lib]
 name = "trader"
 path = "src/lib.rs"
@@ -11,6 +13,11 @@ path = "src/lib.rs"
 [[bin]]
 name = "trader"
 path = "src/main.rs"
+
+[features]
+default = []
+flame_it = ["flame", "flamer"]
+gprof = ["gperftools"]
 
 [dependencies]
 # Self crates
@@ -109,12 +116,6 @@ tokio-stream = "0.1.5"
 url = "2.2"
 
 uuid = { version = "0.8", features = ["v4"] }
-
-[features]
-default = []
-flame_it = ["flame", "flamer"]
-gprof = ["gperftools"]
-#desktop_vis = ["cairo-rs", "gtk"]
 
 [dev-dependencies]
 pretty_assertions = "0.7"
