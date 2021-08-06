@@ -24,6 +24,7 @@ use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSe
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use std::rc::Rc;
 use tokio::signal::unix::{signal, SignalKind};
+use tracing::Instrument;
 
 pub mod bots;
 
@@ -41,7 +42,9 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     let apis = Arc::new(Coinnect::build_exchange_apis(exchanges_conf.clone(), keys_path.clone()).await);
     // Temporarily load symbol cache from here
     // TODO: do this to a read-only memory mapped file somewhere else that is used as a cache
-    Coinnect::load_pair_registries(apis.clone()).await?;
+    Coinnect::load_pair_registries(apis.clone())
+        .instrument(tracing::info_span!("loading pair registries"))
+        .await?;
 
     let mut termination_handles: Vec<Pin<Box<dyn Future<Output = std::io::Result<()>>>>> = vec![];
     let mut broadcast_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
@@ -75,7 +78,9 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                         order_managers_addr.insert(*xchg, addr.clone());
                     }
                 }
-                let strategies = strategies(settings_arc.clone(), oms.clone()).await;
+                let strategies = strategies(settings_arc.clone(), oms.clone())
+                    .instrument(tracing::info_span!("starting strategies"))
+                    .await;
                 for a in strategies.clone() {
                     strat_recipients.push(a.1.clone().recipient());
                     strategy_actors.push(a.clone());
@@ -86,6 +91,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
 
     // balance reporter
     if let Some(balance_reporter_opts) = &settings_v.balance_reporter {
+        info!("starting balance reporter");
         let reporter_addr = balance_reporter(balance_reporter_opts, apis.clone()).await?;
         for xch in apis.keys() {
             account_recipients
@@ -118,6 +124,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 }
             }
             StreamSettings::Nats(nats_settings) => {
+                info!("nats consumers");
                 // For now, give each strategy a nats consumer
                 for strategy in strategy_actors.clone() {
                     let topics = strategy
@@ -195,6 +202,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
 }
 
 fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<LiveEventEnveloppe>> {
+    info!("starting avro file logger");
     SyncArbiter::start(2, move || {
         let dir = Path::new(settings.basedir.as_str());
         fs::create_dir_all(&dir).unwrap();
@@ -207,25 +215,25 @@ fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<LiveEventE
     })
 }
 
+#[tracing::instrument(skip(settings, oms), level = "info")]
 async fn strategies(settings: Arc<RwLock<Settings>>, oms: Arc<HashMap<Exchange, Addr<OrderManager>>>) -> Vec<Strategy> {
-    info!("Starting strategies...");
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
     let settings_v = arc1.read().unwrap();
     let db_path_str = Arc::new(arc.read().unwrap().db_storage_path.clone());
     let exchanges = Arc::new(arc.read().unwrap().exchanges.clone());
-    settings_v
-        .strategies
-        .clone()
-        .into_iter()
-        .map(move |strategy_settings| {
-            let db_path_a = db_path_str.clone();
-            let exchanges_conf = exchanges.clone();
-            let exchange = strategy_settings.exchange();
-            let fees = exchanges_conf.get(&exchange).unwrap().fees;
-            Strategy::new(db_path_a, fees, strategy_settings, oms.get(&exchange).cloned())
-        })
-        .collect()
+    let mut strategies = settings_v.strategies.clone();
+    strategies.extend(settings_v.strategies_copy.iter().map(|sc| sc.all()).flatten().flatten());
+    let strats = futures::future::join_all(strategies.into_iter().map(move |strategy_settings| {
+        let db_path_a = db_path_str.clone();
+        let exchanges_conf = exchanges.clone();
+        let exchange = strategy_settings.exchange();
+        let fees = exchanges_conf.get(&exchange).unwrap().fees;
+        let oms = oms.clone();
+        async move { Strategy::new(db_path_a, fees, strategy_settings, oms.get(&exchange).cloned()) }
+    }))
+    .await;
+    strats
 }
 
 async fn balance_reporter(

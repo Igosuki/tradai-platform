@@ -11,7 +11,7 @@ use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::types::Pair;
 use metrics::prom::PrometheusOptions;
 use portfolio::balance::BalanceReporterOptions;
-use strategies::StrategySettings;
+use strategies::{StrategyCopySettings, StrategySettings};
 
 fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
 where
@@ -142,7 +142,6 @@ pub struct Settings {
     pub streams: Vec<StreamSettings>,
     #[serde(default)]
     pub outputs: Vec<OutputSettings>,
-    pub data_dir: String,
     pub keys: String,
     #[serde(default = "default_as_false")]
     pub profile_main: bool,
@@ -150,6 +149,8 @@ pub struct Settings {
     pub api: ApiSettings,
     #[serde(default)]
     pub strategies: Vec<StrategySettings>,
+    #[serde(default)]
+    pub strategies_copy: Vec<StrategyCopySettings>,
     pub db_storage_path: String,
     pub prometheus: PrometheusOptions,
     #[serde(default)]

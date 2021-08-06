@@ -2,7 +2,7 @@
 
 Requires a `config/$TRADER_ENV.yaml` file in the cwd.
 
-See test.yaml for a reference implementation.
+See dev.yaml for a reference implementation.
 
 ### Running development infrastructure 
 

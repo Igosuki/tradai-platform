@@ -1,9 +1,10 @@
-use actix::prelude::*;
-use actix::{Actor, AsyncContext, Context, Running};
-use awc::Client;
-use prometheus::Counter;
 use std::sync::Arc;
 use std::time;
+
+use actix::prelude::*;
+use actix::{Actor, AsyncContext, Context};
+use awc::Client;
+use prometheus::Counter;
 
 pub mod push;
 
@@ -68,14 +69,10 @@ impl Actor for PrometheusPushActor {
         ctx.run_interval(self.push_frequency, move |a, c| {
             c.spawn(push_metrics(ca.clone(), push_address.clone(), instance_name.clone()).into_actor(a));
         });
-        info!("PrometheusPushActor : started");
+        info!("prometheus push started");
     }
 
-    fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
-        info!("PrometheusPushActor : stopping");
-        Running::Stop
-    }
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("PrometheusPushActor : stopped");
+        info!("prometheus push stopped");
     }
 }

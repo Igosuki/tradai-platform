@@ -298,9 +298,9 @@ fn write_ema_values(test_results_dir: &str, model_values: &[(DateTime<Utc>, Mean
     ema_values_wtr.flush().unwrap();
 }
 
+#[tracing::instrument(skip(strategy_logs), level = "info")]
 fn write_thresholds(test_results_dir: &str, strategy_logs: &mut Vec<StrategyLog>) {
     {
-        info_time!("Write strategy logs");
         let mut thresholds_wtr =
             csv::Writer::from_path(format!("{}/{}_thresholds.csv", test_results_dir, PAIR)).unwrap();
         thresholds_wtr
