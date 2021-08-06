@@ -1,5 +1,5 @@
 use crate::settings;
-use crate::settings::Settings;
+use crate::settings::{Settings, Version};
 use actix::System;
 #[cfg(feature = "gprof")]
 use gperftools::heap_profiler::HEAP_PROFILER;
@@ -43,6 +43,11 @@ where
     let settings = Arc::new(RwLock::new(
         settings::Settings::new(opts.config).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?,
     ));
+
+    settings.write().unwrap().version = Some(Version {
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        sha: env!("GIT_HASH").to_string(),
+    });
 
     // Create a channel to receive the events.
     let (tx, _rx) = channel();

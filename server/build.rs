@@ -1,7 +1,7 @@
 // build.rs
 use std::process::Command;
 fn main() {
-    println!("cargo:rustc-rerun-if-changed=.git/HEAD");
+    println!("cargo:rustc-rerun-if-changed=../.git/HEAD");
     // note: add error checking yourself.
     let output = Command::new("git")
         .args(&["rev-parse", "--short", "HEAD"])

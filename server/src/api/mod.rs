@@ -15,6 +15,7 @@ use strategies::{Strategy, StrategyKey};
 
 use crate::api::ApiError::ExchangeNotFound;
 use crate::graphql_schemas::root::{Context, Schema};
+use crate::settings::Version;
 use actix::Addr;
 use coinnect_rt::pair::pair_confs;
 use strategies::order_manager::OrderManager;
@@ -102,6 +103,10 @@ async fn exchange_conf(q: web::Query<HashMap<String, String>>) -> Result<HttpRes
     Ok(HttpResponse::Ok().json(confs))
 }
 
+async fn version(version: web::Data<Option<Version>>) -> Result<HttpResponse, Error> {
+    Ok(HttpResponse::Ok().json(version))
+}
+
 pub fn config_app(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::resource("/")
@@ -109,6 +114,7 @@ pub fn config_app(cfg: &mut web::ServiceConfig) {
             .route(web::get().to(graphql)),
     );
     cfg.service(web::resource("/exchange_conf").route(web::get().to(exchange_conf)));
+    cfg.service(web::resource("/version").route(web::get().to(version)));
     cfg.service(web::resource("/playground").route(web::get().to(playground_handler)));
     cfg.service(web::resource("/graphiql").route(web::get().to(graphiql_handler)));
     #[cfg(feature = "flame_it")]
