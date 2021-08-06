@@ -35,6 +35,6 @@
       args:
         chdir: /root/
     - name: restart trader
-      shell: systemctl stop trader_dry && cp trader_dry.staged trader && systemctl start trader_dry
+      shell: systemctl restart trader_dry
       args:
         chdir: /root/
