@@ -117,8 +117,11 @@ flamegraph:
 	inferno-flamegraph stacks.folded > flamegraph.svg
 	firefox flamegraph.svg
 
-### LINT
+.PHONY: filt
+filt:
+	rustfilt -i perf.data -o perf_de.data
 
+### LINT
 .PHONY: lint
 lint:
 	@$(CARGO_BIN) clippy --all-targets --all-features -Z unstable-options -- -Dclippy::all -Dunused_imports
