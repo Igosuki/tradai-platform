@@ -7,8 +7,6 @@ exchanges:
 balance_reporter:
   refresh_rate: 10s
 
-data_dir: './data'
-
 keys: ./config/keys_real_test.json
 
 db_storage_path: './database'

@@ -24,8 +24,6 @@ outputs:
     password: T0pS3cr3t
     host: localhost:4222
 
-data_dir: './data'
-
 keys: ./config/keys_real_test.json
 
 db_storage_path: './database'

@@ -12,8 +12,6 @@ outputs:
     basedir: './data'
     partitions_grace_period: 1s
 
-data_dir: './data'
-
 keys: ./config/keys_real_test.json
 
 db_storage_path: './database'
