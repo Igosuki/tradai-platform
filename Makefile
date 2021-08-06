@@ -151,3 +151,9 @@ docker-down:
 
 deploy_trader:
 	./infra/prod/deploy_trader.sh
+
+deploy_feeder24:
+	./infra/prod/deploy_feeder24.sh
+
+deploy_feeder:
+	./infra/prod/deploy_feeder.sh
