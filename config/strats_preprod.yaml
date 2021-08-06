@@ -1,16 +1,11 @@
 exchanges:
-  #  Bitstamp:
-  #    orderbook:
-  #      symbols: ['BTC_USD']
-  #      trades:
-  #        symbols: ['BTC_USD']
   binance:
     fees: 0.001
     use_account: true
-    use_test: false
+    use_test: true
     orderbook_depth: 5
     orderbook:
-      symbols: ['BTC_USDT', 'LTC_USDT', 'ETC_USDT']
+      symbols: ['BTC_USDT']
 
 balance_reporter:
   refresh_rate: 10s
@@ -40,7 +35,7 @@ strategies:
     exchange: Binance
     order_mode: limit
 
-keys: ./config/keys_real_preprod.json
+keys: ./config/keys_real_test.json
 
 db_storage_path: './database'
 
