@@ -37,7 +37,16 @@ extern crate trader;
 //                 .unwrap());
 //}
 
-#[actix::main]
 #[cfg_attr(feature = "flame_it", flame)]
 #[allow(unused_braces)]
-async fn main() -> anyhow::Result<()> { trader::runner::with_config(trader::system::start).await }
+fn main() -> anyhow::Result<()> {
+    actix::System::with_tokio_rt(move || {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Default Tokio runtime could not be created.")
+    })
+    .block_on(run_main())
+}
+
+async fn run_main() -> anyhow::Result<()> { trader::runner::with_config(trader::system::start).await }
