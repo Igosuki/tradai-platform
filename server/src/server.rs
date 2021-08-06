@@ -11,10 +11,11 @@ use strategies::order_manager::OrderManager;
 use strategies::{Strategy, StrategyKey};
 
 use crate::graphql_schemas::root::create_schema;
-use crate::settings::{ApiSettings, CorsMode};
+use crate::settings::{ApiSettings, CorsMode, Version};
 
 pub async fn httpserver(
     settings: &ApiSettings,
+    version: Option<Version>,
     apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
     strategies: Arc<HashMap<StrategyKey, Strategy>>,
     order_managers: Arc<HashMap<Exchange, Addr<OrderManager>>>,
@@ -41,6 +42,7 @@ pub async fn httpserver(
             .app_data(Data::new(apis.clone()))
             .app_data(Data::new(strategies.clone()))
             .app_data(Data::new(order_managers.clone()))
+            .app_data(Data::new(version.clone()))
             .configure(crate::api::config_app)
     };
     debug!("Starting api server on {} ...", port);

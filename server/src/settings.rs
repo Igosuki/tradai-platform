@@ -3,12 +3,12 @@ use std::collections::{HashMap, HashSet};
 use byte_unit::Byte;
 use chrono::Duration;
 use config::{Config, ConfigError, Environment, File};
+use itertools::Itertools;
 use serde::de;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::types::Pair;
-use itertools::Itertools;
 use metrics::prom::PrometheusOptions;
 use portfolio::balance::BalanceReporterOptions;
 use strategies::StrategySettings;
@@ -127,6 +127,12 @@ pub enum StreamSettings {
 
 fn default_as_false() -> bool { false }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Version {
+    pub version: String,
+    pub sha: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Settings {
     pub __config_file: String,
@@ -149,6 +155,7 @@ pub struct Settings {
     #[serde(default)]
     pub telemetry: OpenTelemetrySettings,
     pub balance_reporter: Option<BalanceReporterOptions>,
+    pub version: Option<Version>,
 }
 
 impl Settings {
