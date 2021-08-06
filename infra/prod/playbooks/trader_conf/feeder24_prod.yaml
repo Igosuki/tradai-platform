@@ -11,6 +11,8 @@ exchanges:
     orderbook_depth: 5
     orderbook:
       symbols: ['.*_USDT']
+    trades:
+      symbols: ['.*_USDT']
 
 streams:
   - type: ExchangeBots
