@@ -1,0 +1,28 @@
+[Unit]
+Description=Bitcoin Trader (dry conf)
+After=network-online.target
+
+[Service]
+Type=simple
+
+User=root
+Group=root
+UMask=007
+
+ExecStart=/root/trader -c $TRADER_CONF
+
+WatchdogSec=172800
+Restart=always
+
+WorkingDirectory=/root
+
+Environment=SSL_CERT_DIR=/etc/ssl/certs/
+Environment=TRADER_CONF=/root/config/prod_dry.yaml
+Environment=RUST_BACKTRACE=1
+Environment=RUST_LOG=info
+
+# Configures the time to wait before service is stopped forcefully.
+TimeoutStopSec=300
+
+[Install]
+WantedBy=multi-user.target

@@ -17,6 +17,13 @@
         owner: root
         group: root
         mode: '+x'
+    - name: Trader dry conf
+      copy:
+        src: ./trader_conf/prod_dry.yaml
+        dest: /root/config/prod_dry.yaml
+        owner: root
+        group: root
+        mode: '+x'
   tasks:
     - name: backup trader
       shell: cp trader "trader.bak.$(date +%F)"
@@ -25,5 +32,9 @@
       ignore_errors: yes
     - name: restart trader
       shell: systemctl stop trader && cp trader.staged trader && systemctl start trader
+      args:
+        chdir: /root/
+    - name: restart trader
+      shell: systemctl stop trader_dry && cp trader_dry.staged trader && systemctl start trader_dry
       args:
         chdir: /root/
