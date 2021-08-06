@@ -3,6 +3,7 @@
 #![feature(async_closure)]
 #![feature(result_cloned)]
 #![feature(map_try_insert)]
+#![cfg_attr(feature = "flame_it", feature(proc_macro_hygiene))]
 
 extern crate actix;
 extern crate actix_derive;
