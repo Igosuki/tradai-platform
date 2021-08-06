@@ -51,4 +51,4 @@ prometheus:
   instance: trader
 
 api:
-  port: 8191
+  port: 0
