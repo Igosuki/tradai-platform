@@ -40,8 +40,6 @@ strategies:
     exchange: Binance
     order_mode: limit
 
-data_dir: './data'
-
 keys: ./config/keys_real_preprod.json
 
 db_storage_path: './database'

@@ -1,46 +1,39 @@
 exchanges:
-  #  Bitstamp:
-  #    orderbook:
-  #      symbols: ['BTC_USD']
-  #      trades:
-  #        symbols: ['BTC_USD']
   binance:
     fees: 0.001
     use_account: true
-    use_test: true
+    use_test: false
     orderbook_depth: 5
     orderbook:
-      symbols: ['BTC_USDT']
-
-balance_reporter:
-  refresh_rate: 10s
+      symbols: ['.*_USDT']
 
 streams:
   - type: ExchangeBots
-  - type: AccountBots
 
 outputs:
   - type: Strategies
 
-strategies:
-  - type: mean_reverting
-    pair: 'BTC_USDT'
-    short_window_size: 100
-    long_window_size: 1000
-    dry_mode: false
-    sample_freq: 1min
-    initial_cap: 100.0
-    threshold_short: 0.02
-    threshold_long: -0.02
-    threshold_eval_freq: 1
-    dynamic_threshold: true
-    threshold_window_size: 100
-    stop_loss: -0.1
-    stop_gain: 0.075
-    exchange: Binance
-    order_mode: limit
+strategies: []
 
-data_dir: './data'
+strategies_copy:
+  - type: mean_reverting
+    pairs: [ '.*_USDT' ]
+    base:
+      pair: ''
+      short_window_size: 100
+      long_window_size: 1000
+      dry_mode: true
+      sample_freq: 1min
+      initial_cap: 100.0
+      threshold_short: 0.02
+      threshold_long: -0.02
+      threshold_eval_freq: 1
+      dynamic_threshold: true
+      threshold_window_size: 1000
+      stop_loss: -0.1
+      stop_gain: 0.075
+      exchange: Binance
+      order_mode: limit
 
 keys: ./config/keys_real_test.json
 
