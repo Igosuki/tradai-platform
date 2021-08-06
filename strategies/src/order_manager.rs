@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, Running, WrapFuture};
+use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, WrapFuture};
 use actix_derive::{Message, MessageResponse};
 use async_std::sync::RwLock;
 use futures::FutureExt;
@@ -233,7 +233,7 @@ impl Actor for OrderManager {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        info!("Starting Order Manager");
+        info!(xchg = ?self.xchg, "starting order manager");
         let refresh_orders = async {}
             .into_actor(self)
             .then(|_, acty: &mut OrderManager, _ctx| {
@@ -247,7 +247,7 @@ impl Actor for OrderManager {
                     }
                     let orders_read_lock = act.orders.read().await;
                     // Fetch all latest orders
-                    info!("Fetching remote orders for all unfilled transactions on {}", act.xchg);
+                    info!(xchg = ?act.xchg, "fetching remote orders for all unfilled transactions");
                     let non_filled_order_futs =
                         futures::future::join_all(orders_read_lock.iter().filter(|(_k, v)| v.is_incomplete()).map(
                             |(tr_id, tr_status)| {
@@ -281,12 +281,8 @@ impl Actor for OrderManager {
         ctx.spawn(Box::pin(refresh_orders));
     }
 
-    fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
-        info!("Stopping Order Manager");
-        Running::Stop
-    }
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("Order Manager actor stopped...");
+        info!("order manager actor stopped...");
     }
 }
 

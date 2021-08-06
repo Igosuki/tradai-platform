@@ -54,7 +54,6 @@ log = "0.4"
 math = { path = "../math" }
 
 # Macros
-measure_time = "0.7"
 opentelemetry = { version = "0.15", default-features = false, features = ["trace"] }
 opentelemetry-jaeger = "0.14"
 ordered-float = "2.1"
@@ -76,12 +75,7 @@ tokio = { version = "1.5", features = ["full"] }
 
 # Tracing
 tracing = "0.1"
-tracing-flame = "0.1"
 tracing-futures = "0.2"
-tracing-log = { version = "0.1", features = ["env_logger"] }
-tracing-opentelemetry = "0.14"
-tracing-subscriber = { version = "0.2", features = ["tracing-log", "env-filter"] }
-tracing-timing = "0.5"
 util = { path = "../util" }
 uuid = { version = "0.8", features = ["v4"] }
 

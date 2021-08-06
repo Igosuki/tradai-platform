@@ -1,8 +1,10 @@
-use actix::{Actor, Context, Handler, Message, Recipient, Running};
-use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
+use std::sync::Arc;
+
+use actix::{Actor, Context, Handler, Message, Recipient};
 use nats::Connection;
 use serde::de::DeserializeOwned;
-use std::sync::Arc;
+
+use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
 use strategies::Channel;
 
 type Result<T> = anyhow::Result<T>;
@@ -105,16 +107,13 @@ impl Actor for NatsConsumer {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        info!("NatsConsumer : started");
+        info!("nats consumer started");
     }
-    fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
-        info!("NatsConsumer : stopping");
-        Running::Stop
-    }
+
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("NatsConsumer stopped, closing...");
+        info!("nats consumer stopped, closing...");
         if let Err(e) = self.nats_conn.drain() {
-            error!("Couldn't close NatsConsumer connection {}", e);
+            error!("couldn't close nats consumer connection {}", e);
         }
     }
 }

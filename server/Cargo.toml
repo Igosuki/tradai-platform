@@ -83,6 +83,7 @@ libc = "0.2"
 
 # Logging
 log = "0.4"
+tracing = "0.1"
 
 # Nats
 nats = "0.10"
@@ -112,10 +113,11 @@ native-tls = "0.2"
 # Error
 thiserror = "1.0"
 tokio = { version = "1.5", features = ["full", "time"] }
-tokio-stream = "0.1.5"
+tokio-stream = "0.1"
 url = "2.2"
 
 uuid = { version = "0.8", features = ["v4"] }
+measure_time = "0.7"
 
 [dev-dependencies]
 pretty_assertions = "0.7"

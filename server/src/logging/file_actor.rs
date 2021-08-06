@@ -2,10 +2,11 @@ use std::cell::{RefCell, RefMut};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use actix::{Actor, Running, SyncContext};
+use actix::{Actor, SyncContext};
 use avro_rs::encode;
 use avro_rs::{types::Value, Codec, Schema, Writer};
 use chrono::Duration;
@@ -18,7 +19,6 @@ use uuid::Uuid;
 
 use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
 use crate::logging::{Partition, Partitioner};
-use std::io::Write;
 
 type RotatingWriter = Writer<'static, RotatingFile<SizeAndExpirationPolicy>>;
 
@@ -140,18 +140,15 @@ where
     type Context = SyncContext<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        info!("AvroFileActor : started");
+        info!("avro file logger started");
     }
-    fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
-        info!("AvroFileActor : stopping");
-        Running::Stop
-    }
+
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("AvroFileActor stopped, flushing writers...");
+        info!("avro file logger stopped, flushing writers...");
         let writers = &self.writers.borrow_mut();
         for (_k, v) in writers.iter() {
             v.borrow_mut().flush().unwrap_or_else(|_| {
-                trace!("Error flushing writer");
+                trace!("error flushing writer");
                 0
             });
         }

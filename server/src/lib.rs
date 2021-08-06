@@ -6,6 +6,8 @@
 
 extern crate actix;
 extern crate actix_derive;
+#[macro_use]
+extern crate anyhow;
 extern crate byte_unit;
 extern crate clap;
 extern crate coinnect_rt;
@@ -16,14 +18,14 @@ extern crate flame;
 #[macro_use]
 extern crate flamer;
 #[macro_use]
-extern crate log;
+extern crate juniper;
+#[macro_use]
+extern crate measure_time;
+#[macro_use]
+extern crate tracing;
 extern crate prometheus;
 extern crate rand;
 extern crate uuid;
-#[macro_use]
-extern crate juniper;
-#[macro_use]
-extern crate anyhow;
 
 pub mod api;
 pub mod graphql_schemas;

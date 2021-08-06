@@ -10,34 +10,38 @@
 #![feature(fn_traits)]
 #![feature(result_cloned)]
 
-extern crate log;
 #[macro_use]
 extern crate anyhow;
 #[macro_use]
 extern crate async_trait;
 #[macro_use]
-extern crate serde;
-#[macro_use]
 extern crate derivative;
-#[macro_use]
-extern crate measure_time;
-#[macro_use]
-extern crate prometheus;
-
 #[cfg(test)]
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate log;
+#[macro_use]
+extern crate prometheus;
+#[macro_use]
+extern crate serde;
+#[macro_use]
+extern crate tracing;
 
-use actix::{Actor, Addr, Context, Handler, ResponseActFuture, Running, WrapFuture};
+use std::str::FromStr;
+
+use actix::{Actor, Addr, Context, Handler, ResponseActFuture, WrapFuture};
 use async_std::sync::Arc;
 use async_std::sync::RwLock;
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::{LiveEventEnveloppe, Pair};
 use derive_more::Display;
 use serde::Deserialize;
-use std::str::FromStr;
 use strum_macros::EnumString;
 use uuid::Uuid;
+
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::pair::filter_pairs;
+use coinnect_rt::types::{LiveEventEnveloppe, Pair};
+use error::*;
 
 use crate::mean_reverting::options::Options as MeanRevertingStrategyOptions;
 use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
@@ -58,9 +62,7 @@ pub mod types;
 mod util;
 mod wal;
 
-use error::*;
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Channel {
     Orders { xch: Exchange, pair: Pair },
     Trades { xch: Exchange, pair: Pair },
@@ -98,13 +100,12 @@ pub struct Strategy(pub StrategyKey, pub Addr<StrategyActor>, pub Vec<Channel>);
 
 impl Strategy {
     pub fn new(db_path: Arc<String>, fees: f64, settings: StrategySettings, om: Option<Addr<OrderManager>>) -> Self {
+        let uuid = Uuid::new_v4();
         let strategy = from_settings(db_path.as_ref(), fees, &settings, om);
+        info!(uuid = %uuid, channels = ?strategy.channels(), "starting strategy");
         let channels = strategy.channels();
-        Self(
-            settings.key(),
-            { StrategyActor::start(StrategyActor::new(StrategyActorOptions { strategy })) },
-            channels,
-        )
+        let actor = StrategyActor::new_with_uuid(StrategyActorOptions { strategy }, uuid);
+        Self(settings.key(), StrategyActor::start(actor), channels)
     }
 }
 
@@ -132,12 +133,42 @@ impl StrategySettings {
     }
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
+pub enum StrategyCopySettings {
+    MeanReverting {
+        pairs: Vec<String>,
+        base: MeanRevertingStrategyOptions,
+    },
+}
+
+impl StrategyCopySettings {
+    pub fn exchange(&self) -> Exchange {
+        match self {
+            Self::MeanReverting { base, .. } => base.exchange,
+        }
+    }
+
+    pub fn all(&self) -> Result<Vec<StrategySettings>> {
+        match self {
+            StrategyCopySettings::MeanReverting { pairs, base } => {
+                let pairs = filter_pairs(&self.exchange(), pairs)?;
+                Ok(pairs
+                    .into_iter()
+                    .map(|pair| StrategySettings::MeanReverting(MeanRevertingStrategyOptions { pair, ..base.clone() }))
+                    .collect())
+            }
+        }
+    }
+}
+
 pub struct StrategyActorOptions {
     pub strategy: Box<dyn StrategyInterface>,
 }
 
 pub struct StrategyActor {
-    _session_uuid: Uuid,
+    session_uuid: Uuid,
     inner: Arc<RwLock<Box<dyn StrategyInterface>>>,
 }
 
@@ -146,7 +177,14 @@ unsafe impl Send for StrategyActor {}
 impl StrategyActor {
     pub fn new(options: StrategyActorOptions) -> Self {
         Self {
-            _session_uuid: Uuid::new_v4(),
+            session_uuid: Uuid::new_v4(),
+            inner: Arc::new(RwLock::new(options.strategy)),
+        }
+    }
+
+    pub fn new_with_uuid(options: StrategyActorOptions, session_uuid: Uuid) -> Self {
+        Self {
+            session_uuid,
             inner: Arc::new(RwLock::new(options.strategy)),
         }
     }
@@ -156,14 +194,11 @@ impl Actor for StrategyActor {
     type Context = Context<Self>;
 
     fn started(&mut self, _: &mut Self::Context) {
-        info!("Strategy actor starting");
+        info!(uuid = %self.session_uuid, "strategy started");
     }
-    fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
-        info!("Strategy actor stopping");
-        Running::Stop
-    }
+
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("Strategy actor stopped, flushing strats...");
+        info!(uuid = %self.session_uuid, "strategy stopped, flushing...");
     }
 }
 
@@ -266,10 +301,10 @@ mod test {
     use actix::System;
 
     use coinnect_rt::exchange::Exchange;
+    use coinnect_rt::exchange::Exchange::Binance;
     use coinnect_rt::types::{LiveEvent, Orderbook};
 
     use super::*;
-    use coinnect_rt::exchange::Exchange::Binance;
 
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
