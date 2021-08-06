@@ -21,6 +21,8 @@ struct CliOptions {
     config: String,
     #[structopt(short, long)]
     telemetry: bool,
+    #[structopt(short, long)]
+    version: bool,
 }
 
 pub async fn with_config<F, T>(system_fn: F) -> anyhow::Result<()>
@@ -32,6 +34,12 @@ where
     HEAP_PROFILER.lock().unwrap().start("./trader.hprof").unwrap();
 
     let opts: CliOptions = CliOptions::from_args();
+    if opts.version {
+        println!("Build Version: {}", env!("CARGO_PKG_VERSION"));
+        println!("Commit Hash: {}", env!("GIT_HASH"));
+        process::exit(0x0100);
+    }
+
     let settings = Arc::new(RwLock::new(
         settings::Settings::new(opts.config).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?,
     ));
@@ -43,13 +51,12 @@ where
         .watch(&settings.read().unwrap().__config_file, RecursiveMode::NonRecursive)
         .unwrap();
 
-    let settings_arc = Arc::clone(&settings);
     if opts.check_conf {
-        settings_arc.clone().read().unwrap().sanitize();
+        settings.read().unwrap().sanitize();
         process::exit(0x0100);
     }
     if opts.telemetry {
-        let endpoints = settings_arc.read().unwrap();
+        let endpoints = settings.read().unwrap();
         let telemetry = &endpoints.telemetry;
         util::tracing::setup_opentelemetry(
             telemetry.agents.clone(),
@@ -60,13 +67,13 @@ where
         env_logger::init();
     }
 
-    let settings_guard = settings_arc.read().unwrap();
+    let settings_guard = settings.read().unwrap();
     if settings_guard.profile_main {
         #[cfg(feature = "flame_it")]
         flame::start("main bot");
     }
 
-    if let Err(e) = system_fn(settings_arc.clone()).await {
+    if let Err(e) = system_fn(settings.clone()).await {
         error!("Trader system exited in error: {:?}", e);
     }
     if settings_guard.profile_main {
