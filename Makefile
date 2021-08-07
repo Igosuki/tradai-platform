@@ -39,6 +39,9 @@ current_dir := $(notdir $(patsubst %/,%,$(dir $(mkfile_path))))
 
 ### CI
 
+.PHONY: install-cargo-tools
+install-cargo-tools: @$(CARGO_BIN) install cargo-flamegraph cargo-llvm-lines cargo-bloat
+
 .PHONY: install-hooks
 install-hooks: $(HOOKS)
 
