@@ -5,7 +5,7 @@ exchanges:
     use_test: false
     orderbook_depth: 5
     orderbook:
-      symbols: ['^/(?!LTC|BTC|ETC).*_USDT/$']
+      symbols: ['(?!LTC|BTC|ETC).*_USDT']
 
 streams:
   - type: ExchangeBots
@@ -17,7 +17,7 @@ strategies: []
 
 strategies_copy:
   - type: mean_reverting
-    pairs: ['^/(?!LTC|BTC|ETC).*_USDT/$']
+    pairs: ['(?!LTC|BTC|ETC).*_USDT']
     base:
       pair: ''
       short_window_size: 100

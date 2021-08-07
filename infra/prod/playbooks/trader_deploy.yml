@@ -31,10 +31,6 @@
         chdir: /root/
       ignore_errors: yes
     - name: restart trader
-      shell: systemctl stop trader && cp trader.staged trader && systemctl start trader
-      args:
-        chdir: /root/
-    - name: restart trader
-      shell: systemctl restart trader_dry
+      shell: systemctl stop trader && systemctl stop trader_dry && cp trader.staged trader && systemctl start trader && systemctl start trader_dry
       args:
         chdir: /root/
