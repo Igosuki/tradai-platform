@@ -203,15 +203,16 @@ mod test {
     use fs_extra::dir::get_dir_content;
 
     use coinnect_rt::exchange::Exchange;
-    use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe, Orderbook};
+    use coinnect_rt::types::{LiveEvent, LiveEventEnvelope, Orderbook};
 
     use crate::logging::live_event::LiveEventPartitioner;
 
     use super::*;
+    use std::sync::Arc;
 
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
-    fn actor(base_dir: &str) -> AvroFileActor<LiveEventEnveloppe> {
+    fn actor(base_dir: &str) -> AvroFileActor<LiveEventEnvelope> {
         AvroFileActor::new(&FileActorOptions {
             max_file_size: 100_000,
             max_file_time: Duration::seconds(1),
@@ -229,7 +230,7 @@ mod test {
         let new_dir = dir_str;
         System::new().block_on(async move {
             let addr = SyncArbiter::start(1, move || actor(new_dir.clone().as_str()));
-            let order_book_event = LiveEventEnveloppe {
+            let order_book_event = Arc::new(LiveEventEnvelope {
                 xch: Exchange::Binance,
                 e: LiveEvent::LiveOrderbook(Orderbook {
                     timestamp: chrono::Utc::now().timestamp(),
@@ -238,7 +239,7 @@ mod test {
                     bids: vec![(0.1, 0.1), (0.2, 0.2)],
                     last_order_id: None,
                 }),
-            };
+            });
             println!("Sending...");
             for _ in 0..100000 {
                 addr.do_send(order_book_event.clone());

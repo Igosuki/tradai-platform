@@ -4,7 +4,7 @@ use actix::{Actor, Context, Handler, Message, Recipient};
 use nats::Connection;
 use serde::de::DeserializeOwned;
 
-use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
+use coinnect_rt::types::{LiveEvent, LiveEventEnvelope};
 use strategies::Channel;
 
 type Result<T> = anyhow::Result<T>;
@@ -24,7 +24,7 @@ pub trait Subject {
     fn from_channel(channel: &Channel) -> String;
 }
 
-impl Subject for LiveEventEnveloppe {
+impl Subject for LiveEventEnvelope {
     fn subject(&self) -> String {
         format!("live_event.{}.{}", self.xch.to_string(), match &self.e {
             LiveEvent::LiveOrder(lo) => format!("{}.orders", lo.pair),
@@ -62,10 +62,10 @@ impl Actor for NatsProducer {
     type Context = Context<Self>;
 }
 
-impl Handler<LiveEventEnveloppe> for NatsProducer {
-    type Result = <LiveEventEnveloppe as Message>::Result;
+impl Handler<Arc<LiveEventEnvelope>> for NatsProducer {
+    type Result = <LiveEventEnvelope as Message>::Result;
 
-    fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: Arc<LiveEventEnvelope>, _ctx: &mut Self::Context) -> Self::Result {
         let string = serde_json::to_string(&msg).unwrap();
         self.nats_conn.publish(&msg.subject(), string)?;
         Ok(())

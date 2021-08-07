@@ -204,6 +204,20 @@ impl TryFrom<Orderbook> for BookPosition {
     }
 }
 
+impl<'a> TryFrom<&'a Orderbook> for BookPosition {
+    type Error = DataTableError;
+
+    fn try_from(t: &'a Orderbook) -> Result<Self, Self::Error> {
+        if t.asks.is_empty() {
+            return Err(DataTableError::MissingAsks);
+        }
+        if t.bids.is_empty() {
+            return Err(DataTableError::MissingBids);
+        }
+        Ok(BookPosition::new(&t.asks, &t.bids))
+    }
+}
+
 #[cfg(test)]
 mod test {
     use quickcheck::{Arbitrary, Gen};

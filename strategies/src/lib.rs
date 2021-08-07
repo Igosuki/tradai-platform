@@ -40,7 +40,7 @@ use uuid::Uuid;
 
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::pair::filter_pairs;
-use coinnect_rt::types::{LiveEventEnveloppe, Pair};
+use coinnect_rt::types::{LiveEventEnvelope, Pair};
 use error::*;
 
 use crate::mean_reverting::options::Options as MeanRevertingStrategyOptions;
@@ -203,17 +203,18 @@ impl Actor for StrategyActor {
 }
 
 type StratActorResponseFuture<T> = ResponseActFuture<StrategyActor, T>;
-impl Handler<LiveEventEnveloppe> for StrategyActor {
+
+impl Handler<Arc<LiveEventEnvelope>> for StrategyActor {
     type Result = StratActorResponseFuture<anyhow::Result<()>>;
 
     #[cfg_attr(feature = "flame_it", flame)]
-    fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: Arc<LiveEventEnvelope>, _ctx: &mut Self::Context) -> Self::Result {
         let lock = self.inner.clone();
         Box::pin(
             async move {
                 let arc = lock.clone();
                 let mut act = arc.write().await;
-                act.add_event(msg).await.map_err(|e| anyhow!(e))
+                act.add_event(msg.as_ref()).await.map_err(|e| anyhow!(e))
             }
             .into_actor(self),
         )
@@ -255,7 +256,7 @@ impl Handler<FieldMutation> for StrategyActor {
 // TODO: strategies should define when to stop trading
 #[async_trait]
 pub trait StrategyInterface {
-    async fn add_event(&mut self, le: LiveEventEnveloppe) -> Result<()>;
+    async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()>;
 
     fn data(&mut self, q: DataQuery) -> Option<DataResult>;
 
@@ -316,7 +317,7 @@ mod test {
 
     #[async_trait]
     impl StrategyInterface for DummyStrat {
-        async fn add_event(&mut self, _: LiveEventEnveloppe) -> Result<()> { Ok(()) }
+        async fn add_event(&mut self, _: &LiveEventEnvelope) -> Result<()> { Ok(()) }
 
         fn data(&mut self, _q: DataQuery) -> Option<DataResult> { unimplemented!() }
 
@@ -336,7 +337,7 @@ mod test {
         init();
         System::new().block_on(async move {
             let addr = StrategyActor::start(actor(Box::new(DummyStrat)));
-            let order_book_event = LiveEventEnveloppe {
+            let order_book_event = Arc::new(LiveEventEnvelope {
                 xch: Exchange::Binance,
                 e: LiveEvent::LiveOrderbook(Orderbook {
                     timestamp: chrono::Utc::now().timestamp(),
@@ -345,7 +346,7 @@ mod test {
                     bids: vec![(0.1, 0.1), (0.2, 0.2)],
                     last_order_id: None,
                 }),
-            };
+            });
             println!("Sending...");
             for _ in 0..1000 {
                 addr.do_send(order_book_event.clone());

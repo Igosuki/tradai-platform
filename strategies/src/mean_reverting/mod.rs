@@ -9,7 +9,7 @@ use itertools::Itertools;
 use ordered_float::OrderedFloat;
 
 use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe, Pair};
+use coinnect_rt::types::{LiveEvent, LiveEventEnvelope, Pair};
 use db::{get_or_create, Storage};
 use ext::ResultExt;
 use math::iter::QuantileExt;
@@ -297,7 +297,7 @@ impl MeanRevertingStrategy {
         self.metrics.log_row(row);
     }
 
-    pub(crate) fn handles(&self, e: &LiveEventEnveloppe) -> bool {
+    pub(crate) fn handles(&self, e: &LiveEventEnvelope) -> bool {
         self.exchange == e.xch
             && match &e.e {
                 LiveEvent::LiveOrderbook(ob) => ob.pair == self.pair,
@@ -316,11 +316,11 @@ impl MeanRevertingStrategy {
 
 #[async_trait]
 impl StrategyInterface for MeanRevertingStrategy {
-    async fn add_event(&mut self, le: LiveEventEnveloppe) -> Result<()> {
-        if !self.handles(&le) {
+    async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()> {
+        if !self.handles(le) {
             return Ok(());
         }
-        if let LiveEvent::LiveOrderbook(ob) = le.e {
+        if let LiveEvent::LiveOrderbook(ob) = &le.e {
             let book_pos = ob.try_into().ok();
             if let Some(pos) = book_pos {
                 let now = Utc::now();
