@@ -8,13 +8,13 @@ use actix::Recipient;
 use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::exchange_bot::{ExchangeBot, Ping};
-use coinnect_rt::types::{AccountEventEnveloppe, LiveEventEnveloppe};
+use coinnect_rt::types::{AccountEventEnveloppe, LiveEventEnvelope};
 use tracing::Instrument;
 
 pub async fn exchange_bots(
     exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
     keys_path: PathBuf,
-    recipients: Vec<Recipient<LiveEventEnveloppe>>,
+    recipients: Vec<Recipient<Arc<LiveEventEnvelope>>>,
 ) -> anyhow::Result<HashMap<Exchange, Box<dyn ExchangeBot>>> {
     let mut bots: HashMap<Exchange, Box<dyn ExchangeBot>> = HashMap::new();
     for (xch, conf) in exchanges_settings.clone().iter() {

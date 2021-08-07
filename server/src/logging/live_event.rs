@@ -4,13 +4,14 @@ use chrono::{Duration, TimeZone, Utc};
 use log::Level::*;
 use std::path::PathBuf;
 
-use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
+use coinnect_rt::types::{LiveEvent, LiveEventEnvelope};
 use models::avro_gen::{self,
                        models::{LiveTrade as LT, Orderbook as OB}};
 
 use super::file_actor::{append_log, AvroFileActor, Error, ToAvroSchema};
 use super::{Partition, Partitioner};
 use std::ops::Add;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct LiveEventPartitioner {
@@ -21,12 +22,12 @@ impl LiveEventPartitioner {
     pub fn new(grace_period: Duration) -> Self { Self { grace_period } }
 }
 
-impl Partitioner<LiveEventEnveloppe> for LiveEventPartitioner {
+impl Partitioner<LiveEventEnvelope> for LiveEventPartitioner {
     /// Create a partition for this event
     /// each partition has a key and value formatted like hdfs does
     /// /k1=v1/k2=v2/...
     /// Dates are formatted using strftime/Ymd
-    fn partition(&self, data: &LiveEventEnveloppe) -> Option<Partition> {
+    fn partition(&self, data: &LiveEventEnvelope) -> Option<Partition> {
         let exchange = format!("{:?}", data.xch);
         match &data.e {
             LiveEvent::LiveOrderbook(ob) => Some((ob.timestamp, "order_books", ob.pair.clone())),
@@ -52,7 +53,7 @@ impl Partitioner<LiveEventEnveloppe> for LiveEventPartitioner {
     }
 }
 
-impl ToAvroSchema for LiveEventEnveloppe {
+impl ToAvroSchema for LiveEventEnvelope {
     fn schema(&self) -> Option<&'static Schema> {
         match &self.e {
             LiveEvent::LiveTrade(_) => Some(&*avro_gen::models::LIVETRADE_SCHEMA),
@@ -63,10 +64,10 @@ impl ToAvroSchema for LiveEventEnveloppe {
     }
 }
 
-impl Handler<LiveEventEnveloppe> for AvroFileActor<LiveEventEnveloppe> {
+impl Handler<Arc<LiveEventEnvelope>> for AvroFileActor<LiveEventEnvelope> {
     type Result = anyhow::Result<()>;
 
-    fn handle(&mut self, msg: LiveEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: Arc<LiveEventEnvelope>, _ctx: &mut Self::Context) -> Self::Result {
         let rc = self.writer_for(&msg);
         if let Err(rc_err) = rc {
             if log_enabled!(Debug) {
@@ -76,7 +77,7 @@ impl Handler<LiveEventEnveloppe> for AvroFileActor<LiveEventEnveloppe> {
         }
         let rc_ok = rc.unwrap();
         let mut writer = rc_ok.borrow_mut();
-        let appended = match msg.e {
+        let appended = match &msg.e {
             LiveEvent::LiveTrade(lt) => {
                 let lt = LT {
                     pair: lt.pair.to_string(),

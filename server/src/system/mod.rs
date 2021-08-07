@@ -3,16 +3,20 @@ use std::fs;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use actix::{Actor, Addr, Recipient, SyncArbiter};
-use futures::{future::select_all, select, FutureExt};
+use futures::future::select_all;
+//use tokio::signal::unix::{signal, SignalKind};
+use tracing::Instrument;
 
 use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::{Exchange, ExchangeApi, ExchangeSettings};
-use coinnect_rt::types::{AccountEventEnveloppe, LiveEventEnveloppe};
+use coinnect_rt::types::{AccountEventEnveloppe, LiveEventEnvelope};
 use metrics::prom::PrometheusPushActor;
+use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use strategies::order_manager::OrderManager;
 use strategies::{self, Strategy, StrategyKey};
 
@@ -21,10 +25,6 @@ use crate::logging::live_event::LiveEventPartitioner;
 use crate::nats::{NatsConsumer, NatsProducer, Subject};
 use crate::server;
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
-use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
-use std::rc::Rc;
-use tokio::signal::unix::{signal, SignalKind};
-use tracing::Instrument;
 
 pub mod bots;
 
@@ -47,8 +47,8 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
         .await?;
 
     let mut termination_handles: Vec<Pin<Box<dyn Future<Output = std::io::Result<()>>>>> = vec![];
-    let mut broadcast_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
-    let mut strat_recipients: Vec<Recipient<LiveEventEnveloppe>> = Vec::new();
+    let mut broadcast_recipients: Vec<Recipient<Arc<LiveEventEnvelope>>> = Vec::new();
+    let mut strat_recipients: Vec<Recipient<Arc<LiveEventEnvelope>>> = Vec::new();
     let mut account_recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>> =
         apis.keys().map(|xch| (*xch, vec![])).collect();
     let mut strategy_actors = vec![];
@@ -130,10 +130,10 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                     let topics = strategy
                         .2
                         .iter()
-                        .map(|c| <LiveEventEnveloppe as Subject>::from_channel(c))
+                        .map(|c| <LiveEventEnvelope as Subject>::from_channel(c))
                         .collect();
                     let consumer = NatsConsumer::start(
-                        NatsConsumer::new::<LiveEventEnveloppe>(
+                        NatsConsumer::new::<Arc<LiveEventEnvelope>>(
                             &nats_settings.host,
                             &nats_settings.username,
                             &nats_settings.username,
@@ -150,7 +150,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                             &nats_settings.host,
                             &nats_settings.username,
                             &nats_settings.username,
-                            vec![<LiveEventEnveloppe as Subject>::glob()],
+                            vec![<LiveEventEnvelope as Subject>::glob()],
                             broadcast_recipients.clone(),
                         )
                         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
@@ -179,10 +179,13 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     termination_handles.push(Box::pin(server));
 
     // Handle interrupts for graceful shutdown
-    let mut terminate = signal(SignalKind::terminate())?;
-    let mut interrupt = signal(SignalKind::interrupt())?;
-    let mut userint = signal(SignalKind::user_defined1())?;
-    select! {
+    // let mut terminate = signal(SignalKind::terminate())?;
+    // let mut interrupt = signal(SignalKind::interrupt())?;
+    // let mut userint = signal(SignalKind::user_defined1())?;
+    let x = select_all(termination_handles).await.0.map_err(|e| anyhow!(e));
+    x
+
+    /*select! {
         r = select_all(termination_handles).fuse() => {
             r.0.map_err(|e| anyhow!(e))
         },
@@ -198,10 +201,10 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
             info!("Caught user int signal");
             Ok(())
         }
-    }
+    }*/
 }
 
-fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<LiveEventEnveloppe>> {
+fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<LiveEventEnvelope>> {
     info!("starting avro file logger");
     SyncArbiter::start(2, move || {
         let dir = Path::new(settings.basedir.as_str());

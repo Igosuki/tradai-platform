@@ -263,7 +263,8 @@ dependencies = [
 [[package]]
 name = "actix-web-actors"
 version = "4.0.0-beta.6"
-source = "git+https://github.com/actix/actix-web?branch=master#293c52c3ef42663d90d4b09acd22869ee6919788"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7db5c2c78a2606e6634abee4973a4924221cfab66e48f23844256e4fb8ce0f42"
 dependencies = [
  "actix",
  "actix-codec",

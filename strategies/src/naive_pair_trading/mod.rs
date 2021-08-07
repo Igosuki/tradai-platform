@@ -23,7 +23,7 @@ use crate::types::{BookPosition, PositionKind};
 use crate::{Channel, DataQuery, DataResult, StrategyInterface, StrategyStatus};
 use actix::Addr;
 use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::{LiveEvent, LiveEventEnveloppe};
+use coinnect_rt::types::{LiveEvent, LiveEventEnvelope};
 use db::{get_or_create, Storage};
 use metrics::NaiveStrategyMetrics;
 use options::Options;
@@ -345,8 +345,8 @@ impl NaiveTradingStrategy {
 
 #[async_trait]
 impl StrategyInterface for NaiveTradingStrategy {
-    async fn add_event(&mut self, le: LiveEventEnveloppe) -> Result<()> {
-        if let LiveEvent::LiveOrderbook(ob) = le.e {
+    async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()> {
+        if let LiveEvent::LiveOrderbook(ob) = &le.e {
             let string = ob.pair.clone();
             if string == self.left_pair {
                 self.last_left = ob.try_into().ok();
