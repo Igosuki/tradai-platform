@@ -211,13 +211,13 @@ impl MeanRevertingStrategy {
 
     #[tracing::instrument(skip(self), level = "debug")]
     async fn eval_latest(&mut self, lr: &SinglePosRow) -> Result<&Option<Operation>> {
-        if self.state.no_position_taken() {
-            self.state.update_units(&lr.pos);
-        }
-
         // If a position is taken, resolve pending operations
         // In case of error return immediately as no trades can be made until the position is resolved
         self.state.resolve_pending_operations(&lr.pos).await?;
+
+        if self.state.no_position_taken() {
+            self.state.update_units(&lr.pos);
+        }
 
         // Possibly open a short position
         if (self.state.apo() > self.state.threshold_short()) && self.state.no_position_taken() {
