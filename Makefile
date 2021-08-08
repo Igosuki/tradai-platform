@@ -153,6 +153,9 @@ docker-up:
 docker-down:
 	docker-compose -f infra/dev/docker-compose.yaml down
 
+docker-logs:
+	docker-compose -f infra/dev/docker-compose.yaml logs -f $(SERVICE)
+
 ### Deploy
 
 deploy_trader:
