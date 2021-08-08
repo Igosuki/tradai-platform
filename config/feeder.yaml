@@ -1,9 +1,4 @@
 exchanges:
-  #  Bitstamp:
-  #    orderbook:
-  #      symbols: ['BTC_USD']
-  #      trades:
-  #        symbols: ['BTC_USD']
   binance:
     use_account: false
     use_test: false
