@@ -258,8 +258,8 @@ impl MeanRevertingState {
     pub(super) fn set_position_return(&mut self, current_price: f64) {
         match self.position {
             Some(PositionKind::Long) => {
-                self.position_return = (self.nominal_position
-                    * (current_price * (1.0 - self.fees_rate) - self.traded_price))
+                self.position_return = self.nominal_position
+                    * (current_price * (1.0 - self.fees_rate) - self.traded_price)
                     / (self.nominal_position * self.traded_price)
             }
             Some(PositionKind::Short) => {

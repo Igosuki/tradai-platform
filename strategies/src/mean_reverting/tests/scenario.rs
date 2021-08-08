@@ -168,7 +168,7 @@ async fn complete_backtest() {
     task::sleep(Duration::from_millis(20)).await;
     let module_path = module_path!().replace("::", "_");
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let test_results_dir = &format!("{}/test_results/{}", manifest_dir, module_path);
+    let test_results_dir = &format!("{}/target/test_results/{}", manifest_dir, module_path);
     std::fs::create_dir_all(test_results_dir).unwrap();
 
     let mut strat = MeanRevertingStrategy::new(
