@@ -32,6 +32,7 @@ pub mod api;
 pub mod graphql_schemas;
 pub mod logging;
 pub mod nats;
+mod notify;
 pub mod runner;
 pub mod server;
 pub mod settings;
