@@ -24,4 +24,6 @@ thiserror = "1.0"
 # core
 util = { path = "../util" }
 
+futures = "0.3"
+
 [dev-dependencies]
