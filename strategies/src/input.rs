@@ -10,7 +10,8 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
-use util::date::DateRange;
+use std::time::Instant;
+use util::date::{DateRange, DurationRangeType};
 use util::serde::date_time_format;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -155,4 +156,29 @@ pub async fn load_csv_dataset(
         }
     }
     crate::input::load_records_from_csv(dr, &base_path, pairs, "*csv")
+}
+
+pub async fn load_csv_records(
+    from: Date<Utc>,
+    to: Date<Utc>,
+    pairs: Vec<&str>,
+    exchange: &str,
+    channel: &str,
+) -> Vec<Vec<CsvRecord>> {
+    let now = Instant::now();
+    let csv_records = load_csv_dataset(
+        &DateRange(from, to, DurationRangeType::Days, 1),
+        pairs.into_iter().map(|s| s.to_string()).collect(),
+        exchange,
+        channel,
+    )
+    .await;
+    let num_records = csv_records[0].len();
+    assert!(num_records > 0, "no csv records could be read");
+    info!(
+        "Loaded {} csv records in {:.6} ms",
+        num_records,
+        now.elapsed().as_millis()
+    );
+    csv_records
 }

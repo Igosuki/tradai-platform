@@ -39,7 +39,6 @@ pub struct NaiveTradingStrategy {
     res_threshold_short: f64,
     stop_loss: f64,
     stop_gain: f64,
-    beta_eval_window_size: i32,
     beta_eval_freq: i32,
     beta_sample_freq: Duration,
     state: MovingState,
@@ -64,14 +63,13 @@ impl NaiveTradingStrategy {
             n.right
         );
         let db = get_or_create(strat_db_path, vec![]);
-        Self {
+        let mut strat = Self {
             exchange: n.exchange,
             fees_rate,
             res_threshold_long: n.threshold_long,
             res_threshold_short: n.threshold_short,
             stop_loss: n.stop_loss,
             stop_gain: n.stop_gain,
-            beta_eval_window_size: n.window_size,
             beta_eval_freq: n.beta_eval_freq,
             state: MovingState::new(n, db.clone(), om),
             data_table: Self::make_lm_table(&n.left, &n.right, db, n.window_size as usize),
@@ -84,8 +82,32 @@ impl NaiveTradingStrategy {
             last_left: None,
             last_right: None,
             beta_sample_freq: n.beta_sample_freq(),
+        };
+        if let Err(e) = strat.load() {
+            error!("{}", e);
+            panic!("Could not loaded models");
+        }
+        strat
+    }
+
+    pub fn load(&mut self) -> crate::error::Result<()> {
+        self.data_table.try_loading_model()?;
+        self.set_model_from_table();
+        self.last_row_time_at_eval = self
+            .data_table
+            .last_model_time()
+            .unwrap_or_else(|| Utc.timestamp_millis(0));
+        debug!("Loaded model time at {}", self.last_row_time_at_eval);
+        if !self.models_loaded() {
+            Err(crate::error::Error::ModelLoadError(
+                "models not loaded for unknown reasons".to_string(),
+            ))
+        } else {
+            Ok(())
         }
     }
+
+    fn models_loaded(&self) -> bool { self.data_table.is_loaded() }
 
     pub fn make_lm_table(
         left_pair: &str,
@@ -209,6 +231,17 @@ impl NaiveTradingStrategy {
     }
 
     async fn eval_latest(&mut self, lr: &DataRow) {
+        // If a position is taken, resolve pending operations
+        // In case of error return immediately as no trades can be made until the position is resolved
+        if self
+            .state
+            .resolve_pending_operations(&lr.left, &lr.right)
+            .await
+            .is_err()
+        {
+            return;
+        }
+
         if self.state.no_position_taken() {
             if self.should_eval(lr.time) {
                 self.eval_linear_model();
@@ -220,17 +253,6 @@ impl NaiveTradingStrategy {
         self.state.set_predicted_right(self.predict(&lr.left));
         self.state
             .set_res((lr.right.mid - self.state.predicted_right()) / lr.right.mid);
-
-        // If a position is taken, resolve pending operations
-        // In case of error return immediately as no trades can be made until the position is resolved
-        if self
-            .state
-            .resolve_pending_operations(&lr.left, &lr.right)
-            .await
-            .is_err()
-        {
-            return;
-        }
 
         if self.state.beta_lr() <= 0.0 {
             return;
@@ -282,7 +304,7 @@ impl NaiveTradingStrategy {
     }
 
     fn can_eval(&self) -> bool {
-        let has_model = self.data_table.has_model();
+        let has_model = self.data_table.has_model() && self.models_loaded();
         let has_position = !self.state.no_position_taken();
         // Check that model is more recent than sample freq * (eval frequency + CUTOFF_RATIO%)
         let is_model_obsolete = self
@@ -295,26 +317,23 @@ impl NaiveTradingStrategy {
                 ))
             })
             .unwrap_or(false);
-        if has_model {
-            println!("has model");
-        }
         has_model && (has_position || is_model_obsolete)
     }
 
+    #[tracing::instrument(skip(self), level = "trace")]
     async fn process_row(&mut self, row: &DataRow) {
-        if self.data_table.try_loading_model().is_ok() {
-            self.set_model_from_table();
-            self.last_row_time_at_eval = self
-                .data_table
-                .last_model_time()
-                .unwrap_or_else(|| Utc.timestamp_millis(0));
-        }
         let time = self.last_sample_time.add(self.beta_sample_freq);
-        let should_sample = row.time.gt(&time) || row.time == time;
+        let should_sample = row.time.ge(&time);
         // A model is available
-        let can_eval = self.can_eval();
+        let mut can_eval = self.can_eval();
         if should_sample {
             self.last_sample_time = row.time;
+        }
+        // No model and there are enough samples
+        if !can_eval && self.data_table.is_filled() {
+            self.eval_linear_model();
+            self.update_spread(row);
+            can_eval = self.can_eval();
         }
         if can_eval {
             self.eval_latest(row).await;
@@ -322,15 +341,13 @@ impl NaiveTradingStrategy {
         }
         self.metrics.log_row(row);
         if should_sample {
+            debug!("Sample at {} ({} rows)", row.time, self.data_table.len());
             self.data_table.push(row);
         }
-
-        // No model and there are enough samples
-        if !can_eval && self.data_table.len() >= self.beta_eval_window_size as usize {
-            self.eval_linear_model();
-            self.update_spread(row);
-        }
     }
+
+    #[cfg(test)]
+    fn model_value(&self) -> Option<LinearModelValue> { self.data_table.model().map(|m| m.value) }
 
     fn log_state(&self) { self.metrics.log_state(&self.state); }
 

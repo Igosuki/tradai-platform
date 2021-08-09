@@ -51,31 +51,40 @@ impl Operation {
         }
     }
 
-    fn log(&self) {
-        StratEvent::Operation(OperationEvent {
+    pub fn operation_event(&self) -> OperationEvent {
+        OperationEvent {
             op: self.kind.clone(),
             pos: self.pos.kind.clone(),
             at: self.pos.time,
-        })
-        .log();
-        StratEvent::Trade(TradeEvent {
-            op: self.right_trade.kind.clone(),
-            qty: self.right_trade.qty,
-            pair: self.pos.right_pair.clone(),
-            price: self.pos.right_price,
-            strat_value: self.right_value(),
-            at: self.pos.time,
-        })
-        .log();
-        StratEvent::Trade(TradeEvent {
-            op: self.left_trade.kind.clone(),
-            qty: self.left_trade.qty,
-            pair: self.pos.left_pair.clone(),
-            price: self.pos.left_price,
-            strat_value: self.left_value(),
-            at: self.pos.time,
-        })
-        .log();
+        }
+    }
+
+    pub fn trade_events(&self) -> [TradeEvent; 2] {
+        [
+            TradeEvent {
+                op: self.right_trade.kind.clone(),
+                qty: self.right_trade.qty,
+                pair: self.pos.right_pair.clone(),
+                price: self.pos.right_price,
+                strat_value: self.right_value(),
+                at: self.pos.time,
+            },
+            TradeEvent {
+                op: self.left_trade.kind.clone(),
+                qty: self.left_trade.qty,
+                pair: self.pos.left_pair.clone(),
+                price: self.pos.left_price,
+                strat_value: self.left_value(),
+                at: self.pos.time,
+            },
+        ]
+    }
+
+    fn log(&self) {
+        StratEvent::Operation(self.operation_event()).log();
+        for trade_event in self.trade_events() {
+            StratEvent::Trade(trade_event).log();
+        }
     }
 }
 
