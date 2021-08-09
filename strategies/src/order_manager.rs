@@ -387,7 +387,13 @@ pub mod test_util {
     pub fn mock_manager<S: AsRef<Path>>(path: S) -> Addr<OrderManager> {
         let api: Arc<dyn ExchangeApi> = Arc::new(MockApi);
         let order_manager = OrderManager::new(api, path);
-        OrderManager::start(order_manager)
+        let act = OrderManager::start(order_manager);
+        loop {
+            if act.connected() {
+                break;
+            }
+        }
+        act
     }
 
     pub fn local_manager<S: AsRef<Path>>(path: S, api: Arc<dyn ExchangeApi>) -> Addr<OrderManager> {

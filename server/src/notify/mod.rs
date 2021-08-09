@@ -31,6 +31,7 @@ pub struct DiscordMessage {
 }
 
 impl DiscordNotifier {
+    #[allow(dead_code)]
     fn new(options: &DiscordNotifierOptions) -> Self {
         let ssl = {
             let mut ssl = openssl::ssl::SslConnector::builder(openssl::ssl::SslMethod::tls()).unwrap();

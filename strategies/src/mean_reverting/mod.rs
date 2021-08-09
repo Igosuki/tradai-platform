@@ -255,7 +255,7 @@ impl MeanRevertingStrategy {
 
     fn can_eval(&self) -> bool { self.models_loaded() }
 
-    #[tracing::instrument(skip(self), level = "debug")]
+    #[tracing::instrument(skip(self), level = "trace")]
     async fn process_row(&mut self, row: &SinglePosRow) {
         let should_sample = crate::util::is_eval_time_reached(row.time, self.last_sample_time, self.sample_freq, 1);
         // A model is available

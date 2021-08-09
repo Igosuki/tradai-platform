@@ -17,7 +17,7 @@ pub struct WindowedModel<T: Serialize + DeserializeOwned + Clone, M: Serialize +
     window_fn: WindowFn<T, M>,
 }
 
-impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone> WindowedModel<T, M> {
+impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone + Default> WindowedModel<T, M> {
     pub fn new(
         id: &str,
         db: Arc<dyn Storage>,
@@ -34,6 +34,9 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
     }
 
     pub fn update_model(&mut self) -> Result<(), db::Error> {
+        if self.is_filled() && !self.has_model() {
+            self.model.set_last_model(M::default());
+        }
         self.model.update_model(self.window_fn, self.rows.window())
     }
 

@@ -1,11 +1,9 @@
-use async_std::task;
-use chrono::{Date, DateTime, TimeZone, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use coinnect_rt::exchange::Exchange;
 use ordered_float::OrderedFloat;
 use plotters::prelude::*;
 use std::error::Error;
-use std::time::{Duration, Instant};
-use util::date::{DateRange, DurationRangeType};
+use std::time::Instant;
 
 use crate::input;
 use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
@@ -14,8 +12,7 @@ use crate::mean_reverting::state::MeanRevertingState;
 use crate::mean_reverting::MeanRevertingStrategy;
 use crate::order_manager::test_util::mock_manager;
 //use crate::test_util::tracing::setup_opentelemetry;
-use crate::input::CsvRecord;
-use crate::test_util::init;
+use crate::test_util::{init, test_results_dir};
 use crate::types::{OperationEvent, OrderMode, TradeEvent};
 use db::get_or_create;
 use tracing_futures::Instrument;
@@ -120,32 +117,14 @@ static EXCHANGE: &str = "Binance";
 static CHANNEL: &str = "order_books";
 static PAIR: &str = "BTC_USDT";
 
-async fn load_csv_records(from: Date<Utc>, to: Date<Utc>) -> Vec<Vec<CsvRecord>> {
-    let now = Instant::now();
-    let csv_records = input::load_csv_dataset(
-        &DateRange(from, to, DurationRangeType::Days, 1),
-        vec![PAIR.to_string()],
-        EXCHANGE,
-        CHANNEL,
-    )
-    .await;
-    let num_records = csv_records[0].len();
-    assert!(num_records > 0, "no csv records could be read");
-    info!(
-        "Loaded {} csv records in {:.6} ms",
-        num_records,
-        now.elapsed().as_millis()
-    );
-    csv_records
-}
-
 #[tokio::test]
 async fn moving_average_model_backtest() {
     init();
     let path = util::test::test_dir();
     let db = get_or_create(path.as_ref(), vec![]);
     let mut model = MeanRevertingStrategy::make_model("BTC_USDT", db, 100, 1000);
-    let csv_records = load_csv_records(Utc.ymd(2020, 3, 27), Utc.ymd(2020, 4, 8)).await;
+    let csv_records =
+        input::load_csv_records(Utc.ymd(2020, 3, 27), Utc.ymd(2020, 4, 8), vec![PAIR], EXCHANGE, CHANNEL).await;
     csv_records[0].iter().take(500).for_each(|l| {
         model
             .update_model(SinglePosRow {
@@ -165,11 +144,7 @@ async fn complete_backtest() {
     let _window_size = 10000;
     let path = util::test::test_dir();
     let order_manager_addr = mock_manager(&path);
-    task::sleep(Duration::from_millis(20)).await;
-    let module_path = module_path!().replace("::", "_");
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let test_results_dir = &format!("{}/target/test_results/{}", manifest_dir, module_path);
-    std::fs::create_dir_all(test_results_dir).unwrap();
+    let test_results_dir = test_results_dir(module_path!());
 
     let mut strat = MeanRevertingStrategy::new(
         path,
@@ -194,7 +169,8 @@ async fn complete_backtest() {
         order_manager_addr,
     );
     let mut elapsed = 0_u128;
-    let csv_records = load_csv_records(Utc.ymd(2020, 3, 27), Utc.ymd(2020, 4, 8)).await;
+    let csv_records =
+        input::load_csv_records(Utc.ymd(2020, 3, 27), Utc.ymd(2020, 4, 8), vec![PAIR], EXCHANGE, CHANNEL).await;
     let num_records = csv_records.len();
     // align data
     let pair_csv_records = csv_records[0].iter();
@@ -233,14 +209,9 @@ async fn complete_backtest() {
         elapsed / num_records as u128
     );
 
-    // Write all model values to a csv file
-    write_ema_values(test_results_dir, &model_values);
-
-    // Write all trade events to a csv file
-    write_trade_events(test_results_dir, &trade_events);
-
-    // Write strategy logs
-    write_thresholds(test_results_dir, &mut strategy_logs);
+    write_ema_values(&test_results_dir, &model_values);
+    crate::test_util::log::write_trade_events(&test_results_dir, &trade_events);
+    write_thresholds(&test_results_dir, &strategy_logs);
 
     // Find that latest operations are correct
     let mut positions = strat.get_operations();
@@ -253,69 +224,35 @@ async fn complete_backtest() {
     assert!(copied.is_ok(), "{}", format!("{:?} : {}", copied, out_file));
 
     assert_eq!(Some(7308.47998046875), last_position.map(|p| p.pos.price));
-    assert_eq!(Some(90.98012915244145), last_position.map(|p| p.value()));
-}
-
-fn write_trade_events(test_results_dir: &str, trade_events: &[(OperationEvent, TradeEvent)]) {
-    let mut trade_events_wtr =
-        csv::Writer::from_path(format!("{}/{}_trade_events.csv", test_results_dir, PAIR)).unwrap();
-    trade_events_wtr
-        .write_record(&["ts", "op", "pos", "trade_kind", "price", "qty", "value_strat"])
-        .unwrap();
-    for (op_event, trade_event) in trade_events {
-        trade_events_wtr
-            .write_record(&[
-                trade_event.at.format(util::date::TIMESTAMP_FORMAT).to_string(),
-                op_event.op.as_ref().to_string(),
-                op_event.pos.as_ref().to_string(),
-                trade_event.op.as_ref().to_string(),
-                trade_event.price.to_string(),
-                trade_event.qty.to_string(),
-                trade_event.strat_value.to_string(),
-            ])
-            .unwrap();
-    }
-
-    trade_events_wtr.flush().unwrap();
+    assert_eq!(Some(90.11699784066761), last_position.map(|p| p.value()));
 }
 
 fn write_ema_values(test_results_dir: &str, model_values: &[(DateTime<Utc>, MeanRevertingModelValue, f64)]) {
-    let mut ema_values_wtr = csv::Writer::from_path(format!("{}/{}_ema_values.csv", test_results_dir, PAIR)).unwrap();
-    ema_values_wtr
-        .write_record(&["ts", "short_ema", "long_ema", "apo", "value_strat"])
-        .unwrap();
-    for model_value in model_values {
-        ema_values_wtr
-            .write_record(&[
-                model_value.0.format(util::date::TIMESTAMP_FORMAT).to_string(),
-                model_value.1.short_ema.current.to_string(),
-                model_value.1.long_ema.current.to_string(),
-                model_value.1.apo.to_string(),
-                model_value.2.to_string(),
-            ])
-            .unwrap();
-    }
-    ema_values_wtr.flush().unwrap();
+    crate::test_util::log::write_csv(
+        format!("{}/{}_ema_values.csv", test_results_dir, PAIR),
+        &["ts", "short_ema", "long_ema", "apo", "value_strat"],
+        model_values.iter().map(|r| {
+            vec![
+                r.0.format(util::date::TIMESTAMP_FORMAT).to_string(),
+                r.1.short_ema.current.to_string(),
+                r.1.long_ema.current.to_string(),
+                r.1.apo.to_string(),
+                r.2.to_string(),
+            ]
+        }),
+    )
 }
 
-#[tracing::instrument(skip(strategy_logs), level = "info")]
-fn write_thresholds(test_results_dir: &str, strategy_logs: &mut Vec<StrategyLog>) {
-    {
-        let mut thresholds_wtr =
-            csv::Writer::from_path(format!("{}/{}_thresholds.csv", test_results_dir, PAIR)).unwrap();
-        thresholds_wtr
-            .write_record(&["ts", "threshold_short", "threshold_long"])
-            .unwrap();
-        //let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
-        for log in strategy_logs.clone() {
-            thresholds_wtr
-                .write_record(&[
-                    log.time.format(util::date::TIMESTAMP_FORMAT).to_string(),
-                    log.threshold_short.to_string(),
-                    log.threshold_long.to_string(),
-                ])
-                .unwrap();
-        }
-        thresholds_wtr.flush().unwrap();
-    }
+fn write_thresholds(test_results_dir: &str, strategy_logs: &[StrategyLog]) {
+    crate::test_util::log::write_csv(
+        format!("{}/{}_thresholds.csv", test_results_dir, PAIR),
+        &["ts", "threshold_short", "threshold_long"],
+        strategy_logs.iter().map(|l| {
+            vec![
+                l.time.format(util::date::TIMESTAMP_FORMAT).to_string(),
+                l.threshold_short.to_string(),
+                l.threshold_long.to_string(),
+            ]
+        }),
+    );
 }

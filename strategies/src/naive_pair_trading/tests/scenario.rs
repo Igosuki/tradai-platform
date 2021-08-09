@@ -1,22 +1,23 @@
-use async_std::task;
 use chrono::{DateTime, TimeZone, Utc};
 use plotters::prelude::*;
 use serde::Serialize;
 
+use crate::input;
+use crate::naive_pair_trading::covar_model::LinearModelValue;
 use crate::naive_pair_trading::options::Options;
 use crate::naive_pair_trading::state::MovingState;
 use crate::naive_pair_trading::{covar_model, DataRow, NaiveTradingStrategy};
-use crate::order_manager::test_util;
-use crate::types::OrderMode;
+use crate::order_manager::test_util::mock_manager;
+use crate::test_util::test_results_dir;
+use crate::types::{OperationEvent, OrderMode, TradeEvent};
 use coinnect_rt::exchange::Exchange;
 use db::get_or_create;
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use std::error::Error;
-use std::time::{Duration, Instant};
-use util::date::{DateRange, DurationRangeType};
+use std::time::Instant;
 
-static LEFT_PAIR: &str = "ETH_USDT";
+static LEFT_PAIR: &str = "LTC_USDT";
 static RIGHT_PAIR: &str = "BTC_USDT";
 
 #[derive(Debug, Serialize)]
@@ -38,7 +39,12 @@ struct StrategyLog {
 }
 
 impl StrategyLog {
-    fn from_state(time: DateTime<Utc>, state: &MovingState, last_row: &DataRow) -> StrategyLog {
+    fn from_state(
+        time: DateTime<Utc>,
+        state: &MovingState,
+        last_row: &DataRow,
+        _model_value: Option<LinearModelValue>,
+    ) -> StrategyLog {
         StrategyLog {
             time,
             right_mid: last_row.right.mid,
@@ -61,8 +67,9 @@ impl StrategyLog {
 type StrategyEntry<'a> = (&'a str, Vec<fn(&StrategyLog) -> f64>);
 
 fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn Error>> {
+    std::fs::create_dir_all("graphs").unwrap();
     let now = Utc::now();
-    let string = format!("graphs/naive_pair_trading_plot_{}.svg", now.format("%Y%m%d%H:%M:%S"));
+    let out_file = format!("graphs/naive_pair_trading_plot_{}.svg", now.format("%Y%m%d%H:%M:%S"));
     let color_wheel = vec![&BLACK, &BLUE, &RED];
     let more_lines: Vec<StrategyEntry<'_>> = vec![
         ("value", vec![|x| x.right_mid, |x| x.predicted_right]),
@@ -77,7 +84,7 @@ fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn
         ("value_strat", vec![|x| x.value_strat]),
     ];
     let height: u32 = 342 * more_lines.len() as u32;
-    let root = SVGBackend::new(&string, (1724, height)).into_drawing_area();
+    let root = SVGBackend::new(&out_file, (1724, height)).into_drawing_area();
     root.fill(&WHITE)?;
 
     let lower = data.first().unwrap().time;
@@ -120,7 +127,7 @@ fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn
         }
     }
 
-    Ok(string.clone())
+    Ok(out_file.clone())
 }
 
 fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
@@ -135,11 +142,10 @@ async fn model_backtest() {
     let db = get_or_create(path.as_ref(), vec![]);
     let mut dt = NaiveTradingStrategy::make_lm_table("BTC_USDT", "ETH_USDT", db, 500);
     // Read downsampled streams
-    let dt0 = Utc.ymd(2020, 3, 25);
-    let dt1 = Utc.ymd(2020, 3, 25);
-    let records = crate::input::load_csv_dataset(
-        &DateRange(dt0, dt1, DurationRangeType::Days, 1),
-        vec![LEFT_PAIR.to_string(), RIGHT_PAIR.to_string()],
+    let records = input::load_csv_records(
+        Utc.ymd(2020, 3, 25),
+        Utc.ymd(2020, 3, 25),
+        vec![LEFT_PAIR, RIGHT_PAIR],
         EXCHANGE,
         CHANNEL,
     )
@@ -161,19 +167,17 @@ async fn model_backtest() {
 async fn complete_backtest() {
     init();
     let path = util::test::test_dir();
-    let beta_eval_freq = 1000;
-    let window_size = 2000;
-    let order_manager_addr = test_util::mock_manager(&path);
-    task::sleep(Duration::from_millis(20)).await;
+    let order_manager_addr = mock_manager(&path);
+    let test_results_dir = test_results_dir(module_path!());
     let mut strat = NaiveTradingStrategy::new(
         &path,
         0.001,
         &Options {
             left: LEFT_PAIR.into(),
             right: RIGHT_PAIR.into(),
-            beta_eval_freq,
+            beta_eval_freq: 1000,
             beta_sample_freq: "1min".to_string(),
-            window_size,
+            window_size: 2000,
             exchange: Exchange::Binance,
             threshold_long: -0.03,
             threshold_short: 0.03,
@@ -186,66 +190,98 @@ async fn complete_backtest() {
         order_manager_addr,
     );
     // Read downsampled streams
-    let dt0 = Utc.ymd(2020, 3, 25);
-    let dt1 = Utc.ymd(2020, 4, 8);
-    let records = crate::input::load_csv_dataset(
-        &DateRange(dt0, dt1, DurationRangeType::Days, 1),
-        vec![LEFT_PAIR.to_string(), RIGHT_PAIR.to_string()],
+    let records = input::load_csv_records(
+        Utc.ymd(2021, 8, 2),
+        Utc.ymd(2021, 8, 6),
+        vec![LEFT_PAIR, RIGHT_PAIR],
         EXCHANGE,
         CHANNEL,
     )
     .await;
-    println!("Dataset loaded in memory...");
-    // align data
+
     let mut elapsed = 0_u128;
-    let mut iterations = 0_u128;
     let left_records = records[0].clone();
     let right_records = records[1].clone();
     assert!(!left_records.is_empty(), "no left pair records in dataset");
     assert!(!right_records.is_empty(), "no right pair records in dataset");
     let (zip, other) = left_records.iter().zip(right_records.iter()).tee();
-    let (_left, _right) = other.tee();
+    let (left, right) = other.tee();
+    assert_eq!(left.len(), right.len(), "data should be aligned");
     let mut logs: Vec<StrategyLog> = Vec::new();
+    let mut model_values: Vec<(DateTime<Utc>, LinearModelValue, f64, f64, f64)> = Vec::new();
+    let mut trade_events: Vec<(OperationEvent, TradeEvent)> = Vec::new();
+    let before_evals = Instant::now();
+    let num_records = zip.len();
+
     for (l, r) in zip {
-        iterations += 1;
         let now = Instant::now();
-
-        if iterations as i32 % (beta_eval_freq + window_size - 1) == 0
-            || (iterations as i32 % window_size == 0 && !strat.data_table.has_model())
-        {
-            // simulate a model update ever n because we cannot simulate time
-            // strat.eval_linear_model();
-            // debug!("{:?}", strat.data_table.last_model_time());
-        }
-        let log = {
-            let row_time = l.event_ms;
-            let row = DataRow {
-                time: row_time,
-                left: l.into(),
-                right: r.into(),
-            };
-            strat.process_row(&row).await;
-            StrategyLog::from_state(row_time, &strat.state, &row)
+        let row_time = l.event_ms;
+        let row = DataRow {
+            time: row_time,
+            left: l.into(),
+            right: r.into(),
         };
+        strat.process_row(&row).await;
+        if let Some(value) = strat.model_value() {
+            model_values.push((
+                row_time,
+                value.clone(),
+                strat.state.predicted_right(),
+                strat.state.res(),
+                strat.state.value_strat(),
+            ));
+        }
+        logs.push(StrategyLog::from_state(
+            row_time,
+            &strat.state,
+            &row,
+            strat.model_value(),
+        ));
+        match strat.state.ongoing_op() {
+            Some(op) => {
+                for trade_event in op.trade_events() {
+                    trade_events.push((op.operation_event(), trade_event))
+                }
+            }
+            None => (),
+        }
         elapsed += now.elapsed().as_nanos();
-        logs.push(log);
     }
-    println!("Each iteration took {} on avg", elapsed / iterations);
+    info!(
+        "For {} records, evals took {}ms, each iteration took {} ns on avg",
+        num_records,
+        before_evals.elapsed().as_millis(),
+        elapsed / num_records as u128
+    );
 
+    write_model_values(&test_results_dir, &model_values);
+    crate::test_util::log::write_trade_events(&test_results_dir, &trade_events);
+
+    // Find that latest operations are correct
     let mut positions = strat.get_operations();
     positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
     let last_position = positions.last();
     assert_eq!(Some(162.130004882813), last_position.map(|p| p.pos.left_price));
     assert_eq!(Some(33.33032942489664), last_position.map(|p| p.left_value()));
 
-    // let logs_f = std::fs::File::create("strategy_logs.json").unwrap();
-    // serde_json::to_writer(logs_f, &logs);
-    std::fs::create_dir_all("graphs").unwrap();
-    let drew = draw_line_plot(logs);
-    if let Ok(file) = drew {
-        let copied = std::fs::copy(&file, "graphs/naive_pair_trading_plot_latest.svg");
-        assert!(copied.is_ok(), "{}", format!("{:?}", copied));
-    } else {
-        panic!("{}", format!("{:?}", drew));
-    }
+    let out_file = draw_line_plot(logs).expect("Should have drawn plots from strategy logs");
+    let copied = std::fs::copy(&out_file, "graphs/mean_reverting_plot_latest.svg");
+    assert!(copied.is_ok(), "{}", format!("{:?} : {}", copied, out_file));
+}
+
+fn write_model_values(test_results_dir: &str, model_values: &[(DateTime<Utc>, LinearModelValue, f64, f64, f64)]) {
+    crate::test_util::log::write_csv(
+        format!("{}/model_values.csv", test_results_dir),
+        &["ts", "beta", "alpha", "predicted_right", "res", "value_strat"],
+        model_values.iter().map(|r| {
+            vec![
+                r.0.format(util::date::TIMESTAMP_FORMAT).to_string(),
+                r.1.beta.to_string(),
+                r.1.alpha.to_string(),
+                r.2.to_string(),
+                r.3.to_string(),
+                r.4.to_string(),
+            ]
+        }),
+    )
 }
