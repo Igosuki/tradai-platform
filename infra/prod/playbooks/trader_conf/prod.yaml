@@ -72,6 +72,9 @@ strategies:
     exchange: Binance
     order_mode: limit
 
+discord_notifier:
+  webhook: https://discord.com/api/webhooks/871280113096990751/1nMKE_T7OcVn2q43-UFVnjm3PUzbTCKb3tElSLsMIT7gNJ4cD_y7EyTnfmYGXuE0ITN8
+
 keys: /root/config/keys_real.json
 
 db_storage_path: './database'

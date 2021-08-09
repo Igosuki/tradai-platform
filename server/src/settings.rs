@@ -7,6 +7,7 @@ use itertools::Itertools;
 use serde::de;
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::notify::DiscordNotifierOptions;
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::types::Pair;
 use metrics::prom::PrometheusOptions;
@@ -157,6 +158,7 @@ pub struct Settings {
     pub telemetry: OpenTelemetrySettings,
     pub balance_reporter: Option<BalanceReporterOptions>,
     pub version: Option<Version>,
+    pub discord_notifier: Option<DiscordNotifierOptions>,
 }
 
 impl Settings {
