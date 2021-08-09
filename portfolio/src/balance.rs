@@ -1,8 +1,9 @@
-use actix::{Actor, AsyncContext, Context, ContextFutureSpawner, Handler, ResponseActFuture, WrapFuture};
+use actix::{Actor, ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, Handler, WrapFuture};
 use chrono::{DateTime, Utc};
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::exchange_bot::Ping;
 use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, Asset, BalanceInformation, BalanceUpdate, Balances};
+use futures::FutureExt;
 use prometheus::GaugeVec;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -123,18 +124,26 @@ impl Actor for BalanceReporter {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        let zis = self.clone();
+        let apis = self.apis.clone();
         Box::pin(
             async move {
-                for (xchg, api) in zis.apis.iter() {
-                    if let Ok(balances) = api.balances().await {
-                        zis.with_reporter(*xchg, |balance_report| {
-                            balance_report.init(&balances);
+                futures::future::join_all(
+                    apis.clone()
+                        .iter()
+                        .map(|(&xchg, api)| api.balances().map(move |r| (xchg, r))),
+                )
+                .await
+            }
+            .into_actor(self)
+            .map(|balances_results, this, _| {
+                for (xchg, balances) in balances_results.iter() {
+                    if let Ok(balances) = balances {
+                        this.with_reporter(*xchg, |balance_report| {
+                            balance_report.init(balances);
                         });
                     }
                 }
-            }
-            .into_actor(self),
+            }),
         )
         .spawn(ctx);
         ctx.run_interval(self.refresh_rate, move |act, _ctx| {
@@ -150,25 +159,19 @@ impl Actor for BalanceReporter {
 }
 
 impl Handler<AccountEventEnveloppe> for BalanceReporter {
-    type Result = ResponseActFuture<Self, anyhow::Result<()>>;
+    type Result = anyhow::Result<()>;
 
     fn handle(&mut self, msg: AccountEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
-        let zis = self.clone();
-        Box::pin(
-            async move {
-                match msg.1 {
-                    AccountEvent::BalanceUpdate(update) => {
-                        zis.with_reporter(msg.0, |balance_report| {
-                            balance_report.push(update.clone());
-                        });
-                        Ok(())
-                    }
-                    // Ignore anything besides order updates
-                    _ => Ok(()),
-                }
+        match msg.1 {
+            AccountEvent::BalanceUpdate(update) => {
+                self.with_reporter(msg.0, |balance_report| {
+                    balance_report.push(update.clone());
+                });
+                Ok(())
             }
-            .into_actor(self),
-        )
+            // Ignore anything besides order updates
+            _ => Ok(()),
+        }
     }
 }
 
