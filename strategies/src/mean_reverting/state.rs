@@ -14,7 +14,8 @@ use crate::mean_reverting::options::Options;
 use crate::order_manager::{OrderManager, TransactionService};
 use crate::order_types::{Rejection, StagedOrder, Transaction, TransactionStatus};
 use crate::query::MutableField;
-use crate::types::{BookPosition, OperationEvent, OrderMode, StratEvent, TradeEvent, TradeOperation};
+use crate::types::{BookPosition, ExecutionInstruction, OperationEvent, OrderMode, StratEvent, TradeEvent,
+                   TradeOperation};
 use crate::types::{OperationKind, PositionKind, TradeKind};
 
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
@@ -32,6 +33,7 @@ pub struct Operation {
     pub pos: Position,
     pub transaction: Option<Transaction>,
     pub trade: TradeOperation,
+    pub instructions: Option<ExecutionInstruction>,
 }
 
 impl Operation {
@@ -52,6 +54,7 @@ impl Operation {
                 kind: trade_kind,
                 dry_mode,
             },
+            instructions: None,
         }
     }
 
@@ -72,7 +75,7 @@ impl Operation {
 
     pub fn operation_event(&self) -> OperationEvent {
         OperationEvent {
-            op: self.kind.clone(),
+            op: self.kind,
             pos: self.pos.kind.clone(),
             at: self.pos.time,
         }

@@ -53,7 +53,7 @@ impl Operation {
 
     pub fn operation_event(&self) -> OperationEvent {
         OperationEvent {
-            op: self.kind.clone(),
+            op: self.kind,
             pos: self.pos.kind.clone(),
             at: self.pos.time,
         }

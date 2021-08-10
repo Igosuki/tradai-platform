@@ -44,7 +44,7 @@ pub enum PositionKind {
     Long,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum OperationKind {
     #[strum(serialize = "open")]
@@ -111,6 +111,14 @@ impl From<TradeOperation> for AddOrderRequest {
             ..AddOrderRequest::default()
         }
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum ExecutionInstruction {
+    ParticipateDoNotInitiate,
+    CancelIfNotBest,
+    DoNotIncrease,
+    DoNotReduce,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
