@@ -106,7 +106,6 @@ pub(crate) static STATE_KEY: &str = "state";
 pub(super) struct MeanRevertingState {
     position: Option<PositionKind>,
     value_strat: f64,
-    apo: f64,
     nominal_position: f64,
     traded_price: f64,
     position_return: f64,
@@ -140,7 +139,6 @@ struct TransientState {
     units_to_sell: f64,
     threshold_short: f64,
     threshold_long: f64,
-    apo: f64,
     previous_value_strat: f64,
 }
 
@@ -156,7 +154,6 @@ impl From<&mut MeanRevertingState> for TransientState {
             units_to_sell: trs.units_to_sell,
             threshold_short: trs.threshold_short,
             threshold_long: trs.threshold_long,
-            apo: trs.apo,
             previous_value_strat: trs.previous_value_strat,
         }
     }
@@ -169,7 +166,6 @@ impl MeanRevertingState {
         let mut state = MeanRevertingState {
             position: None,
             value_strat: options.initial_cap,
-            apo: 0.0,
             nominal_position: 0.0,
             traded_price: 0.0,
             position_return: 0.0,
@@ -222,7 +218,6 @@ impl MeanRevertingState {
         self.value_strat = ps.value_strat;
         self.pnl = ps.pnl;
         self.traded_price = ps.traded_price;
-        self.apo = ps.apo;
         if let Some(np) = ps.nominal_position {
             self.nominal_position = np;
         }
@@ -250,10 +245,6 @@ impl MeanRevertingState {
     pub(super) fn value_strat(&self) -> f64 { self.value_strat }
 
     pub(super) fn previous_value_strat(&self) -> f64 { self.previous_value_strat }
-
-    pub(super) fn set_apo(&mut self, apo: f64) { self.apo = apo; }
-
-    pub(super) fn apo(&self) -> f64 { self.apo }
 
     #[allow(dead_code)]
     pub(super) fn nominal_position(&self) -> f64 { self.nominal_position }
@@ -519,18 +510,10 @@ impl MeanRevertingState {
     #[allow(dead_code)]
     fn get_operation(&self, uuid: &str) -> Option<Operation> { self.db.get(OPERATIONS_KEY, uuid).ok() }
 
-    fn log_indicators(&self) {
+    fn log_indicators(&mut self) {
         if log_enabled!(Debug) {
-            let indicator = MeanRevertingStateIndicator {
-                units_to_buy: self.units_to_buy,
-                units_to_sell: self.units_to_sell,
-                apo: self.apo(),
-                value_strat: self.value_strat,
-                pos_return: self.position_return,
-                pnl: self.pnl(),
-                nominal_position: self.nominal_position,
-            };
-            debug!("{}", serde_json::to_string(&indicator).unwrap());
+            let s: TransientState = self.into();
+            debug!("{}", serde_json::to_string(&s).unwrap());
         }
     }
     fn new_price(&self, bp: &BookPosition, operation_kind: &OperationKind) -> Result<f64> {
@@ -554,18 +537,4 @@ where
     S: Serializer,
 {
     s.serialize_str(&format!("{:.2}", x))
-}
-
-#[derive(Serialize)]
-struct MeanRevertingStateIndicator {
-    #[serde(serialize_with = "round_serialize")]
-    units_to_buy: f64,
-    #[serde(serialize_with = "round_serialize")]
-    units_to_sell: f64,
-    #[serde(serialize_with = "round_serialize")]
-    apo: f64,
-    value_strat: f64,
-    pos_return: f64,
-    pnl: f64,
-    nominal_position: f64,
 }

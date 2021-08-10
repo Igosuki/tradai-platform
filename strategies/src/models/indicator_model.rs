@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::Arc;
 
-type ModelUpdateFn<T, R> = fn(&T, &R) -> T;
+type ModelUpdateFn<T, R> = fn(&T, R) -> T;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -30,7 +30,7 @@ impl<T: Serialize + DeserializeOwned + Clone, R: Clone> IndicatorModel<T, R> {
         }
     }
 
-    pub fn update_model(&mut self, row: R) -> Result<(), db::Error> { self.model.update_model(self.update_fn, &row) }
+    pub fn update_model(&mut self, row: R) -> Result<(), db::Error> { self.model.update_model(self.update_fn, row) }
 
     pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }
 
