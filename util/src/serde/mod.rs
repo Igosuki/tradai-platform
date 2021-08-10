@@ -1,5 +1,13 @@
 use serde::de::Error;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serializer};
+
+#[allow(dead_code)]
+fn round_serialize<S>(x: &f64, s: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_str(&format!("{:.2}", x))
+}
 
 pub mod date_time_format {
     use crate::rust_decimal::prelude::ToPrimitive;
