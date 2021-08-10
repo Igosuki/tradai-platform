@@ -1,9 +1,11 @@
-use crate::models::Window;
+use crate::models::{IndicatorModel, Window};
 use crate::types::BookPosition;
 use chrono::{DateTime, Utc};
+use db::Storage;
 use log::Level::Trace;
 use math::moving_average::ExponentialMovingAverage;
 use math::Next;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SinglePosRow {
@@ -28,10 +30,10 @@ impl MeanRevertingModelValue {
     }
 }
 
-pub fn moving_average_apo(m: &MeanRevertingModelValue, row: &SinglePosRow) -> MeanRevertingModelValue {
+pub fn moving_average_apo(m: &MeanRevertingModelValue, price: f64) -> MeanRevertingModelValue {
     let mut m = m.clone();
-    let long_ema = m.long_ema.next(row.pos.mid);
-    let short_ema = m.short_ema.next(row.pos.mid);
+    let long_ema = m.long_ema.next(price);
+    let short_ema = m.short_ema.next(price);
     let apo = (short_ema - long_ema) / long_ema;
     if log_enabled!(Trace) {
         trace!("short_ema={},long_ema={}", short_ema, long_ema);
@@ -42,3 +44,13 @@ pub fn moving_average_apo(m: &MeanRevertingModelValue, row: &SinglePosRow) -> Me
 }
 
 pub fn threshold(_m: &f64, _rows: Window<f64>) -> f64 { 0.0 }
+
+pub fn ema_indicator_model(
+    pair: &str,
+    db: Arc<dyn Storage>,
+    short_window_size: u32,
+    long_window_size: u32,
+) -> IndicatorModel<MeanRevertingModelValue, f64> {
+    let init = MeanRevertingModelValue::new(long_window_size, short_window_size);
+    IndicatorModel::new(&format!("model_{}", pair), db, init, moving_average_apo)
+}

@@ -6,14 +6,14 @@ use std::error::Error;
 use std::time::Instant;
 
 use crate::input;
-use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
+use crate::mean_reverting::ema_model::{ema_indicator_model, MeanRevertingModelValue, SinglePosRow};
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::MeanRevertingState;
 use crate::mean_reverting::MeanRevertingStrategy;
 use crate::order_manager::test_util::mock_manager;
 //use crate::test_util::tracing::setup_opentelemetry;
 use crate::test_util::{init, test_results_dir};
-use crate::types::{OperationEvent, OrderMode, TradeEvent};
+use crate::types::{BookPosition, OperationEvent, OrderMode, TradeEvent};
 use db::get_or_create;
 use tracing_futures::Instrument;
 use util::date::now_str;
@@ -43,7 +43,7 @@ impl StrategyLog {
             mid: last_row.pos.mid,
             threshold_short: state.threshold_short(),
             threshold_long: state.threshold_long(),
-            apo: state.apo(),
+            apo: value.apo,
             pnl: state.pnl(),
             position_return: state.position_return(),
             value,
@@ -122,16 +122,12 @@ async fn moving_average_model_backtest() {
     init();
     let path = util::test::test_dir();
     let db = get_or_create(path.as_ref(), vec![]);
-    let mut model = MeanRevertingStrategy::make_model("BTC_USDT", db, 100, 1000);
+    let mut model = ema_indicator_model("BTC_USDT", db, 100, 1000);
     let csv_records =
         input::load_csv_records(Utc.ymd(2020, 3, 27), Utc.ymd(2020, 4, 8), vec![PAIR], EXCHANGE, CHANNEL).await;
     csv_records[0].iter().take(500).for_each(|l| {
-        model
-            .update_model(SinglePosRow {
-                time: l.event_ms,
-                pos: l.into(),
-            })
-            .unwrap();
+        let pos: BookPosition = l.into();
+        model.update_model(pos.mid).unwrap();
     });
     let apo = model.value().unwrap().apo;
     assert!(apo != 0.0, "apo should not be 0, was: {}", apo);

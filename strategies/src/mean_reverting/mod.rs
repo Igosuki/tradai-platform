@@ -10,12 +10,12 @@ use ordered_float::OrderedFloat;
 
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::{LiveEvent, LiveEventEnvelope, Pair};
-use db::{get_or_create, Storage};
+use db::get_or_create;
 use ext::ResultExt;
 use math::iter::QuantileExt;
 
 use crate::error::Result;
-use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
+use crate::mean_reverting::ema_model::{ema_indicator_model, MeanRevertingModelValue, SinglePosRow};
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
@@ -43,7 +43,7 @@ pub struct MeanRevertingStrategy {
     sample_freq: Duration,
     last_sample_time: DateTime<Utc>,
     state: MeanRevertingState,
-    model: IndicatorModel<MeanRevertingModelValue, SinglePosRow>,
+    model: IndicatorModel<MeanRevertingModelValue, f64>,
     threshold_table: Option<WindowedModel<f64, f64>>,
     #[derivative(Debug = "ignore")]
     metrics: Arc<MeanRevertingStrategyMetrics>,
@@ -65,7 +65,7 @@ impl MeanRevertingStrategy {
         pb.push(strat_db_path);
         let db = get_or_create(pb.as_path(), vec![]);
         let state = MeanRevertingState::new(n, fees_rate, db.clone(), om);
-        let ema_model = Self::make_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
+        let ema_model = ema_indicator_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
         let threshold_table = n.threshold_window_size.map(|thresold_window_size| {
             WindowedModel::new(
                 &format!("thresholds_{}", n.pair.as_ref()),
@@ -103,9 +103,6 @@ impl MeanRevertingStrategy {
     fn load(&mut self) -> crate::error::Result<()> {
         {
             self.model.try_loading_model()?;
-            if let Some(lm) = self.model.value() {
-                self.state.set_apo(lm.apo);
-            }
         }
         {
             if let Some(threshold_table) = &mut self.threshold_table {
@@ -128,16 +125,6 @@ impl MeanRevertingStrategy {
                 .as_ref()
                 .map(|t| t.is_loaded())
                 .unwrap_or_else(|| false)
-    }
-
-    pub fn make_model(
-        pair: &str,
-        db: Arc<dyn Storage>,
-        short_window_size: u32,
-        long_window_size: u32,
-    ) -> IndicatorModel<MeanRevertingModelValue, SinglePosRow> {
-        let init = MeanRevertingModelValue::new(long_window_size, short_window_size);
-        IndicatorModel::new(&format!("model_{}", pair), db, init, ema_model::moving_average_apo)
     }
 
     #[cfg(test)]
@@ -209,6 +196,8 @@ impl MeanRevertingStrategy {
         }
     }
 
+    fn apo(&self) -> Option<f64> { self.model.value().map(|m| m.apo) }
+
     #[tracing::instrument(skip(self), level = "debug")]
     async fn eval_latest(&mut self, lr: &SinglePosRow) -> Result<&Option<Operation>> {
         // If a position is taken, resolve pending operations
@@ -219,8 +208,10 @@ impl MeanRevertingStrategy {
             self.state.update_units(&lr.pos);
         }
 
+        let apo = self.apo().expect("model required");
+
         // Possibly open a short position
-        if (self.state.apo() > self.state.threshold_short()) && self.state.no_position_taken() {
+        if (apo > self.state.threshold_short()) && self.state.no_position_taken() {
             info!(
                 "Entering short position with threshold {}",
                 self.state.threshold_short()
@@ -231,13 +222,13 @@ impl MeanRevertingStrategy {
         // Possibly close a short position
         else if self.state.is_short() {
             self.state.set_position_return(lr.pos.ask);
-            if (self.state.apo() < 0.0) || self.stopper.should_stop(self.state.position_return()) {
+            if (apo < 0.0) || self.stopper.should_stop(self.state.position_return()) {
                 let position = self.short_position(lr.pos.ask, lr.time);
                 self.state.close(position).await?;
             }
         }
         // Possibly open a long position
-        else if (self.state.apo() < self.state.threshold_long()) && self.state.no_position_taken() {
+        else if (apo < self.state.threshold_long()) && self.state.no_position_taken() {
             info!("Entering long position with threshold {}", self.state.threshold_long());
             let position = self.long_position(lr.pos.ask, lr.time);
             self.state.open(position).await?;
@@ -245,7 +236,7 @@ impl MeanRevertingStrategy {
         // Possibly close a long position
         else if self.state.is_long() {
             self.state.set_position_return(lr.pos.bid);
-            if (self.state.apo() > 0.0) || self.stopper.should_stop(self.state.position_return()) {
+            if (apo > 0.0) || self.stopper.should_stop(self.state.position_return()) {
                 let position = self.long_position(lr.pos.bid, lr.time);
                 self.state.close(position).await?;
             }
@@ -261,20 +252,17 @@ impl MeanRevertingStrategy {
         // A model is available
         if should_sample {
             self.last_sample_time = row.time;
-            let last_apo = self.state.apo();
-            if let Some(t) = self.threshold_table.as_mut() {
-                t.push(&last_apo)
+            if let Some(apo) = self.apo() {
+                if let Some(t) = self.threshold_table.as_mut() {
+                    t.push(&apo)
+                }
             }
-            let model_update = self
-                .model
-                .update_model(row.clone())
-                .err_into()
-                .and_then(|_| {
-                    self.model
-                        .value()
-                        .ok_or_else(|| crate::error::Error::ModelLoadError("no mean reverting model value".to_string()))
-                })
-                .map(|m| self.state.set_apo(m.apo));
+            let model_update = self.model.update_model(row.pos.mid).err_into().and_then(|_| {
+                self.model
+                    .value()
+                    .ok_or_else(|| crate::error::Error::ModelLoadError("no mean reverting model value".to_string()))
+                    .map(|m| self.metrics.log_model(m))
+            });
             if model_update.is_err() {
                 self.metrics.log_error("model_update");
             }

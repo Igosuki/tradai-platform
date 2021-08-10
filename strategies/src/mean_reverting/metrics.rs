@@ -1,4 +1,4 @@
-use crate::mean_reverting::ema_model::SinglePosRow;
+use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
 use crate::mean_reverting::state::{MeanRevertingState, Position};
 use crate::types::OperationKind;
 use prometheus::{CounterVec, GaugeVec, Registry};
@@ -6,10 +6,13 @@ use std::collections::HashMap;
 
 type StateIndicatorFn = (String, fn(&MeanRevertingState) -> f64);
 
+type ModelIndicatorFn = (String, fn(&MeanRevertingModelValue) -> f64);
+
 pub struct MeanRevertingStrategyMetrics {
     common_gauges: HashMap<String, GaugeVec>,
     threshold_indicator_fns: Vec<StateIndicatorFn>,
     state_indicator_fns: Vec<StateIndicatorFn>,
+    model_indicator_fns: Vec<ModelIndicatorFn>,
     error_counter: CounterVec,
     status_gauge: GaugeVec,
 }
@@ -38,6 +41,8 @@ impl MeanRevertingStrategyMetrics {
             gauges.insert(gauge_name.to_string(), gauge_vec);
         }
 
+        let model_gauges: Vec<ModelIndicatorFn> = vec![("apo".to_string(), |x| x.apo)];
+
         let threshold_gauges: Vec<StateIndicatorFn> = vec![
             ("mr_threshold_short".to_string(), |x: &MeanRevertingState| {
                 x.threshold_short()
@@ -46,23 +51,7 @@ impl MeanRevertingStrategyMetrics {
                 x.threshold_long()
             }),
         ];
-        {
-            for (gauge_name, _) in threshold_gauges.clone() {
-                let gauge_vec = register_gauge_vec!(
-                    opts!(
-                        &gauge_name,
-                        format!("threshold gauge for {}", gauge_name.clone()),
-                        const_labels
-                    ),
-                    &[]
-                )
-                .unwrap();
-                gauges.insert(gauge_name.clone(), gauge_vec.clone());
-            }
-        }
-
         let state_gauges: Vec<StateIndicatorFn> = vec![
-            ("apo".to_string(), |x| x.apo()),
             ("threshold_long".to_string(), |x| x.threshold_long()),
             ("threshold_short".to_string(), |x| x.threshold_short()),
             ("value_strat".to_string(), |x| x.value_strat()),
@@ -73,13 +62,14 @@ impl MeanRevertingStrategyMetrics {
             ("nominal_position".to_string(), |x| x.nominal_position()),
         ];
         {
-            for (gauge_name, _) in state_gauges.clone() {
+            for gauge_name in state_gauges
+                .iter()
+                .map(|g| &g.0)
+                .chain(threshold_gauges.iter().map(|g| &g.0))
+                .chain(model_gauges.iter().map(|g| &g.0))
+            {
                 let gauge_vec = register_gauge_vec!(
-                    opts!(
-                        &gauge_name,
-                        format!("state gauge for {}", gauge_name.clone()),
-                        const_labels
-                    ),
+                    opts!(gauge_name, format!("gauge for {}", gauge_name.clone()), const_labels),
                     &[]
                 )
                 .unwrap();
@@ -102,6 +92,7 @@ impl MeanRevertingStrategyMetrics {
             common_gauges: gauges,
             threshold_indicator_fns: threshold_gauges.clone(),
             state_indicator_fns: state_gauges.clone(),
+            model_indicator_fns: model_gauges.clone(),
             error_counter,
             status_gauge,
         }
@@ -127,6 +118,13 @@ impl MeanRevertingStrategyMetrics {
 
     pub(super) fn log_thresholds(&self, state: &MeanRevertingState) {
         self.log_all_with_state(&self.threshold_indicator_fns, state);
+    }
+    pub(super) fn log_model(&self, model: MeanRevertingModelValue) {
+        for (gauge_name, model_gauge_fn) in &self.model_indicator_fns {
+            if let Some(g) = self.common_gauges.get(gauge_name) {
+                g.with_label_values(&[]).set(model_gauge_fn(&model))
+            }
+        }
     }
 
     pub(super) fn log_row(&self, lr: &SinglePosRow) {
