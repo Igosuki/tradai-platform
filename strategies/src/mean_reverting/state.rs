@@ -4,7 +4,7 @@ use std::sync::Arc;
 use actix::Addr;
 use chrono::{DateTime, Utc};
 use log::Level::Debug;
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use db::{Storage, StorageExt};
@@ -530,11 +530,4 @@ impl MeanRevertingState {
             }
         }
     }
-}
-
-fn round_serialize<S>(x: &f64, s: S) -> std::result::Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    s.serialize_str(&format!("{:.2}", x))
 }

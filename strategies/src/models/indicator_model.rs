@@ -32,6 +32,7 @@ impl<T: Serialize + DeserializeOwned + Clone, R: Clone> IndicatorModel<T, R> {
 
     pub fn update_model(&mut self, row: R) -> Result<(), db::Error> { self.model.update_model(self.update_fn, row) }
 
+    #[allow(dead_code)]
     pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }
 
     pub fn value(&self) -> Option<T> { self.model.value() }
