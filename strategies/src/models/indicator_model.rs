@@ -1,6 +1,7 @@
 use super::persist::{ModelValue, PersistentModel};
 use chrono::{DateTime, Utc};
 use db::Storage;
+use math::Next;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::Arc;
@@ -15,8 +16,8 @@ pub struct IndicatorModel<T, R> {
     update_fn: ModelUpdateFn<T, R>,
 }
 
-impl<T: Serialize + DeserializeOwned + Clone, R: Clone> IndicatorModel<T, R> {
-    pub fn new(id: &str, db: Arc<dyn Storage>, initial_value: T, update_fn: ModelUpdateFn<T, R>) -> Self {
+impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> IndicatorModel<T, R> {
+    pub fn new(id: &str, db: Arc<dyn Storage>, initial_value: T) -> Self {
         Self {
             model: PersistentModel::new(
                 db,
@@ -26,11 +27,17 @@ impl<T: Serialize + DeserializeOwned + Clone, R: Clone> IndicatorModel<T, R> {
                     at: Utc::now(),
                 }),
             ),
-            update_fn,
+            update_fn: |m, args| {
+                let mut new_m = m.clone();
+                new_m.next(args);
+                new_m
+            },
         }
     }
 
-    pub fn update_model(&mut self, row: R) -> Result<(), db::Error> { self.model.update_model(self.update_fn, row) }
+    pub fn update_model(&mut self, next_value: R) -> Result<(), db::Error> {
+        self.model.update_model(self.update_fn, next_value)
+    }
 
     #[allow(dead_code)]
     pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }

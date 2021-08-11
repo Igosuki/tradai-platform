@@ -12,8 +12,8 @@ extern crate test;
 #[macro_use]
 extern crate float_cmp;
 
+pub use ta::*;
+
 mod error;
+pub mod indicators;
 pub mod iter;
-pub mod moving_average;
-mod traits;
-pub use traits::*;

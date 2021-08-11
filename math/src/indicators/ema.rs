@@ -72,9 +72,9 @@ impl fmt::Display for ExponentialMovingAverage {
 
 #[cfg(test)]
 mod test {
-    use crate::moving_average::ExponentialMovingAverage;
-    use crate::traits::Next;
-    use crate::traits::Reset;
+    use crate::indicators::ema::ExponentialMovingAverage;
+    use crate::Next;
+    use crate::Reset;
 
     #[test]
     fn test_new() {
