@@ -1,12 +1,13 @@
-use crate::mean_reverting::ema_model::{MeanRevertingModelValue, SinglePosRow};
 use crate::mean_reverting::state::{MeanRevertingState, Position};
+use crate::mean_reverting::SinglePosRow;
 use crate::types::OperationKind;
+use math::indicators::macd_apo::MACDApo;
 use prometheus::{CounterVec, GaugeVec, Registry};
 use std::collections::HashMap;
 
 type StateIndicatorFn = (String, fn(&MeanRevertingState) -> f64);
 
-type ModelIndicatorFn = (String, fn(&MeanRevertingModelValue) -> f64);
+type ModelIndicatorFn = (String, fn(&MACDApo) -> f64);
 
 pub struct MeanRevertingStrategyMetrics {
     common_gauges: HashMap<String, GaugeVec>,
@@ -119,7 +120,7 @@ impl MeanRevertingStrategyMetrics {
     pub(super) fn log_thresholds(&self, state: &MeanRevertingState) {
         self.log_all_with_state(&self.threshold_indicator_fns, state);
     }
-    pub(super) fn log_model(&self, model: MeanRevertingModelValue) {
+    pub(super) fn log_model(&self, model: MACDApo) {
         for (gauge_name, model_gauge_fn) in &self.model_indicator_fns {
             if let Some(g) = self.common_gauges.get(gauge_name) {
                 g.with_label_values(&[]).set(model_gauge_fn(&model))

@@ -6,15 +6,16 @@ use std::error::Error;
 use std::time::Instant;
 
 use crate::input;
-use crate::mean_reverting::ema_model::{ema_indicator_model, MeanRevertingModelValue, SinglePosRow};
+use crate::mean_reverting::ema_model::ema_indicator_model;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::MeanRevertingState;
-use crate::mean_reverting::MeanRevertingStrategy;
+use crate::mean_reverting::{MeanRevertingStrategy, SinglePosRow};
 use crate::order_manager::test_util::mock_manager;
 //use crate::test_util::tracing::setup_opentelemetry;
 use crate::test_util::{init, test_results_dir};
 use crate::types::{BookPosition, OperationEvent, OrderMode, TradeEvent};
 use db::get_or_create;
+use math::indicators::macd_apo::MACDApo;
 use tracing_futures::Instrument;
 use util::date::now_str;
 
@@ -28,7 +29,7 @@ struct StrategyLog {
     pnl: f64,
     position_return: f64,
     nominal_position: f64,
-    value: MeanRevertingModelValue,
+    value: MACDApo,
 }
 
 impl StrategyLog {
@@ -36,7 +37,7 @@ impl StrategyLog {
         time: DateTime<Utc>,
         state: &MeanRevertingState,
         last_row: &SinglePosRow,
-        value: MeanRevertingModelValue,
+        value: MACDApo,
     ) -> StrategyLog {
         StrategyLog {
             time,
@@ -171,7 +172,7 @@ async fn complete_backtest() {
     // align data
     let pair_csv_records = csv_records[0].iter();
     let mut strategy_logs: Vec<StrategyLog> = Vec::new();
-    let mut model_values: Vec<(DateTime<Utc>, MeanRevertingModelValue, f64)> = Vec::new();
+    let mut model_values: Vec<(DateTime<Utc>, MACDApo, f64)> = Vec::new();
     let mut trade_events: Vec<(OperationEvent, TradeEvent)> = Vec::new();
 
     // Feed all csv records to the strat
@@ -223,7 +224,7 @@ async fn complete_backtest() {
     assert_eq!(Some(90.11699784066761), last_position.map(|p| p.value()));
 }
 
-fn write_ema_values(test_results_dir: &str, model_values: &[(DateTime<Utc>, MeanRevertingModelValue, f64)]) {
+fn write_ema_values(test_results_dir: &str, model_values: &[(DateTime<Utc>, MACDApo, f64)]) {
     crate::test_util::log::write_csv(
         format!("{}/{}_ema_values.csv", test_results_dir, PAIR),
         &["ts", "short_ema", "long_ema", "apo", "value_strat"],

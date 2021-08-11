@@ -15,7 +15,7 @@ use ext::ResultExt;
 use math::iter::QuantileExt;
 
 use crate::error::Result;
-use crate::mean_reverting::ema_model::{ema_indicator_model, MeanRevertingModelValue, SinglePosRow};
+use crate::mean_reverting::ema_model::ema_indicator_model;
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
@@ -23,9 +23,10 @@ use crate::models::IndicatorModel;
 use crate::models::WindowedModel;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation, MutableField};
-use crate::types::PositionKind;
+use crate::types::{BookPosition, PositionKind};
 use crate::util::Stopper;
 use crate::{Channel, StrategyInterface, StrategyStatus};
+use math::indicators::macd_apo::MACDApo;
 
 mod ema_model;
 mod metrics;
@@ -33,6 +34,12 @@ pub mod options;
 pub mod state;
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SinglePosRow {
+    pub time: DateTime<Utc>,
+    pub pos: BookPosition, // crypto_1
+}
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -43,7 +50,7 @@ pub struct MeanRevertingStrategy {
     sample_freq: Duration,
     last_sample_time: DateTime<Utc>,
     state: MeanRevertingState,
-    model: IndicatorModel<MeanRevertingModelValue, f64>,
+    model: IndicatorModel<MACDApo, f64>,
     threshold_table: Option<WindowedModel<f64, f64>>,
     #[derivative(Debug = "ignore")]
     metrics: Arc<MeanRevertingStrategyMetrics>,
@@ -128,7 +135,7 @@ impl MeanRevertingStrategy {
     }
 
     #[cfg(test)]
-    fn model_value(&self) -> Option<MeanRevertingModelValue> { self.model.value() }
+    fn model_value(&self) -> Option<MACDApo> { self.model.value() }
 
     fn log_state(&self) { self.metrics.log_state(&self.state); }
 

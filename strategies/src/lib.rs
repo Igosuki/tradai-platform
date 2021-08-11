@@ -53,6 +53,7 @@ pub mod input;
 pub mod mean_reverting;
 mod models;
 pub mod naive_pair_trading;
+pub mod operation_manager;
 pub mod order_manager;
 pub mod order_types;
 pub mod query;
