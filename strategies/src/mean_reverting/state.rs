@@ -355,8 +355,15 @@ impl MeanRevertingState {
                             if log_enabled!(Debug) {
                                 debug!("Transaction is {} for operation {}", transaction.status, &o.id);
                             }
-                            if let TransactionStatus::Filled(update) = &transaction.status {
-                                self.clear_ongoing_operation(update.last_executed_price, update.cummulative_filled_qty);
+                            match &transaction.status {
+                                TransactionStatus::Filled(update) => self
+                                    .clear_ongoing_operation(update.last_executed_price, update.cummulative_filled_qty),
+                                TransactionStatus::New(sub) => {
+                                    if let Some(trade) = sub.trades.first() {
+                                        self.clear_ongoing_operation(trade.price, trade.qty)
+                                    }
+                                }
+                                _ => {}
                             }
                             Ok(())
                         } else if transaction.is_bad_request() {
