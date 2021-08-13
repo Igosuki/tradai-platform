@@ -368,7 +368,7 @@ impl MeanRevertingState {
                             Ok(())
                         } else if transaction.is_bad_request() {
                             self.stop_trading();
-                            Ok(())
+                            Err(Error::OperationBadRequest)
                         } else {
                             // Need to resolve the operation, potentially with a new price
                             let current_price = self.new_price(current_bp, &o.kind)?;
