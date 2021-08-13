@@ -90,7 +90,16 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn is_filled(&self) -> bool { matches!(self.status, TransactionStatus::Filled(_)) }
+    pub fn is_filled(&self) -> bool {
+        matches!(
+            self.status,
+            TransactionStatus::Filled(_)
+                | TransactionStatus::New(OrderSubmission {
+                    status: OrderStatus::Filled,
+                    ..
+                })
+        )
+    }
 
     pub fn is_bad_request(&self) -> bool {
         matches!(self.status, TransactionStatus::Rejected(Rejection::BadRequest(_)))
