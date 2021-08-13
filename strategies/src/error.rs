@@ -16,6 +16,8 @@ pub enum Error {
     NoTransactionChange,
     #[error("operation had to be restaged")]
     OperationRestaged,
+    #[error("operation was a bad request")]
+    OperationBadRequest,
     #[error("order manager mailbox was full")]
     OrderManagerMailboxError,
     #[error("order not found : {0}")]
@@ -40,6 +42,7 @@ impl Error {
             Error::OrderNotFound(_) => "order_not_found",
             Error::InvalidPosition => "invalid_position",
             Error::OperationCancelled => "operation_cancelled",
+            Error::OperationBadRequest => "operation_bad_request",
         }
     }
 }
