@@ -95,7 +95,7 @@ hdrhistogram = "7"
 
 # util
 http = "0.2"
-httpmock = "0.5"
+httpmock = "0.6"
 lazy_static = "1.4"
 matches = "0.1"
 openssl = "0.10"
