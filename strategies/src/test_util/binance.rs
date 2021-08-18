@@ -1,12 +1,7 @@
 use actix_http::ws;
 use bytestring::ByteString;
-use coinnect_rt::binance::BinanceApi;
-use coinnect_rt::credential::{BasicCredentials, Credentials};
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use futures::Future;
-use httpmock::MockServer;
 use std::io;
-use std::sync::Arc;
 
 type WSResponse = impl Future<Output = Result<ws::Message, io::Error>>;
 
@@ -30,13 +25,13 @@ pub fn account_ws() -> Box<WSEndpoint> {
     Box::new(closure)
 }
 
-pub async fn local_api() -> (MockServer, Arc<dyn ExchangeApi>) {
-    let server = MockServer::start();
-    let creds: Box<dyn Credentials> = Box::new(BasicCredentials::empty(Exchange::Binance));
-    let mock_server_address = server.address().to_string();
-    println!("mock server address : {}", mock_server_address);
-    let api = BinanceApi::new_with_host(creds.as_ref(), mock_server_address)
-        .await
-        .unwrap();
-    (server, Arc::new(api))
-}
+// pub async fn local_api() -> (MockServer, Arc<dyn ExchangeApi>) {
+//     let server = MockServer::start();
+//     let creds: Box<dyn Credentials> = Box::new(BasicCredentials::empty(Exchange::Binance));
+//     let mock_server_address = server.address().to_string();
+//     println!("mock server address : {}", mock_server_address);
+//     let api = BinanceApi::new_with_host(creds.as_ref(), mock_server_address)
+//         .await
+//         .unwrap();
+//     (server, Arc::new(api))
+// }

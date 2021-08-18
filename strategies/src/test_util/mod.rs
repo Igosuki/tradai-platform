@@ -15,5 +15,5 @@ pub fn test_results_dir(modle_path: &str) -> String {
     test_results_dir
 }
 
-pub use self::binance::{account_ws as binance_account_ws, local_api};
+pub use self::binance::account_ws as binance_account_ws;
 pub use self::http::ws_it_server;
