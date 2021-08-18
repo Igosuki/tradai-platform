@@ -119,6 +119,22 @@ strategies:
     stop_gain: 0.075
     exchange: Binance
     order_mode: limit
+  - type: mean_reverting
+      pair: 'BAKER_USDT'
+      short_window_size: 100
+      long_window_size: 1000
+      dry_mode: false
+      sample_freq: 1min
+      initial_cap: 100.0
+      threshold_short: 0.02
+      threshold_long: -0.02
+      threshold_eval_freq: 1
+      dynamic_threshold: true
+      threshold_window_size: 1000
+      stop_loss: -0.1
+      stop_gain: 0.075
+      exchange: Binance
+      order_mode: limit
 
 keys: /root/config/keys_real.json
 
