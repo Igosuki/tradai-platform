@@ -41,6 +41,8 @@ pub enum MutableField {
     Pnl,
     #[graphql(name = "nominal_position")]
     NominalPosition,
+    #[graphql(name = "previous_value_strat")]
+    PreviousValueStrat,
 }
 
 #[derive(Deserialize, Serialize, Message, juniper::GraphQLInputObject)]
