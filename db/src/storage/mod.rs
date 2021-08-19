@@ -11,6 +11,8 @@ use crate::error::*;
 use crate::RocksDbStorage;
 
 pub mod mem;
+#[cfg(feature = "rkv-lmdb")]
+pub mod rkv;
 pub mod rocksdb;
 
 pub trait Storage: Send + Sync + Debug {

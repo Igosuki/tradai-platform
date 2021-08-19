@@ -18,6 +18,7 @@ required-features = ["binary"]
 
 [features]
 binary = ["clap"]
+zstd = ["awc/compress-zstd"]
 
 [dependencies]
 # actix
@@ -87,7 +88,7 @@ actix-http = "3.0.0-beta.6"
 actix-http-test = "3.0.0-beta.4"
 actix-server = "2.0.0-beta.5"
 # actix
-awc = "3.0.0-beta.5"
+awc = { version = "3.0.0-beta.7", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
 bytes = "1.0"
 bytestring = "1.0.0"
 fake = { version = "2.4", features = ['chrono'] }
@@ -95,6 +96,7 @@ hdrhistogram = "7"
 
 # util
 http = "0.2"
+httpmock = { git = "ssh://git@github.com/Igosuki/httpmock.git" }
 lazy_static = "1.4"
 matches = "0.1"
 openssl = "0.10"

@@ -1,15 +1,10 @@
 #![feature(try_trait_v2)]
 
-extern crate clap;
-extern crate coinnect_rt;
 #[cfg(feature = "flame_it")]
 extern crate flame;
 #[cfg(feature = "flame_it")]
 #[macro_use]
 extern crate flamer;
-extern crate lazy_static;
-extern crate log;
-extern crate trader;
 
 //lazy_static! {
 //    static ref CONFIG_FILE: String = {

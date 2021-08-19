@@ -42,7 +42,7 @@ impl RocksDbStorage {
         cf_opts
     }
 
-    fn cf(&self, name: &str) -> Result<Arc<BoundColumnFamily>> {
+    fn cf(&self, name: &str) -> Result<Arc<BoundColumnFamily<'_>>> {
         self.inner
             .cf_handle(name.as_ref())
             .ok_or_else(|| Error::NotFound(name.to_string()))
@@ -103,7 +103,7 @@ impl Storage for RocksDbStorage {
 #[cfg(test)]
 mod test {
     extern crate test;
-    extern crate util;
+    use util;
 
     use test::Bencher;
 

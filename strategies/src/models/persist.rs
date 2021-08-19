@@ -147,7 +147,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
         }
     }
 
-    pub fn window(&self) -> Window<T> { self.rows.iter().map(|r| &r.1).rev().take(self.window_size).rev() }
+    pub fn window(&self) -> Window<'_, T> { self.rows.iter().map(|r| &r.1).rev().take(self.window_size).rev() }
 
     pub fn len(&self) -> usize { self.rows.len() }
 

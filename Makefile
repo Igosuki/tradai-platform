@@ -143,7 +143,7 @@ clean-lint:
 #$(rust-musl-builder-nightly) cargo build --release --target=x86_64-unknown-linux-gnu
 .PHONY: release
 release:
-	docker run --cpus=$(shell nproc) --rm -it -v "$(PWD)/cargo-git":/home/rust/.cargo/git -v "$(PWD)/cargo-registry":/home/rust/.cargo/registry -v "$(PWD)/cargo-target":/home/rust/src/target -v "$(PWD)":/home/rust/src -e LIB_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -e BUILD_GIT_SHA="$(GIT_SHA)" -e CFLAGS=-I/usr/local/musl/include -e CC=musl-gcc rust-musl-builder-nightly cargo build --release --target=x86_64-unknown-linux-gnu
+	docker run --cpus=$(shell nproc) --rm -it -v "$(PWD)/cargo-git":/home/rust/.cargo/git -v "$(PWD)/cargo-registry":/home/rust/.cargo/registry -v "$(PWD)/cargo-target":/home/rust/src/target -v "$(PWD)":/home/rust/src -e LIB_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -e BUILD_GIT_SHA="$(GIT_SHA)" -e CFLAGS=-I/usr/local/musl/include -e CC=musl-gcc rust-musl-builder-nightly cargo build --release --target=x86_64-unknown-linux-gnu --no-default-features --features=rocksdb-vendor,zstd
 
 ### DOCKER
 

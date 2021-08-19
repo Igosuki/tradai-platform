@@ -10,10 +10,11 @@ edition = "2018"
 name = "db"
 path = "src/lib.rs"
 
-[[bin]]
-name = "db_tool"
-path = "src/main.rs"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["rocksdb-static"]
+rocksdb-static = ["rocksdb/static"]
+rocksdb-vendor = ["rocksdb/vendor"]
+rkv-lmdb = ["rkv"]
 
 [dependencies]
 ext = { path = "../ext" }
@@ -33,8 +34,8 @@ log = "0.4"
 #flatdata = "0.5"
 measure_time = "0.7"
 # DB
-rkv = "0.17"
-rocksdb = { version = "0.17", features = ["multi-threaded-cf"] }
+rkv = { version = "0.17", optional = true }
+rocksdb = { git = "ssh://git@github.com/Igosuki/rust-rocksdb.git", branch = "librocksdb-sys-link", features = ["multi-threaded-cf", "pkg-config", "snappy", "lz4", "zstd", "zlib", "bzip2"], default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 # codec
 serde_json = { version = "1.0", features = ["float_roundtrip"] }

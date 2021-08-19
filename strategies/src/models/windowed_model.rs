@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::Arc;
 
-type WindowFn<T, M> = fn(&M, Window<T>) -> M;
+type WindowFn<T, M> = fn(&M, Window<'_, T>) -> M;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -48,7 +48,7 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
 
     pub fn is_filled(&self) -> bool { self.rows.is_filled() }
 
-    pub fn window(&self) -> Window<T> { self.rows.window() }
+    pub fn window(&self) -> Window<'_, T> { self.rows.window() }
 
     pub fn len(&self) -> usize { self.rows.len() }
 
@@ -98,7 +98,7 @@ mod test {
         tempdir.into_path().to_str().unwrap().to_string()
     }
 
-    fn sum_window(_lm: &f64, window: Window<TestRow>) -> f64 { window.map(|t| t.pos.mid).sum::<f64>() }
+    fn sum_window(_lm: &f64, window: Window<'_, TestRow>) -> f64 { window.map(|t| t.pos.mid).sum::<f64>() }
 
     #[bench]
     fn test_save_load_model(b: &mut Bencher) {
