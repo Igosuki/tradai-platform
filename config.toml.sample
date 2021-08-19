@@ -1,0 +1,6 @@
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    "-C", "link-arg=-fuse-ld=lld",
+]
+[env]
+BZIP2_LIB_DIR="/usr/lib/x86_64-linux-gnu/"
