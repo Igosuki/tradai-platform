@@ -2800,7 +2800,7 @@ dependencies = [
 [[package]]
 name = "librocksdb-sys"
 version = "6.20.3"
-source = "git+ssh://git@github.com/Igosuki/rust-rocksdb.git?branch=librocksdb-sys-link#4a2ff842f81130c6379833ab12a7370577043f8e"
+source = "git+https://github.com/Igosuki/rust-rocksdb.git?branch=librocksdb-sys-link#4a2ff842f81130c6379833ab12a7370577043f8e"
 dependencies = [
  "bindgen",
  "cc",
@@ -4280,7 +4280,7 @@ checksum = "cabe4fa914dec5870285fa7f71f602645da47c486e68486d2b4ceb4a343e90ac"
 [[package]]
 name = "rocksdb"
 version = "0.17.0"
-source = "git+ssh://git@github.com/Igosuki/rust-rocksdb.git?branch=librocksdb-sys-link#4a2ff842f81130c6379833ab12a7370577043f8e"
+source = "git+https://github.com/Igosuki/rust-rocksdb.git?branch=librocksdb-sys-link#4a2ff842f81130c6379833ab12a7370577043f8e"
 dependencies = [
  "libc",
  "librocksdb-sys",

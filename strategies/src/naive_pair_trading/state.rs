@@ -556,6 +556,7 @@ impl MovingState {
             MutableField::ValueStrat => self.value_strat = v,
             MutableField::NominalPosition => self.nominal_position = v,
             MutableField::Pnl => self.pnl = v,
+            MutableField::PreviousValueStrat => self.value_strat = v,
         }
         self.save();
         Ok(())
