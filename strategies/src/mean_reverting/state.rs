@@ -192,7 +192,10 @@ impl MeanRevertingState {
     fn reload_state(&mut self) {
         let previous_state: Option<TransientState> = self.db.get(STATE_KEY, &self.key).ok();
         if let Some(ps) = previous_state {
-            self.load_from(ps)
+            if let Some(id) = &ps.ongoing_op {
+                self.ongoing_op = self.get_operation(id);
+            }
+            self.load_from(ps);
         }
         let ops: Vec<Operation> = self.get_operations();
         let last_unrejected_op = ops.iter().sorted_by(|p1, p2| p2.pos.time.cmp(&p1.pos.time)).find(|o| {
