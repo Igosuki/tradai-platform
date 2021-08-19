@@ -67,7 +67,7 @@ impl Default for ExponentialMovingAverage {
 }
 
 impl fmt::Display for ExponentialMovingAverage {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "EMA({})", self.length) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "EMA({})", self.length) }
 }
 
 #[cfg(test)]

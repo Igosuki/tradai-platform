@@ -1,5 +1,3 @@
-extern crate plotlib;
-
 use plotlib::page::Page;
 use plotlib::repr::Plot;
 use plotlib::style::{PointMarker, PointStyle};

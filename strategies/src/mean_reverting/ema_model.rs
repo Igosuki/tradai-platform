@@ -13,4 +13,4 @@ pub fn ema_indicator_model(
     IndicatorModel::new(&format!("model_{}", pair), db, init)
 }
 
-pub fn threshold(_m: &f64, _rows: Window<f64>) -> f64 { 0.0 }
+pub fn threshold(_m: &f64, _rows: Window<'_, f64>) -> f64 { 0.0 }

@@ -20,6 +20,7 @@ path = "src/main.rs"
 default = []
 flame_it = ["flame", "flamer"]
 gprof = ["gperftools"]
+zstd = ["awc/compress-zstd", "actix-web/compress-zstd"]
 
 [dependencies]
 # Self crates
@@ -37,7 +38,7 @@ ext = { path = "../ext" }
 actix = "0.12"
 actix-codec = "0.4"
 actix-cors = "0.6.0-beta.2"
-actix-web = { version = "4.0.0-beta.6", features = ["openssl"] }
+actix-web = { version = "4.0.0-beta.6", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
 actix_derive = "0.6"
 anyhow = "1.0"
 
@@ -46,7 +47,7 @@ async-std = "1.5"
 avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "master_merge" }
 
 # Actix
-awc = "3.0.0-beta.5"
+awc = { version = "3.0.0-beta.7", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
 
 # Data structures
 bidir-map = "1.0"

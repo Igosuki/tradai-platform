@@ -5,14 +5,9 @@
 #![feature(map_try_insert)]
 #![cfg_attr(feature = "flame_it", feature(proc_macro_hygiene))]
 
-extern crate actix;
-extern crate actix_derive;
 #[macro_use]
 extern crate anyhow;
-extern crate byte_unit;
-extern crate clap;
-extern crate coinnect_rt;
-extern crate config;
+
 #[cfg(feature = "flame_it")]
 extern crate flame;
 #[cfg(feature = "flame_it")]
@@ -24,9 +19,6 @@ extern crate juniper;
 extern crate measure_time;
 #[macro_use]
 extern crate tracing;
-extern crate prometheus;
-extern crate rand;
-extern crate uuid;
 
 pub mod api;
 pub mod graphql_schemas;

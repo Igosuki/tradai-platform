@@ -1,6 +1,5 @@
 #![feature(test)]
 
-extern crate log;
 #[macro_use]
 extern crate thiserror;
 #[macro_use]

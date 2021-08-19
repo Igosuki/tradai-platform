@@ -11,7 +11,7 @@ pub struct DataRow {
     pub right: BookPosition, // crypto_2
 }
 
-pub fn beta(i: Window<DataRow>) -> f64 {
+pub fn beta(i: Window<'_, DataRow>) -> f64 {
     let (var, covar) = i.tee();
     let variance: f64 = var.map(|r| r.left.mid).variance();
     trace!("variance {}", variance);
@@ -22,7 +22,7 @@ pub fn beta(i: Window<DataRow>) -> f64 {
     beta_val
 }
 
-pub fn alpha(i: Window<DataRow>, beta_val: f64) -> f64 {
+pub fn alpha(i: Window<'_, DataRow>, beta_val: f64) -> f64 {
     let (left, right) = i.tee();
     let mean_left: f64 = left.map(|l| l.left.mid).mean();
     trace!("mean left {}", mean_left);
@@ -37,7 +37,7 @@ pub struct LinearModelValue {
     pub alpha: f64,
 }
 
-pub fn linear_model(_m: &LinearModelValue, i: Window<DataRow>) -> LinearModelValue {
+pub fn linear_model(_m: &LinearModelValue, i: Window<'_, DataRow>) -> LinearModelValue {
     let beta = beta(i.clone());
     let alpha = alpha(i.clone(), beta);
     LinearModelValue { beta, alpha }

@@ -157,7 +157,7 @@ where
 
 /// Append an avro serializable to this writer
 pub fn append_log<S: std::fmt::Debug + Serialize, W: Write>(
-    writer: &mut RefMut<Writer<W>>,
+    writer: &mut RefMut<'_, Writer<'_, W>>,
     s: S,
 ) -> Result<i32, Error> {
     if log_enabled!(Trace) {
