@@ -96,7 +96,7 @@ hdrhistogram = "7"
 
 # util
 http = "0.2"
-httpmock = { git = "ssh://git@github.com/Igosuki/httpmock.git" }
+httpmock = { git = "https://github.com/Igosuki/httpmock.git" }
 lazy_static = "1.4"
 matches = "0.1"
 openssl = "0.10"

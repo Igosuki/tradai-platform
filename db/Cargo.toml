@@ -35,7 +35,7 @@ log = "0.4"
 measure_time = "0.7"
 # DB
 rkv = { version = "0.17", optional = true }
-rocksdb = { git = "ssh://git@github.com/Igosuki/rust-rocksdb.git", branch = "librocksdb-sys-link", features = ["multi-threaded-cf", "pkg-config", "snappy", "lz4", "zstd", "zlib", "bzip2"], default-features = false }
+rocksdb = { git = "https://github.com/Igosuki/rust-rocksdb.git", branch = "librocksdb-sys-link", features = ["multi-threaded-cf", "pkg-config", "snappy", "lz4", "zstd", "zlib", "bzip2"], default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 # codec
 serde_json = { version = "1.0", features = ["float_roundtrip"] }
