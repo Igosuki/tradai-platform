@@ -17,6 +17,7 @@ use crate::query::MutableField;
 use crate::types::{BookPosition, ExecutionInstruction, OperationEvent, OrderMode, StratEvent, TradeEvent,
                    TradeOperation};
 use crate::types::{OperationKind, PositionKind, TradeKind};
+use itertools::Itertools;
 
 #[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
 pub struct Position {
@@ -193,18 +194,18 @@ impl MeanRevertingState {
         if let Some(ps) = previous_state {
             self.load_from(ps)
         }
-        let mut ops: Vec<Operation> = self.get_operations();
-        ops.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
-        if let Some(o) = ops.last() {
-            if OperationKind::Open == o.kind
-                && !matches!(
-                    o.transaction,
-                    Some(Transaction {
-                        status: TransactionStatus::Rejected(Rejection::Cancelled(_)),
-                        ..
-                    })
-                )
-            {
+        let ops: Vec<Operation> = self.get_operations();
+        let last_unrejected_op = ops.iter().sorted_by(|p1, p2| p2.pos.time.cmp(&p1.pos.time)).find(|o| {
+            !matches!(
+                o.transaction,
+                Some(Transaction {
+                    status: TransactionStatus::Rejected(_),
+                    ..
+                })
+            )
+        });
+        if let Some(o) = last_unrejected_op {
+            if matches!(o.kind, OperationKind::Open) {
                 self.set_position(o.pos.kind.clone());
             }
         }
