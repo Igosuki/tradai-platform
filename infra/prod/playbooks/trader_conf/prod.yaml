@@ -10,7 +10,7 @@ exchanges:
     use_test: false
     orderbook_depth: 5
     orderbook:
-      symbols: ['BTC_USDT', 'LTC_USDT', 'ETC_USDT', 'FIS_USDT', 'VITE_USDT', 'BURGER_USDT']
+      symbols: ['BTC_USDT', 'LTC_USDT', 'ETC_USDT', 'FIS_USDT', 'VITE_USDT', 'BURGER_USDT', 'BAKE_USDT']
 
 balance_reporter:
   refresh_rate: 10s
@@ -120,7 +120,7 @@ strategies:
     exchange: Binance
     order_mode: limit
   - type: mean_reverting
-    pair: 'BAKER_USDT'
+    pair: 'BAKE_USDT'
     short_window_size: 100
     long_window_size: 1000
     dry_mode: false

@@ -2,6 +2,7 @@
 #![feature(btree_drain_filter)]
 #![allow(incomplete_features)]
 
+#[cfg(test)]
 #[macro_use]
 extern crate measure_time;
 #[cfg(test)]

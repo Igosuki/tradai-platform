@@ -156,6 +156,10 @@ impl StratEvent {
     }
 }
 
+impl From<StopEvent> for StratEvent {
+    fn from(stop: StopEvent) -> Self { Self::Stop { stop } }
+}
+
 #[derive(Error, Debug)]
 pub enum DataTableError {
     #[error("at least one bid expected")]
