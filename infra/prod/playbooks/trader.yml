@@ -32,6 +32,10 @@
       template: src=system.d/cleaner.timer.j2 dest=/etc/systemd/system/cleaner.timer
     - name: install node exporter ext systemd service file
       template: src=node_exporter_ext/du.service.j2 dest=/etc/systemd/system/node_exporter_ext_du.service
+    - name: Ensure textfile dir
+      shell: mkdir -p /var/lib/node_exporter/textfile_collector
+    - name: Ensure textfile dir
+      shell: chown -R node-exp /var/lib/node_exporter/textfile_collector
     - name: install node exporter ext systemd timer file
       template: src=node_exporter_ext/ext.timer.j2 dest=/etc/systemd/system/node_exporter_ext.timer
 
