@@ -1,5 +1,5 @@
 use db::{get_or_create, DbEngineOptions, DbOptions, RocksDbOptions, StorageExt};
-use rocksdb::Options;
+use rocksdb::{DBRecoveryMode, Options};
 use std::path::PathBuf;
 use structopt::clap::arg_enum;
 use structopt::StructOpt;
@@ -24,8 +24,13 @@ arg_enum! {
 #[derive(StructOpt, Debug)]
 #[structopt(about = "db command to execute")]
 enum DbCommand {
-    Dump { table: String },
-    Repair,
+    Dump {
+        table: String,
+    },
+    Repair {
+        #[structopt(long)]
+        skip_corrupted: bool,
+    },
 }
 
 fn main() {
@@ -49,9 +54,12 @@ fn main() {
             }
         }
         #[allow(clippy::single_match)]
-        DbCommand::Repair => match options.db_type {
+        DbCommand::Repair { skip_corrupted } => match options.db_type {
             DbType::Rocksdb => {
-                let options = Options::default();
+                let mut options = Options::default();
+                if skip_corrupted {
+                    options.set_wal_recovery_mode(DBRecoveryMode::SkipAnyCorruptedRecord);
+                }
                 if let Err(e) = rocksdb::DB::repair(&options, path) {
                     eprintln!("Failed to repair db {}", e);
                 } else {
