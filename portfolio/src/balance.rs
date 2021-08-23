@@ -124,28 +124,7 @@ impl Actor for BalanceReporter {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        let apis = self.apis.clone();
-        Box::pin(
-            async move {
-                futures::future::join_all(
-                    apis.clone()
-                        .iter()
-                        .map(|(&xchg, api)| api.balances().map(move |r| (xchg, r))),
-                )
-                .await
-            }
-            .into_actor(self)
-            .map(|balances_results, this, _| {
-                for (xchg, balances) in balances_results.iter() {
-                    if let Ok(balances) = balances {
-                        this.with_reporter(*xchg, |balance_report| {
-                            balance_report.init(balances);
-                        });
-                    }
-                }
-            }),
-        )
-        .spawn(ctx);
+        ctx.notify(RefreshBalances);
         ctx.run_interval(self.refresh_rate, move |act, _ctx| {
             for xchg in act.apis.keys() {
                 act.with_reporter(*xchg, |balance_report| {
@@ -172,6 +151,39 @@ impl Handler<AccountEventEnveloppe> for BalanceReporter {
             // Ignore anything besides order updates
             _ => Ok(()),
         }
+    }
+}
+
+#[derive(actix::Message)]
+#[rtype(result = "()")]
+struct RefreshBalances;
+
+impl Handler<RefreshBalances> for BalanceReporter {
+    type Result = ();
+
+    fn handle(&mut self, _: RefreshBalances, ctx: &mut Self::Context) -> Self::Result {
+        let apis = self.apis.clone();
+        Box::pin(
+            async move {
+                futures::future::join_all(
+                    apis.clone()
+                        .iter()
+                        .map(|(&xchg, api)| api.balances().map(move |r| (xchg, r))),
+                )
+                .await
+            }
+            .into_actor(self)
+            .map(|balances_results, this, _| {
+                for (xchg, balances) in balances_results.iter() {
+                    if let Ok(balances) = balances {
+                        this.with_reporter(*xchg, |balance_report| {
+                            balance_report.init(balances);
+                        });
+                    }
+                }
+            }),
+        )
+        .spawn(ctx);
     }
 }
 
