@@ -14,10 +14,10 @@ outputs:
 
 keys: ./config/keys_real_test.json
 
-db:
+storage:
   path: './database'
   engine:
-    type: rocksdb
+    type: rocks_db
 
 prometheus:
   push_gateway: 127.0.0.1:9091
