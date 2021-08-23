@@ -1,6 +1,7 @@
-use db::{get_or_create, DbEngineOptions, DbOptions, RocksDbOptions, StorageExt};
+use db::{get_or_create, DbEngineOptions, DbOptions, RocksDbOptions, Storage, StorageExt};
 use rocksdb::{DBRecoveryMode, Options};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use structopt::clap::arg_enum;
 use structopt::StructOpt;
 
@@ -35,20 +36,11 @@ enum DbCommand {
 
 fn main() {
     let options = CliOptions::from_args();
-    let path: PathBuf = options.path;
-    let db = get_or_create(
-        &DbOptions {
-            path: path.clone(),
-            engine: match options.db_type {
-                DbType::Rocksdb => DbEngineOptions::RocksDb(RocksDbOptions::default()),
-            },
-        },
-        "",
-        vec![],
-    );
+    let path: PathBuf = options.path.clone();
     match options.cmd {
-        DbCommand::Dump { table } => {
-            let all = db.get_all::<serde_json::Value>(&table).unwrap();
+        DbCommand::Dump { ref table } => {
+            let db = db(&options, &path);
+            let all = db.get_all::<serde_json::Value>(table).unwrap();
             for (_, v) in all {
                 println!("{}", v);
             }
@@ -68,4 +60,17 @@ fn main() {
             }
         },
     }
+}
+
+fn db(options: &CliOptions, path: &Path) -> Arc<dyn Storage> {
+    get_or_create(
+        &DbOptions {
+            path,
+            engine: match options.db_type {
+                DbType::Rocksdb => DbEngineOptions::RocksDb(RocksDbOptions::default()),
+            },
+        },
+        "",
+        vec![],
+    )
 }
