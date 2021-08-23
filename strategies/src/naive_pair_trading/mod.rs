@@ -24,7 +24,7 @@ use crate::{Channel, DataQuery, DataResult, StrategyInterface, StrategyStatus};
 use actix::Addr;
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::{LiveEvent, LiveEventEnvelope};
-use db::{get_or_create, Storage};
+use db::{get_or_create, DbOptions, Storage};
 use metrics::NaiveStrategyMetrics;
 use options::Options;
 use state::{MovingState, Position};
@@ -54,15 +54,10 @@ pub struct NaiveTradingStrategy {
 }
 
 impl NaiveTradingStrategy {
-    pub fn new<S: AsRef<Path>>(db_path: S, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
+    pub fn new<S: AsRef<Path>>(db_opts: &DbOptions<S>, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
         let metrics = NaiveStrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
-        let strat_db_path = format!(
-            "{}/naive_pair_trading_{}_{}",
-            db_path.as_ref().display(),
-            n.left,
-            n.right
-        );
-        let db = get_or_create(strat_db_path, vec![]);
+        let strat_db_path = format!("naive_pair_trading_{}_{}", n.left, n.right);
+        let db = get_or_create(db_opts, strat_db_path, vec![]);
         let mut strat = Self {
             exchange: n.exchange,
             fees_rate,

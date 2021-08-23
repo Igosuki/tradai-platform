@@ -3,7 +3,7 @@ extern crate clap;
 
 use chrono::{Duration, TimeZone, Utc};
 use clap::{App, Arg};
-use db::get_or_create;
+use db::{get_or_create, DbOptions};
 use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
 use std::ops::Sub;
@@ -85,7 +85,7 @@ fn main() -> anyhow::Result<()> {
     let right_records = &records[1];
     println!("Right records count : {}", right_records.len());
 
-    let db = get_or_create(db_storage_path, vec![]);
+    let db = get_or_create(&DbOptions::new(db_storage_path), "", vec![]);
     let mut data_table = NaiveTradingStrategy::make_lm_table(&left_pair, &right_pair, db, window_size);
     let mut right_only: i32 = 0;
     let mut left_only: i32 = 0;

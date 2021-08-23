@@ -1,6 +1,6 @@
 use std::cmp::{max, min};
 use std::convert::TryInto;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use actix::Addr;
@@ -10,7 +10,7 @@ use ordered_float::OrderedFloat;
 
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::{LiveEvent, LiveEventEnvelope, Pair};
-use db::get_or_create;
+use db::{get_or_create, DbOptions};
 use ext::ResultExt;
 use math::iter::QuantileExt;
 
@@ -65,12 +65,10 @@ pub struct MeanRevertingStrategy {
 static MEAN_REVERTING_DB_KEY: &str = "mean_reverting";
 
 impl MeanRevertingStrategy {
-    pub fn new<S: AsRef<Path>>(db_path: S, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
+    pub fn new<S: AsRef<Path>>(db_opts: &DbOptions<S>, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
         let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
-        let mut pb: PathBuf = PathBuf::from(db_path.as_ref());
         let strat_db_path = format!("{}_{}.{}", MEAN_REVERTING_DB_KEY, n.exchange.to_string(), n.pair);
-        pb.push(strat_db_path);
-        let db = get_or_create(pb.as_path(), vec![]);
+        let db = get_or_create(db_opts, strat_db_path, vec![]);
         let state = MeanRevertingState::new(n, fees_rate, db.clone(), om);
         let ema_model = ema_indicator_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
         let threshold_table = n.threshold_window_size.map(|thresold_window_size| {

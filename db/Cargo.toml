@@ -6,12 +6,16 @@ version = "0.1.0"
 authors = ["Guillaume Balaine <igosuki@gmail.com>"]
 edition = "2018"
 
+[[bin]]
+name = "db_tool"
+path = "src/main.rs"
+required-features = ["structopt"]
 [lib]
 name = "db"
 path = "src/lib.rs"
 
 [features]
-default = ["rocksdb-static"]
+default = []
 rocksdb-static = ["rocksdb/static"]
 rocksdb-vendor = ["rocksdb/vendor"]
 rkv-lmdb = ["rkv"]
@@ -19,10 +23,10 @@ rkv-lmdb = ["rkv"]
 [dependencies]
 ext = { path = "../ext" }
 
+structopt = { version = "0.3", optional = true }
 anyhow = "1.0"
-
 bincode = "1.3"
-chrono = "0.4.19"
+chrono = "0.4"
 itertools = "0.10"
 lmdb-rkv = "0.14"
 

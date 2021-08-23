@@ -184,14 +184,13 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
 mod test {
     extern crate test;
 
-    use tempfile::TempDir;
-
     use super::ModelValue;
     use super::PersistentModel;
     use crate::models::persist::PersistentVec;
+    use crate::test_util::test_db;
     use crate::types::BookPosition;
     use chrono::{DateTime, Utc};
-    use db::get_or_create;
+    use db::{get_or_create, DbOptions};
     use fake::Fake;
     use quickcheck::{Arbitrary, Gen};
     use test::Bencher;
@@ -218,8 +217,7 @@ mod test {
 
     #[bench]
     fn test_save_load_model(b: &mut Bencher) {
-        let tempdir = TempDir::new().unwrap();
-        let db = get_or_create(tempdir.as_ref(), vec![]);
+        let db = test_db();
         let mut table: PersistentModel<MockLinearModel> = PersistentModel::new(
             db,
             "default",
@@ -238,9 +236,9 @@ mod test {
         let id = "test_vec";
         let max_size = 11;
         let test_dir = test_dir();
-        let test_path = test_dir.into_path();
+        let options = &DbOptions::new(test_dir.as_ref());
         let window: Vec<TestRow> = {
-            let db = get_or_create(test_path.clone(), vec![]);
+            let db = get_or_create(options, "", vec![]);
             let mut table = PersistentVec::new(db.clone(), id, max_size, max_size / 2);
             let mut gen = Gen::new(500);
             for _ in 0..max_size {
@@ -248,7 +246,7 @@ mod test {
             }
             table.window().cloned().collect()
         };
-        let db = get_or_create(test_path, vec![]);
+        let db = get_or_create(options, "", vec![]);
         let mut table: PersistentVec<TestRow> = PersistentVec::new(db.clone(), id, max_size, max_size / 2);
         let load = table.load();
         assert!(load.is_ok(), "{:?}", load);

@@ -13,7 +13,7 @@ use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::exchange_bot::Ping;
 use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, AssetType, Order, OrderQuery,
                          OrderStatus, OrderUpdate, Pair};
-use db::get_or_create;
+use db::{get_or_create, DbOptions};
 
 use crate::error::Error;
 use crate::error::Result;
@@ -88,10 +88,12 @@ static TRANSACTIONS_TABLE: &str = "transactions_wal";
 
 // TODO: notify listeners every time a transaction is updated
 impl OrderManager {
-    pub fn new<S: AsRef<Path>>(api: Arc<dyn ExchangeApi>, db_path: S) -> Self {
-        let wal_db = get_or_create(&format!("{}", db_path.as_ref().display()), vec![
-            TRANSACTIONS_TABLE.to_string()
-        ]);
+    pub fn new<S: AsRef<Path>, S2: AsRef<Path>>(
+        api: Arc<dyn ExchangeApi>,
+        db_options: &DbOptions<S>,
+        db_path: S2,
+    ) -> Self {
+        let wal_db = get_or_create(db_options, db_path, vec![TRANSACTIONS_TABLE.to_string()]);
         let wal = Arc::new(Wal::new(wal_db, TRANSACTIONS_TABLE.to_string()));
         let orders = Arc::new(RwLock::new(HashMap::new()));
         OrderManager {
@@ -378,14 +380,32 @@ pub mod test_util {
 
     use actix::{Actor, Addr};
 
-    use coinnect_rt::exchange::ExchangeApi;
     use coinnect_rt::exchange::MockApi;
+    use coinnect_rt::exchange::{Exchange, ExchangeApi};
 
     use crate::order_manager::OrderManager;
+    use coinnect_rt::coinnect::Coinnect;
+    use db::DbOptions;
+
+    pub async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
+        keys_file: S2,
+        dir: S,
+        exchange: Exchange,
+    ) -> OrderManager {
+        let api = Coinnect::build_exchange_api(keys_file.as_ref().to_path_buf(), &exchange, true)
+            .await
+            .unwrap();
+        let om_path = format!("om_{}", exchange);
+        OrderManager::new(api, &DbOptions::new(dir), om_path)
+    }
+
+    pub fn new_mock_manager<S: AsRef<Path>>(path: S) -> OrderManager {
+        let api: Arc<dyn ExchangeApi> = Arc::new(MockApi);
+        OrderManager::new(api, &DbOptions::new(path), "")
+    }
 
     pub fn mock_manager<S: AsRef<Path>>(path: S) -> Addr<OrderManager> {
-        let api: Arc<dyn ExchangeApi> = Arc::new(MockApi);
-        let order_manager = OrderManager::new(api, path);
+        let order_manager = new_mock_manager(path);
         let act = OrderManager::start(order_manager);
         loop {
             if act.connected() {
@@ -396,30 +416,24 @@ pub mod test_util {
     }
 
     pub fn local_manager<S: AsRef<Path>>(path: S, api: Arc<dyn ExchangeApi>) -> Addr<OrderManager> {
-        let order_manager = OrderManager::new(api, path);
+        let order_manager = OrderManager::new(api, &DbOptions::new(path), "");
         OrderManager::start(order_manager)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use std::path::Path;
-    use std::sync::Arc;
-
-    use coinnect_rt::coinnect::Coinnect;
-    use coinnect_rt::exchange::Exchange::Binance;
-    use coinnect_rt::exchange::MockApi;
-    use coinnect_rt::exchange::{Exchange, ExchangeApi};
     use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderSubmission, OrderUpdate, TradeType};
 
-    use crate::order_manager::OrderManager;
+    use crate::order_manager::test_util::{it_order_manager, new_mock_manager};
     use crate::order_types::{Rejection, StagedOrder, Transaction, TransactionStatus};
+    use coinnect_rt::exchange::Exchange::Binance;
+    use util::test::test_dir;
 
     #[actix::test]
     async fn test_append_rejected() {
-        let path = "default";
-        let api: Arc<dyn ExchangeApi> = Arc::new(MockApi);
-        let mut order_manager = OrderManager::new(api, Path::new(path));
+        let test_dir = test_dir();
+        let mut order_manager = new_mock_manager(test_dir);
         let registered = order_manager
             .register(
                 "id".to_string(),
@@ -432,18 +446,6 @@ mod test {
     fn test_keys() -> String { "../config/keys_real_test.json".to_string() }
 
     fn test_pair() -> String { "BTC_USDT".to_string() }
-
-    async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
-        keys_file: S2,
-        dir: S,
-        exchange: Exchange,
-    ) -> OrderManager {
-        let api = Coinnect::build_exchange_api(keys_file.as_ref().to_path_buf(), &exchange, true)
-            .await
-            .unwrap();
-        let om_path = format!("{}/om_{}", dir.as_ref().display(), exchange);
-        OrderManager::new(api, Path::new(&om_path))
-    }
 
     #[actix::test]
     async fn test_binance_stage_order_invalid() {

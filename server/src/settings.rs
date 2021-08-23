@@ -10,6 +10,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::notify::DiscordNotifierOptions;
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::types::Pair;
+use db::DbOptions;
 use metrics::prom::PrometheusOptions;
 use portfolio::balance::BalanceReporterOptions;
 use strategies::{StrategyCopySettings, StrategySettings};
@@ -152,7 +153,7 @@ pub struct Settings {
     pub strategies: Vec<StrategySettings>,
     #[serde(default)]
     pub strategies_copy: Vec<StrategyCopySettings>,
-    pub db_storage_path: String,
+    pub storage: DbOptions<String>,
     pub prometheus: PrometheusOptions,
     #[serde(default)]
     pub telemetry: OpenTelemetrySettings,
