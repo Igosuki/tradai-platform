@@ -143,11 +143,15 @@ clean-lint:
 #$(rust-musl-builder-nightly) cargo build --release --target=x86_64-unknown-linux-gnu
 target=trader
 features=rocksdb-vendor,zstd
+profile=release
 .PHONY: release
 release:
-	docker run --cpus=$(shell nproc) --rm -it -v "$(PWD)/cargo-git":/home/rust/.cargo/git -v "$(PWD)/cargo-registry":/home/rust/.cargo/registry -v "$(PWD)/cargo-target":/home/rust/src/target -v "$(PWD)":/home/rust/src -v "$(PWD)/config_release.toml":/home/rust/src/.cargo/config.toml -e LIB_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -e BUILD_GIT_SHA="$(GIT_SHA)" -e CFLAGS=-I/usr/local/musl/include -e CC=musl-gcc rust-musl-builder-nightly cargo build --bin $(target) --release --target=x86_64-unknown-linux-gnu --no-default-features --features=$(features)
+	docker run --cpus=$(shell nproc) --rm -it -v "$(PWD)/cargo-git":/home/rust/.cargo/git -v "$(PWD)/cargo-registry":/home/rust/.cargo/registry -v "$(PWD)/cargo-target":/home/rust/src/target -v "$(PWD)":/home/rust/src -v "$(PWD)/config_release.toml":/home/rust/src/.cargo/config.toml -e LIB_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -e BUILD_GIT_SHA="$(GIT_SHA)" -e CFLAGS=-I/usr/local/musl/include -e CC=musl-gcc rust-musl-builder-nightly cargo build --bin $(target) --profile $(profile) --target=x86_64-unknown-linux-gnu --no-default-features --features=$(features) -Z unstable-options
 
 release_trader: release
+
+release_debug_trader:
+	make profile=release-debug release
 
 release_db_tool:
 	make target=db_tool features=rocksdb-vendor,zstd,structopt release
