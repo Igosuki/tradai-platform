@@ -138,7 +138,6 @@ async fn moving_average_model_backtest() {
 async fn complete_backtest() {
     init();
     //setup_opentelemetry();
-    let _window_size = 10000;
     let path = util::test::test_dir();
     let order_manager_addr = mock_manager(&path);
     let test_results_dir = test_results_dir(module_path!());

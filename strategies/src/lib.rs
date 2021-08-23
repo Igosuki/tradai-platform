@@ -48,7 +48,6 @@ use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation};
 
-mod backtester;
 pub mod error;
 pub mod input;
 pub mod mean_reverting;
@@ -100,7 +99,7 @@ impl StrategyKey {
 pub struct Strategy(pub StrategyKey, pub Addr<StrategyActor>, pub Vec<Channel>);
 
 impl Strategy {
-    pub fn new(db_path: Arc<String>, fees: f64, settings: StrategySettings, om: Option<Addr<OrderManager>>) -> Self {
+    pub fn new(db_path: Arc<String>, fees: f64, settings: &StrategySettings, om: Option<Addr<OrderManager>>) -> Self {
         let uuid = Uuid::new_v4();
         let strategy = from_settings(db_path.as_ref(), fees, &settings, om);
         info!(uuid = %uuid, channels = ?strategy.channels(), "starting strategy");

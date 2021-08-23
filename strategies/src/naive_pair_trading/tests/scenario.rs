@@ -1,6 +1,14 @@
+use std::error::Error;
+use std::time::Instant;
+
 use chrono::{DateTime, TimeZone, Utc};
+use itertools::Itertools;
+use ordered_float::OrderedFloat;
 use plotters::prelude::*;
 use serde::Serialize;
+
+use coinnect_rt::exchange::Exchange;
+use db::get_or_create;
 
 use crate::input;
 use crate::naive_pair_trading::covar_model::LinearModelValue;
@@ -10,12 +18,6 @@ use crate::naive_pair_trading::{covar_model, DataRow, NaiveTradingStrategy};
 use crate::order_manager::test_util::mock_manager;
 use crate::test_util::test_results_dir;
 use crate::types::{OperationEvent, OrderMode, TradeEvent};
-use coinnect_rt::exchange::Exchange;
-use db::get_or_create;
-use itertools::Itertools;
-use ordered_float::OrderedFloat;
-use std::error::Error;
-use std::time::Instant;
 
 static LEFT_PAIR: &str = "LTC_USDT";
 static RIGHT_PAIR: &str = "BTC_USDT";
@@ -237,13 +239,10 @@ async fn complete_backtest() {
             &row,
             strat.model_value(),
         ));
-        match strat.state.ongoing_op() {
-            Some(op) => {
-                for trade_event in op.trade_events() {
-                    trade_events.push((op.operation_event(), trade_event))
-                }
+        if let Some(op) = strat.state.ongoing_op() {
+            for trade_event in op.trade_events() {
+                trade_events.push((op.operation_event(), trade_event))
             }
-            None => (),
         }
         elapsed += now.elapsed().as_nanos();
     }

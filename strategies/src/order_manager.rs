@@ -372,7 +372,6 @@ impl Handler<Ping> for OrderManager {
     fn handle(&mut self, _msg: Ping, _ctx: &mut Context<Self>) {}
 }
 
-#[cfg(test)]
 pub mod test_util {
     use std::path::Path;
     use std::sync::Arc;
