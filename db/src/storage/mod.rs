@@ -133,7 +133,7 @@ impl<T: Any> ToAny for T {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum DbEngineOptions {
     RocksDb(RocksDbOptions),
 }

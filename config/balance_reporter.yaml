@@ -1,18 +1,18 @@
 exchanges:
   binance:
     use_account: true
-    use_test: true
+    use_test: false
     fees: 0.001
 
 balance_reporter:
   refresh_rate: 10s
 
-keys: ./config/keys_real_test.json
+keys: /root/config/portfolio_keys.json
 
-db:
-  path: './database'
+storage:
+  path: './database_portfolio'
   engine:
-    type: rocksdb
+    type: rocks_db
 
 prometheus:
   push_gateway: 127.0.0.1:9091
