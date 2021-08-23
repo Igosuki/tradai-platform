@@ -1,4 +1,30 @@
 lazy_static! {
+    pub static ref LIVEORDER_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveOrder\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
+}
+
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct LiveOrder {
+    pub event_ms: i64,
+    pub amount: f64,
+    pub pair: String,
+    pub price: f64,
+    pub tt: i32,
+}
+
+impl Default for LiveOrder {
+    fn default() -> LiveOrder {
+        LiveOrder {
+            event_ms: 0,
+            amount: 0.0,
+            pair: String::default(),
+            price: 0.0,
+            tt: 0,
+        }
+    }
+}
+
+lazy_static! {
     pub static ref LIVETRADE_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveTrade\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
 }
 
@@ -30,32 +56,6 @@ pub enum TradeType {
     Buy,
     #[serde(rename = "SELL")]
     Sell,
-}
-
-lazy_static! {
-    pub static ref LIVEORDER_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveOrder\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
-}
-
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
-pub struct LiveOrder {
-    pub event_ms: i64,
-    pub amount: f64,
-    pub pair: String,
-    pub price: f64,
-    pub tt: i32,
-}
-
-impl Default for LiveOrder {
-    fn default() -> LiveOrder {
-        LiveOrder {
-            event_ms: 0,
-            amount: 0.0,
-            pair: String::default(),
-            price: 0.0,
-            tt: 0,
-        }
-    }
 }
 
 lazy_static! {

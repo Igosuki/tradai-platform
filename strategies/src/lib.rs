@@ -47,6 +47,7 @@ use crate::mean_reverting::options::Options as MeanRevertingStrategyOptions;
 use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation};
+use db::DbOptions;
 
 pub mod error;
 pub mod input;
@@ -99,9 +100,9 @@ impl StrategyKey {
 pub struct Strategy(pub StrategyKey, pub Addr<StrategyActor>, pub Vec<Channel>);
 
 impl Strategy {
-    pub fn new(db_path: Arc<String>, fees: f64, settings: &StrategySettings, om: Option<Addr<OrderManager>>) -> Self {
+    pub fn new(db: &DbOptions<String>, fees: f64, settings: &StrategySettings, om: Option<Addr<OrderManager>>) -> Self {
         let uuid = Uuid::new_v4();
-        let strategy = from_settings(db_path.as_ref(), fees, &settings, om);
+        let strategy = from_settings(db, fees, settings, om);
         info!(uuid = %uuid, channels = ?strategy.channels(), "starting strategy");
         let channels = strategy.channels();
         let actor = StrategyActor::new_with_uuid(StrategyActorOptions { strategy }, uuid);
@@ -266,7 +267,7 @@ pub trait StrategyInterface {
 }
 
 pub fn from_settings(
-    db_path: &str,
+    db: &DbOptions<String>,
     fees: f64,
     s: &StrategySettings,
     om: Option<Addr<OrderManager>>,
@@ -274,9 +275,7 @@ pub fn from_settings(
     match s {
         StrategySettings::Naive(n) => {
             if let Some(o) = om {
-                Box::new(crate::naive_pair_trading::NaiveTradingStrategy::new(
-                    db_path, fees, n, o,
-                ))
+                Box::new(crate::naive_pair_trading::NaiveTradingStrategy::new(db, fees, n, o))
             } else {
                 error!("Expected an order manager to be available for the targeted exchange of this NaiveStrategy");
                 panic!();
@@ -284,7 +283,7 @@ pub fn from_settings(
         }
         StrategySettings::MeanReverting(n) => {
             if let Some(o) = om {
-                Box::new(crate::mean_reverting::MeanRevertingStrategy::new(db_path, fees, n, o))
+                Box::new(crate::mean_reverting::MeanRevertingStrategy::new(db, fees, n, o))
             } else {
                 error!(
                     "Expected an order manager to be available for the targeted exchange of this MeanRevertingStrategy"

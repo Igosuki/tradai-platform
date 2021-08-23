@@ -138,7 +138,10 @@ strategies:
 
 keys: /root/config/keys_real.json
 
-db_storage_path: './database'
+db:
+  path: './database'
+  engine:
+    type: rocksdb
 
 prometheus:
   push_gateway: 127.0.0.1:9091

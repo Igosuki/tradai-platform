@@ -10,13 +10,16 @@ use crate::storage::Storage;
 
 type Bytes = Box<[u8]>;
 
+#[derive(Deserialize, Serialize, Debug, Clone, Default)]
+pub struct RocksDbOptions {}
+
 #[derive(Debug)]
 pub struct RocksDbStorage {
     inner: DB,
 }
 
 impl RocksDbStorage {
-    pub fn new<S: AsRef<Path>>(db_path: S, tables: Vec<String>) -> Self {
+    pub fn new<S: AsRef<Path>>(_options: &RocksDbOptions, db_path: S, tables: Vec<String>) -> Self {
         let mut options = Options::default();
         options.create_if_missing(true);
         options.create_missing_column_families(true);
@@ -47,6 +50,8 @@ impl RocksDbStorage {
             .cf_handle(name.as_ref())
             .ok_or_else(|| Error::NotFound(name.to_string()))
     }
+
+    pub fn inner_db(&self) -> &DB { &self.inner }
 }
 
 impl Storage for RocksDbStorage {
@@ -110,7 +115,7 @@ mod test {
     use chrono::Utc;
 
     use crate::error::Error;
-    use crate::storage::rocksdb::RocksDbStorage;
+    use crate::storage::rocksdb::{RocksDbOptions, RocksDbStorage};
     use crate::storage::Storage;
     use crate::StorageExt;
 
@@ -122,7 +127,9 @@ mod test {
         number: i32,
     }
 
-    fn db(tables: Vec<String>) -> RocksDbStorage { RocksDbStorage::new(&util::test::test_dir(), tables) }
+    fn db(tables: Vec<String>) -> RocksDbStorage {
+        RocksDbStorage::new(&RocksDbOptions::default(), &util::test::test_dir(), tables)
+    }
 
     #[bench]
     fn db_serde_put_bench(b: &mut Bencher) {

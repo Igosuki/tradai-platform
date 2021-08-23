@@ -12,9 +12,9 @@ use crate::mean_reverting::state::MeanRevertingState;
 use crate::mean_reverting::{MeanRevertingStrategy, SinglePosRow};
 use crate::order_manager::test_util::mock_manager;
 //use crate::test_util::tracing::setup_opentelemetry;
-use crate::test_util::{init, test_results_dir};
+use crate::test_util::{init, test_db, test_results_dir};
 use crate::types::{BookPosition, OperationEvent, OrderMode, TradeEvent};
-use db::get_or_create;
+use db::DbOptions;
 use math::indicators::macd_apo::MACDApo;
 use tracing_futures::Instrument;
 use util::date::now_str;
@@ -121,8 +121,7 @@ static PAIR: &str = "BTC_USDT";
 #[tokio::test]
 async fn moving_average_model_backtest() {
     init();
-    let path = util::test::test_dir();
-    let db = get_or_create(path.as_ref(), vec![]);
+    let db = test_db();
     let mut model = ema_indicator_model("BTC_USDT", db, 100, 1000);
     let csv_records =
         input::load_csv_records(Utc.ymd(2020, 3, 27), Utc.ymd(2020, 4, 8), vec![PAIR], EXCHANGE, CHANNEL).await;
@@ -143,7 +142,7 @@ async fn complete_backtest() {
     let test_results_dir = test_results_dir(module_path!());
 
     let mut strat = MeanRevertingStrategy::new(
-        path,
+        &DbOptions::new(path),
         0.001,
         &Options {
             pair: PAIR.into(),

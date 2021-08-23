@@ -66,13 +66,11 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
 mod test {
     extern crate test;
 
-    use tempfile::TempDir;
-
     use crate::models::Window;
     use crate::models::WindowedModel;
+    use crate::test_util::test_db;
     use crate::types::BookPosition;
     use chrono::{DateTime, Utc};
-    use db::get_or_create;
     use fake::Fake;
     use quickcheck::{Arbitrary, Gen};
     use test::Bencher;
@@ -93,19 +91,13 @@ mod test {
         }
     }
 
-    fn test_dir() -> String {
-        let tempdir = TempDir::new().unwrap();
-        tempdir.into_path().to_str().unwrap().to_string()
-    }
-
     fn sum_window(_lm: &f64, window: Window<'_, TestRow>) -> f64 { window.map(|t| t.pos.mid).sum::<f64>() }
 
     #[bench]
     fn test_save_load_model(b: &mut Bencher) {
         let id = "default";
         let max_size = 2000;
-        let test_dir = test_dir();
-        let db = get_or_create(test_dir, vec![]);
+        let db = test_db();
         let mut table = WindowedModel::new(id, db, 1000, Some(max_size), sum_window);
         let mut gen = Gen::new(500);
         for _ in 0..max_size {

@@ -25,13 +25,13 @@ use crate::logging::live_event::LiveEventPartitioner;
 use crate::nats::{NatsConsumer, NatsProducer, Subject};
 use crate::server;
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
+use db::DbOptions;
 
 pub mod bots;
 
 pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     let settings_v = settings.read().unwrap();
     let exchanges = settings_v.exchanges.clone();
-    let db_path_str = Arc::new(settings_v.db_storage_path.clone());
 
     let keys_path = PathBuf::from(settings_v.keys.clone());
     if fs::metadata(keys_path.clone()).is_err() {
@@ -68,7 +68,8 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 broadcast_recipients.push(NatsProducer::start(producer).recipient())
             }
             OutputSettings::Strategies => {
-                let oms = Arc::new(order_managers(keys_path.clone(), &db_path_str, exchanges_conf.clone()).await?);
+                let oms =
+                    Arc::new(order_managers(keys_path.clone(), &settings_v.storage, exchanges_conf.clone()).await?);
                 if !oms.is_empty() {
                     termination_handles.push(Box::pin(bots::poll_pingables(
                         oms.values().map(|addr| addr.clone().recipient()).collect(),
@@ -223,17 +224,17 @@ async fn strategies(settings: Arc<RwLock<Settings>>, oms: Arc<HashMap<Exchange, 
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
     let settings_v = arc1.read().unwrap();
-    let db_path_str = Arc::new(arc.read().unwrap().db_storage_path.clone());
     let exchanges = Arc::new(arc.read().unwrap().exchanges.clone());
     let mut strategies = settings_v.strategies.clone();
     strategies.extend(settings_v.strategies_copy.iter().map(|sc| sc.all()).flatten().flatten());
+    let storage = Arc::new(settings_v.storage.clone());
     let strats = futures::future::join_all(strategies.into_iter().map(move |strategy_settings| {
-        let db_path_a = db_path_str.clone();
         let exchanges_conf = exchanges.clone();
         let exchange = strategy_settings.exchange();
         let fees = exchanges_conf.get(&exchange).unwrap().fees;
         let oms = oms.clone();
-        async move { Strategy::new(db_path_a, fees, strategy_settings, oms.get(&exchange).cloned()) }
+        let db = storage.clone();
+        async move { Strategy::new(db.as_ref(), fees, &strategy_settings, oms.get(&exchange).cloned()) }
     }))
     .await;
     strats
@@ -252,7 +253,7 @@ async fn balance_reporter(
 /// N.B.: Does not currently use test mode
 async fn order_managers(
     keys_path: PathBuf,
-    db_path: &str,
+    db: &DbOptions<String>,
     exchanges: Arc<HashMap<Exchange, ExchangeSettings>>,
 ) -> anyhow::Result<HashMap<Exchange, Addr<OrderManager>>> {
     let mut oms: HashMap<Exchange, Addr<OrderManager>> = HashMap::new();
@@ -263,8 +264,8 @@ async fn order_managers(
         let api = Coinnect::build_exchange_api(keys_path.clone(), xch, conf.use_test)
             .await
             .unwrap();
-        let om_db_path = format!("{}/om_{}", db_path, xch);
-        let order_manager = OrderManager::new(api, Path::new(&om_db_path));
+        let om_db_path = format!("om_{}", xch);
+        let order_manager = OrderManager::new(api, db, om_db_path);
         oms.insert(*xch, OrderManager::start(order_manager));
     }
     Ok(oms)

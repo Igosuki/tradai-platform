@@ -9,7 +9,10 @@ balance_reporter:
 
 keys: ./config/keys_real_test.json
 
-db_storage_path: './database'
+db:
+  path: './database'
+  engine:
+    type: rocksdb
 
 prometheus:
   push_gateway: 127.0.0.1:9091

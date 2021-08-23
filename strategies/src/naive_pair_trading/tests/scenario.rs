@@ -8,7 +8,6 @@ use plotters::prelude::*;
 use serde::Serialize;
 
 use coinnect_rt::exchange::Exchange;
-use db::get_or_create;
 
 use crate::input;
 use crate::naive_pair_trading::covar_model::LinearModelValue;
@@ -16,8 +15,9 @@ use crate::naive_pair_trading::options::Options;
 use crate::naive_pair_trading::state::MovingState;
 use crate::naive_pair_trading::{covar_model, DataRow, NaiveTradingStrategy};
 use crate::order_manager::test_util::mock_manager;
-use crate::test_util::test_results_dir;
+use crate::test_util::{test_db, test_results_dir};
 use crate::types::{OperationEvent, OrderMode, TradeEvent};
+use db::DbOptions;
 
 static LEFT_PAIR: &str = "LTC_USDT";
 static RIGHT_PAIR: &str = "BTC_USDT";
@@ -140,8 +140,7 @@ static CHANNEL: &str = "order_books";
 #[tokio::test]
 async fn model_backtest() {
     init();
-    let path = util::test::test_dir();
-    let db = get_or_create(path.as_ref(), vec![]);
+    let db = test_db();
     let mut dt = NaiveTradingStrategy::make_lm_table("BTC_USDT", "ETH_USDT", db, 500);
     // Read downsampled streams
     let records = input::load_csv_records(
@@ -172,7 +171,7 @@ async fn complete_backtest() {
     let order_manager_addr = mock_manager(&path);
     let test_results_dir = test_results_dir(module_path!());
     let mut strat = NaiveTradingStrategy::new(
-        &path,
+        &DbOptions::new(path),
         0.001,
         &Options {
             left: LEFT_PAIR.into(),

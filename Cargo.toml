@@ -1,3 +1,5 @@
+cargo-features = ["named-profiles"]
+
 [workspace]
 
 members = [
@@ -14,11 +16,26 @@ members = [
     "util"
 ]
 
+exclude = [
+    "backtest"
+]
+
 [profile.dev]
 debug = true
 
 [profile.release]
+opt-level = 3
+debug = false
+lto = "thin"
+
+[profile.release-fat]
+inherits = "release"
+lto = "fat"
+
+[profile.release-debug]
+inherits = "release"
 debug = true
+lto = false
 
 [patch.crates-io]
 pathfinder_simd = { git = "https://github.com/servo/pathfinder", version = "0.5.1" }

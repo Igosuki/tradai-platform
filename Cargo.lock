@@ -1517,6 +1517,7 @@ dependencies = [
  "rocksdb",
  "serde 1.0.127",
  "serde_json",
+ "structopt",
  "tempdir",
  "thiserror",
  "util",

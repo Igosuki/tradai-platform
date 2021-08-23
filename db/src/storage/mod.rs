@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde::de::DeserializeOwned;
@@ -8,14 +8,16 @@ use serde::Serialize;
 use ext::ResultExt;
 
 use crate::error::*;
+use crate::storage::rocksdb::RocksDbOptions;
 use crate::RocksDbStorage;
+use std::any::Any;
 
 pub mod mem;
 #[cfg(feature = "rkv-lmdb")]
 pub mod rkv;
 pub mod rocksdb;
 
-pub trait Storage: Send + Sync + Debug {
+pub trait Storage: Send + Sync + Debug + ToAny {
     fn _put(&self, table: &str, key: &[u8], value: &[u8]) -> Result<()>;
 
     fn _get(&self, table: &str, key: &[u8]) -> Result<Vec<u8>>;
@@ -115,6 +117,68 @@ impl<T: Storage + ?Sized> StorageExt for T {
     }
 }
 
-pub fn get_or_create<S: AsRef<Path>>(path: S, tables: Vec<String>) -> Arc<dyn Storage> {
-    Arc::new(RocksDbStorage::new(path, tables))
+pub trait ToAny {
+    fn to_any<'a>(self: Arc<Self>) -> Arc<dyn Any + 'a>
+    where
+        Self: 'a;
+}
+
+impl<T: Any> ToAny for T {
+    fn to_any<'a>(self: Arc<Self>) -> Arc<dyn Any + 'a>
+    where
+        Self: 'a,
+    {
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum DbEngineOptions {
+    RocksDb(RocksDbOptions),
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct DbOptions<S: AsRef<Path>> {
+    pub path: S,
+    pub engine: DbEngineOptions,
+}
+
+impl<S: AsRef<Path>> DbOptions<S> {
+    pub fn new(db_path: S) -> Self {
+        Self {
+            path: db_path,
+            engine: DbEngineOptions::RocksDb(RocksDbOptions::default()),
+        }
+    }
+}
+
+/// Get or create a Key/Value storage
+///
+/// # Arguments
+///
+/// * `options`: The database options
+/// * `path`: the path of this specific db
+/// * `tables`: the tables that need to be created
+///
+/// returns: Arc<dyn Storage>
+///
+/// # Examples
+///
+/// ```
+/// use db::{get_or_create, DbOptions, DbEngineOptions, RocksDbOptions};
+/// get_or_create::<&str, &str>(&DbOptions{path: "/tmp/db", engine: DbEngineOptions::RocksDb(RocksDbOptions::default())}, "mydb", vec!["mytable".to_string()]);
+/// ```
+pub fn get_or_create<S: AsRef<Path>, S2: AsRef<Path>>(
+    options: &DbOptions<S>,
+    path: S2,
+    tables: Vec<String>,
+) -> Arc<dyn Storage> {
+    match options.engine {
+        DbEngineOptions::RocksDb(ref opt) => {
+            let mut pb: PathBuf = PathBuf::from(options.path.as_ref());
+            pb.push(path);
+            Arc::new(RocksDbStorage::new(opt, pb, tables))
+        }
+    }
 }

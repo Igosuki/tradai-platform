@@ -141,9 +141,10 @@ clean-lint:
 
 ## alias rust-musl-builder-nightly='docker run --cpus=$(nproc) --rm -it --user rust $MUSL_FLAGS -v "$HOME/.cargo/git":/home/rust/.cargo/git -v "$(pwd)/cargo-registry":/home/rust/.cargo/registry -v "$(pwd)/cargo-target":/home/rust/src/target -v "$(pwd)":/home/rust/src ekidd/rust-musl-builder:nightly-2020-06-17'
 #$(rust-musl-builder-nightly) cargo build --release --target=x86_64-unknown-linux-gnu
+target=trader
 .PHONY: release
 release:
-	docker run --cpus=$(shell nproc) --rm -it -v "$(PWD)/cargo-git":/home/rust/.cargo/git -v "$(PWD)/cargo-registry":/home/rust/.cargo/registry -v "$(PWD)/cargo-target":/home/rust/src/target -v "$(PWD)":/home/rust/src -v "$(PWD)/config_release.toml":/home/rust/src/.cargo/config.toml -e LIB_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -e BUILD_GIT_SHA="$(GIT_SHA)" -e CFLAGS=-I/usr/local/musl/include -e CC=musl-gcc rust-musl-builder-nightly cargo build --release --target=x86_64-unknown-linux-gnu --no-default-features --features=rocksdb-vendor,zstd
+	docker run --cpus=$(shell nproc) --rm -it -v "$(PWD)/cargo-git":/home/rust/.cargo/git -v "$(PWD)/cargo-registry":/home/rust/.cargo/registry -v "$(PWD)/cargo-target":/home/rust/src/target -v "$(PWD)":/home/rust/src -v "$(PWD)/config_release.toml":/home/rust/src/.cargo/config.toml -e LIB_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -e BUILD_GIT_SHA="$(GIT_SHA)" -e CFLAGS=-I/usr/local/musl/include -e CC=musl-gcc rust-musl-builder-nightly cargo build --bin $(target) --release --target=x86_64-unknown-linux-gnu --no-default-features --features=rocksdb-vendor,zstd
 
 ### DOCKER
 
@@ -166,3 +167,16 @@ deploy_feeder24:
 
 deploy_feeder:
 	./infra/prod/deploy_feeder.sh
+
+### Checks
+
+.PHONY: check-bloat
+check-bloat:
+	strings target/release/trader > strings
+	cat strings | awk '{ print length, $$0 }' | sort -n -s | cut -d" " -f2- > exec_strings_sorted.txt
+	rm strings
+	echo "Wrote sorted strings in exec_strings_sorted.txt"
+
+.PHONY: check-deps
+check-deps:
+	readelf -d target/release/trader | grep 'NEEDED'
