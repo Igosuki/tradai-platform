@@ -1,16 +1,16 @@
 exchanges:
   binance:
     use_account: true
-    use_test: true
+    use_test: false
     fees: 0.001
 
 balance_reporter:
   refresh_rate: 10s
 
-keys: ./config/keys_real_test.json
+keys: /root/config/portfolio_keys.json
 
 storage:
-  path: './database'
+  path: './database_portfolio'
   engine:
     type: rocks_db
 
