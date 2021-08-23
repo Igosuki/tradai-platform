@@ -1,8 +1,3 @@
-use crate::types::BookPosition;
-use chrono::prelude::*;
-use chrono::{DateTime, Utc};
-use glob::glob;
-use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{BufReader, Result};
 use std::iter::FromIterator;
@@ -11,8 +6,52 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
 use std::time::Instant;
+
+use chrono::prelude::*;
+use chrono::{DateTime, Utc};
+use glob::glob;
+use serde::{Deserialize, Serialize};
+
 use util::date::{DateRange, DurationRangeType};
 use util::serde::date_time_format;
+
+use crate::types::BookPosition;
+
+pub fn partition_path(exchange: &str, ts: i64, channel: &str, pair: &str) -> Option<PathBuf> {
+    let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d");
+    Some(
+        PathBuf::new()
+            .join(exchange)
+            .join(channel)
+            .join(format!("pr={}", pair))
+            .join(format!("dt={}", dt_par)),
+    )
+}
+
+async fn dl_test_data(base_path: Arc<String>, exchange_name: Arc<String>, channel: Arc<String>, pair: String) {
+    let out_file_name = format!("{}.zip", pair);
+    let file = tempfile::tempdir().unwrap();
+    let out_file = file.into_path().join(out_file_name);
+    let s3_key = &format!("test_data/{}/{}/{}.zip", exchange_name, channel, pair);
+    let output = util::s3::download_file(&s3_key.clone(), out_file.clone())
+        .await
+        .expect("s3 file downloaded");
+    if let Some(1) = output.status.code() {
+        println!(
+            "s3 download failed : {}",
+            std::str::from_utf8(output.stderr.as_slice()).unwrap()
+        );
+    }
+
+    let bp = base_path.deref();
+
+    Command::new("unzip")
+        .arg(&out_file)
+        .arg("-d")
+        .arg(bp)
+        .output()
+        .expect("failed to unzip file");
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CsvRecord {
@@ -72,17 +111,6 @@ pub fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
     Ok(vec)
 }
 
-pub fn partition_path(exchange: &str, ts: i64, channel: &str, pair: &str) -> Option<PathBuf> {
-    let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d");
-    Some(
-        PathBuf::new()
-            .join(exchange)
-            .join(channel)
-            .join(format!("pr={}", pair))
-            .join(format!("dt={}", dt_par)),
-    )
-}
-
 pub fn load_records_from_csv<R>(dr: &DateRange, base_path: &Path, pairs: Vec<String>, glob_str: &str) -> Vec<Vec<R>>
 where
     Vec<R>: FromIterator<CsvRecord>,
@@ -104,31 +132,6 @@ where
 }
 
 fn load_records(path: &str) -> Vec<CsvRecord> { read_csv(path).unwrap() }
-
-async fn dl_test_data(base_path: Arc<String>, exchange_name: Arc<String>, channel: Arc<String>, pair: String) {
-    let out_file_name = format!("{}.zip", pair);
-    let file = tempfile::tempdir().unwrap();
-    let out_file = file.into_path().join(out_file_name);
-    let s3_key = &format!("test_data/{}/{}/{}.zip", exchange_name, channel, pair);
-    let output = util::s3::download_file(&s3_key.clone(), out_file.clone())
-        .await
-        .expect("s3 file downloaded");
-    if let Some(1) = output.status.code() {
-        println!(
-            "s3 download failed : {}",
-            std::str::from_utf8(output.stderr.as_slice()).unwrap()
-        );
-    }
-
-    let bp = base_path.deref();
-
-    Command::new("unzip")
-        .arg(&out_file)
-        .arg("-d")
-        .arg(bp)
-        .output()
-        .expect("failed to unzip file");
-}
 
 // Loads the relevant csv dataset
 // These csv datasets are downsampled feeds generated from avro data by spark the spark_flattener function (see the spark files in the parent project)
