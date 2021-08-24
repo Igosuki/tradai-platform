@@ -1,0 +1,29 @@
+strat:
+  type: mean_reverting
+  pair: 'BTC_USDT'
+  short_window_size: 100
+  long_window_size: 1000
+  dry_mode: true
+  sample_freq: 1min
+  initial_cap: 100.0
+  threshold_short: 0.02
+  threshold_long: -0.02
+  threshold_eval_freq: 1
+  dynamic_threshold: true
+  threshold_window_size: 1000
+  stop_loss: -0.1
+  stop_gain: 0.075
+  exchange: Binance
+  order_mode: limit
+
+fees: 0.001
+
+period:
+  type: interval
+  from: 2021-08-08
+  to: 2021-08-08
+
+input_sample_rate: 1min
+
+data_dir: /home/geps/dev/bitcoins/history/btc_history_cache/data
+

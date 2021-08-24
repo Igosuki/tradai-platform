@@ -13,12 +13,12 @@ members = [
     "metrics",
     "server",
     "strategies",
-    "util"
-]
-
-exclude = [
+    "util",
     "backtest"
 ]
+
+[profile.test]
+debug = false
 
 [profile.dev]
 debug = true
