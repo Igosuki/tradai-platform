@@ -174,11 +174,20 @@ impl Handler<RefreshBalances> for BalanceReporter {
             }
             .into_actor(self)
             .map(|balances_results, this, _| {
-                for (xchg, balances) in balances_results.iter() {
-                    if let Ok(balances) = balances {
-                        this.with_reporter(*xchg, |balance_report| {
-                            balance_report.init(balances);
-                        });
+                for (xchg, balance_result) in balances_results.iter() {
+                    match balance_result {
+                        Ok(balance) => {
+                            this.with_reporter(*xchg, |balance_report| {
+                                balance_report.init(balance);
+                            });
+                        }
+                        Err(e) => {
+                            error!(
+                                "BalanceReporter : failed to fetch balance for exchange {xchg} : {err}",
+                                xchg = xchg,
+                                err = e
+                            )
+                        }
                     }
                 }
             }),
