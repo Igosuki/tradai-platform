@@ -47,7 +47,6 @@ use crate::mean_reverting::options::Options as MeanRevertingStrategyOptions;
 use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation};
-use db::DbOptions;
 
 pub mod error;
 pub mod input;
@@ -62,6 +61,8 @@ mod test_util;
 pub mod types;
 mod util;
 mod wal;
+
+pub use db::DbOptions;
 
 #[derive(Clone, Debug)]
 pub enum Channel {
