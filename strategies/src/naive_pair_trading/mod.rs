@@ -20,7 +20,7 @@ use crate::naive_pair_trading::state::Operation;
 use crate::order_manager::OrderManager;
 use crate::query::{FieldMutation, MutableField};
 use crate::types::{BookPosition, PositionKind};
-use crate::{Channel, DataQuery, DataResult, StrategyInterface, StrategyStatus};
+use crate::{Channel, DataQuery, DataResult, StrategyDriver, StrategyStatus};
 use actix::Addr;
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::{LiveEvent, LiveEventEnvelope};
@@ -356,7 +356,7 @@ impl NaiveTradingStrategy {
 }
 
 #[async_trait]
-impl StrategyInterface for NaiveTradingStrategy {
+impl StrategyDriver for NaiveTradingStrategy {
     async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()> {
         if let LiveEvent::LiveOrderbook(ob) = &le.e {
             let string = ob.pair.clone();
@@ -385,8 +385,8 @@ impl StrategyInterface for NaiveTradingStrategy {
 
     fn data(&mut self, q: DataQuery) -> Option<DataResult> {
         match q {
-            DataQuery::Operations => Some(DataResult::NaiveOperations(self.get_operations())),
-            DataQuery::CurrentOperation => Some(DataResult::NaiveOperation(Box::new(self.get_ongoing_op().clone()))),
+            DataQuery::OperationHistory => Some(DataResult::NaiveOperations(self.get_operations())),
+            DataQuery::OpenOperations => Some(DataResult::NaiveOperation(Box::new(self.get_ongoing_op().clone()))),
             DataQuery::CancelOngoingOp => Some(DataResult::OperationCanceled(self.cancel_ongoing_op())),
             DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
             DataQuery::Status => Some(DataResult::Status(StrategyStatus::Running)),

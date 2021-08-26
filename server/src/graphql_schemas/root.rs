@@ -147,7 +147,7 @@ impl QueryRoot {
     #[graphql(description = "Get all operations for this strat")]
     async fn operations(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<OperationHistory>> {
         context
-            .with_strat(tk, DataQuery::Operations, |dr| {
+            .with_strat(tk, DataQuery::OperationHistory, |dr| {
                 match dr {
                     DataResult::NaiveOperations(pos_vec) => Ok(pos_vec.map_into()),
                     DataResult::MeanRevertingOperations(pos_vec) => Ok(pos_vec.map_into()),
@@ -163,7 +163,7 @@ impl QueryRoot {
     #[graphql(description = "Get the ongoing operation for the strat")]
     async fn current_operation(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Option<OperationHistory>> {
         context
-            .with_strat(tk, DataQuery::Operations, |dr| match dr {
+            .with_strat(tk, DataQuery::OperationHistory, |dr| match dr {
                 DataResult::NaiveOperation(o) => Ok(o.map_into()),
                 DataResult::MeanRevertingOperation(o) => Ok(o.map_into()),
                 _ => unhandled_data_result(),

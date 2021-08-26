@@ -1,6 +1,7 @@
 use crate::error::*;
 use crate::mean_reverting::state::Operation as MeanRevertingOperation;
 use crate::naive_pair_trading::state::Operation as NaiveOperation;
+use crate::types::TradeOperation;
 use crate::StrategyStatus;
 use actix_derive::{Message, MessageResponse};
 use serde::{Deserialize, Serialize};
@@ -16,15 +17,16 @@ pub enum DataResult {
     OperationCanceled(bool),
     State(String),
     Status(StrategyStatus),
+    Operations(Vec<TradeOperation>),
 }
 
 #[derive(Deserialize, Serialize, Message)]
 #[rtype(result = "Result<Option<DataResult>>")]
 pub enum DataQuery {
     /// All operations history
-    Operations,
+    OperationHistory,
     /// Currently ongoing operation
-    CurrentOperation,
+    OpenOperations,
     /// Cancel the ongoing operation
     CancelOngoingOp,
     /// Latest state

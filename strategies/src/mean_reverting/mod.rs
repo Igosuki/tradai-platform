@@ -25,7 +25,7 @@ use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation, MutableField};
 use crate::types::{BookPosition, PositionKind};
 use crate::util::Stopper;
-use crate::{Channel, StrategyInterface, StrategyStatus};
+use crate::{Channel, StrategyDriver, StrategyStatus};
 use math::indicators::macd_apo::MACDApo;
 
 mod ema_model;
@@ -308,7 +308,7 @@ impl MeanRevertingStrategy {
 }
 
 #[async_trait]
-impl StrategyInterface for MeanRevertingStrategy {
+impl StrategyDriver for MeanRevertingStrategy {
     async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()> {
         if !self.handles(le) {
             return Ok(());
@@ -328,8 +328,8 @@ impl StrategyInterface for MeanRevertingStrategy {
 
     fn data(&mut self, q: DataQuery) -> Option<DataResult> {
         match q {
-            DataQuery::Operations => Some(DataResult::MeanRevertingOperations(self.get_operations())),
-            DataQuery::CurrentOperation => Some(DataResult::MeanRevertingOperation(Box::new(
+            DataQuery::OperationHistory => Some(DataResult::MeanRevertingOperations(self.get_operations())),
+            DataQuery::OpenOperations => Some(DataResult::MeanRevertingOperation(Box::new(
                 self.get_ongoing_op().clone(),
             ))),
             DataQuery::CancelOngoingOp => Some(DataResult::OperationCanceled(self.cancel_ongoing_op())),
