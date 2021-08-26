@@ -23,6 +23,8 @@ Environment=RUST_LOG=info
 
 # Configures the time to wait before service is stopped forcefully.
 TimeoutStopSec=300
+LimitNOFILE=200000
+LimitNPROC=200000
 
 [Install]
 WantedBy=multi-user.target

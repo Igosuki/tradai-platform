@@ -21,6 +21,8 @@ Environment=SSL_CERT_DIR=/etc/ssl/certs/
 Environment=FEEDER_CONF=/root/config/{{FEEDER_CONFIG_FILE | default('feeder_prod.yaml')}}
 Environment=RUST_BACKTRACE=1
 Environment=RUST_LOG=info
+LimitNOFILE=200000
+LimitNPROC=200000
 
 # Configures the time to wait before service is stopped forcefully.
 TimeoutStopSec=300
