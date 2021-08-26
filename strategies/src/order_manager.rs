@@ -156,7 +156,10 @@ impl OrderManager {
             };
             TransactionStatus::Filled(update)
         } else {
-            let order_info = self.api.order(order.query.clone()).await;
+            // Here the order is truncated according to the exchange configuration
+            let pair_conf = coinnect_rt::pair::pair_conf(&self.xchg, &order.query.pair())?;
+            let query = order.query.truncate(pair_conf);
+            let order_info = self.api.order(query).await;
             match order_info {
                 Ok(o) => TransactionStatus::New(o),
                 Err(e) => TransactionStatus::Rejected(match e {
