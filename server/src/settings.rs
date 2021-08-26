@@ -7,13 +7,14 @@ use itertools::Itertools;
 use serde::de;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::notify::DiscordNotifierOptions;
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::types::Pair;
 use db::DbOptions;
 use metrics::prom::PrometheusOptions;
 use portfolio::balance::BalanceReporterOptions;
-use strategies::{StrategyCopySettings, StrategySettings};
+use strategies::settings::{StrategyCopySettings, StrategySettings};
+
+use crate::notify::DiscordNotifierOptions;
 
 fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
 where

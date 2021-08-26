@@ -39,15 +39,16 @@ use strum_macros::EnumString;
 use uuid::Uuid;
 
 use coinnect_rt::exchange::Exchange;
-use coinnect_rt::pair::filter_pairs;
+pub use coinnect_rt::types as coinnect_types;
 use coinnect_rt::types::{LiveEventEnvelope, Pair};
+pub use db::DbOptions;
 use error::*;
+pub use settings::{StrategyCopySettings, StrategySettings};
 
-use crate::mean_reverting::options::Options as MeanRevertingStrategyOptions;
-use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation};
 
+mod driver;
 pub mod error;
 pub mod input;
 pub mod mean_reverting;
@@ -56,14 +57,12 @@ pub mod naive_pair_trading;
 pub mod order_manager;
 pub mod order_types;
 pub mod query;
+pub mod settings;
 #[cfg(test)]
 mod test_util;
 pub mod types;
 mod util;
 mod wal;
-
-pub use coinnect_rt::types as coinnect_types;
-pub use db::DbOptions;
 
 #[derive(Clone, Debug)]
 pub enum Channel {
@@ -104,65 +103,11 @@ pub struct Strategy(pub StrategyKey, pub Addr<StrategyActor>, pub Vec<Channel>);
 impl Strategy {
     pub fn new(db: &DbOptions<String>, fees: f64, settings: &StrategySettings, om: Option<Addr<OrderManager>>) -> Self {
         let uuid = Uuid::new_v4();
-        let strategy = from_settings(db, fees, settings, om);
+        let strategy = settings::from_settings(db, fees, settings, om);
         info!(uuid = %uuid, channels = ?strategy.channels(), "starting strategy");
         let channels = strategy.channels();
         let actor = StrategyActor::new_with_uuid(StrategyActorOptions { strategy }, uuid);
         Self(settings.key(), StrategyActor::start(actor), channels)
-    }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "type")]
-#[serde(rename_all = "snake_case")]
-pub enum StrategySettings {
-    Naive(NaiveStrategyOptions),
-    MeanReverting(MeanRevertingStrategyOptions),
-}
-
-impl StrategySettings {
-    pub fn exchange(&self) -> Exchange {
-        match self {
-            Self::Naive(s) => s.exchange,
-            Self::MeanReverting(s) => s.exchange,
-        }
-    }
-
-    pub fn key(&self) -> StrategyKey {
-        match &self {
-            StrategySettings::Naive(n) => StrategyKey(StrategyType::Naive, format!("{}_{}", n.left, n.right)),
-            StrategySettings::MeanReverting(n) => StrategyKey(StrategyType::MeanReverting, format!("{}", n.pair)),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "type")]
-#[serde(rename_all = "snake_case")]
-pub enum StrategyCopySettings {
-    MeanReverting {
-        pairs: Vec<String>,
-        base: MeanRevertingStrategyOptions,
-    },
-}
-
-impl StrategyCopySettings {
-    pub fn exchange(&self) -> Exchange {
-        match self {
-            Self::MeanReverting { base, .. } => base.exchange,
-        }
-    }
-
-    pub fn all(&self) -> Result<Vec<StrategySettings>> {
-        match self {
-            StrategyCopySettings::MeanReverting { pairs, base } => {
-                let pairs = filter_pairs(&self.exchange(), pairs)?;
-                Ok(pairs
-                    .into_iter()
-                    .map(|pair| StrategySettings::MeanReverting(MeanRevertingStrategyOptions { pair, ..base.clone() }))
-                    .collect())
-            }
-        }
     }
 }
 
@@ -215,9 +160,8 @@ impl Handler<Arc<LiveEventEnvelope>> for StrategyActor {
         let lock = self.inner.clone();
         Box::pin(
             async move {
-                let arc = lock.clone();
-                let mut act = arc.write().await;
-                act.add_event(msg.as_ref()).await.map_err(|e| anyhow!(e))
+                let mut inner = lock.write().await;
+                inner.add_event(msg.as_ref()).await.map_err(|e| anyhow!(e))
             }
             .into_actor(self),
         )
@@ -232,8 +176,8 @@ impl Handler<DataQuery> for StrategyActor {
         let lock = self.inner.clone();
         Box::pin(
             async move {
-                let mut act = lock.write().await;
-                Ok(act.data(msg))
+                let mut inner = lock.write().await;
+                Ok(inner.data(msg))
             }
             .into_actor(self),
         )
@@ -248,8 +192,8 @@ impl Handler<FieldMutation> for StrategyActor {
         let lock = self.inner.clone();
         Box::pin(
             async move {
-                let mut act = lock.write().await;
-                act.mutate(msg)
+                let mut inner = lock.write().await;
+                inner.mutate(msg)
             }
             .into_actor(self),
         )
@@ -266,34 +210,6 @@ pub trait StrategyInterface {
     fn mutate(&mut self, m: FieldMutation) -> Result<()>;
 
     fn channels(&self) -> Vec<Channel>;
-}
-
-pub fn from_settings(
-    db: &DbOptions<String>,
-    fees: f64,
-    s: &StrategySettings,
-    om: Option<Addr<OrderManager>>,
-) -> Box<dyn StrategyInterface> {
-    match s {
-        StrategySettings::Naive(n) => {
-            if let Some(o) = om {
-                Box::new(crate::naive_pair_trading::NaiveTradingStrategy::new(db, fees, n, o))
-            } else {
-                error!("Expected an order manager to be available for the targeted exchange of this NaiveStrategy");
-                panic!();
-            }
-        }
-        StrategySettings::MeanReverting(n) => {
-            if let Some(o) = om {
-                Box::new(crate::mean_reverting::MeanRevertingStrategy::new(db, fees, n, o))
-            } else {
-                error!(
-                    "Expected an order manager to be available for the targeted exchange of this MeanRevertingStrategy"
-                );
-                panic!();
-            }
-        }
-    }
 }
 
 #[cfg(test)]
