@@ -7,19 +7,20 @@ use std::sync::Arc;
 
 use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use config::{Config, ConfigError, File};
-use datafusion::physical_plan::avro::AvroReadOptions;
-use datafusion::prelude::ExecutionContext;
-use parse_duration::parse;
-
 use datafusion::arrow::array::{Array, ListArray, PrimitiveArray, StructArray, TimestampMillisecondArray};
 use datafusion::arrow::datatypes::Float64Type;
 use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::DataFusionError;
+use datafusion::physical_plan::avro::AvroReadOptions;
+use datafusion::prelude::ExecutionContext;
+use parse_duration::parse;
+
 use strategies::coinnect_types::{LiveEvent, LiveEventEnvelope, Orderbook};
 use strategies::input::partition_path;
 use strategies::order_manager::test_util::mock_manager;
-use strategies::{Channel, DbOptions, Strategy, StrategySettings};
+use strategies::settings::StrategySettings;
+use strategies::{Channel, DbOptions, Strategy};
 use util::date::{DateRange, DurationRangeType};
 use util::test::test_dir;
 
