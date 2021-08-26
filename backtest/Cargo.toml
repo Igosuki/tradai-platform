@@ -28,5 +28,5 @@ parse_duration = "2.1"
 tokio = "1.10"
 actix = "0.12"
 env_logger = { version="0.9", optional = true}
-#datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "avro2_m_nozstd", version = "4.0.0-SNAPSHOT", default-features = false }
-datafusion = { path = "/home/geps/dev/oss/arrow-datafusion/datafusion", version = "5.0.0", default-features = false }
+datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "main_i", version = "5.0.0", default-features = false }
+#datafusion = { path = "/home/geps/dev/oss/arrow-datafusion/datafusion", version = "5.0.0", default-features = false }
