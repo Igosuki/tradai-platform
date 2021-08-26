@@ -11,6 +11,7 @@ struct BacktestCliOptions {
 
 #[actix::main]
 async fn main() -> backtest::Result<()> {
+    env_logger::init();
     let opts = BacktestCliOptions::from_args();
     let conf = BacktestConfig::new(opts.config)?;
     let bt = Backtest::try_new(&conf)?;

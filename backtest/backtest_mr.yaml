@@ -1,6 +1,6 @@
 strat:
   type: mean_reverting
-  pair: 'BTC_USDT'
+  pair: 'LTC_USDT'
   short_window_size: 100
   long_window_size: 1000
   dry_mode: true
@@ -20,10 +20,12 @@ fees: 0.001
 
 period:
   type: interval
-  from: 2021-08-08
-  to: 2021-08-08
+  from: 2021-07-18
+  to: 2021-08-14
 
 input_sample_rate: 1min
+
+db_path: /tmp/strat_backtest_dbs
 
 data_dir: /home/geps/dev/bitcoins/history/btc_history_cache/data
 
