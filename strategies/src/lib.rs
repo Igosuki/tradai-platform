@@ -62,6 +62,7 @@ pub mod types;
 mod util;
 mod wal;
 
+pub use coinnect_rt::types as coinnect_types;
 pub use db::DbOptions;
 
 #[derive(Clone, Debug)]
