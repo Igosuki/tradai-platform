@@ -316,8 +316,10 @@ impl StrategyInterface for MeanRevertingStrategy {
         if let LiveEvent::LiveOrderbook(ob) = &le.e {
             let book_pos = ob.try_into().ok();
             if let Some(pos) = book_pos {
-                let now = Utc::now();
-                let x = SinglePosRow { time: now, pos };
+                let x = SinglePosRow {
+                    time: Utc.timestamp_millis(ob.timestamp),
+                    pos,
+                };
                 self.process_row(&x).await;
             }
         }
