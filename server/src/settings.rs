@@ -109,6 +109,7 @@ pub struct AvroFileLoggerSettings {
     pub basedir: String,
     #[serde(deserialize_with = "decode_duration_str")]
     pub partitions_grace_period: Duration,
+    pub parallelism: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

@@ -207,7 +207,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
 
 fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<LiveEventEnvelope>> {
     info!("starting avro file logger");
-    SyncArbiter::start(2, move || {
+    SyncArbiter::start(settings.parallelism.unwrap_or(2), move || {
         let dir = Path::new(settings.basedir.as_str());
         fs::create_dir_all(&dir).unwrap();
         AvroFileActor::new(&FileActorOptions {
