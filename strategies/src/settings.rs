@@ -6,7 +6,7 @@ use coinnect_rt::pair::filter_pairs;
 use crate::mean_reverting::options::Options as MeanRevertingStrategyOptions;
 use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::order_manager::OrderManager;
-use crate::{error, DbOptions, StrategyInterface, StrategyKey, StrategyType};
+use crate::{error, DbOptions, StrategyDriver, StrategyKey, StrategyType};
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type")]
@@ -67,7 +67,7 @@ pub fn from_settings(
     fees: f64,
     s: &StrategySettings,
     om: Option<Addr<OrderManager>>,
-) -> Box<dyn StrategyInterface> {
+) -> Box<dyn StrategyDriver> {
     match s {
         StrategySettings::Naive(n) => {
             if let Some(o) = om {

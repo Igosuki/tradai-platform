@@ -50,6 +50,7 @@ use crate::query::{DataQuery, DataResult, FieldMutation};
 
 mod driver;
 pub mod error;
+mod generic;
 pub mod input;
 pub mod mean_reverting;
 mod models;
@@ -112,12 +113,12 @@ impl Strategy {
 }
 
 pub struct StrategyActorOptions {
-    pub strategy: Box<dyn StrategyInterface>,
+    pub strategy: Box<dyn StrategyDriver>,
 }
 
 pub struct StrategyActor {
     session_uuid: Uuid,
-    inner: Arc<RwLock<Box<dyn StrategyInterface>>>,
+    inner: Arc<RwLock<Box<dyn StrategyDriver>>>,
 }
 
 unsafe impl Send for StrategyActor {}
@@ -202,7 +203,7 @@ impl Handler<FieldMutation> for StrategyActor {
 
 // TODO: strategies should define when to stop trading
 #[async_trait]
-pub trait StrategyInterface {
+pub trait StrategyDriver {
     async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()>;
 
     fn data(&mut self, q: DataQuery) -> Option<DataResult>;
@@ -226,14 +227,14 @@ mod test {
 
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
-    fn actor(strategy: Box<dyn StrategyInterface>) -> StrategyActor {
+    fn actor(strategy: Box<dyn StrategyDriver>) -> StrategyActor {
         StrategyActor::new(StrategyActorOptions { strategy })
     }
 
     struct DummyStrat;
 
     #[async_trait]
-    impl StrategyInterface for DummyStrat {
+    impl StrategyDriver for DummyStrat {
         async fn add_event(&mut self, _: &LiveEventEnvelope) -> Result<()> { Ok(()) }
 
         fn data(&mut self, _q: DataQuery) -> Option<DataResult> { unimplemented!() }

@@ -1,0 +1,108 @@
+use crate::error::Result;
+use crate::query::{DataQuery, DataResult, FieldMutation};
+use crate::types::{BookPosition, ExecutionInstruction, OperationKind, PositionKind, TradeKind, TradeOperation};
+use crate::{Channel, StrategyDriver, StrategyStatus};
+use chrono::{DateTime, TimeZone, Utc};
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::types::{LiveEvent, LiveEventEnvelope, Pair};
+use std::collections::{BTreeMap, HashSet};
+use std::convert::TryInto;
+use std::sync::{Arc, Mutex};
+
+#[async_trait]
+trait Strategy: Sync + Send {
+    async fn orderbook_tick(&self, latest_price: OrderbookUpdate);
+
+    async fn get_operations(&self) -> Vec<TradeOperation>;
+
+    async fn cancel_ongoing_operations(&self) -> bool;
+
+    async fn get_state(&self) -> String;
+
+    async fn get_status(&self) -> StrategyStatus;
+}
+
+struct OrderbookUpdate {
+    positions: BTreeMap<Pair, BookPosition>,
+    time: DateTime<Utc>,
+}
+
+struct TradeSignal {
+    position_kind: PositionKind,
+    operation_kind: OperationKind,
+    trade_kind: TradeKind,
+    price: f64,
+    pair: Pair,
+    exchange: Exchange,
+    instructions: Option<ExecutionInstruction>,
+    dry_mode: bool,
+}
+
+struct GenericStrategy {
+    pairs: HashSet<Pair>,
+    exchanges: HashSet<Exchange>,
+    last_positions: Mutex<BTreeMap<Pair, BookPosition>>,
+    inner: Arc<dyn Strategy>,
+}
+
+impl GenericStrategy {
+    fn handles(&self, le: &LiveEventEnvelope) -> bool {
+        self.exchanges.contains(&le.xch)
+            && match &le.e {
+                LiveEvent::LiveOrderbook(ob) => self.pairs.contains(&ob.pair),
+                _ => false,
+            }
+    }
+}
+
+#[async_trait]
+impl StrategyDriver for GenericStrategy {
+    async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()> {
+        if !self.handles(le) {
+            return Ok(());
+        }
+        if let LiveEvent::LiveOrderbook(ob) = &le.e {
+            let ob_pair = ob.pair.clone();
+            let book_pos = ob.try_into().ok();
+            if let Some(pos) = book_pos {
+                let positions = {
+                    let mut lock = self.last_positions.lock().unwrap();
+                    lock.insert(ob_pair, pos);
+                    lock.clone()
+                };
+                self.inner
+                    .orderbook_tick(OrderbookUpdate {
+                        positions,
+                        time: Utc.timestamp_millis(ob.timestamp),
+                    })
+                    .await;
+            }
+        }
+        Ok(())
+    }
+
+    fn data(&mut self, q: DataQuery) -> Option<DataResult> {
+        match q {
+            DataQuery::OperationHistory => Some(DataResult::Operations(vec![])),
+            DataQuery::OpenOperations => Some(DataResult::Operations(vec![])),
+            DataQuery::CancelOngoingOp => Some(DataResult::OperationCanceled(false)),
+            DataQuery::State => Some(DataResult::State("".to_string())),
+            DataQuery::Status => Some(DataResult::Status(StrategyStatus::NotTrading)),
+        }
+    }
+
+    fn mutate(&mut self, m: FieldMutation) -> Result<()> { Ok(()) }
+
+    fn channels(&self) -> Vec<Channel> {
+        self.exchanges
+            .iter()
+            .map(|xchg| {
+                self.pairs.iter().map(move |pair| Channel::Orderbooks {
+                    xch: *xchg,
+                    pair: pair.clone(),
+                })
+            })
+            .flatten()
+            .collect()
+    }
+}
