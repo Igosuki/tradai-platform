@@ -12,8 +12,9 @@ use std::iter::FromIterator;
 
 type Bytes = Box<[u8]>;
 
-#[derive(Deserialize, Serialize, Debug, Clone, TypedBuilder, Default)]
+#[derive(Deserialize, Serialize, Debug, Clone, Default)]
 pub struct RocksDbOptions {
+    #[serde(default)]
     read_only: bool,
 }
 
