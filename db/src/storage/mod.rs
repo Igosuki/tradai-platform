@@ -178,7 +178,7 @@ pub fn get_or_create<S: AsRef<Path>, S2: AsRef<Path>>(
         DbEngineOptions::RocksDb(ref opt) => {
             let mut pb: PathBuf = PathBuf::from(options.path.as_ref());
             pb.push(path);
-            Arc::new(RocksDbStorage::new(opt, pb, tables))
+            Arc::new(RocksDbStorage::try_new(opt, pb, tables).unwrap())
         }
     }
 }
