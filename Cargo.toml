@@ -14,7 +14,11 @@ members = [
     "server",
     "strategies",
     "util",
-    "backtest"
+    "backtest",
+]
+
+exclude = [
+
 ]
 
 [profile.test]
