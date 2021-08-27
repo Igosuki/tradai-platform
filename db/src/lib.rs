@@ -7,6 +7,8 @@
 extern crate measure_time;
 #[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate typed_builder;
 
 mod error;
 mod storage;

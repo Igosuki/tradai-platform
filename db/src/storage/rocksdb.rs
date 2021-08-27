@@ -7,11 +7,22 @@ use ext::ResultExt;
 
 use crate::error::*;
 use crate::storage::Storage;
+use std::collections::HashSet;
+use std::iter::FromIterator;
 
 type Bytes = Box<[u8]>;
 
-#[derive(Deserialize, Serialize, Debug, Clone, Default)]
-pub struct RocksDbOptions {}
+#[derive(Deserialize, Serialize, Debug, Clone, TypedBuilder, Default)]
+pub struct RocksDbOptions {
+    read_only: bool,
+}
+
+impl RocksDbOptions {
+    pub fn read_only(mut self, read_only: bool) -> Self {
+        self.read_only = read_only;
+        self
+    }
+}
 
 #[derive(Debug)]
 pub struct RocksDbStorage {
@@ -19,14 +30,15 @@ pub struct RocksDbStorage {
 }
 
 impl RocksDbStorage {
-    pub fn new<S: AsRef<Path>>(_options: &RocksDbOptions, db_path: S, tables: Vec<String>) -> Self {
+    pub fn try_new<S: AsRef<Path>>(options: &RocksDbOptions, db_path: S, tables: Vec<String>) -> Result<Self> {
+        let is_read_only = options.read_only;
         let mut options = Options::default();
         options.create_if_missing(true);
         options.create_missing_column_families(true);
-        let mut tables = tables;
+        let mut tables: HashSet<String> = HashSet::from_iter(tables);
         let query = DB::list_cf(&options, db_path.as_ref());
         if let Ok(cfs) = query {
-            tables.extend_from_slice(cfs.as_slice());
+            tables.extend(cfs);
         }
         let column_families: Vec<ColumnFamilyDescriptor> = tables
             .iter()
@@ -35,8 +47,12 @@ impl RocksDbStorage {
                 ColumnFamilyDescriptor::new(table, cf_opts)
             })
             .collect();
-        let db = DB::open_cf_descriptors(&options, db_path, column_families).unwrap();
-        Self { inner: db }
+        let db = if is_read_only {
+            DB::open_for_read_only(&options, db_path, false)?
+        } else {
+            DB::open_cf_descriptors(&options, db_path, column_families)?
+        };
+        Ok(Self { inner: db })
     }
 
     fn default_cf_options() -> Options {
@@ -128,7 +144,7 @@ mod test {
     }
 
     fn db(tables: Vec<String>) -> RocksDbStorage {
-        RocksDbStorage::new(&RocksDbOptions::default(), &util::test::test_dir(), tables)
+        RocksDbStorage::try_new(&RocksDbOptions::default(), &util::test::test_dir(), tables).unwrap()
     }
 
     #[bench]

@@ -27,10 +27,19 @@ arg_enum! {
 enum DbCommand {
     Dump {
         table: String,
+        #[structopt(long)]
+        readonly: bool,
     },
     Repair {
         #[structopt(long)]
         skip_corrupted: bool,
+    },
+    Compact {
+        table: Option<String>,
+        #[structopt(long)]
+        from: Option<String>,
+        #[structopt(long)]
+        to: Option<String>,
     },
 }
 
@@ -38,14 +47,13 @@ fn main() {
     let options = CliOptions::from_args();
     let path: PathBuf = options.path.clone();
     match options.cmd {
-        DbCommand::Dump { ref table } => {
-            let db = db(&options, &path);
+        DbCommand::Dump { ref table, readonly } => {
+            let db = db(options.db_type, &path, readonly, vec![table.clone()]);
             let all = db.get_all::<serde_json::Value>(table).unwrap();
-            for (_, v) in all {
-                println!("{}", v);
+            for (k, v) in all {
+                println!("{{\"id\": {}, \"transaction\": {}}}", k, v);
             }
         }
-        #[allow(clippy::single_match)]
         DbCommand::Repair { skip_corrupted } => match options.db_type {
             DbType::Rocksdb => {
                 let mut options = Options::default();
@@ -59,18 +67,29 @@ fn main() {
                 }
             }
         },
+        DbCommand::Compact { from, to, table } => {
+            if let Some(t) = table {
+                let db = rocksdb::DB::open_cf(&Options::default(), path, vec![t.clone()]).unwrap();
+                let handle = db.cf_handle(&t).unwrap();
+                db.compact_range_cf(&handle, from, to)
+            } else {
+                let db = rocksdb::DB::open(&Options::default(), path).unwrap();
+                db.compact_range(from, to)
+            };
+            println!("Compaction ended");
+        }
     }
 }
 
-fn db(options: &CliOptions, path: &Path) -> Arc<dyn Storage> {
+fn db(db_type: DbType, path: &Path, read_only: bool, tables: Vec<String>) -> Arc<dyn Storage> {
     get_or_create(
         &DbOptions {
             path,
-            engine: match options.db_type {
-                DbType::Rocksdb => DbEngineOptions::RocksDb(RocksDbOptions::default()),
+            engine: match db_type {
+                DbType::Rocksdb => DbEngineOptions::RocksDb(RocksDbOptions::default().read_only(read_only)),
             },
         },
         "",
-        vec![],
+        tables,
     )
 }
