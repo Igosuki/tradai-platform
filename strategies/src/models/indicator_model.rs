@@ -1,4 +1,5 @@
 use super::persist::{ModelValue, PersistentModel};
+use crate::models::Model;
 use chrono::{DateTime, Utc};
 use db::Storage;
 use math::Next;
@@ -47,6 +48,10 @@ impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> IndicatorModel
     pub fn try_loading_model(&mut self) -> crate::error::Result<()> { self.model.try_loading() }
 
     pub fn is_loaded(&self) -> bool { self.model.is_loaded() }
+}
+
+impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> Model<T> for IndicatorModel<T, R> {
+    fn value(&self) -> Option<T> { self.value() }
 }
 
 #[cfg(test)]

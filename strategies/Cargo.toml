@@ -24,10 +24,6 @@ zstd = ["awc/compress-zstd"]
 # actix
 actix = "0.12"
 actix_derive = "0.6"
-anyhow = "1.0"
-async-std = "1.6"
-async-trait = "0.1"
-chrono = { version = "0.4", features = ["serde"] }
 
 # bin
 clap = { version = "2.33", optional = true }
@@ -41,13 +37,20 @@ derivative = "2.1.1"
 derive_more = "0.99"
 env_logger = "0.9"
 
-futures = { version = "0.3", features = ["async-await", "alloc"] }
+
 glob = "0.3"
 
-# std
+# std and structs
 itertools = "0.10"
 convert_case = "0.4"
+anyhow = "1.0"
+async-std = "1.6"
+chrono = { version = "0.4", features = ["serde"] }
 ext = { path = "../ext" }
+
+# futures
+futures = { version = "0.3", features = ["async-await", "alloc"] }
+async-trait = "0.1"
 
 # graph_ql
 juniper = { version = "0.15", features = ["expose-test-schema"] }
