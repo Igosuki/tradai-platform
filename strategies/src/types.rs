@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use itertools::Itertools;
 use log::Level::Debug;
 use strum_macros::{AsRefStr, EnumString};
@@ -179,10 +179,11 @@ pub struct BookPosition {
     pub bid: f64,
     // crypto_b
     pub bid_q: f64, // crypto_b_q
+    pub event_time: DateTime<Utc>,
 }
 
 impl BookPosition {
-    pub fn new(asks: &[(f64, f64)], bids: &[(f64, f64)]) -> Self {
+    pub fn new(event_time: DateTime<Utc>, asks: &[(f64, f64)], bids: &[(f64, f64)]) -> Self {
         let first_ask = asks[0];
         let first_bid = bids[0];
         Self {
@@ -191,6 +192,7 @@ impl BookPosition {
             bid: first_bid.0,
             bid_q: first_bid.1,
             mid: Self::mid(asks, bids),
+            event_time,
         }
     }
 
@@ -212,7 +214,8 @@ impl TryFrom<Orderbook> for BookPosition {
         if t.bids.is_empty() {
             return Err(DataTableError::MissingBids);
         }
-        Ok(BookPosition::new(&t.asks, &t.bids))
+        let event_time = Utc.timestamp_millis(t.timestamp);
+        Ok(BookPosition::new(event_time, &t.asks, &t.bids))
     }
 }
 
@@ -226,7 +229,8 @@ impl<'a> TryFrom<&'a Orderbook> for BookPosition {
         if t.bids.is_empty() {
             return Err(DataTableError::MissingBids);
         }
-        Ok(BookPosition::new(&t.asks, &t.bids))
+        let event_time = Utc.timestamp_millis(t.timestamp);
+        Ok(BookPosition::new(event_time, &t.asks, &t.bids))
     }
 }
 
@@ -235,6 +239,7 @@ mod test {
     use quickcheck::{Arbitrary, Gen};
 
     use crate::types::BookPosition;
+    use fake::Fake;
 
     lazy_static! {
         static ref MAX_ALLOWED_F64: f64 = 1.0_f64.powf(10.0);
@@ -256,6 +261,7 @@ mod test {
                 bid: zero_if_nan(f64::arbitrary(g)),
                 bid_q: zero_if_nan(f64::arbitrary(g)),
                 mid: zero_if_nan(f64::arbitrary(g)),
+                event_time: fake::faker::chrono::en::DateTime().fake(),
             }
         }
     }

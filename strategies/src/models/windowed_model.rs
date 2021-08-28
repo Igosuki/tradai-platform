@@ -1,5 +1,6 @@
 use super::persist::{PersistentModel, PersistentVec, Window};
 use crate::models::persist::ModelValue;
+use crate::models::Model;
 use chrono::{DateTime, Utc};
 use db::Storage;
 use serde::de::DeserializeOwned;
@@ -60,6 +61,12 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
     pub fn model(&self) -> Option<ModelValue<M>> { self.model.model() }
 
     pub fn is_loaded(&self) -> bool { self.model.is_loaded() && self.rows.is_loaded() }
+}
+
+impl<R: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone + Default> Model<M>
+    for WindowedModel<R, M>
+{
+    fn value(&self) -> Option<M> { self.value() }
 }
 
 #[cfg(test)]

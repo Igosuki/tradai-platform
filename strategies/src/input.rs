@@ -96,7 +96,7 @@ impl From<CsvRecord> for BookPosition {
             (csvr.b4, csvr.bq4),
             (csvr.b5, csvr.bq5),
         ];
-        BookPosition::new(&asks, &bids)
+        BookPosition::new(csvr.event_ms, &asks, &bids)
     }
 }
 

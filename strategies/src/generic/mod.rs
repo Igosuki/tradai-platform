@@ -1,31 +1,35 @@
 use crate::error::Result;
 use crate::query::{DataQuery, DataResult, FieldMutation};
-use crate::types::{BookPosition, ExecutionInstruction, OperationKind, PositionKind, TradeKind, TradeOperation};
+use crate::types::{BookPosition, ExecutionInstruction, OperationKind, PositionKind, TradeKind};
 use crate::{Channel, StrategyDriver, StrategyStatus};
-use chrono::{DateTime, TimeZone, Utc};
 use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::{LiveEvent, LiveEventEnvelope, Pair};
+use coinnect_rt::types::{AssetType, LiveEvent, LiveEventEnvelope, Pair};
 use std::collections::{BTreeMap, HashSet};
 use std::convert::TryInto;
 use std::sync::{Arc, Mutex};
 
+struct StrategyContext<C> {
+    db: Arc<dyn Strategy>,
+    conf: C,
+}
+
+enum InputEvent {
+    BookPosition(BookPosition),
+    BookPositions(BookPositions),
+}
+
 #[async_trait]
 trait Strategy: Sync + Send {
-    async fn orderbook_tick(&self, latest_price: OrderbookUpdate);
+    async fn eval(&self, e: InputEvent) -> Result<Vec<TradeSignal>>;
 
-    async fn get_operations(&self) -> Vec<TradeOperation>;
+    async fn update_model(&self, e: InputEvent) -> Result<()>;
 
-    async fn cancel_ongoing_operations(&self) -> bool;
-
-    async fn get_state(&self) -> String;
-
-    async fn get_status(&self) -> StrategyStatus;
+    async fn get_models(&self);
 }
 
-struct OrderbookUpdate {
-    positions: BTreeMap<Pair, BookPosition>,
-    time: DateTime<Utc>,
-}
+//async fn try_new(&self, conf: serde_json::Value) -> Self;
+
+type BookPositions = BTreeMap<Pair, BookPosition>;
 
 struct TradeSignal {
     position_kind: PositionKind,
@@ -36,6 +40,7 @@ struct TradeSignal {
     exchange: Exchange,
     instructions: Option<ExecutionInstruction>,
     dry_mode: bool,
+    asset_type: AssetType,
 }
 
 struct GenericStrategy {
@@ -43,9 +48,14 @@ struct GenericStrategy {
     exchanges: HashSet<Exchange>,
     last_positions: Mutex<BTreeMap<Pair, BookPosition>>,
     inner: Arc<dyn Strategy>,
+    multi_market: bool,
 }
 
 impl GenericStrategy {
+    fn init(&self) {
+        // get_models
+        // load_models
+    }
     fn handles(&self, le: &LiveEventEnvelope) -> bool {
         self.exchanges.contains(&le.xch)
             && match &le.e {
@@ -53,6 +63,14 @@ impl GenericStrategy {
                 _ => false,
             }
     }
+    //
+    // async fn get_operations(&self) -> Vec<TradeOperation>;
+    //
+    // async fn cancel_ongoing_operations(&self) -> bool;
+    //
+    // async fn get_state(&self) -> String;
+    //
+    // async fn get_status(&self) -> StrategyStatus;
 }
 
 #[async_trait]
@@ -65,17 +83,17 @@ impl StrategyDriver for GenericStrategy {
             let ob_pair = ob.pair.clone();
             let book_pos = ob.try_into().ok();
             if let Some(pos) = book_pos {
-                let positions = {
-                    let mut lock = self.last_positions.lock().unwrap();
-                    lock.insert(ob_pair, pos);
-                    lock.clone()
+                let event = if self.multi_market {
+                    let positions = {
+                        let mut lock = self.last_positions.lock().unwrap();
+                        lock.insert(ob_pair, pos);
+                        lock.clone()
+                    };
+                    InputEvent::BookPositions(positions)
+                } else {
+                    InputEvent::BookPosition(pos)
                 };
-                self.inner
-                    .orderbook_tick(OrderbookUpdate {
-                        positions,
-                        time: Utc.timestamp_millis(ob.timestamp),
-                    })
-                    .await;
+                self.inner.update_model(event).await.unwrap();
             }
         }
         Ok(())
