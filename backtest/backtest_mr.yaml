@@ -29,3 +29,4 @@ db_path: /tmp/strat_backtest_dbs
 
 data_dir: /home/geps/dev/bitcoins/history/btc_history_cache/data
 
+use_generic: true

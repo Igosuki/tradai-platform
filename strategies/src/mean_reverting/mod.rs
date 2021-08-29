@@ -9,24 +9,26 @@ use itertools::Itertools;
 use ordered_float::OrderedFloat;
 
 use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::{LiveEvent, LiveEventEnvelope, Pair};
+use coinnect_rt::types::{AssetType, LiveEvent, LiveEventEnvelope, Pair};
 use db::{get_or_create, DbOptions};
 use ext::ResultExt;
 use math::iter::QuantileExt;
 
 use crate::error::Result;
+use crate::generic::{InputEvent, TradeSignal};
 use crate::mean_reverting::ema_model::ema_indicator_model;
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
-use crate::models::IndicatorModel;
-use crate::models::WindowedModel;
+use crate::models::{IndicatorModel, Sampler};
+use crate::models::{Model, WindowedModel};
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation, MutableField};
 use crate::types::{BookPosition, PositionKind};
 use crate::util::Stopper;
 use crate::{Channel, StrategyDriver, StrategyStatus};
 use math::indicators::macd_apo::MACDApo;
+use std::collections::HashSet;
 
 mod ema_model;
 mod metrics;
@@ -57,9 +59,9 @@ pub struct MeanRevertingStrategy {
     threshold_eval_freq: Option<i32>,
     threshold_short_0: f64,
     threshold_long_0: f64,
-    dynamic_threshold: bool,
     last_threshold_time: DateTime<Utc>,
     stopper: Stopper<f64>,
+    sampler: Sampler,
 }
 
 static MEAN_REVERTING_DB_KEY: &str = "mean_reverting";
@@ -71,15 +73,19 @@ impl MeanRevertingStrategy {
         let db = get_or_create(db_opts, strat_db_path, vec![]);
         let state = MeanRevertingState::new(n, fees_rate, db.clone(), om);
         let ema_model = ema_indicator_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
-        let threshold_table = n.threshold_window_size.map(|thresold_window_size| {
-            WindowedModel::new(
-                &format!("thresholds_{}", n.pair.as_ref()),
-                db.clone(),
-                thresold_window_size,
-                Some(thresold_window_size * 2),
-                ema_model::threshold,
-            )
-        });
+        let threshold_table = if n.dynamic_threshold() {
+            n.threshold_window_size.map(|thresold_window_size| {
+                WindowedModel::new(
+                    &format!("thresholds_{}", n.pair.as_ref()),
+                    db.clone(),
+                    thresold_window_size,
+                    Some(thresold_window_size * 2),
+                    ema_model::threshold,
+                )
+            })
+        } else {
+            None
+        };
 
         let mut strat = Self {
             exchange: n.exchange,
@@ -93,10 +99,10 @@ impl MeanRevertingStrategy {
             threshold_eval_freq: n.threshold_eval_freq,
             threshold_short_0: n.threshold_short,
             threshold_long_0: n.threshold_long,
-            dynamic_threshold: n.dynamic_threshold(),
             last_threshold_time: Utc.timestamp_millis(0),
             stopper: Stopper::new(n.stop_gain, n.stop_loss),
             metrics: Arc::new(metrics),
+            sampler: Sampler::new(n.sample_freq(), Utc.timestamp_millis(0)),
         };
         if let Err(e) = strat.load() {
             error!("{}", e);
@@ -107,11 +113,14 @@ impl MeanRevertingStrategy {
 
     fn load(&mut self) -> crate::error::Result<()> {
         {
-            self.model.try_loading_model()?;
+            self.model.try_load()?;
+            if let Some(model_time) = self.model.last_model_time() {
+                //self.sampler.set_last_time(model_time);
+            }
         }
         {
             if let Some(threshold_table) = &mut self.threshold_table {
-                threshold_table.try_loading_model()?;
+                threshold_table.try_load()?;
             }
         }
         if !self.models_loaded() {
@@ -165,9 +174,6 @@ impl MeanRevertingStrategy {
 
     #[tracing::instrument(skip(self), level = "debug")]
     fn maybe_eval_threshold(&mut self, current_time: DateTime<Utc>) {
-        if !self.dynamic_threshold {
-            return;
-        }
         if let (Some(threshold_table), Some(threshold_eval_freq)) = (&self.threshold_table, self.threshold_eval_freq) {
             if crate::util::is_eval_time_reached(
                 current_time,
@@ -204,13 +210,13 @@ impl MeanRevertingStrategy {
     fn apo(&self) -> Option<f64> { self.model.value().map(|m| m.apo) }
 
     #[tracing::instrument(skip(self), level = "debug")]
-    async fn eval_latest(&mut self, lr: &SinglePosRow) -> Result<&Option<Operation>> {
+    async fn eval_latest(&mut self, lr: &BookPosition) -> Result<&Option<Operation>> {
         // If a position is taken, resolve pending operations
         // In case of error return immediately as no trades can be made until the position is resolved
-        self.state.resolve_pending_operations(&lr.pos).await?;
+        self.state.resolve_pending_operations(lr).await?;
 
         if self.state.no_position_taken() {
-            self.state.update_units(&lr.pos);
+            self.state.update_units(lr);
         }
 
         let apo = self.apo().expect("model required");
@@ -221,28 +227,28 @@ impl MeanRevertingStrategy {
                 "Entering short position with threshold {}",
                 self.state.threshold_short()
             );
-            let position = self.short_position(lr.pos.bid, lr.time);
+            let position = self.short_position(lr.bid, lr.event_time);
             self.state.open(position).await?;
         }
         // Possibly close a short position
         else if self.state.is_short() {
-            self.state.set_position_return(lr.pos.ask);
+            self.state.set_position_return(lr.ask);
             if (apo < 0.0) || self.stopper.should_stop(self.state.position_return()) {
-                let position = self.short_position(lr.pos.ask, lr.time);
+                let position = self.short_position(lr.ask, lr.event_time);
                 self.state.close(position).await?;
             }
         }
         // Possibly open a long position
         else if (apo < self.state.threshold_long()) && self.state.no_position_taken() {
             info!("Entering long position with threshold {}", self.state.threshold_long());
-            let position = self.long_position(lr.pos.ask, lr.time);
+            let position = self.long_position(lr.ask, lr.event_time);
             self.state.open(position).await?;
         }
         // Possibly close a long position
         else if self.state.is_long() {
-            self.state.set_position_return(lr.pos.bid);
+            self.state.set_position_return(lr.bid);
             if (apo > 0.0) || self.stopper.should_stop(self.state.position_return()) {
-                let position = self.long_position(lr.pos.bid, lr.time);
+                let position = self.long_position(lr.bid, lr.event_time);
                 self.state.close(position).await?;
             }
         }
@@ -262,7 +268,7 @@ impl MeanRevertingStrategy {
                     t.push(&apo)
                 }
             }
-            let model_update = self.model.update_model(row.pos.mid).err_into().and_then(|_| {
+            let model_update = self.model.update(row.pos.mid).err_into().and_then(|_| {
                 self.model
                     .value()
                     .ok_or_else(|| crate::error::Error::ModelLoadError("no mean reverting model value".to_string()))
@@ -275,7 +281,7 @@ impl MeanRevertingStrategy {
         if self.can_eval() {
             self.maybe_eval_threshold(row.time);
             if self.state.is_trading() {
-                match self.eval_latest(row).await {
+                match self.eval_latest(&row.pos).await {
                     Ok(Some(op)) => {
                         let op = op.clone();
                         self.metrics.log_position(&op.pos, &op.kind);
@@ -345,5 +351,110 @@ impl StrategyDriver for MeanRevertingStrategy {
             xch: self.exchange,
             pair: self.pair.clone(),
         }]
+    }
+}
+
+#[async_trait]
+impl crate::generic::Strategy for MeanRevertingStrategy {
+    fn init(&mut self) -> Result<()> { self.load() }
+
+    async fn eval(&mut self, e: &crate::generic::InputEvent) -> Result<Vec<crate::generic::TradeSignal>> {
+        let mut signals = vec![];
+        if !self.can_eval() {
+            return Ok(signals);
+        }
+        let book_pos = match e {
+            InputEvent::BookPosition(bp) => bp,
+            _ => return Ok(signals),
+        };
+        if self.state.is_trading() {
+            match self.eval_latest(book_pos).await {
+                Ok(Some(op)) => {
+                    let op = op.clone();
+                    self.metrics.log_position(&op.pos, &op.kind);
+                    signals.push(TradeSignal {
+                        position_kind: op.pos.kind,
+                        operation_kind: op.kind,
+                        trade_kind: op.trade.kind,
+                        price: op.trade.price,
+                        pair: self.pair.clone(),
+                        exchange: self.exchange,
+                        instructions: op.instructions,
+                        dry_mode: op.trade.dry_mode,
+                        asset_type: AssetType::Spot,
+                    });
+                }
+                Err(e) => self.metrics.log_error(e.short_name()),
+                _ => {}
+            }
+        }
+        self.log_state();
+        Ok(signals)
+    }
+
+    async fn update_model(&mut self, e: &crate::generic::InputEvent) -> Result<()> {
+        let book_pos = match e {
+            InputEvent::BookPosition(bp) => bp,
+            _ => return Ok(()),
+        };
+        if !self.sampler.sample(book_pos.event_time) {
+            return Ok(());
+        }
+        self.model
+            .update(book_pos.mid)
+            .err_into()
+            .and_then(|_| {
+                self.model
+                    .value()
+                    .ok_or_else(|| crate::error::Error::ModelLoadError("no mean reverting model value".to_string()))
+                    .map(|m| self.metrics.log_model(m))
+            })
+            .map_err(|_| {
+                self.metrics.log_error("model_update");
+            })
+            .unwrap();
+        if let Some(apo) = self.model.value().map(|m| m.apo) {
+            if let Some(t) = self.threshold_table.as_mut() {
+                t.push(&apo);
+                if t.is_filled() {
+                    t.update_model().unwrap();
+                    // Put this in model WindowFn
+                    let wdw = t.window();
+                    let (threshold_short_iter, threshold_long_iter) = wdw.tee();
+                    self.state.set_threshold_short(
+                        max(
+                            self.threshold_short_0.into(),
+                            OrderedFloat(threshold_short_iter.quantile(0.99)),
+                        )
+                        .into(),
+                    );
+                    tracing::trace!(target: "threshold_events", "set_threshold_short");
+                    self.state.set_threshold_long(
+                        min(
+                            OrderedFloat(self.threshold_long_0),
+                            OrderedFloat(threshold_long_iter.quantile(0.01)),
+                        )
+                        .into(),
+                    );
+                    tracing::trace!(target: "threshold_events", "set_threshold_long");
+                    self.metrics.log_thresholds(&self.state);
+                    tracing::trace!(target: "threshold_events", "log_thresholds");
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn models(&self) -> Vec<(&str, Option<serde_json::Value>)> {
+        vec![
+            ("apo", self.model.ser()),
+            ("thresholds", self.threshold_table.as_ref().and_then(|t| t.ser())),
+        ]
+    }
+
+    fn channels(&self) -> HashSet<Channel> {
+        let mut hs = HashSet::new();
+        hs.extend((self as &dyn StrategyDriver).channels());
+        hs
     }
 }

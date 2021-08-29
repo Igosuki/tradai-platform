@@ -59,7 +59,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
         });
     }
 
-    pub fn update_model<A>(&mut self, update_fn: ModelUpdateFn<T, A>, args: A) -> Result<(), db::Error> {
+    pub fn update<A>(&mut self, update_fn: ModelUpdateFn<T, A>, args: A) -> Result<(), db::Error> {
         if let Some(model) = &self.last_model {
             let new_model_value = (update_fn).call((&model.value, args));
             self.set_last_model(new_model_value);
@@ -227,7 +227,7 @@ mod test {
             }),
         );
         let _gen = Gen::new(500);
-        b.iter(|| table.update_model(|m, _a| m.clone(), ()).unwrap());
+        b.iter(|| table.update(|m, _a| m.clone(), ()).unwrap());
         table.try_loading().unwrap();
     }
 
