@@ -7,61 +7,88 @@ use coinnect_rt::types::{AssetType, LiveEvent, LiveEventEnvelope, Pair};
 use std::collections::{BTreeMap, HashSet};
 use std::convert::TryInto;
 use std::sync::{Arc, Mutex};
+use tokio::sync::RwLock;
 
+#[async_trait]
+pub(crate) trait Strategy: Sync + Send {
+    //async fn try_new(&self, conf: serde_json::Value) -> Self;
+
+    fn init(&mut self) -> Result<()>;
+
+    async fn eval(&mut self, e: &InputEvent) -> Result<Vec<TradeSignal>>;
+
+    async fn update_model(&mut self, e: &InputEvent) -> Result<()>;
+
+    fn models(&self) -> Vec<(&str, Option<serde_json::Value>)>;
+
+    fn channels(&self) -> HashSet<Channel>;
+}
+
+type BookPositions = BTreeMap<Pair, BookPosition>;
+
+#[allow(dead_code)]
 struct StrategyContext<C> {
     db: Arc<dyn Strategy>,
     conf: C,
 }
 
-enum InputEvent {
+pub(crate) enum InputEvent {
     BookPosition(BookPosition),
     BookPositions(BookPositions),
 }
 
-#[async_trait]
-trait Strategy: Sync + Send {
-    async fn eval(&self, e: InputEvent) -> Result<Vec<TradeSignal>>;
-
-    async fn update_model(&self, e: InputEvent) -> Result<()>;
-
-    async fn get_models(&self);
+#[derive(Debug)]
+pub(crate) struct TradeSignal {
+    pub position_kind: PositionKind,
+    pub operation_kind: OperationKind,
+    pub trade_kind: TradeKind,
+    pub price: f64,
+    pub pair: Pair,
+    pub exchange: Exchange,
+    pub instructions: Option<ExecutionInstruction>,
+    pub dry_mode: bool,
+    pub asset_type: AssetType,
 }
 
-//async fn try_new(&self, conf: serde_json::Value) -> Self;
-
-type BookPositions = BTreeMap<Pair, BookPosition>;
-
-struct TradeSignal {
-    position_kind: PositionKind,
-    operation_kind: OperationKind,
-    trade_kind: TradeKind,
-    price: f64,
-    pair: Pair,
-    exchange: Exchange,
-    instructions: Option<ExecutionInstruction>,
-    dry_mode: bool,
-    asset_type: AssetType,
-}
-
-struct GenericStrategy {
-    pairs: HashSet<Pair>,
-    exchanges: HashSet<Exchange>,
+pub struct GenericStrategy {
+    channels: HashSet<Channel>,
     last_positions: Mutex<BTreeMap<Pair, BookPosition>>,
-    inner: Arc<dyn Strategy>,
+    inner: RwLock<Box<dyn Strategy>>,
     multi_market: bool,
+    initialized: bool,
+    signals: Vec<TradeSignal>,
 }
 
 impl GenericStrategy {
-    fn init(&self) {
-        // get_models
-        // load_models
+    pub(crate) fn try_new(channels: HashSet<Channel>, strat: Box<dyn Strategy>) -> Result<Self> {
+        Ok(Self {
+            channels,
+            last_positions: Mutex::new(Default::default()),
+            inner: RwLock::new(strat),
+            multi_market: false,
+            initialized: false,
+            signals: Default::default(),
+        })
     }
+
+    async fn init(&self) -> Result<()> {
+        let mut strat = self.inner.write().await;
+        strat.init()
+    }
+
     fn handles(&self, le: &LiveEventEnvelope) -> bool {
-        self.exchanges.contains(&le.xch)
-            && match &le.e {
-                LiveEvent::LiveOrderbook(ob) => self.pairs.contains(&ob.pair),
-                _ => false,
-            }
+        self.channels.iter().any(|c| match (c, le) {
+            (
+                Channel::Orderbooks { pair, xch },
+                le
+                @
+                LiveEventEnvelope {
+                    e: LiveEvent::LiveOrderbook(ob),
+                    ..
+                },
+            ) => pair == &ob.pair && xch == &le.xch,
+            _ => false,
+        })
     }
     //
     // async fn get_operations(&self) -> Vec<TradeOperation>;
@@ -76,6 +103,10 @@ impl GenericStrategy {
 #[async_trait]
 impl StrategyDriver for GenericStrategy {
     async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()> {
+        if !self.initialized {
+            self.init().await.unwrap();
+            self.initialized = true;
+        }
         if !self.handles(le) {
             return Ok(());
         }
@@ -93,7 +124,12 @@ impl StrategyDriver for GenericStrategy {
                 } else {
                     InputEvent::BookPosition(pos)
                 };
-                self.inner.update_model(event).await.unwrap();
+                {
+                    let mut inner = self.inner.write().await;
+                    inner.update_model(&event).await.unwrap();
+                    let signals = inner.eval(&event).await.unwrap();
+                    self.signals.extend(signals);
+                }
             }
         }
         Ok(())
@@ -109,18 +145,19 @@ impl StrategyDriver for GenericStrategy {
         }
     }
 
-    fn mutate(&mut self, m: FieldMutation) -> Result<()> { Ok(()) }
+    fn mutate(&mut self, _m: FieldMutation) -> Result<()> { Ok(()) }
 
     fn channels(&self) -> Vec<Channel> {
-        self.exchanges
-            .iter()
-            .map(|xchg| {
-                self.pairs.iter().map(move |pair| Channel::Orderbooks {
-                    xch: *xchg,
-                    pair: pair.clone(),
-                })
-            })
-            .flatten()
-            .collect()
+        // self.exchanges
+        //     .iter()
+        //     .map(|xchg| {
+        //         self.pairs.iter().map(move |pair| Channel::Orderbooks {
+        //             xch: *xchg,
+        //             pair: pair.clone(),
+        //         })
+        //     })
+        //     .flatten()
+        //     .collect()
+        self.channels.clone().into_iter().collect()
     }
 }

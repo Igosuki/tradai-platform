@@ -43,12 +43,13 @@ pub use coinnect_rt::types as coinnect_types;
 use coinnect_rt::types::{LiveEventEnvelope, Pair};
 pub use db::DbOptions;
 use error::*;
+pub use models::Model;
 pub use settings::{StrategyCopySettings, StrategySettings};
 
+use crate::generic::GenericStrategy;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, FieldMutation};
 
-mod driver;
 pub mod error;
 mod generic;
 pub mod input;
@@ -65,7 +66,7 @@ pub mod types;
 mod util;
 mod wal;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Channel {
     Orders { xch: Exchange, pair: Pair },
     Trades { xch: Exchange, pair: Pair },
@@ -105,6 +106,21 @@ impl Strategy {
     pub fn new(db: &DbOptions<String>, fees: f64, settings: &StrategySettings, om: Option<Addr<OrderManager>>) -> Self {
         let uuid = Uuid::new_v4();
         let strategy = settings::from_settings(db, fees, settings, om);
+        info!(uuid = %uuid, channels = ?strategy.channels(), "starting strategy");
+        let channels = strategy.channels();
+        let actor = StrategyActor::new_with_uuid(StrategyActorOptions { strategy }, uuid);
+        Self(settings.key(), StrategyActor::start(actor), channels)
+    }
+
+    pub fn new_generic(
+        db: &DbOptions<String>,
+        fees: f64,
+        settings: &StrategySettings,
+        om: Option<Addr<OrderManager>>,
+    ) -> Self {
+        let uuid = Uuid::new_v4();
+        let inner = settings::from_settings_s(db, fees, settings, om);
+        let strategy: Box<dyn StrategyDriver> = Box::new(GenericStrategy::try_new(inner.channels(), inner).unwrap());
         info!(uuid = %uuid, channels = ?strategy.channels(), "starting strategy");
         let channels = strategy.channels();
         let actor = StrategyActor::new_with_uuid(StrategyActorOptions { strategy }, uuid);

@@ -127,7 +127,7 @@ async fn moving_average_model_backtest() {
         input::load_csv_records(Utc.ymd(2020, 3, 27), Utc.ymd(2020, 4, 8), vec![PAIR], EXCHANGE, CHANNEL).await;
     csv_records[0].iter().take(500).for_each(|l| {
         let pos: BookPosition = l.into();
-        model.update_model(pos.mid).unwrap();
+        model.update(pos.mid).unwrap();
     });
     let apo = model.value().unwrap().apo;
     assert!(apo != 0.0, "apo should not be 0, was: {}", apo);

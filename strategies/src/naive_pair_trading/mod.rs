@@ -14,7 +14,7 @@ pub mod state;
 #[cfg(test)]
 mod tests;
 
-use crate::models::WindowedModel;
+use crate::models::{Model, WindowedModel};
 use crate::naive_pair_trading::covar_model::{DataRow, LinearModelValue};
 use crate::naive_pair_trading::state::Operation;
 use crate::order_manager::OrderManager;
@@ -86,7 +86,7 @@ impl NaiveTradingStrategy {
     }
 
     pub fn load(&mut self) -> crate::error::Result<()> {
-        self.data_table.try_loading_model()?;
+        self.data_table.try_load()?;
         self.set_model_from_table();
         self.last_row_time_at_eval = self
             .data_table

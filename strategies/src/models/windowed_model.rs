@@ -38,7 +38,7 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
         if self.is_filled() && !self.has_model() {
             self.model.set_last_model(M::default());
         }
-        self.model.update_model(self.window_fn, self.rows.window())
+        self.model.update(self.window_fn, self.rows.window())
     }
 
     pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }
@@ -53,28 +53,28 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
 
     pub fn len(&self) -> usize { self.rows.len() }
 
-    pub fn try_loading_model(&mut self) -> crate::error::Result<()> {
-        self.model.try_loading()?;
-        self.rows.try_loading()
-    }
-
     pub fn model(&self) -> Option<ModelValue<M>> { self.model.model() }
 
     pub fn is_loaded(&self) -> bool { self.model.is_loaded() && self.rows.is_loaded() }
 }
 
-impl<R: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone + Default> Model<M>
+impl<R: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone + Default> Model
     for WindowedModel<R, M>
 {
-    fn value(&self) -> Option<M> { self.value() }
+    fn ser(&self) -> Option<serde_json::Value> { self.model().and_then(|m| serde_json::to_value(m).ok()) }
+
+    fn try_load(&mut self) -> crate::error::Result<()> {
+        self.model.try_loading()?;
+        self.rows.try_loading()
+    }
 }
 
 #[cfg(test)]
 mod test {
     extern crate test;
 
-    use crate::models::Window;
     use crate::models::WindowedModel;
+    use crate::models::{Model, Window};
     use crate::test_util::test_db;
     use crate::types::BookPosition;
     use chrono::{DateTime, Utc};
@@ -112,7 +112,7 @@ mod test {
         }
         b.iter(|| {
             table.update_model().unwrap();
-            table.try_loading_model().unwrap();
+            table.try_load().unwrap();
         });
     }
 }

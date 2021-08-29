@@ -3,6 +3,7 @@ use actix::Addr;
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::pair::filter_pairs;
 
+use crate::generic::Strategy;
 use crate::mean_reverting::options::Options as MeanRevertingStrategyOptions;
 use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::order_manager::OrderManager;
@@ -87,5 +88,26 @@ pub fn from_settings(
                 panic!();
             }
         }
+    }
+}
+
+pub(crate) fn from_settings_s(
+    db: &DbOptions<String>,
+    fees: f64,
+    s: &StrategySettings,
+    om: Option<Addr<OrderManager>>,
+) -> Box<dyn Strategy> {
+    match s {
+        StrategySettings::MeanReverting(n) => {
+            if let Some(o) = om {
+                Box::new(crate::mean_reverting::MeanRevertingStrategy::new(db, fees, n, o))
+            } else {
+                error!(
+                    "Expected an order manager to be available for the targeted exchange of this MeanRevertingStrategy"
+                );
+                panic!();
+            }
+        }
+        _ => panic!(),
     }
 }

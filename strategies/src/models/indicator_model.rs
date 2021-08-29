@@ -36,22 +36,20 @@ impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> IndicatorModel
         }
     }
 
-    pub fn update_model(&mut self, next_value: R) -> Result<(), db::Error> {
-        self.model.update_model(self.update_fn, next_value)
-    }
+    pub fn update(&mut self, next_value: R) -> Result<(), db::Error> { self.model.update(self.update_fn, next_value) }
 
     #[allow(dead_code)]
     pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }
 
     pub fn value(&self) -> Option<T> { self.model.value() }
 
-    pub fn try_loading_model(&mut self) -> crate::error::Result<()> { self.model.try_loading() }
-
     pub fn is_loaded(&self) -> bool { self.model.is_loaded() }
 }
 
-impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> Model<T> for IndicatorModel<T, R> {
-    fn value(&self) -> Option<T> { self.value() }
+impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> Model for IndicatorModel<T, R> {
+    fn ser(&self) -> Option<serde_json::Value> { self.value().and_then(|m| serde_json::to_value(m).ok()) }
+
+    fn try_load(&mut self) -> crate::error::Result<()> { self.model.try_loading() }
 }
 
 #[cfg(test)]

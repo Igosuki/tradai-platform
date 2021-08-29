@@ -11,6 +11,7 @@ use std::path::Path;
 use strategies::input::CsvRecord;
 use strategies::naive_pair_trading::covar_model::DataRow;
 use strategies::naive_pair_trading::NaiveTradingStrategy;
+use strategies::Model;
 use util::date::{DateRange, DurationRangeType};
 
 fn main() -> anyhow::Result<()> {
@@ -131,7 +132,7 @@ fn main() -> anyhow::Result<()> {
     });
     println!("Saving Model...");
     data_table.update_model()?;
-    data_table.try_loading_model()?;
+    data_table.try_load()?;
     assert!(data_table.has_model());
     println!("{:?}", data_table.model().unwrap());
     Ok(())

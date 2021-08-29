@@ -70,6 +70,7 @@ pub struct BacktestConfig {
     period: Period,
     input_sample_rate: String,
     data_dir: PathBuf,
+    use_generic: bool,
 }
 
 impl BacktestConfig {
@@ -107,12 +108,21 @@ impl Backtest {
         eprintln!("db_path = {:?}", db_path);
         let order_manager_addr = mock_manager(&db_path);
 
-        let strategy = strategies::Strategy::new(
-            &DbOptions::new(db_path),
-            conf.fees,
-            &conf.strat,
-            Some(order_manager_addr),
-        );
+        let strategy = if conf.use_generic {
+            strategies::Strategy::new_generic(
+                &DbOptions::new(db_path),
+                conf.fees,
+                &conf.strat,
+                Some(order_manager_addr),
+            )
+        } else {
+            strategies::Strategy::new(
+                &DbOptions::new(db_path),
+                conf.fees,
+                &conf.strat,
+                Some(order_manager_addr),
+            )
+        };
         Ok(Self {
             period: conf.period.as_range(),
             strategy: Arc::new(strategy),
