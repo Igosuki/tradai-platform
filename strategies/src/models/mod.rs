@@ -45,5 +45,6 @@ impl Sampler {
         should_sample
     }
 
+    #[allow(dead_code)]
     pub fn set_last_time(&mut self, last_time: DateTime<Utc>) { self.last_time = last_time; }
 }

@@ -9,6 +9,7 @@
 #![feature(inherent_associated_types)]
 #![feature(fn_traits)]
 #![feature(result_cloned)]
+#![feature(macro_attributes_in_derive_output)]
 
 #[macro_use]
 extern crate anyhow;
@@ -27,7 +28,8 @@ extern crate prometheus;
 extern crate serde;
 #[macro_use]
 extern crate tracing;
-
+#[macro_use]
+extern crate pyo3;
 use std::str::FromStr;
 
 use actix::{Actor, Addr, Context, Handler, ResponseActFuture, WrapFuture};
@@ -65,6 +67,8 @@ mod test_util;
 pub mod types;
 mod util;
 mod wal;
+
+pub use generic::python_strat;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Channel {

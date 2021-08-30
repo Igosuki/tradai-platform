@@ -159,6 +159,10 @@ release_db_tool:
 release_backtest:
 	make target=backtest release
 
+python_target=python3.9
+build_python_lib:
+    maturin build -i $(python_target) --cargo-extra-args="--features=static"
+
 ### DOCKER
 
 docker-up:

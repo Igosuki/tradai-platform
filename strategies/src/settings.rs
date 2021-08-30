@@ -74,7 +74,9 @@ pub fn from_settings(
             if let Some(o) = om {
                 Box::new(crate::naive_pair_trading::NaiveTradingStrategy::new(db, fees, n, o))
             } else {
-                error!("Expected an order manager to be available for the targeted exchange of this NaiveStrategy");
+                log::error!(
+                    "Expected an order manager to be available for the targeted exchange of this NaiveStrategy"
+                );
                 panic!();
             }
         }
@@ -82,7 +84,7 @@ pub fn from_settings(
             if let Some(o) = om {
                 Box::new(crate::mean_reverting::MeanRevertingStrategy::new(db, fees, n, o))
             } else {
-                error!(
+                log::error!(
                     "Expected an order manager to be available for the targeted exchange of this MeanRevertingStrategy"
                 );
                 panic!();
@@ -102,7 +104,7 @@ pub(crate) fn from_settings_s(
             if let Some(o) = om {
                 Box::new(crate::mean_reverting::MeanRevertingStrategy::new(db, fees, n, o))
             } else {
-                error!(
+                log::error!(
                     "Expected an order manager to be available for the targeted exchange of this MeanRevertingStrategy"
                 );
                 panic!();

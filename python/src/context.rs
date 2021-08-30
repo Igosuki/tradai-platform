@@ -1,9 +1,7 @@
 use crate::run::run_python_code;
 use crate::PythonBlock;
-use pyo3::{
-    types::{PyCFunction, PyDict},
-    FromPyObject, Py, PyResult, Python, ToPyObject,
-};
+use pyo3::{types::{PyCFunction, PyDict},
+           FromPyObject, Py, PyResult, Python, ToPyObject};
 
 /// An execution context for Python code.
 ///
@@ -49,9 +47,7 @@ impl Context {
     ///
     /// This function panics if it fails to create the context.
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        Self::new_with_gil(Python::acquire_gil().python())
-    }
+    pub fn new() -> Self { Self::new_with_gil(Python::acquire_gil().python()) }
 
     /// Create a new context for running Python code.
     ///
@@ -75,9 +71,7 @@ impl Context {
     }
 
     /// Get the globals as dictionary.
-    pub fn globals<'p>(&'p self, py: Python<'p>) -> &'p PyDict {
-        self.globals.as_ref(py)
-    }
+    pub fn globals<'p>(&'p self, py: Python<'p>) -> &'p PyDict { self.globals.as_ref(py) }
 
     /// Retrieve a global variable from the context.
     ///

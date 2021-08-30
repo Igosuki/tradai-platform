@@ -7,4 +7,5 @@ edition = "2018"
 [dependencies]
 pyo3 = { version = "0.14", features = ["auto-initialize"] }
 inline-python-macros = { version = "=0.7.0", path = "./macros" }
-
+serde = "1.0"
+serde_json = "1.0"

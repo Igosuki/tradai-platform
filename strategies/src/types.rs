@@ -7,6 +7,7 @@ use strum_macros::{AsRefStr, EnumString};
 use thiserror::Error;
 
 use coinnect_rt::types::{AddOrderRequest, OrderEnforcement, OrderType, Orderbook, TradeType};
+use pyo3::prelude::*;
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -113,7 +114,7 @@ impl From<TradeOperation> for AddOrderRequest {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, EnumString)]
 pub enum ExecutionInstruction {
     ParticipateDoNotInitiate,
     CancelIfNotBest,
@@ -169,6 +170,7 @@ pub enum DataTableError {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[pyclass]
 pub struct BookPosition {
     pub mid: f64,
     // mid = (top_ask + top_bid) / 2, alias: crypto1_m
