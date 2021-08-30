@@ -112,10 +112,10 @@ use pyo3::{types::PyDict, Python};
 
 mod context;
 mod run;
+mod serde;
 
 pub use self::context::Context;
-pub use pyo3;
-
+pub use crate::serde::*;
 /// A block of Python code within your Rust code.
 ///
 /// This macro can be used in three different ways:
@@ -133,6 +133,7 @@ pub use pyo3;
 ///
 /// See [the crate's module level documentation](index.html) for examples.
 pub use inline_python_macros::python;
+pub use pyo3;
 
 #[doc(hidden)]
 pub trait FromInlinePython<F: FnOnce(&PyDict)> {

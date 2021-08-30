@@ -14,11 +14,11 @@ members = [
     "server",
     "strategies",
     "util",
-    "backtest",
+    "backtest"
 ]
 
 exclude = [
-
+    "python_dylib"
 ]
 
 [profile.test]

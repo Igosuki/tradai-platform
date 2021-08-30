@@ -1,0 +1,21 @@
+[package]
+name = "python_dylib"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+name = "strategies"
+
+[features]
+static = ["db/rocksdb-vendor"]
+
+[dependencies]
+strategies = { path = "../strategies" }
+db = { path = "../db" }
+#backtest = { path = "../backtest" }
+
+pyo3 = { version = "0.14", features = ["serde", "auto-initialize"] }

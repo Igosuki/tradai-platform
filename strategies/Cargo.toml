@@ -37,7 +37,6 @@ derivative = "2.1.1"
 derive_more = "0.99"
 env_logger = "0.9"
 
-
 glob = "0.3"
 
 # std and structs
@@ -85,19 +84,25 @@ tracing-futures = "0.2"
 util = { path = "../util" }
 uuid = { version = "0.8", features = ["v4"] }
 
+# python
+#python = { path = "../python" }
+pyo3 = { version = "0.14", features = ["serde", "auto-initialize"] }
+pyo3-log = "0.4"
+
 [dev-dependencies]
+# actix
 actix-codec = "0.4"
 actix-http = "3.0.0-beta.6"
 actix-http-test = "3.0.0-beta.4"
 actix-server = "2.0.0-beta.5"
-# actix
 awc = { version = "3.0.0-beta.7", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
-bytes = "1.0"
-bytestring = "1.0.0"
-fake = { version = "2.4", features = ['chrono'] }
+
 hdrhistogram = "7"
 
 # util
+fake = { version = "2.4", features = ['chrono'] }
+bytes = "1.0"
+bytestring = "1.0.0"
 http = "0.2"
 httpmock = { git = "https://github.com/Igosuki/httpmock.git" }
 lazy_static = "1.4"

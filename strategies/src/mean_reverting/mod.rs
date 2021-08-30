@@ -114,7 +114,7 @@ impl MeanRevertingStrategy {
     fn load(&mut self) -> crate::error::Result<()> {
         {
             self.model.try_load()?;
-            if let Some(model_time) = self.model.last_model_time() {
+            if let Some(_model_time) = self.model.last_model_time() {
                 //self.sampler.set_last_time(model_time);
             }
         }
