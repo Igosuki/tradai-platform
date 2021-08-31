@@ -12,8 +12,8 @@ use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::OrderQuery;
 use strategies::order_manager::OrderManager;
 use strategies::order_types::PassOrder;
-use strategies::query::{DataQuery, DataResult, FieldMutation};
-use strategies::{order_manager, Strategy, StrategyKey};
+use strategies::query::{DataQuery, DataResult, ModelReset, StateFieldMutation};
+use strategies::{order_manager, Strategy, StrategyActor, StrategyKey, StrategyStatus};
 
 use crate::graphql_schemas::types::*;
 use ext::MapInto;
@@ -91,6 +91,33 @@ impl Context {
                     )),
                 }
             }
+        }
+    }
+
+    async fn with_strat_mut<M: 'static>(&self, tk: TypeAndKeyInput, m: M) -> FieldResult<M::Result>
+    where
+        M: actix::Message + Send,
+        M::Result: Send + Debug,
+        StrategyActor: actix::Handler<M>,
+    {
+        let strat = StrategyKey::from(&tk.t, &tk.id).ok_or_else(|| {
+            FieldError::new(
+                "Strategy type not found",
+                graphql_value!({ "not_found": "strategy type not found" }),
+            )
+        })?;
+        match self.strats.get(&strat) {
+            None => Err(FieldError::new(
+                "Strategy not found",
+                graphql_value!({ "not_found": "strategy not found" }),
+            )),
+            Some(strat) => match strat.1.send(m).await {
+                Ok(response) => Ok(response),
+                Err(MailboxError::Closed | MailboxError::Timeout) => Err(FieldError::new(
+                    "Strategy mailbox was full",
+                    graphql_value!({ "unavailable": "strategy mailbox full" }),
+                )),
+            },
         }
     }
 }
@@ -190,36 +217,30 @@ pub struct MutationRoot;
 #[juniper::graphql_object(Context = Context)]
 impl MutationRoot {
     #[graphql(description = "Get all positions for this strat")]
-    async fn state(context: &Context, tk: TypeAndKeyInput, fm: FieldMutation) -> FieldResult<bool> {
-        let strat = StrategyKey::from(&tk.t, &tk.id).ok_or_else(|| {
-            FieldError::new(
-                "Strategy type not found",
-                graphql_value!({ "not_found": "strategy type not found" }),
-            )
-        })?;
-        match context.strats.get(&strat) {
-            None => Err(FieldError::new(
-                "Strategy not found",
-                graphql_value!({ "not_found": "strategy not found" }),
-            )),
-            Some(strat) => match strat.1.send(fm).await {
-                Ok(_) => Ok(true),
-                Err(MailboxError::Closed | MailboxError::Timeout) => Err(FieldError::new(
-                    "Strategy mailbox was full",
-                    graphql_value!({ "unavailable": "strategy mailbox full" }),
-                )),
-            },
-        }
+    async fn state(context: &Context, tk: TypeAndKeyInput, fm: StateFieldMutation) -> FieldResult<bool> {
+        context.with_strat_mut(tk, fm).await.map(|r| r.is_ok())
     }
 
     #[graphql(description = "Cancel the ongoing operation")]
     async fn cancel_ongoing_op(context: &Context, tk: TypeAndKeyInput) -> FieldResult<bool> {
         context
             .with_strat(tk, DataQuery::CancelOngoingOp, |dr| match dr {
-                DataResult::OperationCanceled(was_canceled) => Ok(was_canceled),
+                DataResult::Success(was_canceled) => Ok(was_canceled),
                 _ => unhandled_data_result(),
             })
             .await
+    }
+
+    #[graphql(description = "Reset the specified model")]
+    async fn reset_model(context: &Context, tk: TypeAndKeyInput, mr: ModelReset) -> FieldResult<StrategyStatus> {
+        context.with_strat_mut(tk, mr).await.and_then(|r| {
+            r.map_err(|e| {
+                FieldError::new(
+                    format!("{}", e),
+                    graphql_value!({"strategy error" : "failed to reset model"}),
+                )
+            })
+        })
     }
 
     #[graphql(description = "Add an order (for testing)")]

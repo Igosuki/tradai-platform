@@ -1,7 +1,7 @@
 pub mod python_strat;
 
 use crate::error::Result;
-use crate::query::{DataQuery, DataResult, FieldMutation};
+use crate::query::{DataQuery, DataResult, Mutation};
 use crate::types::{BookPosition, ExecutionInstruction, OperationKind, PositionKind, TradeKind};
 use crate::{Channel, StrategyDriver, StrategyStatus};
 use coinnect_rt::exchange::Exchange;
@@ -197,14 +197,14 @@ impl StrategyDriver for GenericStrategy {
         match q {
             DataQuery::OperationHistory => Some(DataResult::Operations(vec![])),
             DataQuery::OpenOperations => Some(DataResult::Operations(vec![])),
-            DataQuery::CancelOngoingOp => Some(DataResult::OperationCanceled(false)),
+            DataQuery::CancelOngoingOp => Some(DataResult::Success(false)),
             DataQuery::State => Some(DataResult::State("".to_string())),
-            DataQuery::Models => Some(DataResult::Models(Arc::new(self.last_models.to_owned()))),
+            DataQuery::Models => Some(DataResult::Models(self.last_models.to_owned())),
             DataQuery::Status => Some(DataResult::Status(StrategyStatus::NotTrading)),
         }
     }
 
-    fn mutate(&mut self, _m: FieldMutation) -> Result<()> { Ok(()) }
+    fn mutate(&mut self, _m: Mutation) -> Result<()> { Ok(()) }
 
     fn channels(&self) -> Vec<Channel> {
         // self.exchanges
@@ -219,4 +219,6 @@ impl StrategyDriver for GenericStrategy {
         //     .collect()
         self.channels.clone().into_iter().collect()
     }
+
+    fn toggle_trading(&mut self) -> bool { todo!() }
 }

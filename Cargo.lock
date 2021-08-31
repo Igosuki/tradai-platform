@@ -5295,6 +5295,7 @@ dependencies = [
  "async-std",
  "async-trait",
  "awc",
+ "backoff",
  "bytes",
  "bytestring",
  "chrono",

@@ -33,7 +33,7 @@ extern crate pyo3;
 
 use std::str::FromStr;
 
-use actix::{Actor, Addr, Context, Handler, ResponseActFuture, WrapFuture};
+use actix::{Actor, ActorContext, ActorFutureExt, Addr, Context, Handler, ResponseActFuture, WrapFuture};
 use async_std::sync::Arc;
 use async_std::sync::RwLock;
 use derive_more::Display;
@@ -49,9 +49,8 @@ use error::*;
 pub use models::Model;
 pub use settings::{StrategyCopySettings, StrategySettings};
 
-use crate::generic::GenericStrategy;
 use crate::order_manager::OrderManager;
-use crate::query::{DataQuery, DataResult, FieldMutation};
+use crate::query::{DataQuery, DataResult, ModelReset, Mutation, StateFieldMutation};
 
 pub mod error;
 mod generic;
@@ -69,7 +68,9 @@ pub mod types;
 mod util;
 mod wal;
 
+use backoff::ExponentialBackoff;
 pub use generic::python_strat;
+use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Channel {
@@ -78,12 +79,19 @@ pub enum Channel {
     Orderbooks { xch: Exchange, pair: Pair },
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, juniper::GraphQLEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum StrategyStatus {
     Stopped,
     Running,
     NotTrading,
+}
+
+#[derive(actix::Message)]
+#[rtype(result = "Result<StrategyStatus>")]
+pub enum StrategyLifecycleCmd {
+    Stop,
+    Restart,
 }
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display)]
@@ -110,54 +118,52 @@ pub struct Strategy(pub StrategyKey, pub Addr<StrategyActor>, pub Vec<Channel>);
 impl Strategy {
     pub fn new(db: &DbOptions<String>, fees: f64, settings: &StrategySettings, om: Option<Addr<OrderManager>>) -> Self {
         let uuid = Uuid::new_v4();
-        let strategy = settings::from_settings(db, fees, settings, om);
-        info!(uuid = %uuid, channels = ?strategy.channels(), "starting strategy");
-        let channels = strategy.channels();
-        let actor = StrategyActor::new_with_uuid(StrategyActorOptions { strategy }, uuid);
-        Self(settings.key(), StrategyActor::start(actor), channels)
-    }
-
-    pub fn new_generic(
-        db: &DbOptions<String>,
-        fees: f64,
-        settings: &StrategySettings,
-        om: Option<Addr<OrderManager>>,
-    ) -> Self {
-        let uuid = Uuid::new_v4();
-        let inner = settings::from_settings_s(db, fees, settings, om);
-        let strategy: Box<dyn StrategyDriver> = Box::new(GenericStrategy::try_new(inner.channels(), inner).unwrap());
-        info!(uuid = %uuid, channels = ?strategy.channels(), "starting strategy");
-        let channels = strategy.channels();
-        let actor = StrategyActor::new_with_uuid(StrategyActorOptions { strategy }, uuid);
-        Self(settings.key(), StrategyActor::start(actor), channels)
+        let key = settings.key();
+        let db = db.clone();
+        let settings = settings.clone();
+        let actor = StrategyActor::new_with_uuid(
+            Box::new(move || settings::from_settings(&db, fees, &settings, om.clone())),
+            uuid,
+        );
+        let channels = actor.channels();
+        info!(uuid = %uuid, channels = ?channels, "starting strategy");
+        Self(key, actix::Supervisor::start(|_| actor), channels)
     }
 }
 
-pub struct StrategyActorOptions {
-    pub strategy: Box<dyn StrategyDriver>,
-}
+pub type StrategySpawner = dyn Fn() -> Box<dyn StrategyDriver>;
 
 pub struct StrategyActor {
     session_uuid: Uuid,
+    spawner: Box<StrategySpawner>,
     inner: Arc<RwLock<Box<dyn StrategyDriver>>>,
+    #[allow(dead_code)]
+    conn_backoff: ExponentialBackoff,
+    channels: Vec<Channel>,
 }
 
 unsafe impl Send for StrategyActor {}
 
 impl StrategyActor {
-    pub fn new(options: StrategyActorOptions) -> Self {
+    pub fn new(spawner: Box<StrategySpawner>) -> Self { Self::new_with_uuid(spawner, Uuid::new_v4()) }
+
+    pub fn new_with_uuid(spawner: Box<StrategySpawner>, session_uuid: Uuid) -> Self {
+        let inner = spawner();
+        let channels = inner.channels();
+        let inner = Arc::new(RwLock::new(inner));
         Self {
-            session_uuid: Uuid::new_v4(),
-            inner: Arc::new(RwLock::new(options.strategy)),
+            session_uuid,
+            spawner,
+            inner,
+            channels,
+            conn_backoff: ExponentialBackoff {
+                max_elapsed_time: Some(Duration::from_secs(5)),
+                ..ExponentialBackoff::default()
+            },
         }
     }
 
-    pub fn new_with_uuid(options: StrategyActorOptions, session_uuid: Uuid) -> Self {
-        Self {
-            session_uuid,
-            inner: Arc::new(RwLock::new(options.strategy)),
-        }
-    }
+    fn channels(&self) -> Vec<Channel> { self.channels.clone() }
 }
 
 impl Actor for StrategyActor {
@@ -169,6 +175,13 @@ impl Actor for StrategyActor {
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         info!(uuid = %self.session_uuid, "strategy stopped, flushing...");
+    }
+}
+
+impl actix::Supervised for StrategyActor {
+    fn restarting(&mut self, _ctx: &mut <Self as Actor>::Context) {
+        info!(session_uuid = %self.session_uuid, "strategy restarting");
+        self.inner = Arc::new(RwLock::new((self.spawner)()));
     }
 }
 
@@ -206,32 +219,78 @@ impl Handler<DataQuery> for StrategyActor {
     }
 }
 
-impl Handler<FieldMutation> for StrategyActor {
-    type Result = StratActorResponseFuture<<FieldMutation as actix::Message>::Result>;
+impl Handler<StateFieldMutation> for StrategyActor {
+    type Result = StratActorResponseFuture<<StateFieldMutation as actix::Message>::Result>;
 
     #[cfg_attr(feature = "flame_it", flame)]
-    fn handle(&mut self, msg: FieldMutation, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: StateFieldMutation, _ctx: &mut Self::Context) -> Self::Result {
         let lock = self.inner.clone();
         Box::pin(
             async move {
                 let mut inner = lock.write().await;
-                inner.mutate(msg)
+                inner.mutate(Mutation::State(msg))
             }
             .into_actor(self),
         )
     }
 }
 
-// TODO: strategies should define when to stop trading
+impl Handler<ModelReset> for StrategyActor {
+    type Result = StratActorResponseFuture<<ModelReset as actix::Message>::Result>;
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    fn handle(&mut self, msg: ModelReset, _ctx: &mut Self::Context) -> Self::Result {
+        let restart_after = msg.restart_after;
+        let lock = self.inner.clone();
+        Box::pin(
+            async move {
+                let mut inner = lock.write().await;
+                if msg.stop_trading {
+                    inner.toggle_trading();
+                }
+                inner.mutate(Mutation::Model(msg))
+            }
+            .into_actor(self)
+            .map(move |_, _act, ctx| {
+                if restart_after {
+                    ctx.stop();
+                    Ok(StrategyStatus::Stopped)
+                } else {
+                    Ok(StrategyStatus::Running)
+                }
+            }),
+        )
+    }
+}
+
+impl Handler<StrategyLifecycleCmd> for StrategyActor {
+    type Result = Result<StrategyStatus>;
+
+    fn handle(&mut self, msg: StrategyLifecycleCmd, ctx: &mut Self::Context) -> Self::Result {
+        match msg {
+            StrategyLifecycleCmd::Stop => {
+                ctx.stop();
+                Ok(StrategyStatus::Stopped)
+            }
+            StrategyLifecycleCmd::Restart => {
+                ctx.stop();
+                Ok(StrategyStatus::Running)
+            }
+        }
+    }
+}
+
 #[async_trait]
 pub trait StrategyDriver {
     async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()>;
 
     fn data(&mut self, q: DataQuery) -> Option<DataResult>;
 
-    fn mutate(&mut self, m: FieldMutation) -> Result<()>;
+    fn mutate(&mut self, m: Mutation) -> Result<()>;
 
     fn channels(&self) -> Vec<Channel>;
+
+    fn toggle_trading(&mut self) -> bool;
 }
 
 #[cfg(test)]
@@ -248,10 +307,9 @@ mod test {
 
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
-    fn actor(strategy: Box<dyn StrategyDriver>) -> StrategyActor {
-        StrategyActor::new(StrategyActorOptions { strategy })
-    }
+    fn actor(spawner: Box<StrategySpawner>) -> StrategyActor { StrategyActor::new(spawner) }
 
+    #[derive(Clone)]
     struct DummyStrat;
 
     #[async_trait]
@@ -260,7 +318,7 @@ mod test {
 
         fn data(&mut self, _q: DataQuery) -> Option<DataResult> { unimplemented!() }
 
-        fn mutate(&mut self, _m: FieldMutation) -> Result<()> { unimplemented!() }
+        fn mutate(&mut self, _m: Mutation) -> Result<()> { unimplemented!() }
 
         fn channels(&self) -> Vec<Channel> {
             vec![Channel::Orderbooks {
@@ -268,14 +326,15 @@ mod test {
                 pair: "BTC_USDT".into(),
             }]
         }
+
+        fn toggle_trading(&mut self) -> bool { false }
     }
 
-    /// TODO: this test does nothing
     #[test]
     fn test_workflow() {
         init();
         System::new().block_on(async move {
-            let addr = StrategyActor::start(actor(Box::new(DummyStrat)));
+            let addr = actix::Supervisor::start(|_| actor(Box::new(move || Box::new(DummyStrat))));
             let order_book_event = Arc::new(LiveEventEnvelope {
                 xch: Exchange::Binance,
                 e: LiveEvent::LiveOrderbook(Orderbook {
@@ -286,10 +345,13 @@ mod test {
                     last_order_id: None,
                 }),
             });
-            println!("Sending...");
-            for _ in 0..1000 {
+            for _ in 0..10 {
                 addr.do_send(order_book_event.clone());
             }
+            let r = addr.send(StrategyLifecycleCmd::Restart).await.unwrap();
+            assert_eq!(r.ok(), Some(StrategyStatus::Running));
+            let r = addr.send(StrategyLifecycleCmd::Stop).await.unwrap();
+            assert_eq!(r.ok(), Some(StrategyStatus::Stopped));
             thread::sleep(std::time::Duration::from_secs(1));
             System::current().stop();
         });

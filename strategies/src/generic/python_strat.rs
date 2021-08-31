@@ -72,7 +72,8 @@ pub fn strat(py: Python, m: &PyModule) -> PyResult<()> {
 }
 
 impl PythonStratWrapper {
-    fn new(conf: HashMap<String, serde_json::Value>, python_script: String) -> Self {
+    #[allow(dead_code)]
+    fn new(_conf: HashMap<String, serde_json::Value>, python_script: String) -> Self {
         let guard = Python::acquire_gil();
         let py = guard.python();
         //let context = Context::new_with_gil(py);
@@ -121,7 +122,7 @@ impl Strategy for PythonStratWrapper {
             inner.call_method1(py, "eval", (py_input,))
         });
         eprintln!("val = {:?}", val);
-        val.map(|v| vec![]).err_into()
+        val.map(|_v| vec![]).err_into()
     }
 
     async fn update_model(&mut self, e: &InputEvent) -> crate::error::Result<()> {

@@ -6,7 +6,6 @@ use crate::StrategyStatus;
 use actix::Message;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::sync::Arc;
 
 // TODO: Use GraphQLUnion to refactor this ugly bit of code
 #[derive(Debug, Deserialize, Serialize, actix_derive::MessageResponse)]
@@ -16,9 +15,9 @@ pub enum DataResult {
     MeanRevertingOperations(Vec<MeanRevertingOperation>),
     NaiveOperation(Box<Option<NaiveOperation>>),
     MeanRevertingOperation(Box<Option<MeanRevertingOperation>>),
-    OperationCanceled(bool),
+    Success(bool),
     State(String),
-    Models(Arc<Vec<(String, Option<Value>)>>),
+    Models(Vec<(String, Option<Value>)>),
     Status(StrategyStatus),
     Operations(Vec<TradeOperation>),
 }
@@ -54,7 +53,23 @@ pub enum MutableField {
 
 #[derive(Deserialize, Serialize, Message, juniper::GraphQLInputObject)]
 #[rtype(result = "Result<()>")]
-pub struct FieldMutation {
+pub struct StateFieldMutation {
     pub field: MutableField,
     pub value: f64,
+}
+
+pub enum Mutation {
+    State(StateFieldMutation),
+    Model(ModelReset),
+}
+
+#[derive(Message, juniper::GraphQLInputObject)]
+#[rtype(result = "Result<StrategyStatus>")]
+pub struct ModelReset {
+    #[graphql(description = "The model name, if unspecified all models are reset")]
+    pub name: Option<String>,
+    #[graphql(description = "whether to stop trading during this operation")]
+    pub stop_trading: bool,
+    #[graphql(description = "whether to restart afterwards")]
+    pub restart_after: bool,
 }
