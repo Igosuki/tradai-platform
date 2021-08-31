@@ -12,9 +12,11 @@ use std::iter::FromIterator;
 
 type Bytes = Box<[u8]>;
 
+fn default_read_option() -> bool { false }
+
 #[derive(Deserialize, Serialize, Debug, Clone, Default)]
 pub struct RocksDbOptions {
-    #[serde(default)]
+    #[serde(default = "default_read_option")]
     read_only: bool,
 }
 
