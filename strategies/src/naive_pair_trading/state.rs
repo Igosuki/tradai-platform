@@ -16,7 +16,7 @@ use crate::query::MutableField;
 use crate::types::{BookPosition, OperationEvent, OrderMode, StratEvent, TradeEvent, TradeOperation};
 use crate::types::{OperationKind, PositionKind, TradeKind};
 
-#[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, juniper::GraphQLObject)]
 pub struct Position {
     pub kind: PositionKind,
     pub right_price: f64,
@@ -26,7 +26,7 @@ pub struct Position {
     pub left_pair: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Operation {
     pub id: String,
     pub kind: OperationKind,

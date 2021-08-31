@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 // TODO: Use GraphQLUnion to refactor this ugly bit of code
-#[derive(Debug, Deserialize, Serialize, actix_derive::MessageResponse)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, actix_derive::MessageResponse)]
 #[serde(tag = "type")]
 pub enum DataResult {
     NaiveOperations(Vec<NaiveOperation>),
@@ -63,13 +63,16 @@ pub enum Mutation {
     Model(ModelReset),
 }
 
-#[derive(Message, juniper::GraphQLInputObject)]
+#[derive(Default, Message, juniper::GraphQLInputObject)]
 #[rtype(result = "Result<StrategyStatus>")]
 pub struct ModelReset {
     #[graphql(description = "The model name, if unspecified all models are reset")]
+    #[graphql(default)]
     pub name: Option<String>,
     #[graphql(description = "whether to stop trading during this operation")]
+    #[graphql(default = true)]
     pub stop_trading: bool,
     #[graphql(description = "whether to restart afterwards")]
+    #[graphql(default = true)]
     pub restart_after: bool,
 }

@@ -33,7 +33,7 @@ extern crate pyo3;
 
 use std::str::FromStr;
 
-use actix::{Actor, ActorContext, ActorFutureExt, Addr, Context, Handler, ResponseActFuture, WrapFuture};
+use actix::{Actor, ActorContext, ActorFutureExt, Addr, Context, Handler, ResponseActFuture, Running, WrapFuture};
 use async_std::sync::Arc;
 use async_std::sync::RwLock;
 use derive_more::Display;
@@ -90,7 +90,6 @@ pub enum StrategyStatus {
 #[derive(actix::Message)]
 #[rtype(result = "Result<StrategyStatus>")]
 pub enum StrategyLifecycleCmd {
-    Stop,
     Restart,
 }
 
@@ -173,8 +172,13 @@ impl Actor for StrategyActor {
         info!(uuid = %self.session_uuid, "strategy started");
     }
 
+    fn stopping(&mut self, _ctx: &mut Self::Context) -> actix::Running {
+        info!(uuid = %self.session_uuid, "strategy stopping, flushing...");
+        Running::Stop
+    }
+
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!(uuid = %self.session_uuid, "strategy stopped, flushing...");
+        info!(uuid = %self.session_uuid, "strategy stopped");
     }
 }
 
@@ -268,10 +272,6 @@ impl Handler<StrategyLifecycleCmd> for StrategyActor {
 
     fn handle(&mut self, msg: StrategyLifecycleCmd, ctx: &mut Self::Context) -> Self::Result {
         match msg {
-            StrategyLifecycleCmd::Stop => {
-                ctx.stop();
-                Ok(StrategyStatus::Stopped)
-            }
             StrategyLifecycleCmd::Restart => {
                 ctx.stop();
                 Ok(StrategyStatus::Running)
@@ -304,26 +304,33 @@ mod test {
     use coinnect_rt::types::{LiveEvent, Orderbook};
 
     use super::*;
+    use std::sync::Mutex;
 
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
-    fn actor(spawner: Box<StrategySpawner>) -> StrategyActor { StrategyActor::new(spawner) }
+    const TEST_PAIR: &str = "BTC_USDT";
 
     #[derive(Clone)]
-    struct DummyStrat;
+    struct LoggingStrat {
+        log: Arc<Mutex<Vec<LiveEventEnvelope>>>,
+    }
 
     #[async_trait]
-    impl StrategyDriver for DummyStrat {
-        async fn add_event(&mut self, _: &LiveEventEnvelope) -> Result<()> { Ok(()) }
+    impl StrategyDriver for LoggingStrat {
+        async fn add_event(&mut self, e: &LiveEventEnvelope) -> Result<()> {
+            let mut g = self.log.lock().unwrap();
+            g.push(e.clone());
+            Ok(())
+        }
 
-        fn data(&mut self, _q: DataQuery) -> Option<DataResult> { unimplemented!() }
+        fn data(&mut self, _: DataQuery) -> Option<DataResult> { Some(DataResult::Success(true)) }
 
-        fn mutate(&mut self, _m: Mutation) -> Result<()> { unimplemented!() }
+        fn mutate(&mut self, _: Mutation) -> Result<()> { Ok(()) }
 
         fn channels(&self) -> Vec<Channel> {
             vec![Channel::Orderbooks {
                 xch: Binance,
-                pair: "BTC_USDT".into(),
+                pair: TEST_PAIR.into(),
             }]
         }
 
@@ -334,26 +341,117 @@ mod test {
     fn test_workflow() {
         init();
         System::new().block_on(async move {
-            let addr = actix::Supervisor::start(|_| actor(Box::new(move || Box::new(DummyStrat))));
-            let order_book_event = Arc::new(LiveEventEnvelope {
+            let order_book_event = LiveEventEnvelope {
                 xch: Exchange::Binance,
                 e: LiveEvent::LiveOrderbook(Orderbook {
                     timestamp: chrono::Utc::now().timestamp(),
-                    pair: "BTC_USDT".into(),
+                    pair: TEST_PAIR.into(),
                     asks: vec![(0.1, 0.1), (0.2, 0.2)],
                     bids: vec![(0.1, 0.1), (0.2, 0.2)],
                     last_order_id: None,
                 }),
+            };
+            let log = Arc::new(Mutex::new(vec![]));
+            let events: Vec<LiveEventEnvelope> = std::iter::repeat(order_book_event).take(10).collect();
+            let log_a = log.clone();
+            let addr = actix::Supervisor::start(|_| {
+                StrategyActor::new(Box::new(move || Box::new(LoggingStrat { log: log_a.clone() })))
             });
-            for _ in 0..10 {
-                addr.do_send(order_book_event.clone());
+            for event in events.clone() {
+                addr.send(Arc::new(event)).await.unwrap().unwrap();
             }
+            let log = log.lock().unwrap().clone();
+            assert_eq!(log, events);
             let r = addr.send(StrategyLifecycleCmd::Restart).await.unwrap();
             assert_eq!(r.ok(), Some(StrategyStatus::Running));
-            let r = addr.send(StrategyLifecycleCmd::Stop).await.unwrap();
-            assert_eq!(r.ok(), Some(StrategyStatus::Stopped));
-            thread::sleep(std::time::Duration::from_secs(1));
+            assert!(addr.connected());
+            let r = addr.send(DataQuery::Status).await.unwrap().unwrap();
+            assert_eq!(r, Some(DataResult::Success(true)));
+            let r = addr.send(ModelReset::default()).await.unwrap();
+            assert!(r.is_ok());
             System::current().stop();
+            thread::sleep(std::time::Duration::from_secs(1));
+        });
+    }
+}
+
+#[cfg(test)]
+mod actor_test {
+    use actix::{Actor, ActorContext, Context, Handler, Running, System};
+
+    #[test]
+    #[ignore]
+    fn test_actor() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        #[derive(actix::Message)]
+        #[rtype(result = "()")]
+        enum Cmd {
+            Restart,
+            Stop,
+        }
+        struct A(&'static str);
+
+        impl Actor for A {
+            type Context = Context<Self>;
+
+            fn started(&mut self, _: &mut Self::Context) {
+                tracing::info!(name = %self.0, "actor started");
+            }
+
+            fn stopping(&mut self, _ctx: &mut Self::Context) -> actix::Running {
+                tracing::info!(name = %self.0, "actor stopping...");
+                Running::Stop
+            }
+        }
+
+        impl actix::Supervised for A {
+            fn restarting(&mut self, _ctx: &mut <Self as Actor>::Context) {
+                tracing::info!(name = %self.0, "supervised restart");
+            }
+        }
+
+        impl Handler<Cmd> for A {
+            type Result = ();
+
+            fn handle(&mut self, msg: Cmd, ctx: &mut Self::Context) -> Self::Result {
+                if let Cmd::Restart = msg {
+                    ctx.stop();
+                }
+                if let Cmd::Stop = msg {
+                    ctx.stop();
+                }
+            }
+        }
+        let sleep = std::time::Duration::from_millis(200);
+        System::new().block_on(async move {
+            let _addr = A::start(A("unsupervised"));
+            tokio::time::sleep(sleep).await;
+            System::current().stop();
+            tokio::time::sleep(sleep).await;
+        });
+
+        System::new().block_on(async move {
+            let addr = A::start(A("unsupervised with cmd"));
+            addr.send(Cmd::Restart).await.unwrap();
+            System::current().stop();
+            tokio::time::sleep(sleep).await;
+        });
+
+        System::new().block_on(async move {
+            let _addr = actix::Supervisor::start(|_| A("supervised"));
+            tokio::time::sleep(sleep).await;
+            System::current().stop();
+            tokio::time::sleep(sleep).await;
+        });
+
+        System::new().block_on(async move {
+            let addr = actix::Supervisor::start(|_| A("supervised with cmd"));
+            addr.send(Cmd::Restart).await.unwrap();
+            addr.send(Cmd::Stop).await.unwrap();
+            tokio::time::sleep(sleep).await;
+            System::current().stop();
+            tokio::time::sleep(sleep).await;
         });
     }
 }

@@ -68,7 +68,7 @@ pub enum OrderMode {
     Limit,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, juniper::GraphQLObject)]
 pub struct TradeOperation {
     pub kind: TradeKind,
     pub pair: String,
@@ -114,7 +114,7 @@ impl From<TradeOperation> for AddOrderRequest {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, EnumString)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, EnumString)]
 pub enum ExecutionInstruction {
     ParticipateDoNotInitiate,
     CancelIfNotBest,
