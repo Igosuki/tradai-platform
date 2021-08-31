@@ -19,7 +19,7 @@ use crate::types::{BookPosition, ExecutionInstruction, OperationEvent, OrderMode
 use crate::types::{OperationKind, PositionKind, TradeKind};
 use itertools::Itertools;
 
-#[derive(Clone, Debug, Deserialize, Serialize, juniper::GraphQLObject)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, juniper::GraphQLObject)]
 pub struct Position {
     pub kind: PositionKind,
     pub price: f64,
@@ -27,7 +27,7 @@ pub struct Position {
     pub pair: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Operation {
     pub id: String,
     pub kind: OperationKind,
