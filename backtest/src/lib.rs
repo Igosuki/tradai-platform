@@ -112,10 +112,10 @@ impl Backtest {
         let order_manager_addr = mock_manager(&db_path);
 
         let strategy = if conf.use_generic {
-            strategies::Strategy::new_generic(
+            strategies::Strategy::new(
                 &DbOptions::new(db_path),
                 conf.fees,
-                &conf.strat,
+                &StrategySettings::Generic(Box::new(conf.strat.clone())),
                 Some(order_manager_addr),
             )
         } else {
@@ -240,7 +240,7 @@ impl Backtest {
             self.strategy.1.do_send(Arc::new(live_event));
             match self.strategy.1.send(DataQuery::Models).await {
                 Err(_) => log::error!("Mailbox error, strategy full"),
-                Ok(Ok(Some(DataResult::Models(models)))) => all_models.push(models.as_ref().clone()),
+                Ok(Ok(Some(DataResult::Models(models)))) => all_models.push(models),
                 _ => {
                     model_failure_count += 1;
                 }

@@ -46,6 +46,9 @@ anyhow = "1.0"
 async-std = "1.6"
 chrono = { version = "0.4", features = ["serde"] }
 ext = { path = "../ext" }
+util = { path = "../util" }
+uuid = { version = "0.8", features = ["v4"] }
+backoff = "0.3"
 
 # futures
 futures = { version = "0.3", features = ["async-await", "alloc"] }
@@ -81,8 +84,6 @@ tokio = { version = "1.5", features = ["full"] }
 # Tracing
 tracing = "0.1"
 tracing-futures = "0.2"
-util = { path = "../util" }
-uuid = { version = "0.8", features = ["v4"] }
 
 # python
 #python = { path = "../python" }

@@ -7,7 +7,7 @@ use crate::generic::Strategy;
 use crate::mean_reverting::options::Options as MeanRevertingStrategyOptions;
 use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::order_manager::OrderManager;
-use crate::{error, DbOptions, StrategyDriver, StrategyKey, StrategyType};
+use crate::{error, generic, DbOptions, StrategyDriver, StrategyKey, StrategyType};
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type")]
@@ -15,6 +15,7 @@ use crate::{error, DbOptions, StrategyDriver, StrategyKey, StrategyType};
 pub enum StrategySettings {
     Naive(NaiveStrategyOptions),
     MeanReverting(MeanRevertingStrategyOptions),
+    Generic(Box<StrategySettings>),
 }
 
 impl StrategySettings {
@@ -22,6 +23,7 @@ impl StrategySettings {
         match self {
             Self::Naive(s) => s.exchange,
             Self::MeanReverting(s) => s.exchange,
+            Self::Generic(s) => s.exchange(),
         }
     }
 
@@ -29,6 +31,7 @@ impl StrategySettings {
         match &self {
             StrategySettings::Naive(n) => StrategyKey(StrategyType::Naive, format!("{}_{}", n.left, n.right)),
             StrategySettings::MeanReverting(n) => StrategyKey(StrategyType::MeanReverting, format!("{}", n.pair)),
+            StrategySettings::Generic(s) => s.key(),
         }
     }
 }
@@ -89,6 +92,10 @@ pub fn from_settings(
                 );
                 panic!();
             }
+        }
+        StrategySettings::Generic(s) => {
+            let inner: Box<dyn generic::Strategy> = from_settings_s(db, fees, s, om);
+            Box::new(crate::generic::GenericStrategy::try_new(inner.channels().into_iter().collect(), inner).unwrap())
         }
     }
 }

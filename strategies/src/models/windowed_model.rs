@@ -1,8 +1,10 @@
 use super::persist::{PersistentModel, PersistentVec, Window};
+use crate::error::Result;
 use crate::models::persist::ModelValue;
 use crate::models::Model;
 use chrono::{DateTime, Utc};
 use db::Storage;
+use ext::ResultExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::Arc;
@@ -34,11 +36,11 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
         }
     }
 
-    pub fn update_model(&mut self) -> Result<(), db::Error> {
+    pub fn update_model(&mut self) -> Result<()> {
         if self.is_filled() && !self.has_model() {
             self.model.set_last_model(M::default());
         }
-        self.model.update(self.window_fn, self.rows.window())
+        self.model.update(self.window_fn, self.rows.window()).err_into()
     }
 
     pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }
@@ -56,6 +58,12 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
     pub fn model(&self) -> Option<ModelValue<M>> { self.model.model() }
 
     pub fn is_loaded(&self) -> bool { self.model.is_loaded() && self.rows.is_loaded() }
+
+    pub fn wipe(&mut self) -> Result<()> {
+        self.model.wipe()?;
+        self.rows.wipe()?;
+        Ok(())
+    }
 }
 
 impl<R: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone + Default> Model

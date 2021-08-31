@@ -1,4 +1,5 @@
-use chrono::{DateTime, Utc};
+use crate::error::Result;
+use chrono::{DateTime, TimeZone, Utc};
 use db::Storage;
 use db::StorageExt;
 use itertools::Itertools;
@@ -59,7 +60,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
         });
     }
 
-    pub fn update<A>(&mut self, update_fn: ModelUpdateFn<T, A>, args: A) -> Result<(), db::Error> {
+    pub fn update<A>(&mut self, update_fn: ModelUpdateFn<T, A>, args: A) -> Result<()> {
         if let Some(model) = &self.last_model {
             let new_model_value = (update_fn).call((&model.value, args));
             self.set_last_model(new_model_value);
@@ -70,9 +71,9 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
 
     pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.last_model.as_ref().map(|m| m.at) }
 
-    #[allow(dead_code)]
-    pub fn wipe_model(&mut self) -> Result<(), db::Error> {
+    pub fn wipe(&mut self) -> Result<()> {
         self.db.delete(MODELS_TABLE_NAME, &self.key)?;
+        self.last_model = None;
         Ok(())
     }
 
@@ -178,6 +179,17 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
     }
 
     pub fn is_loaded(&self) -> bool { self.is_loaded }
+
+    pub fn wipe(&mut self) -> Result<()> {
+        self.db.delete_range(
+            &self.key,
+            // Beginning of 'time'
+            Utc.timestamp_nanos(0).to_string(),
+            Utc::now().timestamp_nanos().to_string(),
+        )?;
+        self.rows = vec![];
+        Ok(())
+    }
 }
 
 #[cfg(test)]

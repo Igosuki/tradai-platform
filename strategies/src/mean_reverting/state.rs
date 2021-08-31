@@ -519,6 +519,11 @@ impl MeanRevertingState {
 
     pub(crate) fn is_trading(&self) -> bool { self.is_trading }
 
+    pub(crate) fn toggle_trading(&mut self) -> bool {
+        self.is_trading = !self.is_trading;
+        self.is_trading
+    }
+
     #[allow(dead_code)]
     fn get_operation(&self, uuid: &str) -> Option<Operation> { self.db.get(OPERATIONS_KEY, uuid).ok() }
 

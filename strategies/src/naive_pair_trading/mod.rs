@@ -18,7 +18,7 @@ use crate::models::{Model, WindowedModel};
 use crate::naive_pair_trading::covar_model::{DataRow, LinearModelValue};
 use crate::naive_pair_trading::state::Operation;
 use crate::order_manager::OrderManager;
-use crate::query::{FieldMutation, MutableField};
+use crate::query::{ModelReset, MutableField, Mutation};
 use crate::types::{BookPosition, PositionKind};
 use crate::{Channel, DataQuery, DataResult, StrategyDriver, StrategyStatus};
 use actix::Addr;
@@ -387,14 +387,24 @@ impl StrategyDriver for NaiveTradingStrategy {
         match q {
             DataQuery::OperationHistory => Some(DataResult::NaiveOperations(self.get_operations())),
             DataQuery::OpenOperations => Some(DataResult::NaiveOperation(Box::new(self.get_ongoing_op().clone()))),
-            DataQuery::CancelOngoingOp => Some(DataResult::OperationCanceled(self.cancel_ongoing_op())),
+            DataQuery::CancelOngoingOp => Some(DataResult::Success(self.cancel_ongoing_op())),
             DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
             DataQuery::Status => Some(DataResult::Status(StrategyStatus::Running)),
             DataQuery::Models => None,
         }
     }
 
-    fn mutate(&mut self, m: FieldMutation) -> Result<()> { self.change_state(m.field, m.value) }
+    fn mutate(&mut self, m: Mutation) -> Result<()> {
+        match m {
+            Mutation::State(m) => self.change_state(m.field, m.value)?,
+            Mutation::Model(ModelReset { name, .. }) => {
+                if name == Some("lm".to_string()) || name.is_none() {
+                    self.data_table.wipe()?
+                }
+            }
+        }
+        Ok(())
+    }
 
     fn channels(&self) -> Vec<Channel> {
         vec![
@@ -408,4 +418,6 @@ impl StrategyDriver for NaiveTradingStrategy {
             },
         ]
     }
+
+    fn toggle_trading(&mut self) -> bool { false }
 }

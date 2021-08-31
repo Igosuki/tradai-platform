@@ -23,7 +23,7 @@ use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
 use crate::models::{IndicatorModel, Sampler};
 use crate::models::{Model, WindowedModel};
 use crate::order_manager::OrderManager;
-use crate::query::{DataQuery, DataResult, FieldMutation, MutableField};
+use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation};
 use crate::types::{BookPosition, PositionKind};
 use crate::util::Stopper;
 use crate::{Channel, StrategyDriver, StrategyStatus};
@@ -311,6 +311,31 @@ impl MeanRevertingStrategy {
             StrategyStatus::NotTrading
         }
     }
+
+    fn get_models(&self) -> Vec<(String, Option<serde_json::Value>)> {
+        vec![
+            (
+                "apo".to_string(),
+                self.model.value().and_then(|v| serde_json::to_value(v.apo).ok()),
+            ),
+            (
+                "thresholds".to_string(),
+                self.threshold_table
+                    .as_ref()
+                    .and_then(|t| t.model().and_then(|m| serde_json::to_value(m.value).ok())),
+            ),
+        ]
+    }
+
+    fn reset_models(&mut self, name: Option<String>) -> Result<()> {
+        if name == Some("apo".to_string()) || name.is_none() {
+            self.model.wipe()?;
+        }
+        if name == Some("thresholds".to_string()) || name.is_none() {
+            self.threshold_table.as_mut().map(|t| t.wipe()).transpose()?;
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -338,20 +363,30 @@ impl StrategyDriver for MeanRevertingStrategy {
             DataQuery::OpenOperations => Some(DataResult::MeanRevertingOperation(Box::new(
                 self.get_ongoing_op().clone(),
             ))),
-            DataQuery::CancelOngoingOp => Some(DataResult::OperationCanceled(self.cancel_ongoing_op())),
+            DataQuery::CancelOngoingOp => Some(DataResult::Success(self.cancel_ongoing_op())),
             DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
             DataQuery::Status => Some(DataResult::Status(self.status())),
-            DataQuery::Models => None,
+            DataQuery::Models => Some(DataResult::Models(self.get_models())),
         }
     }
 
-    fn mutate(&mut self, m: FieldMutation) -> Result<()> { self.change_state(m.field, m.value) }
+    fn mutate(&mut self, m: Mutation) -> Result<()> {
+        match m {
+            Mutation::State(m) => self.change_state(m.field, m.value),
+            Mutation::Model(ModelReset { name, .. }) => self.reset_models(name),
+        }
+    }
 
     fn channels(&self) -> Vec<Channel> {
         vec![Channel::Orderbooks {
             xch: self.exchange,
             pair: self.pair.clone(),
         }]
+    }
+
+    fn toggle_trading(&mut self) -> bool {
+        self.state.toggle_trading();
+        self.state.is_trading()
     }
 }
 
@@ -446,20 +481,7 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
         Ok(())
     }
 
-    fn models(&self) -> Vec<(String, Option<serde_json::Value>)> {
-        vec![
-            (
-                "apo".to_string(),
-                self.model.value().and_then(|v| serde_json::to_value(v.apo).ok()),
-            ),
-            (
-                "thresholds".to_string(),
-                self.threshold_table
-                    .as_ref()
-                    .and_then(|t| t.model().and_then(|m| serde_json::to_value(m.value).ok())),
-            ),
-        ]
-    }
+    fn models(&self) -> Vec<(String, Option<serde_json::Value>)> { self.get_models() }
 
     fn channels(&self) -> HashSet<Channel> {
         let mut hs = HashSet::new();

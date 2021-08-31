@@ -1,7 +1,9 @@
 use super::persist::{ModelValue, PersistentModel};
+use crate::error::Result;
 use crate::models::Model;
 use chrono::{DateTime, Utc};
 use db::Storage;
+use ext::ResultExt;
 use math::Next;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -36,7 +38,7 @@ impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> IndicatorModel
         }
     }
 
-    pub fn update(&mut self, next_value: R) -> Result<(), db::Error> { self.model.update(self.update_fn, next_value) }
+    pub fn update(&mut self, next_value: R) -> Result<()> { self.model.update(self.update_fn, next_value).err_into() }
 
     #[allow(dead_code)]
     pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }
@@ -44,6 +46,8 @@ impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> IndicatorModel
     pub fn value(&self) -> Option<T> { self.model.value() }
 
     pub fn is_loaded(&self) -> bool { self.model.is_loaded() }
+
+    pub fn wipe(&mut self) -> Result<()> { self.model.wipe().err_into() }
 }
 
 impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> Model for IndicatorModel<T, R> {
