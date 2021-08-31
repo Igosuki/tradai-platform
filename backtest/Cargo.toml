@@ -16,6 +16,7 @@ required-features = ["env_logger"]
 strategies = { path = "../strategies" }
 util = { path = "../util" }
 
+log = "0.4"
 structopt = "0.3"
 config = "0.11"
 thiserror = "1.0"

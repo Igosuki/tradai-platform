@@ -16,7 +16,7 @@ use math::iter::QuantileExt;
 
 use crate::error::Result;
 use crate::generic::{InputEvent, TradeSignal};
-use crate::mean_reverting::ema_model::ema_indicator_model;
+use crate::mean_reverting::ema_model::{ema_indicator_model, ApoThresholds};
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
@@ -53,7 +53,7 @@ pub struct MeanRevertingStrategy {
     last_sample_time: DateTime<Utc>,
     state: MeanRevertingState,
     model: IndicatorModel<MACDApo, f64>,
-    threshold_table: Option<WindowedModel<f64, f64>>,
+    threshold_table: Option<WindowedModel<f64, ApoThresholds>>,
     #[derivative(Debug = "ignore")]
     metrics: Arc<MeanRevertingStrategyMetrics>,
     threshold_eval_freq: Option<i32>,
@@ -341,6 +341,7 @@ impl StrategyDriver for MeanRevertingStrategy {
             DataQuery::CancelOngoingOp => Some(DataResult::OperationCanceled(self.cancel_ongoing_op())),
             DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
             DataQuery::Status => Some(DataResult::Status(self.status())),
+            DataQuery::Models => None,
         }
     }
 
@@ -445,10 +446,18 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
         Ok(())
     }
 
-    fn models(&self) -> Vec<(&str, Option<serde_json::Value>)> {
+    fn models(&self) -> Vec<(String, Option<serde_json::Value>)> {
         vec![
-            ("apo", self.model.ser()),
-            ("thresholds", self.threshold_table.as_ref().and_then(|t| t.ser())),
+            (
+                "apo".to_string(),
+                self.model.value().and_then(|v| serde_json::to_value(v.apo).ok()),
+            ),
+            (
+                "thresholds".to_string(),
+                self.threshold_table
+                    .as_ref()
+                    .and_then(|t| t.model().and_then(|m| serde_json::to_value(m.value).ok())),
+            ),
         ]
     }
 

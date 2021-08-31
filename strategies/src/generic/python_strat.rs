@@ -134,7 +134,7 @@ impl Strategy for PythonStratWrapper {
         val.map(|_| ()).err_into()
     }
 
-    fn models(&self) -> Vec<(&str, Option<Value>)> { vec![] }
+    fn models(&self) -> Vec<(String, Option<Value>)> { vec![] }
 
     fn channels(&self) -> HashSet<Channel> { Default::default() }
 }

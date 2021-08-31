@@ -24,7 +24,7 @@ pub(crate) trait Strategy: Sync + Send {
 
     async fn update_model(&mut self, e: &InputEvent) -> Result<()>;
 
-    fn models(&self) -> Vec<(&str, Option<serde_json::Value>)>;
+    fn models(&self) -> Vec<(String, Option<serde_json::Value>)>;
 
     fn channels(&self) -> HashSet<Channel>;
 }
@@ -111,6 +111,7 @@ pub struct GenericStrategy {
     multi_market: bool,
     initialized: bool,
     signals: Vec<TradeSignal>,
+    last_models: Vec<(String, Option<serde_json::Value>)>,
 }
 
 impl GenericStrategy {
@@ -122,6 +123,7 @@ impl GenericStrategy {
             multi_market: false,
             initialized: false,
             signals: Default::default(),
+            last_models: vec![],
         })
     }
 
@@ -180,7 +182,9 @@ impl StrategyDriver for GenericStrategy {
                 };
                 {
                     let mut inner = self.inner.write().await;
-                    inner.update_model(&event).await.unwrap();
+                    if inner.update_model(&event).await.is_ok() {
+                        self.last_models = inner.models();
+                    }
                     let signals = inner.eval(&event).await.unwrap();
                     self.signals.extend(signals);
                 }
@@ -195,6 +199,7 @@ impl StrategyDriver for GenericStrategy {
             DataQuery::OpenOperations => Some(DataResult::Operations(vec![])),
             DataQuery::CancelOngoingOp => Some(DataResult::OperationCanceled(false)),
             DataQuery::State => Some(DataResult::State("".to_string())),
+            DataQuery::Models => Some(DataResult::Models(Arc::new(self.last_models.to_owned()))),
             DataQuery::Status => Some(DataResult::Status(StrategyStatus::NotTrading)),
         }
     }

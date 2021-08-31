@@ -390,6 +390,7 @@ impl StrategyDriver for NaiveTradingStrategy {
             DataQuery::CancelOngoingOp => Some(DataResult::OperationCanceled(self.cancel_ongoing_op())),
             DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
             DataQuery::Status => Some(DataResult::Status(StrategyStatus::Running)),
+            DataQuery::Models => None,
         }
     }
 

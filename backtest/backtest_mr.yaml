@@ -21,7 +21,7 @@ fees: 0.001
 period:
   type: interval
   from: 2021-07-18
-  to: 2021-08-14
+  to: 2021-07-19
 
 input_sample_rate: 1min
 
