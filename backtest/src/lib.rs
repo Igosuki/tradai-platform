@@ -15,10 +15,13 @@ use datafusion::error::DataFusionError;
 use datafusion::physical_plan::avro::AvroReadOptions;
 use datafusion::prelude::ExecutionContext;
 use parse_duration::parse;
-
+use serde::{ser::SerializeSeq, Serializer};
+use std::collections::BTreeMap;
+use std::io::BufWriter;
 use strategies::coinnect_types::{LiveEvent, LiveEventEnvelope, Orderbook};
 use strategies::input::partition_path;
 use strategies::order_manager::test_util::mock_manager;
+use strategies::query::{DataQuery, DataResult};
 use strategies::settings::StrategySettings;
 use strategies::{Channel, DbOptions, Strategy};
 use util::date::{DateRange, DurationRangeType};
@@ -231,16 +234,34 @@ impl Backtest {
                 }
             }
         }
+        let mut all_models: Vec<Vec<(String, Option<serde_json::Value>)>> = vec![];
+        let mut model_failure_count = 0;
         for live_event in live_events {
-            if let Err(e) = self.strategy.1.send(Arc::new(live_event)).await {
-                println!("error sending event to strat : mailbox {}", e);
+            self.strategy.1.do_send(Arc::new(live_event));
+            match self.strategy.1.send(DataQuery::Models).await {
+                Err(_) => log::error!("Mailbox error, strategy full"),
+                Ok(Ok(Some(DataResult::Models(models)))) => all_models.push(models.as_ref().clone()),
+                _ => {
+                    model_failure_count += 1;
+                }
             }
         }
+        eprintln!("failed models = {:?}", model_failure_count);
+        write_models(all_models);
         tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         Ok(())
     }
 }
-
+fn write_models(all_models: Vec<Vec<(String, Option<serde_json::Value>)>>) {
+    let logs_f = std::fs::File::create("models.json").unwrap();
+    let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
+    let mut seq = ser.serialize_seq(None).unwrap();
+    for models in all_models {
+        let obj: BTreeMap<String, Option<serde_json::Value>> = models.into_iter().collect();
+        seq.serialize_element(&obj).unwrap();
+    }
+    seq.end().unwrap();
+}
 async fn read_order_books_df(
     partitions: Vec<String>,
     sample_rate: Duration,

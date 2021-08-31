@@ -3,11 +3,13 @@ use crate::mean_reverting::state::Operation as MeanRevertingOperation;
 use crate::naive_pair_trading::state::Operation as NaiveOperation;
 use crate::types::TradeOperation;
 use crate::StrategyStatus;
-use actix_derive::{Message, MessageResponse};
+use actix::Message;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::sync::Arc;
 
 // TODO: Use GraphQLUnion to refactor this ugly bit of code
-#[derive(Debug, Deserialize, Serialize, MessageResponse)]
+#[derive(Debug, Deserialize, Serialize, actix_derive::MessageResponse)]
 #[serde(tag = "type")]
 pub enum DataResult {
     NaiveOperations(Vec<NaiveOperation>),
@@ -16,11 +18,12 @@ pub enum DataResult {
     MeanRevertingOperation(Box<Option<MeanRevertingOperation>>),
     OperationCanceled(bool),
     State(String),
+    Models(Arc<Vec<(String, Option<Value>)>>),
     Status(StrategyStatus),
     Operations(Vec<TradeOperation>),
 }
 
-#[derive(Deserialize, Serialize, Message)]
+#[derive(Deserialize, Serialize, actix::Message)]
 #[rtype(result = "Result<Option<DataResult>>")]
 pub enum DataQuery {
     /// All operations history
@@ -31,6 +34,8 @@ pub enum DataQuery {
     CancelOngoingOp,
     /// Latest state
     State,
+    /// Latest models
+    Models,
     /// Status
     Status,
 }
