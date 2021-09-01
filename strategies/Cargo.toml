@@ -91,6 +91,10 @@ pyo3 = { version = "0.14", features = ["serde", "auto-initialize"] }
 pyo3-log = "0.4"
 
 [dev-dependencies]
+# ours
+backtest = { path = "../backtest" }
+util = { path = "../util" }
+
 # actix
 actix-codec = "0.4"
 actix-http = "3.0.0-beta.6"
@@ -98,23 +102,26 @@ actix-http-test = "3.0.0-beta.4"
 actix-server = "2.0.0-beta.5"
 awc = { version = "3.0.0-beta.7", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
 
+# plots
 hdrhistogram = "7"
-
-# util
-fake = { version = "2.4", features = ['chrono'] }
-bytes = "1.0"
-bytestring = "1.0.0"
-http = "0.2"
-httpmock = { git = "https://github.com/Igosuki/httpmock.git" }
-lazy_static = "1.4"
-matches = "0.1"
-openssl = "0.10"
 plotlib = "0.5"
 plotters = "0.3"
-pretty_assertions = "0.7"
-quickcheck = "1.0"
-rand = "0.8"
-socket2 = "0.4"
+
+# test
+fake = { version = "2.4", features = ['chrono'] }
 tempdir = "0.3"
 test-env-log = "0.2"
-util = { path = "../util" }
+quickcheck = "1.0"
+pretty_assertions = "0.7"
+
+# std
+bytes = "1.0"
+bytestring = "1.0.0"
+lazy_static = "1.4"
+openssl = "0.10"
+rand = "0.8"
+
+# http
+http = "0.2"
+httpmock = { git = "https://github.com/Igosuki/httpmock.git" }
+socket2 = "0.4"

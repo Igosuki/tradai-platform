@@ -18,12 +18,12 @@ use parse_duration::parse;
 use serde::{ser::SerializeSeq, Serializer};
 use std::collections::BTreeMap;
 use std::io::BufWriter;
-use strategies::coinnect_types::{LiveEvent, LiveEventEnvelope, Orderbook};
+use strategies::coinnect_types::{LiveEvent, LiveEventEnvelope, Orderbook, Pair};
 use strategies::input::partition_path;
 use strategies::order_manager::test_util::mock_manager;
 use strategies::query::{DataQuery, DataResult};
 use strategies::settings::StrategySettings;
-use strategies::{Channel, DbOptions, Strategy};
+use strategies::{Channel, DbOptions, Exchange, Strategy};
 use util::date::{DateRange, DurationRangeType};
 use util::test::test_dir;
 
@@ -42,7 +42,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
-enum Period {
+pub enum Period {
     Since { since: String },
     Interval { from: NaiveDate, to: Option<NaiveDate> },
 }
@@ -67,13 +67,13 @@ impl Period {
 
 #[derive(Deserialize)]
 pub struct BacktestConfig {
-    db_path: Option<PathBuf>,
-    strat: StrategySettings,
-    fees: f64,
-    period: Period,
-    input_sample_rate: String,
-    data_dir: PathBuf,
-    use_generic: bool,
+    pub db_path: Option<PathBuf>,
+    pub strat: StrategySettings,
+    pub fees: f64,
+    pub period: Period,
+    pub input_sample_rate: String,
+    pub data_dir: PathBuf,
+    pub use_generic: bool,
 }
 
 impl BacktestConfig {
@@ -157,74 +157,8 @@ impl Backtest {
                             partitions.push(partition_file.as_path().to_string_lossy().to_string());
                         }
                     }
-                    let records = read_order_books_df(partitions, self.sample_rate, false).await?;
-                    for record_batch in records {
-                        let sa: StructArray = record_batch.into();
-                        let asks_col = sa
-                            .column_by_name("asks")
-                            .unwrap()
-                            .as_any()
-                            .downcast_ref::<ListArray>()
-                            .unwrap();
-                        let bids_col = sa
-                            .column_by_name("bids")
-                            .unwrap()
-                            .as_any()
-                            .downcast_ref::<ListArray>()
-                            .unwrap();
-                        let event_ms_col = sa
-                            .column_by_name("event_ms")
-                            .unwrap()
-                            .as_any()
-                            .downcast_ref::<TimestampMillisecondArray>()
-                            .unwrap();
-                        for i in 0..sa.len() {
-                            let mut bids = vec![];
-                            for bid in bids_col
-                                .value(i)
-                                .as_any()
-                                .downcast_ref::<ListArray>()
-                                .unwrap()
-                                .iter()
-                                .flatten()
-                            {
-                                let vals = bid
-                                    .as_any()
-                                    .downcast_ref::<PrimitiveArray<Float64Type>>()
-                                    .unwrap()
-                                    .values();
-                                bids.push((vals[0], vals[1]));
-                            }
-                            let mut asks = vec![];
-                            for ask in asks_col
-                                .value(i)
-                                .as_any()
-                                .downcast_ref::<ListArray>()
-                                .unwrap()
-                                .iter()
-                                .flatten()
-                            {
-                                let vals = ask
-                                    .as_any()
-                                    .downcast_ref::<PrimitiveArray<Float64Type>>()
-                                    .unwrap()
-                                    .values();
-                                asks.push((vals[0], vals[1]));
-                            }
-                            let i1 = event_ms_col.value(i);
-                            let orderbook = Orderbook {
-                                timestamp: i1,
-                                pair: pair.clone(),
-                                asks,
-                                bids,
-                                last_order_id: None,
-                            };
-                            live_events.push(LiveEventEnvelope {
-                                xch: *xch,
-                                e: LiveEvent::LiveOrderbook(orderbook),
-                            });
-                        }
-                    }
+                    let records = avro_orderbooks_df(partitions, self.sample_rate, false).await?;
+                    live_events.extend(events_from_grouped_arrays(*xch, pair.clone(), records))
                 }
                 Channel::Trades { .. } => {
                     panic!("cannot yet read from trades");
@@ -252,6 +186,7 @@ impl Backtest {
         Ok(())
     }
 }
+
 fn write_models(all_models: Vec<Vec<(String, Option<serde_json::Value>)>>) {
     let logs_f = std::fs::File::create("models.json").unwrap();
     let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
@@ -262,7 +197,8 @@ fn write_models(all_models: Vec<Vec<(String, Option<serde_json::Value>)>>) {
     }
     seq.end().unwrap();
 }
-async fn read_order_books_df(
+
+async fn avro_orderbooks_df(
     partitions: Vec<String>,
     sample_rate: Duration,
     order_book_split_cols: bool,
@@ -289,4 +225,76 @@ async fn read_order_books_df(
         records.extend_from_slice(results.as_slice());
     }
     Ok(records)
+}
+
+fn events_from_grouped_arrays(xchg: Exchange, pair: Pair, records: Vec<RecordBatch>) -> Vec<LiveEventEnvelope> {
+    let mut live_events = vec![];
+    for record_batch in records {
+        let sa: StructArray = record_batch.into();
+        let asks_col = sa
+            .column_by_name("asks")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ListArray>()
+            .unwrap();
+        let bids_col = sa
+            .column_by_name("bids")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<ListArray>()
+            .unwrap();
+        let event_ms_col = sa
+            .column_by_name("event_ms")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<TimestampMillisecondArray>()
+            .unwrap();
+        for i in 0..sa.len() {
+            let mut bids = vec![];
+            for bid in bids_col
+                .value(i)
+                .as_any()
+                .downcast_ref::<ListArray>()
+                .unwrap()
+                .iter()
+                .flatten()
+            {
+                let vals = bid
+                    .as_any()
+                    .downcast_ref::<PrimitiveArray<Float64Type>>()
+                    .unwrap()
+                    .values();
+                bids.push((vals[0], vals[1]));
+            }
+            let mut asks = vec![];
+            for ask in asks_col
+                .value(i)
+                .as_any()
+                .downcast_ref::<ListArray>()
+                .unwrap()
+                .iter()
+                .flatten()
+            {
+                let vals = ask
+                    .as_any()
+                    .downcast_ref::<PrimitiveArray<Float64Type>>()
+                    .unwrap()
+                    .values();
+                asks.push((vals[0], vals[1]));
+            }
+            let i1 = event_ms_col.value(i);
+            let orderbook = Orderbook {
+                timestamp: i1,
+                pair: pair.clone(),
+                asks,
+                bids,
+                last_order_id: None,
+            };
+            live_events.push(LiveEventEnvelope {
+                xch: xchg,
+                e: LiveEvent::LiveOrderbook(orderbook),
+            });
+        }
+    }
+    live_events
 }

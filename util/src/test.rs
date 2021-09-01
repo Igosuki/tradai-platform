@@ -12,6 +12,21 @@ pub fn repo_dir() -> String {
         .unwrap_or_else(|| "..".to_string())
 }
 
+pub fn data_cache_dir() -> PathBuf {
+    Path::new(&repo_dir())
+        .join("history")
+        .join("btc_history_cache")
+        .join("data")
+}
+
 pub fn data_dir() -> PathBuf { Path::new(&repo_dir()).join("data") }
 
 pub fn test_data_dir() -> PathBuf { Path::new(&repo_dir()).join("test_data") }
+
+pub fn test_results_dir(modle_path: &str) -> String {
+    let module_path = modle_path.replace("::", "_");
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let test_results_dir = format!("{}/target/test_results/{}", manifest_dir, module_path);
+    std::fs::create_dir_all(&test_results_dir).unwrap();
+    test_results_dir
+}

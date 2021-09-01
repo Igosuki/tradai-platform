@@ -41,7 +41,7 @@ use serde::Deserialize;
 use strum_macros::EnumString;
 use uuid::Uuid;
 
-use coinnect_rt::exchange::Exchange;
+pub use coinnect_rt::exchange::Exchange;
 pub use coinnect_rt::types as coinnect_types;
 use coinnect_rt::types::{LiveEventEnvelope, Pair};
 pub use db::DbOptions;
