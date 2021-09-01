@@ -122,7 +122,7 @@ static PAIR: &str = "BTC_USDT";
 async fn moving_average_model_backtest() {
     init();
     let db = test_db();
-    let mut model = ema_indicator_model("BTC_USDT", db, 100, 1000);
+    let mut model = ema_indicator_model(PAIR, db, 100, 1000);
     let csv_records =
         input::load_csv_records(Utc.ymd(2020, 3, 27), Utc.ymd(2020, 4, 8), vec![PAIR], EXCHANGE, CHANNEL).await;
     csv_records[0].iter().take(500).for_each(|l| {
@@ -185,7 +185,7 @@ async fn complete_backtest() {
 
         strat
             .process_row(&row)
-            .instrument(tracing::debug_span!("process_row"))
+            .instrument(tracing::trace_span!("process_row"))
             .await;
 
         let value = strat.model_value().unwrap();

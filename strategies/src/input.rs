@@ -1,10 +1,8 @@
 use std::fs::File;
 use std::io::{BufReader, Result};
 use std::iter::FromIterator;
-use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Arc;
 use std::time::Instant;
 
 use chrono::prelude::*;
@@ -16,6 +14,7 @@ use util::date::{DateRange, DurationRangeType};
 use util::serde::date_time_format;
 
 use crate::types::BookPosition;
+use util::test::test_data_dir;
 
 pub fn partition_path(exchange: &str, ts: i64, channel: &str, pair: &str) -> Option<PathBuf> {
     let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d");
@@ -28,7 +27,7 @@ pub fn partition_path(exchange: &str, ts: i64, channel: &str, pair: &str) -> Opt
     )
 }
 
-async fn dl_test_data(base_path: Arc<String>, exchange_name: Arc<String>, channel: Arc<String>, pair: String) {
+async fn dl_test_data(base_path: &str, exchange_name: &str, channel: &str, pair: String) {
     let out_file_name = format!("{}.zip", pair);
     let file = tempfile::tempdir().unwrap();
     let out_file = file.into_path().join(out_file_name);
@@ -37,18 +36,19 @@ async fn dl_test_data(base_path: Arc<String>, exchange_name: Arc<String>, channe
         .await
         .expect("s3 file downloaded");
     if let Some(1) = output.status.code() {
-        println!(
+        error!(
             "s3 download failed : {}",
             std::str::from_utf8(output.stderr.as_slice()).unwrap()
         );
+    } else {
+        error!("{:?}", output);
+        error!("{:?}", base_path);
     }
-
-    let bp = base_path.deref();
 
     Command::new("unzip")
         .arg(&out_file)
         .arg("-d")
-        .arg(bp)
+        .arg(base_path)
         .output()
         .expect("failed to unzip file");
 }
@@ -122,8 +122,13 @@ where
                 let buf = base_path
                     .join(format!("pr={}", p.clone()))
                     .join(format!("dt={}", date.format("%Y-%m-%d")));
-                trace!("Loading csv records from : {:?}", buf);
-                let files = glob(&format!("{}{}", buf.to_str().unwrap(), glob_str)).unwrap();
+                let glob_string = format!("{}{}", buf.to_str().unwrap(), glob_str);
+                trace!("Loading csv records from : {:?}", glob_string);
+                let files = glob(&glob_string).unwrap();
+                if files.count() == 0 {
+                    trace!("no files found !");
+                }
+                let files = glob(&glob_string).unwrap();
                 files.flat_map(|p| load_records(p.unwrap().to_str().unwrap()))
             })
             .collect()
@@ -139,26 +144,18 @@ fn load_records(path: &str) -> Vec<CsvRecord> { read_csv(path).unwrap() }
 pub async fn load_csv_dataset(
     dr: &DateRange,
     pairs: Vec<String>,
-    exchange_name: &str,
+    exchange: &str,
     channel: &str,
 ) -> Vec<Vec<CsvRecord>> {
-    let bp = std::env::var_os("BITCOINS_REPO")
-        .and_then(|oss| oss.into_string().ok())
-        .unwrap_or_else(|| "..".to_string());
-
-    let base_path = Path::new(&bp).join("data").join(exchange_name).join(channel);
-    let bpc = Arc::new(bp);
-    let channelc = Arc::new(channel.to_string());
-    let exchange_namec = Arc::new(exchange_name.to_string());
-
+    let base_path = test_data_dir().join(exchange).join(channel);
     for s in pairs.clone() {
         if !base_path.exists() || !base_path.join(&format!("pr={}", s)).exists() {
-            println!("downloading dataset from spaces");
+            info!("downloading dataset from spaces");
             std::fs::create_dir_all(&base_path).unwrap();
-            crate::input::dl_test_data(bpc.clone(), exchange_namec.clone(), channelc.clone(), s).await;
+            crate::input::dl_test_data(test_data_dir().as_path().to_str().unwrap(), exchange, channel, s).await;
         }
     }
-    crate::input::load_records_from_csv(dr, &base_path, pairs, "*csv")
+    load_records_from_csv(dr, &base_path, pairs, "*csv")
 }
 
 pub async fn load_csv_records(

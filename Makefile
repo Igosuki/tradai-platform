@@ -161,7 +161,7 @@ release_backtest:
 
 python_target=python3.9
 build_python_lib:
-    maturin build -i $(python_target) --cargo-extra-args="--features=static"
+	maturin build -i $(python_target) --cargo-extra-args="--features=static"
 
 ### DOCKER
 
