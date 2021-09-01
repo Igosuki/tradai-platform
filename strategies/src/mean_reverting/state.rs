@@ -336,7 +336,7 @@ impl MeanRevertingState {
         }
     }
 
-    #[tracing::instrument(skip(self), level = "debug")]
+    #[tracing::instrument(skip(self), level = "trace")]
     pub(super) async fn resolve_pending_operations(&mut self, current_bp: &BookPosition) -> Result<()> {
         match self.ongoing_op.as_ref() {
             // There is an ongoing operation

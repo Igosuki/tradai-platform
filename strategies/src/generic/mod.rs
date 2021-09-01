@@ -37,6 +37,7 @@ struct StrategyContext<C> {
     conf: C,
 }
 
+#[derive(Debug)]
 pub(crate) enum InputEvent {
     BookPosition(BookPosition),
     BookPositions(BookPositions),

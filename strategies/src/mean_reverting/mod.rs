@@ -172,7 +172,7 @@ impl MeanRevertingStrategy {
         }
     }
 
-    #[tracing::instrument(skip(self), level = "debug")]
+    #[tracing::instrument(skip(self), level = "trace")]
     fn maybe_eval_threshold(&mut self, current_time: DateTime<Utc>) {
         if let (Some(threshold_table), Some(threshold_eval_freq)) = (&self.threshold_table, self.threshold_eval_freq) {
             if crate::util::is_eval_time_reached(
@@ -209,7 +209,7 @@ impl MeanRevertingStrategy {
 
     fn apo(&self) -> Option<f64> { self.model.value().map(|m| m.apo) }
 
-    #[tracing::instrument(skip(self), level = "debug")]
+    #[tracing::instrument(skip(self), level = "trace")]
     async fn eval_latest(&mut self, lr: &BookPosition) -> Result<&Option<Operation>> {
         // If a position is taken, resolve pending operations
         // In case of error return immediately as no trades can be made until the position is resolved
@@ -257,7 +257,6 @@ impl MeanRevertingStrategy {
 
     fn can_eval(&self) -> bool { self.models_loaded() }
 
-    #[tracing::instrument(skip(self), level = "trace")]
     async fn process_row(&mut self, row: &SinglePosRow) {
         let should_sample = crate::util::is_eval_time_reached(row.time, self.last_sample_time, self.sample_freq, 1);
         // A model is available
@@ -340,6 +339,7 @@ impl MeanRevertingStrategy {
 
 #[async_trait]
 impl StrategyDriver for MeanRevertingStrategy {
+    #[tracing::instrument(skip(self, le), level = "trace")]
     async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()> {
         if !self.handles(le) {
             return Ok(());
@@ -425,6 +425,7 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
         Ok(signals)
     }
 
+    #[tracing::instrument(skip(self), level = "trace")]
     async fn update_model(&mut self, e: &crate::generic::InputEvent) -> Result<()> {
         let book_pos = match e {
             InputEvent::BookPosition(bp) => bp,
@@ -461,7 +462,6 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
                         )
                         .into(),
                     );
-                    tracing::trace!(target: "threshold_events", "set_threshold_short");
                     self.state.set_threshold_long(
                         min(
                             OrderedFloat(self.threshold_long_0),
@@ -469,9 +469,7 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
                         )
                         .into(),
                     );
-                    tracing::trace!(target: "threshold_events", "set_threshold_long");
                     self.metrics.log_thresholds(&self.state);
-                    tracing::trace!(target: "threshold_events", "log_thresholds");
                 }
             }
         }
