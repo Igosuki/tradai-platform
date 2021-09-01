@@ -12,7 +12,7 @@ use strategies::{Strategy, StrategyKey};
 
 use crate::graphql_schemas::root::create_schema;
 use crate::settings::{ApiSettings, CorsMode, Version};
-use actix_web::middleware::Logger;
+use actix_web::middleware::{Compat, Logger};
 
 pub async fn httpserver(
     settings: &ApiSettings,
@@ -34,6 +34,7 @@ pub async fn httpserver(
             http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
             http::header::ACCESS_CONTROL_REQUEST_HEADERS,
             http::header::ACCESS_CONTROL_REQUEST_METHOD,
+            http::header::CONTENT_TYPE,
         ];
         let cors = match cors_mode {
             CorsMode::Restricted => Cors::default()
@@ -49,8 +50,8 @@ pub async fn httpserver(
             CorsMode::Permissive => Cors::permissive(),
         };
         actix_web::App::new()
+            .wrap(Compat::new(Logger::default()))
             .wrap(cors)
-            .wrap(Logger::default())
             .app_data(Data::new(schema))
             .app_data(Data::new(apis.clone()))
             .app_data(Data::new(strategies.clone()))
