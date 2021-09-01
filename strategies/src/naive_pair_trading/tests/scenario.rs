@@ -15,9 +15,10 @@ use crate::naive_pair_trading::options::Options;
 use crate::naive_pair_trading::state::MovingState;
 use crate::naive_pair_trading::{covar_model, DataRow, NaiveTradingStrategy};
 use crate::order_manager::test_util::mock_manager;
-use crate::test_util::{test_db, test_results_dir};
+use crate::test_util::test_db;
 use crate::types::{OperationEvent, OrderMode, TradeEvent};
 use db::DbOptions;
+use util::test::test_results_dir;
 
 static LEFT_PAIR: &str = "LTC_USDT";
 static RIGHT_PAIR: &str = "BTC_USDT";

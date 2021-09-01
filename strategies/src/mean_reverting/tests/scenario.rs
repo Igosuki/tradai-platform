@@ -11,13 +11,13 @@ use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::MeanRevertingState;
 use crate::mean_reverting::{MeanRevertingStrategy, SinglePosRow};
 use crate::order_manager::test_util::mock_manager;
-//use crate::test_util::tracing::setup_opentelemetry;
-use crate::test_util::{init, test_db, test_results_dir};
+use crate::test_util::{init, test_db};
 use crate::types::{BookPosition, OperationEvent, OrderMode, TradeEvent};
 use db::DbOptions;
 use math::indicators::macd_apo::MACDApo;
 use tracing_futures::Instrument;
 use util::date::now_str;
+use util::test::test_results_dir;
 
 #[derive(Debug, Serialize, Clone)]
 struct StrategyLog {
@@ -124,7 +124,7 @@ async fn moving_average_model_backtest() {
     let db = test_db();
     let mut model = ema_indicator_model(PAIR, db, 100, 1000);
     let csv_records =
-        input::load_csv_records(Utc.ymd(2020, 3, 27), Utc.ymd(2020, 4, 8), vec![PAIR], EXCHANGE, CHANNEL).await;
+        input::load_csv_records(Utc.ymd(2020, 8, 1), Utc.ymd(2020, 8, 9), vec![PAIR], EXCHANGE, CHANNEL).await;
     csv_records[0].iter().take(500).for_each(|l| {
         let pos: BookPosition = l.into();
         model.update(pos.mid).unwrap();
@@ -165,7 +165,7 @@ async fn complete_backtest() {
     );
     let mut elapsed = 0_u128;
     let csv_records =
-        input::load_csv_records(Utc.ymd(2020, 3, 27), Utc.ymd(2020, 4, 8), vec![PAIR], EXCHANGE, CHANNEL).await;
+        input::load_csv_records(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 9), vec![PAIR], EXCHANGE, CHANNEL).await;
     let num_records = csv_records.len();
     // align data
     let pair_csv_records = csv_records[0].iter();
