@@ -45,5 +45,4 @@ prometheus:
   instance: trader
 
 api:
-  port: 0
-  cors: permissive
+  port: 8180

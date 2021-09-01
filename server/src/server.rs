@@ -12,6 +12,7 @@ use strategies::{Strategy, StrategyKey};
 
 use crate::graphql_schemas::root::create_schema;
 use crate::settings::{ApiSettings, CorsMode, Version};
+use actix_web::middleware::Logger;
 
 pub async fn httpserver(
     settings: &ApiSettings,
@@ -26,18 +27,30 @@ pub async fn httpserver(
     let app = move || {
         let schema = create_schema();
 
+        let exposed_headers = vec![
+            http::header::CONTENT_RANGE,
+            http::header::AUTHORIZATION,
+            http::header::ACCEPT,
+            http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+            http::header::ACCESS_CONTROL_REQUEST_HEADERS,
+            http::header::ACCESS_CONTROL_REQUEST_METHOD,
+        ];
         let cors = match cors_mode {
             CorsMode::Restricted => Cors::default()
                 .allowed_origin(&format!("http://localhost:{}", port))
+                .allowed_origin("http://localhost:3001")
                 .allowed_methods(vec!["GET", "POST", "OPTIONS"])
-                .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+                .allowed_headers(exposed_headers.clone())
                 .allowed_header(http::header::CONTENT_TYPE)
+                .allowed_header(http::header::ACCESS_CONTROL_EXPOSE_HEADERS)
+                .expose_headers(exposed_headers)
                 .supports_credentials()
                 .max_age(3600),
             CorsMode::Permissive => Cors::permissive(),
         };
         actix_web::App::new()
             .wrap(cors)
+            .wrap(Logger::default())
             .app_data(Data::new(schema))
             .app_data(Data::new(apis.clone()))
             .app_data(Data::new(strategies.clone()))
