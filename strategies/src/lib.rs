@@ -91,6 +91,7 @@ pub enum StrategyStatus {
 #[rtype(result = "Result<StrategyStatus>")]
 pub enum StrategyLifecycleCmd {
     Restart,
+    StopTrading,
 }
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display)]
@@ -250,7 +251,7 @@ impl Handler<ModelReset> for StrategyActor {
             async move {
                 let mut inner = lock.write().await;
                 if msg.stop_trading {
-                    inner.toggle_trading();
+                    inner.stop_trading();
                 }
                 inner.mutate(Mutation::Model(msg))
             }
@@ -268,14 +269,23 @@ impl Handler<ModelReset> for StrategyActor {
 }
 
 impl Handler<StrategyLifecycleCmd> for StrategyActor {
-    type Result = Result<StrategyStatus>;
+    type Result = StratActorResponseFuture<<StrategyLifecycleCmd as actix::Message>::Result>;
 
     fn handle(&mut self, msg: StrategyLifecycleCmd, ctx: &mut Self::Context) -> Self::Result {
+        let lock = self.inner.clone();
         match msg {
             StrategyLifecycleCmd::Restart => {
                 ctx.stop();
-                Ok(StrategyStatus::Running)
+                Box::pin(futures::future::ready(Ok(StrategyStatus::Running)).into_actor(self))
             }
+            StrategyLifecycleCmd::StopTrading => Box::pin(
+                async move {
+                    let mut guard = lock.write().await;
+                    guard.stop_trading();
+                    Ok(StrategyStatus::NotTrading)
+                }
+                .into_actor(self),
+            ),
         }
     }
 }
@@ -290,7 +300,7 @@ pub trait StrategyDriver {
 
     fn channels(&self) -> Vec<Channel>;
 
-    fn toggle_trading(&mut self) -> bool;
+    fn stop_trading(&mut self);
 }
 
 #[cfg(test)]
@@ -334,7 +344,7 @@ mod test {
             }]
         }
 
-        fn toggle_trading(&mut self) -> bool { false }
+        fn stop_trading(&mut self) {}
     }
 
     #[test]

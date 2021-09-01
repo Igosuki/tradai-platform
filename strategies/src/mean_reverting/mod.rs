@@ -384,10 +384,7 @@ impl StrategyDriver for MeanRevertingStrategy {
         }]
     }
 
-    fn toggle_trading(&mut self) -> bool {
-        self.state.toggle_trading();
-        self.state.is_trading()
-    }
+    fn stop_trading(&mut self) { self.state.stop_trading(); }
 }
 
 #[async_trait]

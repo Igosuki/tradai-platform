@@ -288,7 +288,7 @@ impl MeanRevertingState {
 
     pub fn threshold_long(&self) -> f64 { self.threshold_long }
 
-    fn stop_trading(&mut self) { self.is_trading = false; }
+    pub fn stop_trading(&mut self) { self.is_trading = false; }
 
     fn resume_trading(&mut self) { self.is_trading = true; }
 
@@ -518,11 +518,6 @@ impl MeanRevertingState {
     }
 
     pub(crate) fn is_trading(&self) -> bool { self.is_trading }
-
-    pub(crate) fn toggle_trading(&mut self) -> bool {
-        self.is_trading = !self.is_trading;
-        self.is_trading
-    }
 
     #[allow(dead_code)]
     fn get_operation(&self, uuid: &str) -> Option<Operation> { self.db.get(OPERATIONS_KEY, uuid).ok() }

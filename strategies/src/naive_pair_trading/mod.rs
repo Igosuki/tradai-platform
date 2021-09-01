@@ -419,5 +419,5 @@ impl StrategyDriver for NaiveTradingStrategy {
         ]
     }
 
-    fn toggle_trading(&mut self) -> bool { false }
+    fn stop_trading(&mut self) {}
 }

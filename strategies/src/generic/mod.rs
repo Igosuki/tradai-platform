@@ -112,6 +112,7 @@ pub struct GenericStrategy {
     initialized: bool,
     signals: Vec<TradeSignal>,
     last_models: Vec<(String, Option<serde_json::Value>)>,
+    is_trading: bool,
 }
 
 impl GenericStrategy {
@@ -124,6 +125,7 @@ impl GenericStrategy {
             initialized: false,
             signals: Default::default(),
             last_models: vec![],
+            is_trading: true,
         })
     }
 
@@ -220,5 +222,5 @@ impl StrategyDriver for GenericStrategy {
         self.channels.clone().into_iter().collect()
     }
 
-    fn toggle_trading(&mut self) -> bool { todo!() }
+    fn stop_trading(&mut self) { self.is_trading = false; }
 }
