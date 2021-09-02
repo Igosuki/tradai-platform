@@ -1,24 +1,26 @@
-use actix_web::{body::Body,
-                web::{self},
-                Error, HttpResponse, ResponseError};
-use derive_more::Display;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 #[cfg(feature = "flame_it")]
 use std::fs::File;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use actix::Addr;
+use actix_web::{body::Body,
+                web::{self},
+                Error, HttpResponse, ResponseError};
+use derive_more::Display;
+use serde::{Deserialize, Serialize};
+
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
+use coinnect_rt::pair::pair_confs;
 use coinnect_rt::types::{OrderType, Pair, Price, Volume};
+use strategies::order_manager::OrderManager;
 use strategies::{Strategy, StrategyKey};
 
 use crate::api::ApiError::ExchangeNotFound;
-use crate::graphql_schemas::root::{Context, Schema};
+use crate::graphql_schemas::root::Schema;
+use crate::graphql_schemas::Context;
 use crate::settings::Version;
-use actix::Addr;
-use coinnect_rt::pair::pair_confs;
-use strategies::order_manager::OrderManager;
 
 mod graphql;
 mod playground_source;
@@ -127,6 +129,9 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
+    use actix::Addr;
+    use actix_web::http::header::ContentType;
+    use actix_web::web::Data;
     use actix_web::{http::StatusCode, test, web, App};
     use tokio::time::timeout;
 
@@ -134,14 +139,11 @@ mod tests {
     use coinnect_rt::exchange::Exchange::Binance;
     use coinnect_rt::exchange::{Exchange, ExchangeApi, ExchangeSettings};
     use coinnect_rt::types::OrderType;
+    use strategies::order_manager::OrderManager;
     use strategies::{Strategy, StrategyKey};
 
     use crate::api::config_app;
     use crate::graphql_schemas::root::create_schema;
-    use actix::Addr;
-    use actix_web::http::header::ContentType;
-    use actix_web::web::Data;
-    use strategies::order_manager::OrderManager;
 
     fn strats() -> HashMap<StrategyKey, Strategy> { HashMap::new() }
 

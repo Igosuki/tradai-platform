@@ -1,145 +1,32 @@
-use std::collections::HashMap;
-use std::fmt::Debug;
 use std::pin::Pin;
-use std::str::FromStr;
-use std::sync::Arc;
 
-use actix::{Addr, MailboxError};
 use futures::Stream;
+use itertools::Itertools;
 use juniper::{FieldError, FieldResult, RootNode};
 
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
+use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::OrderQuery;
-use strategies::order_manager::OrderManager;
+use ext::MapInto;
 use strategies::order_types::PassOrder;
 use strategies::query::{DataQuery, DataResult, ModelReset, StateFieldMutation};
-use strategies::{order_manager, Strategy, StrategyActor, StrategyKey, StrategyStatus};
+use strategies::{order_manager, StrategyKey, StrategyStatus};
 
-use crate::graphql_schemas::types::*;
-use ext::MapInto;
-use itertools::Itertools;
+use crate::graphql_schemas::unhandled_data_result;
 
-pub struct Context {
-    pub strats: Arc<HashMap<StrategyKey, Strategy>>,
-    pub exchanges: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
-    pub order_managers: Arc<HashMap<Exchange, Addr<OrderManager>>>,
-}
+use super::context::Context;
+use super::types::*;
 
-impl juniper::Context for Context {}
-
-impl Context {
-    async fn with_strat<T, F>(&self, tk: TypeAndKeyInput, q: DataQuery, f: F) -> FieldResult<T>
-    where
-        F: Fn(DataResult) -> FieldResult<T>,
-    {
-        let strat = StrategyKey::from(&tk.t, &tk.id).ok_or_else(|| {
-            FieldError::new(
-                "Strategy type not found",
-                graphql_value!({ "not_found": "strategy type not found" }),
-            )
-        })?;
-        match self.strats.get(&strat) {
-            None => Err(FieldError::new(
-                "Strategy not found",
-                graphql_value!({ "not_found": "strategy not found" }),
-            )),
-            Some(strat) => {
-                let res = strat.1.send(q).await;
-                match res {
-                    Ok(Ok(Some(dr))) => f(dr),
-                    Err(_) => Err(FieldError::new(
-                        "Strategy mailbox was full",
-                        graphql_value!({ "unavailable": "strategy mailbox full" }),
-                    )),
-                    r => {
-                        error!("{:?}", r);
-                        Err(FieldError::new(
-                            "Unexpected error",
-                            graphql_value!({ "unavailable": "unexpected error" }),
-                        ))
-                    }
-                }
-            }
-        }
-    }
-
-    async fn with_order_manager<T, F, M: 'static>(&self, exchange: &str, q: M, f: F) -> FieldResult<T>
-    where
-        F: Fn(M::Result) -> FieldResult<T>,
-        M: actix::Message + Send,
-        M::Result: Send + Debug,
-        OrderManager: actix::Handler<M>,
-    {
-        let xchg = Exchange::from_str(exchange).ok().ok_or_else(|| {
-            FieldError::new(
-                "Exchange not found",
-                graphql_value!({ "not_found": "exchange not found" }),
-            )
-        })?;
-        match self.order_managers.get(&xchg) {
-            None => Err(FieldError::new(
-                "Exchange not found",
-                graphql_value!({ "not_found": "strategy not found" }),
-            )),
-            Some(om) => {
-                let res = om.send(q).await;
-                match res {
-                    Ok(dr) => f(dr),
-                    Err(_) => Err(FieldError::new(
-                        "OrderManager mailbox was full",
-                        graphql_value!({ "unavailable": "order manager mailbox full" }),
-                    )),
-                }
-            }
-        }
-    }
-
-    async fn with_strat_mut<M: 'static>(&self, tk: TypeAndKeyInput, m: M) -> FieldResult<M::Result>
-    where
-        M: actix::Message + Send,
-        M::Result: Send + Debug,
-        StrategyActor: actix::Handler<M>,
-    {
-        let strat = StrategyKey::from(&tk.t, &tk.id).ok_or_else(|| {
-            FieldError::new(
-                "Strategy type not found",
-                graphql_value!({ "not_found": "strategy type not found" }),
-            )
-        })?;
-        match self.strats.get(&strat) {
-            None => Err(FieldError::new(
-                "Strategy not found",
-                graphql_value!({ "not_found": "strategy not found" }),
-            )),
-            Some(strat) => match strat.1.send(m).await {
-                Ok(response) => Ok(response),
-                Err(MailboxError::Closed | MailboxError::Timeout) => Err(FieldError::new(
-                    "Strategy mailbox was full",
-                    graphql_value!({ "unavailable": "strategy mailbox full" }),
-                )),
-            },
-        }
-    }
-}
-
-pub struct QueryRoot;
-
-fn unhandled_data_result<T>() -> FieldResult<T> {
-    Err(FieldError::new(
-        "Unhandled result",
-        graphql_value!({ "unavailable": "wrong result for query" }),
-    ))
-}
+pub(crate) struct QueryRoot;
 
 #[juniper::graphql_object(Context = Context)]
 impl QueryRoot {
     #[graphql(description = "List of all strats")]
-    fn strats(context: &Context) -> FieldResult<Vec<TypeAndKey>> {
+    fn strats(context: &Context) -> FieldResult<Vec<StrategyState>> {
         let keys: Vec<&StrategyKey> = context.strats.keys().collect();
         Ok(keys
             .iter()
-            .map(|&sk| TypeAndKey {
-                t: sk.0.to_string(),
+            .map(|&sk| StrategyState {
+                t: sk.0.as_ref().to_string(),
                 id: sk.1.clone(),
             })
             .collect())
@@ -212,7 +99,7 @@ impl QueryRoot {
     }
 }
 
-pub struct MutationRoot;
+pub(crate) struct MutationRoot;
 
 #[juniper::graphql_object(Context = Context)]
 impl MutationRoot {
@@ -283,7 +170,7 @@ impl MutationRoot {
     }
 }
 
-pub struct Subscription;
+pub(crate) struct Subscription;
 
 type StringStream = Pin<Box<dyn Stream<Item = Result<String, FieldError>> + Send>>;
 
@@ -295,6 +182,6 @@ impl Subscription {
     }
 }
 
-pub type Schema = RootNode<'static, QueryRoot, MutationRoot, Subscription>;
+pub(crate) type Schema = RootNode<'static, QueryRoot, MutationRoot, Subscription>;
 
-pub fn create_schema() -> Schema { Schema::new(QueryRoot, MutationRoot, Subscription) }
+pub(crate) fn create_schema() -> Schema { Schema::new(QueryRoot, MutationRoot, Subscription) }

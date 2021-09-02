@@ -25,19 +25,22 @@ extern crate log;
 #[macro_use]
 extern crate prometheus;
 #[macro_use]
+extern crate pyo3;
+#[macro_use]
 extern crate serde;
 #[macro_use]
 extern crate tracing;
-#[macro_use]
-extern crate pyo3;
 
 use std::str::FromStr;
+use std::time::Duration;
 
 use actix::{Actor, ActorContext, ActorFutureExt, Addr, Context, Handler, ResponseActFuture, Running, WrapFuture};
 use async_std::sync::Arc;
 use async_std::sync::RwLock;
+use backoff::ExponentialBackoff;
 use derive_more::Display;
 use serde::Deserialize;
+use strum_macros::AsRefStr;
 use strum_macros::EnumString;
 use uuid::Uuid;
 
@@ -46,6 +49,7 @@ pub use coinnect_rt::types as coinnect_types;
 use coinnect_rt::types::{LiveEventEnvelope, Pair};
 pub use db::DbOptions;
 use error::*;
+pub use generic::python_strat;
 pub use models::Model;
 pub use settings::{StrategyCopySettings, StrategySettings};
 
@@ -68,10 +72,6 @@ pub mod types;
 mod util;
 mod wal;
 
-use backoff::ExponentialBackoff;
-pub use generic::python_strat;
-use std::time::Duration;
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Channel {
     Orders { xch: Exchange, pair: Pair },
@@ -79,11 +79,14 @@ pub enum Channel {
     Orderbooks { xch: Exchange, pair: Pair },
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, juniper::GraphQLEnum)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum StrategyStatus {
+    #[strum(serialize = "stopped")]
     Stopped,
+    #[strum(serialize = "running")]
     Running,
+    #[strum(serialize = "not_trading")]
     NotTrading,
 }
 
@@ -94,7 +97,7 @@ pub enum StrategyLifecycleCmd {
     StopTrading,
 }
 
-#[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display)]
+#[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display, AsRefStr)]
 pub enum StrategyType {
     #[strum(serialize = "naive")]
     Naive,
@@ -305,6 +308,7 @@ pub trait StrategyDriver {
 
 #[cfg(test)]
 mod test {
+    use std::sync::Mutex;
     use std::thread;
 
     use actix::System;
@@ -314,7 +318,6 @@ mod test {
     use coinnect_rt::types::{LiveEvent, Orderbook};
 
     use super::*;
-    use std::sync::Mutex;
 
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
