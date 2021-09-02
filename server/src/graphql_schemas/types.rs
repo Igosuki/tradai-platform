@@ -1,13 +1,40 @@
+#![allow(unused_braces)]
+
 use chrono::{DateTime, Utc};
-use coinnect_rt::types::{AddOrderRequest, OrderEnforcement, OrderQuery, OrderType, TradeType};
-use strategies::types::{OperationKind, PositionKind, TradeOperation};
+use juniper::FieldResult;
 use uuid::Uuid;
 
-#[derive(juniper::GraphQLObject)]
-pub struct TypeAndKey {
-    #[graphql(name = "type")]
+use coinnect_rt::types::{AddOrderRequest, OrderEnforcement, OrderQuery, OrderType, TradeType};
+use strategies::query::DataQuery;
+use strategies::types::{OperationKind, PositionKind, TradeOperation};
+
+use crate::graphql_schemas::context::Context;
+
+pub(crate) struct StrategyState {
     pub t: String,
     pub id: String,
+}
+
+impl StrategyState {
+    fn as_input(&self) -> TypeAndKeyInput {
+        TypeAndKeyInput {
+            t: self.t.to_owned(),
+            id: self.id.to_owned(),
+        }
+    }
+}
+
+#[juniper::graphql_object(Context = Context)]
+impl StrategyState {
+    #[graphql(name = "type")]
+    pub fn t(&self) -> &str { &self.t }
+    pub fn id(&self) -> &str { &self.id }
+    pub async fn state(&self, context: &Context) -> FieldResult<String> {
+        context.data_query_as_string(self.as_input(), DataQuery::State).await
+    }
+    pub async fn status(&self, context: &Context) -> FieldResult<String> {
+        context.data_query_as_string(self.as_input(), DataQuery::Status).await
+    }
 }
 
 #[derive(juniper::GraphQLInputObject)]
