@@ -77,7 +77,7 @@ impl QueryRoot {
     #[graphql(description = "Get the ongoing operation for the strat")]
     async fn current_operation(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Option<OperationHistory>> {
         context
-            .with_strat(tk, DataQuery::OperationHistory, |dr| match dr {
+            .with_strat(tk, DataQuery::OpenOperations, |dr| match dr {
                 DataResult::NaiveOperation(o) => Ok(o.map_into()),
                 DataResult::MeanRevertingOperation(o) => Ok(o.map_into()),
                 _ => unhandled_data_result(),
