@@ -90,7 +90,7 @@ pub enum StrategyStatus {
     NotTrading,
 }
 
-#[derive(actix::Message)]
+#[derive(actix::Message, juniper::GraphQLEnum)]
 #[rtype(result = "Result<StrategyStatus>")]
 pub enum StrategyLifecycleCmd {
     Restart,

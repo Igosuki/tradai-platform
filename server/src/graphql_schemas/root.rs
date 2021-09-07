@@ -9,7 +9,7 @@ use coinnect_rt::types::OrderQuery;
 use ext::MapInto;
 use strategies::order_types::PassOrder;
 use strategies::query::{DataQuery, DataResult, ModelReset, StateFieldMutation};
-use strategies::{order_manager, StrategyKey, StrategyStatus};
+use strategies::{order_manager, StrategyKey, StrategyLifecycleCmd, StrategyStatus};
 
 use crate::graphql_schemas::unhandled_data_result;
 
@@ -125,6 +125,22 @@ impl MutationRoot {
                 FieldError::new(
                     format!("{}", e),
                     graphql_value!({"strategy error" : "failed to reset model"}),
+                )
+            })
+        })
+    }
+
+    #[graphql(description = "Send a lifecycle command to the strategy")]
+    async fn lifecycle_cmd(
+        context: &Context,
+        tk: TypeAndKeyInput,
+        slc: StrategyLifecycleCmd,
+    ) -> FieldResult<StrategyStatus> {
+        context.with_strat_mut(tk, slc).await.and_then(|r| {
+            r.map_err(|e| {
+                FieldError::new(
+                    format!("{}", e),
+                    graphql_value!({"strategy error" : "failed to send lifecycle command"}),
                 )
             })
         })
