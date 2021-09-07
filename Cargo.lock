@@ -5320,6 +5320,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "log",
  "math",
+ "metrics",
  "openssl",
  "opentelemetry",
  "opentelemetry-jaeger",

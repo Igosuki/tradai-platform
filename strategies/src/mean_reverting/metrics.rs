@@ -1,14 +1,28 @@
+use std::collections::HashMap;
+
+use prometheus::{CounterVec, GaugeVec, Registry};
+
+use math::indicators::macd_apo::MACDApo;
+use metrics::store::MetricStore;
+
 use crate::mean_reverting::state::{MeanRevertingState, Position};
 use crate::mean_reverting::SinglePosRow;
 use crate::types::OperationKind;
-use math::indicators::macd_apo::MACDApo;
-use prometheus::{CounterVec, GaugeVec, Registry};
-use std::collections::HashMap;
 
 type StateIndicatorFn = (String, fn(&MeanRevertingState) -> f64);
 
 type ModelIndicatorFn = (String, fn(&MACDApo) -> f64);
 
+lazy_static! {
+    static ref METRIC_STORE: MetricStore<String, MeanRevertingStrategyMetrics> = { MetricStore::new() };
+}
+
+pub fn metric_store() -> &'static MetricStore<String, MeanRevertingStrategyMetrics> {
+    lazy_static::initialize(&METRIC_STORE);
+    &METRIC_STORE
+}
+
+#[derive(Clone)]
 pub struct MeanRevertingStrategyMetrics {
     common_gauges: HashMap<String, GaugeVec>,
     threshold_indicator_fns: Vec<StateIndicatorFn>,
@@ -20,6 +34,10 @@ pub struct MeanRevertingStrategyMetrics {
 
 impl MeanRevertingStrategyMetrics {
     pub fn for_strat(_registry: &Registry, pair: &str) -> MeanRevertingStrategyMetrics {
+        metric_store().get_or_create(pair.to_string(), || Self::new_metrics(_registry, pair))
+    }
+
+    fn new_metrics(_registry: &Registry, pair: &str) -> MeanRevertingStrategyMetrics {
         let mut gauges: HashMap<String, GaugeVec> = HashMap::new();
         let const_labels = labels! {"pair" => pair};
         {

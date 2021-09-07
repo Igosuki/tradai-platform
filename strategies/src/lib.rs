@@ -17,7 +17,6 @@ extern crate anyhow;
 extern crate async_trait;
 #[macro_use]
 extern crate derivative;
-#[cfg(test)]
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]

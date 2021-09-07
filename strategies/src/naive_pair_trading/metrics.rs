@@ -1,12 +1,27 @@
+use std::collections::HashMap;
+
+use prometheus::{GaugeVec, Opts, Registry};
+
+use metrics::store::MetricStore;
+
+use crate::types::OperationKind;
+
 use super::covar_model::DataRow;
 use super::state::MovingState;
 use super::state::Position;
-use crate::types::OperationKind;
-use prometheus::{GaugeVec, Opts, Registry};
-use std::collections::HashMap;
+
+lazy_static! {
+    static ref METRIC_STORE: MetricStore<(String, String), NaiveStrategyMetrics> = { MetricStore::new() };
+}
+
+pub fn metric_store() -> &'static MetricStore<(String, String), NaiveStrategyMetrics> {
+    lazy_static::initialize(&METRIC_STORE);
+    &METRIC_STORE
+}
 
 type StateGauge = (String, fn(&MovingState) -> f64);
 
+#[derive(Clone)]
 pub struct NaiveStrategyMetrics {
     gauges: HashMap<String, GaugeVec>,
     state_gauges: Vec<StateGauge>,
@@ -14,6 +29,12 @@ pub struct NaiveStrategyMetrics {
 
 impl NaiveStrategyMetrics {
     pub fn for_strat(registry: &Registry, left_pair: &str, right_pair: &str) -> NaiveStrategyMetrics {
+        metric_store().get_or_create((left_pair.to_string(), right_pair.to_string()), || {
+            Self::new_metrics(registry, left_pair, right_pair)
+        })
+    }
+
+    fn new_metrics(registry: &Registry, left_pair: &str, right_pair: &str) -> NaiveStrategyMetrics {
         let mut gauges: HashMap<String, GaugeVec> = HashMap::new();
 
         {

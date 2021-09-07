@@ -1,10 +1,28 @@
-use chrono::{DateTime, Duration, TimeZone, Utc};
-use log::Level::Debug;
 use std::convert::TryInto;
 use std::ops::{Add, Mul, Sub};
+use std::path::Path;
 use std::sync::Arc;
 
+use actix::Addr;
+use chrono::{DateTime, Duration, TimeZone, Utc};
+use log::Level::Debug;
+
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::types::{LiveEvent, LiveEventEnvelope};
+use db::{get_or_create, DbOptions, Storage};
+use options::Options;
+use state::{MovingState, Position};
+
 use crate::error::*;
+use crate::models::{Model, WindowedModel};
+use crate::naive_pair_trading::covar_model::{DataRow, LinearModelValue};
+use crate::naive_pair_trading::state::Operation;
+use crate::order_manager::OrderManager;
+use crate::query::{ModelReset, MutableField, Mutation};
+use crate::types::{BookPosition, PositionKind};
+use crate::{Channel, DataQuery, DataResult, StrategyDriver, StrategyStatus};
+
+use self::metrics::NaiveStrategyMetrics;
 
 pub mod covar_model;
 pub mod metrics;
@@ -13,22 +31,6 @@ pub mod state;
 
 #[cfg(test)]
 mod tests;
-
-use crate::models::{Model, WindowedModel};
-use crate::naive_pair_trading::covar_model::{DataRow, LinearModelValue};
-use crate::naive_pair_trading::state::Operation;
-use crate::order_manager::OrderManager;
-use crate::query::{ModelReset, MutableField, Mutation};
-use crate::types::{BookPosition, PositionKind};
-use crate::{Channel, DataQuery, DataResult, StrategyDriver, StrategyStatus};
-use actix::Addr;
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::{LiveEvent, LiveEventEnvelope};
-use db::{get_or_create, DbOptions, Storage};
-use metrics::NaiveStrategyMetrics;
-use options::Options;
-use state::{MovingState, Position};
-use std::path::Path;
 
 const LM_AGE_CUTOFF_RATIO: f64 = 0.0013;
 

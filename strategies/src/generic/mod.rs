@@ -1,18 +1,21 @@
-pub mod python_strat;
+use std::collections::{BTreeMap, HashSet};
+use std::convert::TryInto;
+use std::str::FromStr;
+use std::sync::{Arc, Mutex};
+
+use pyo3::exceptions::PyBaseException;
+use pyo3::prelude::*;
+use tokio::sync::RwLock;
+
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::types::{AssetType, LiveEvent, LiveEventEnvelope, Pair};
 
 use crate::error::Result;
 use crate::query::{DataQuery, DataResult, Mutation};
 use crate::types::{BookPosition, ExecutionInstruction, OperationKind, PositionKind, TradeKind};
 use crate::{Channel, StrategyDriver, StrategyStatus};
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::{AssetType, LiveEvent, LiveEventEnvelope, Pair};
-use pyo3::exceptions::PyBaseException;
-use pyo3::prelude::*;
-use std::collections::{BTreeMap, HashSet};
-use std::convert::TryInto;
-use std::str::FromStr;
-use std::sync::{Arc, Mutex};
-use tokio::sync::RwLock;
+
+pub mod python_strat;
 
 #[async_trait]
 pub(crate) trait Strategy: Sync + Send {

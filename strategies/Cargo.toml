@@ -21,6 +21,12 @@ binary = ["clap"]
 zstd = ["awc/compress-zstd"]
 
 [dependencies]
+# trader
+db = { path = "../db" }
+ext = { path = "../ext" }
+util = { path = "../util" }
+metrics = { path = "../metrics" }
+
 # actix
 actix = "0.12"
 actix_derive = "0.6"
@@ -32,7 +38,7 @@ clap = { version = "2.33", optional = true }
 #coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
 coinnect_rt = { path = "../coinnect" }
 csv = "1.1"
-db = { path = "../db" }
+
 derivative = "2.1.1"
 derive_more = "0.99"
 env_logger = "0.9"
@@ -45,10 +51,10 @@ convert_case = "0.4"
 anyhow = "1.0"
 async-std = "1.6"
 chrono = { version = "0.4", features = ["serde"] }
-ext = { path = "../ext" }
-util = { path = "../util" }
+
 uuid = { version = "0.8", features = ["v4"] }
 backoff = "0.3"
+lazy_static = "1.4"
 
 # futures
 futures = { version = "0.3", features = ["async-await", "alloc"] }
@@ -117,7 +123,6 @@ pretty_assertions = "0.7"
 # std
 bytes = "1.0"
 bytestring = "1.0.0"
-lazy_static = "1.4"
 openssl = "0.10"
 rand = "0.8"
 
