@@ -14,7 +14,7 @@ name = "strategies"
 static = ["db/rocksdb-vendor"]
 
 [dependencies]
-strategies = { path = "../strategies" }
+strategies = { path = "../strategies", features = ["python"] }
 db = { path = "../db" }
 #backtest = { path = "../backtest" }
 

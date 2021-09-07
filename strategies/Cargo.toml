@@ -19,6 +19,7 @@ required-features = ["binary"]
 [features]
 binary = ["clap"]
 zstd = ["awc/compress-zstd"]
+python = ["pyo3", "pyo3-log"]
 
 [dependencies]
 # trader
@@ -93,8 +94,8 @@ tracing-futures = "0.2"
 
 # python
 #python = { path = "../python" }
-pyo3 = { version = "0.14", features = ["serde", "auto-initialize"] }
-pyo3-log = "0.4"
+pyo3 = { version = "0.14", features = ["serde", "auto-initialize"], optional = true }
+pyo3-log = { version = "0.4", optional = true }
 
 [dev-dependencies]
 # ours

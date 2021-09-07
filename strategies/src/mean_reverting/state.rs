@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use actix::Addr;
 use chrono::{DateTime, Utc};
+use itertools::Itertools;
 use log::Level::Debug;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -17,7 +18,6 @@ use crate::query::MutableField;
 use crate::types::{BookPosition, ExecutionInstruction, OperationEvent, OrderMode, StratEvent, TradeEvent,
                    TradeOperation};
 use crate::types::{OperationKind, PositionKind, TradeKind};
-use itertools::Itertools;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, juniper::GraphQLObject)]
 pub struct Position {
@@ -290,7 +290,7 @@ impl MeanRevertingState {
 
     pub fn stop_trading(&mut self) { self.is_trading = false; }
 
-    fn resume_trading(&mut self) { self.is_trading = true; }
+    pub fn resume_trading(&mut self) { self.is_trading = true; }
 
     fn clear_ongoing_operation(&mut self, last_price: f64, cummulative_qty: f64) {
         match self.ongoing_op.clone() {

@@ -385,6 +385,8 @@ impl StrategyDriver for MeanRevertingStrategy {
     }
 
     fn stop_trading(&mut self) { self.state.stop_trading(); }
+
+    fn resume_trading(&mut self) { self.state.resume_trading(); }
 }
 
 #[async_trait]

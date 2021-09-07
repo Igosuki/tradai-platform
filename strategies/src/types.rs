@@ -3,11 +3,12 @@ use std::convert::TryFrom;
 use chrono::{DateTime, TimeZone, Utc};
 use itertools::Itertools;
 use log::Level::Debug;
+#[cfg(feature = "python")]
+use pyo3::prelude::*;
 use strum_macros::{AsRefStr, EnumString};
 use thiserror::Error;
 
 use coinnect_rt::types::{AddOrderRequest, OrderEnforcement, OrderType, Orderbook, TradeType};
-use pyo3::prelude::*;
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -170,7 +171,7 @@ pub enum DataTableError {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[pyclass]
+#[cfg_attr(feature = "python", pyclass)]
 pub struct BookPosition {
     pub mid: f64,
     // mid = (top_ask + top_bid) / 2, alias: crypto1_m
@@ -180,7 +181,8 @@ pub struct BookPosition {
     // crypto_a_q
     pub bid: f64,
     // crypto_b
-    pub bid_q: f64, // crypto_b_q
+    pub bid_q: f64,
+    // crypto_b_q
     pub event_time: DateTime<Utc>,
 }
 
@@ -238,10 +240,10 @@ impl<'a> TryFrom<&'a Orderbook> for BookPosition {
 
 #[cfg(test)]
 mod test {
+    use fake::Fake;
     use quickcheck::{Arbitrary, Gen};
 
     use crate::types::BookPosition;
-    use fake::Fake;
 
     lazy_static! {
         static ref MAX_ALLOWED_F64: f64 = 1.0_f64.powf(10.0);

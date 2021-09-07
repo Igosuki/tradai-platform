@@ -1,4 +1,3 @@
-use pyo3::PyErr;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -27,8 +26,9 @@ pub enum Error {
     InvalidPosition,
     #[error("operation was cancelled")]
     OperationCancelled,
+    #[cfg(feature = "python")]
     #[error("error running python code")]
-    Python(#[from] PyErr),
+    Python(#[from] pyo3::PyErr),
 }
 
 impl Error {
@@ -46,6 +46,7 @@ impl Error {
             Error::InvalidPosition => "invalid_position",
             Error::OperationCancelled => "operation_cancelled",
             Error::OperationBadRequest => "operation_bad_request",
+            #[cfg(feature = "python")]
             Error::Python(_) => "python",
         }
     }

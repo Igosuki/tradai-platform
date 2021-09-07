@@ -23,6 +23,7 @@ extern crate lazy_static;
 extern crate log;
 #[macro_use]
 extern crate prometheus;
+#[cfg(feature = "python")]
 #[macro_use]
 extern crate pyo3;
 #[macro_use]
@@ -48,6 +49,7 @@ pub use coinnect_rt::types as coinnect_types;
 use coinnect_rt::types::{LiveEventEnvelope, Pair};
 pub use db::DbOptions;
 use error::*;
+#[cfg(feature = "python")]
 pub use generic::python_strat;
 pub use models::Model;
 pub use settings::{StrategyCopySettings, StrategySettings};
@@ -94,6 +96,7 @@ pub enum StrategyStatus {
 pub enum StrategyLifecycleCmd {
     Restart,
     StopTrading,
+    ResumeTrading,
 }
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Deserialize, EnumString, Display, AsRefStr)]
@@ -288,6 +291,14 @@ impl Handler<StrategyLifecycleCmd> for StrategyActor {
                 }
                 .into_actor(self),
             ),
+            StrategyLifecycleCmd::ResumeTrading => Box::pin(
+                async move {
+                    let mut guard = lock.write().await;
+                    guard.resume_trading();
+                    Ok(StrategyStatus::Running)
+                }
+                .into_actor(self),
+            ),
         }
     }
 }
@@ -303,6 +314,8 @@ pub trait StrategyDriver {
     fn channels(&self) -> Vec<Channel>;
 
     fn stop_trading(&mut self);
+
+    fn resume_trading(&mut self);
 }
 
 #[cfg(test)]
@@ -347,6 +360,8 @@ mod test {
         }
 
         fn stop_trading(&mut self) {}
+
+        fn resume_trading(&mut self) {}
     }
 
     #[test]
