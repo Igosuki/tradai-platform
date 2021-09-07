@@ -179,3 +179,9 @@ impl From<strategies::mean_reverting::state::Operation> for OperationHistory {
         }
     }
 }
+
+#[derive(juniper::GraphQLObject)]
+pub struct Model {
+    pub id: String,
+    pub json: String,
+}

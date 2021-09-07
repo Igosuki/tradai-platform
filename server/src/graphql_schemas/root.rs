@@ -97,6 +97,25 @@ impl QueryRoot {
             })
             .await
     }
+
+    #[graphql(description = "Get the latest model values")]
+    async fn models(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<Model>> {
+        context
+            .with_strat(tk, DataQuery::Models, |dr| match dr {
+                DataResult::Models(o) => {
+                    let response = o
+                        .iter()
+                        .map(|(k, v)| Model {
+                            id: k.to_string(),
+                            json: serde_json::to_string(v).unwrap(),
+                        })
+                        .collect();
+                    Ok(response)
+                }
+                _ => unhandled_data_result(),
+            })
+            .await
+    }
 }
 
 pub(crate) struct MutationRoot;
