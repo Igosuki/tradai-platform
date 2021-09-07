@@ -422,4 +422,6 @@ impl StrategyDriver for NaiveTradingStrategy {
     }
 
     fn stop_trading(&mut self) {}
+
+    fn resume_trading(&mut self) {}
 }

@@ -1,9 +1,8 @@
 use std::collections::{BTreeMap, HashSet};
 use std::convert::TryInto;
-use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use pyo3::exceptions::PyBaseException;
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
 use tokio::sync::RwLock;
 
@@ -15,7 +14,10 @@ use crate::query::{DataQuery, DataResult, Mutation};
 use crate::types::{BookPosition, ExecutionInstruction, OperationKind, PositionKind, TradeKind};
 use crate::{Channel, StrategyDriver, StrategyStatus};
 
+#[cfg(feature = "python")]
 pub mod python_strat;
+#[cfg(feature = "python")]
+mod python_types_impl;
 
 #[async_trait]
 pub(crate) trait Strategy: Sync + Send {
@@ -46,18 +48,8 @@ pub(crate) enum InputEvent {
     BookPositions(BookPositions),
 }
 
-impl ToPyObject for InputEvent {
-    fn to_object(&self, py: Python) -> PyObject {
-        match self {
-            InputEvent::BookPosition(bp) => IntoPy::into_py(bp.clone(), py),
-            //putEvent::BookPositions(bp) => python! {'bp},
-            _ => unimplemented!(),
-        }
-    }
-}
-
 #[allow(dead_code)]
-#[pyclass]
+#[cfg_attr(feature = "python", pyclass)]
 pub(crate) struct TradeSignal {
     pub position_kind: PositionKind,
     pub operation_kind: OperationKind,
@@ -68,44 +60,6 @@ pub(crate) struct TradeSignal {
     pub instructions: Option<ExecutionInstruction>,
     pub dry_mode: bool,
     pub asset_type: AssetType,
-}
-
-#[pymethods]
-impl TradeSignal {
-    #[allow(clippy::too_many_arguments)]
-    #[new]
-    fn new(
-        position: &str,
-        operation: &str,
-        side: &str,
-        price: f64,
-        pair: &str,
-        exchange: &str,
-        dry_mode: bool,
-        asset_type: &str,
-        instructions: Option<&str>,
-    ) -> PyResult<Self> {
-        Ok(Self {
-            position_kind: PositionKind::from_str(position)
-                .map_err(|_| PyBaseException::new_err(format!("unknown position '{}'", position)))?,
-            operation_kind: OperationKind::from_str(operation)
-                .map_err(|_| PyBaseException::new_err(format!("unknown operation '{}'", operation)))?,
-            trade_kind: TradeKind::from_str(side)
-                .map_err(|_| PyBaseException::new_err(format!("unknown side '{}'", side)))?,
-            price,
-            pair: pair.into(),
-            exchange: Exchange::from_str(exchange)
-                .map_err(|_| PyBaseException::new_err(format!("unknown exchange '{}'", exchange)))?,
-            instructions: instructions.and_then(|i| {
-                ExecutionInstruction::from_str(i)
-                    .map_err(|_| PyBaseException::new_err(format!("unknown execution instruction '{}'", i)))
-                    .ok()
-            }),
-            dry_mode,
-            asset_type: AssetType::from_str(asset_type)
-                .map_err(|_| PyBaseException::new_err(format!("unknown asset type '{}'", asset_type)))?,
-        })
-    }
 }
 
 pub struct GenericStrategy {
@@ -227,4 +181,6 @@ impl StrategyDriver for GenericStrategy {
     }
 
     fn stop_trading(&mut self) { self.is_trading = false; }
+
+    fn resume_trading(&mut self) { self.is_trading = true; }
 }
