@@ -1,4 +1,5 @@
 use std::cmp::{max, min};
+use std::collections::HashSet;
 use std::convert::TryInto;
 use std::path::Path;
 use std::sync::Arc;
@@ -12,6 +13,7 @@ use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::{AssetType, LiveEvent, LiveEventEnvelope, Pair};
 use db::{get_or_create, DbOptions};
 use ext::ResultExt;
+use math::indicators::macd_apo::MACDApo;
 use math::iter::QuantileExt;
 
 use crate::error::Result;
@@ -27,8 +29,6 @@ use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation};
 use crate::types::{BookPosition, PositionKind};
 use crate::util::Stopper;
 use crate::{Channel, StrategyDriver, StrategyStatus};
-use math::indicators::macd_apo::MACDApo;
-use std::collections::HashSet;
 
 mod ema_model;
 mod metrics;
@@ -452,23 +452,10 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
                 t.push(&apo);
                 if t.is_filled() {
                     t.update_model().unwrap();
-                    // Put this in model WindowFn
-                    let wdw = t.window();
-                    let (threshold_short_iter, threshold_long_iter) = wdw.tee();
-                    self.state.set_threshold_short(
-                        max(
-                            self.threshold_short_0.into(),
-                            OrderedFloat(threshold_short_iter.quantile(0.99)),
-                        )
-                        .into(),
-                    );
-                    self.state.set_threshold_long(
-                        min(
-                            OrderedFloat(self.threshold_long_0),
-                            OrderedFloat(threshold_long_iter.quantile(0.01)),
-                        )
-                        .into(),
-                    );
+                    if let Some(m) = t.model() {
+                        self.state.set_threshold_short(m.value.short);
+                        self.state.set_threshold_long(m.value.long);
+                    }
                     self.metrics.log_thresholds(&self.state);
                 }
             }

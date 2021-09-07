@@ -1,12 +1,15 @@
-use crate::generic::{InputEvent, Strategy, TradeSignal};
-use crate::Channel;
-use coinnect_rt::exchange::Exchange;
-use ext::ResultExt;
+use std::collections::{HashMap, HashSet};
+
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 use pyo3::{wrap_pymodule, Python};
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+
+use coinnect_rt::exchange::Exchange;
+use ext::ResultExt;
+
+use crate::generic::{InputEvent, Strategy, TradeSignal};
+use crate::Channel;
 
 #[pyclass(subclass)]
 struct PythonStrat {}
@@ -142,11 +145,12 @@ impl Strategy for PythonStratWrapper {
 
 #[cfg(test)]
 mod test {
+    use chrono::Utc;
+    use pyo3::Python;
+
     use crate::generic::python_strat::PythonStratWrapper;
     use crate::generic::{InputEvent, Strategy};
     use crate::types::BookPosition;
-    use chrono::Utc;
-    use pyo3::Python;
 
     fn python_script(name: &str) -> std::io::Result<String> {
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
