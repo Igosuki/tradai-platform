@@ -795,13 +795,14 @@ dependencies = [
 
 [[package]]
 name = "binance-rs-async"
-version = "1.0.0"
+version = "1.1.0-beta.1"
 dependencies = [
  "chrono",
  "csv",
  "env_logger 0.9.0",
  "futures",
  "hex",
+ "lazy_static 1.4.0",
  "log",
  "reqwest",
  "ring",

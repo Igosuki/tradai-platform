@@ -144,6 +144,7 @@ impl OrderManager {
                     dry_run: true,
                     quantity: Some(qty),
                     price: Some(price),
+                    side,
                     ..
                 }),
             ..
@@ -152,6 +153,7 @@ impl OrderManager {
             let update = OrderUpdate {
                 cummulative_filled_qty: qty,
                 last_executed_price: price,
+                side,
                 ..OrderUpdate::default()
             };
             TransactionStatus::Filled(update)
@@ -383,12 +385,12 @@ pub mod test_util {
 
     use actix::{Actor, Addr};
 
+    use coinnect_rt::coinnect::Coinnect;
     use coinnect_rt::exchange::MockApi;
     use coinnect_rt::exchange::{Exchange, ExchangeApi};
+    use db::DbOptions;
 
     use crate::order_manager::OrderManager;
-    use coinnect_rt::coinnect::Coinnect;
-    use db::DbOptions;
 
     pub async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
         keys_file: S2,
@@ -426,12 +428,12 @@ pub mod test_util {
 
 #[cfg(test)]
 mod test {
+    use coinnect_rt::exchange::Exchange::Binance;
     use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderSubmission, OrderUpdate, TradeType};
+    use util::test::test_dir;
 
     use crate::order_manager::test_util::{it_order_manager, new_mock_manager};
     use crate::order_types::{Rejection, StagedOrder, Transaction, TransactionStatus};
-    use coinnect_rt::exchange::Exchange::Binance;
-    use util::test::test_dir;
 
     #[actix::test]
     async fn test_append_rejected() {
