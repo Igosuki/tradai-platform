@@ -1,14 +1,16 @@
-use actix::{Actor, ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, Handler, WrapFuture};
-use chrono::{DateTime, Utc};
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
-use coinnect_rt::exchange_bot::Ping;
-use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, Asset, BalanceInformation, BalanceUpdate, Balances};
-use futures::FutureExt;
-use prometheus::GaugeVec;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+
+use actix::{Actor, ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, Handler, WrapFuture};
+use chrono::{DateTime, Utc};
+use futures::FutureExt;
+use prometheus::GaugeVec;
+
+use coinnect_rt::bot::Ping;
+use coinnect_rt::exchange::{Exchange, ExchangeApi};
+use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, Asset, BalanceInformation, BalanceUpdate, Balances};
 
 #[derive(Clone)]
 pub struct BalanceMetrics {

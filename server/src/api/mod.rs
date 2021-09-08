@@ -163,10 +163,13 @@ mod tests {
         .iter()
         .cloned()
         .collect();
-        let apis =
-            Arc::new(Coinnect::build_exchange_apis(Arc::new(exchanges), "../config/keys_real_test.json".into()).await);
-        Coinnect::load_pair_registries(apis.clone()).await.unwrap();
-        apis.clone()
+        let manager = Coinnect::new_manager();
+        manager
+            .build_exchange_apis(Arc::new(exchanges), "../config/keys_real_test.json".into())
+            .await;
+        let arc = manager.exchange_apis().clone();
+        Coinnect::load_pair_registries(arc.clone()).await.unwrap();
+        arc.clone()
     }
 
     fn build_test_api(apis: ExchangeApis, cfg: &mut web::ServiceConfig) {

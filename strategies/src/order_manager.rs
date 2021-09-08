@@ -8,9 +8,9 @@ use async_std::sync::RwLock;
 use futures::FutureExt;
 use uuid::Uuid;
 
+use coinnect_rt::bot::Ping;
 use coinnect_rt::error::Error as CoinnectError;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
-use coinnect_rt::exchange_bot::Ping;
 use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, AssetType, Order, OrderQuery,
                          OrderStatus, OrderUpdate, Pair};
 use db::{get_or_create, DbOptions};
@@ -397,7 +397,8 @@ pub mod test_util {
         dir: S,
         exchange: Exchange,
     ) -> OrderManager {
-        let api = Coinnect::build_exchange_api(keys_file.as_ref().to_path_buf(), &exchange, true)
+        let api = Coinnect::new_manager()
+            .build_exchange_api(keys_file.as_ref().to_path_buf(), &exchange, true)
             .await
             .unwrap();
         let om_path = format!("om_{}", exchange);
