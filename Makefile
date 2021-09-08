@@ -159,6 +159,9 @@ release_db_tool:
 release_backtest:
 	make target=backtest release
 
+release_local_backtest:
+	@$(CARGO_BIN) build --release --bin backtest --features=env_logger
+
 python_target=python3.9
 build_python_lib:
 	maturin build -i $(python_target) --cargo-extra-args="--features=static"

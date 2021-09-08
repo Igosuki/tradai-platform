@@ -1,95 +1,37 @@
 #[macro_use]
+extern crate log;
+#[macro_use]
 extern crate serde_derive;
 
-use std::ops::Sub;
+use std::collections::BTreeMap;
+use std::io::BufWriter;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use chrono::{Duration, NaiveDate, TimeZone, Utc};
-use config::{Config, ConfigError, File};
+use chrono::Duration;
 use datafusion::arrow::array::{Array, ListArray, PrimitiveArray, StructArray, TimestampMillisecondArray};
 use datafusion::arrow::datatypes::Float64Type;
-use datafusion::arrow::error::ArrowError;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::error::DataFusionError;
-use datafusion::physical_plan::avro::AvroReadOptions;
 use datafusion::prelude::ExecutionContext;
-use parse_duration::parse;
 use serde::{ser::SerializeSeq, Serializer};
-use std::collections::BTreeMap;
-use std::io::BufWriter;
+
 use strategies::coinnect_types::{LiveEvent, LiveEventEnvelope, Orderbook, Pair};
 use strategies::input::partition_path;
 use strategies::order_manager::test_util::mock_manager;
 use strategies::query::{DataQuery, DataResult};
 use strategies::settings::StrategySettings;
 use strategies::{Channel, DbOptions, Exchange, Strategy};
-use util::date::{DateRange, DurationRangeType};
+use util::date::DateRange;
 use util::test::test_dir;
 
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-    #[error("configuration error")]
-    ConfError(#[from] ConfigError),
-    #[error("datafusion error")]
-    DataFusionError(#[from] DataFusionError),
-    #[error("arrow error")]
-    ArrowError(#[from] ArrowError),
-}
+pub use crate::{config::*, error::*};
 
-pub type Result<T> = std::result::Result<T, Error>;
+mod config;
+mod error;
 
-#[derive(Deserialize, Serialize)]
-#[serde(tag = "type")]
-#[serde(rename_all = "snake_case")]
-pub enum Period {
-    Since { since: String },
-    Interval { from: NaiveDate, to: Option<NaiveDate> },
-}
-
-impl Period {
-    fn as_range(&self) -> DateRange {
-        match self {
-            Period::Since { since } => {
-                let duration = Duration::from_std(parse(since).unwrap()).unwrap();
-                let now = Utc::now();
-                DateRange(now.sub(duration).date(), now.date(), DurationRangeType::Days, 1)
-            }
-            Period::Interval { from, to } => DateRange(
-                Utc.from_utc_date(from),
-                Utc.from_utc_date(&to.unwrap_or_else(|| Utc::now().naive_utc().date())),
-                DurationRangeType::Days,
-                1,
-            ),
-        }
-    }
-}
-
-#[derive(Deserialize)]
-pub struct BacktestConfig {
-    pub db_path: Option<PathBuf>,
-    pub strat: StrategySettings,
-    pub fees: f64,
-    pub period: Period,
-    pub input_sample_rate: String,
-    pub data_dir: PathBuf,
-    pub use_generic: bool,
-}
-
-impl BacktestConfig {
-    pub fn new(config_file_name: String) -> Result<Self> {
-        let mut s = Config::new();
-
-        s.merge(File::with_name(&config_file_name)).unwrap();
-
-        // You may also programmatically change settings
-        s.set("__config_file", config_file_name)?;
-
-        // You can deserialize (and thus freeze) the entire configuration as
-        s.try_into().map_err(|e| e.into())
-    }
-
-    pub fn sample_rate(&self) -> Duration { Duration::from_std(parse(&self.input_sample_rate).unwrap()).unwrap() }
+#[derive(Serialize, Deserialize, Default)]
+struct BacktestReport {
+    model_failures: u32,
 }
 
 pub struct Backtest {
@@ -97,6 +39,7 @@ pub struct Backtest {
     strategy: Arc<Strategy>,
     data_dir: PathBuf,
     sample_rate: Duration,
+    output_dir: PathBuf,
 }
 
 impl Backtest {
@@ -108,7 +51,13 @@ impl Backtest {
             .into_os_string()
             .into_string()
             .unwrap();
-        eprintln!("db_path = {:?}", db_path);
+        info!("db_path = {:?}", db_path);
+        let output_path = conf.output_dir.clone().unwrap_or_else(|| {
+            let mut p = test_dir().into_path();
+            p.push("results");
+            p
+        });
+        info!("output_path = {:?}", db_path);
         let order_manager_addr = mock_manager(&db_path);
 
         let strategy = if conf.use_generic {
@@ -131,6 +80,7 @@ impl Backtest {
             strategy: Arc::new(strategy),
             data_dir: conf.data_dir.clone(),
             sample_rate: conf.sample_rate(),
+            output_dir: output_path,
         })
     }
 
@@ -169,26 +119,47 @@ impl Backtest {
             }
         }
         let mut all_models: Vec<Vec<(String, Option<serde_json::Value>)>> = vec![];
-        let mut model_failure_count = 0;
+        let mut report = BacktestReport::default();
         for live_event in live_events {
             self.strategy.1.do_send(Arc::new(live_event));
             match self.strategy.1.send(DataQuery::Models).await {
                 Err(_) => log::error!("Mailbox error, strategy full"),
                 Ok(Ok(Some(DataResult::Models(models)))) => all_models.push(models),
                 _ => {
-                    model_failure_count += 1;
+                    report.model_failures += 1;
+                }
+            }
+            match self.strategy.1.send(DataQuery::Models).await {
+                Err(_) => log::error!("Mailbox error, strategy full"),
+                Ok(Ok(Some(DataResult::Models(models)))) => all_models.push(models),
+                _ => {
+                    report.model_failures += 1;
                 }
             }
         }
-        eprintln!("failed models = {:?}", model_failure_count);
-        write_models(all_models);
+        std::fs::create_dir_all(self.output_dir.clone())?;
+        write_models(self.output_dir.clone(), all_models);
+        write_report(self.output_dir.clone(), report);
+
         tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         Ok(())
     }
 }
 
-fn write_models(all_models: Vec<Vec<(String, Option<serde_json::Value>)>>) {
-    let logs_f = std::fs::File::create("models.json").unwrap();
+fn write_report(output_dir: PathBuf, report: BacktestReport) {
+    let mut file = output_dir;
+    file.push("report.json");
+    let logs_f = std::fs::File::create(file).unwrap();
+    let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
+    let mut seq = ser.serialize_seq(None).unwrap();
+    seq.serialize_element(&report).unwrap();
+    seq.end().unwrap();
+}
+
+fn write_models(output_dir: PathBuf, all_models: Vec<Vec<(String, Option<serde_json::Value>)>>) {
+    let mut file = output_dir;
+    file.push("models.json");
+    let logs_f = std::fs::File::create(file).unwrap();
     let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
     let mut seq = ser.serialize_seq(None).unwrap();
     for models in all_models {
@@ -212,7 +183,11 @@ async fn avro_orderbooks_df(
         "asks, bids"
     };
     for partition in partitions {
-        ctx.register_avro("order_books", &partition, AvroReadOptions::default())?;
+        ctx.sql(&format!(
+            "CREATE EXTERNAL TABLE order_books STORED AS AVRO LOCATION '{partition}';",
+            partition = &partition
+        ))?;
+        //ctx.register_avro("order_books", &partition, AvroReadOptions::default())?;
         let sql_query = format!(
             "select to_timestamp_millis(event_ms) as event_ms, {order_book_selector} from
    (select asks, bids, event_ms, ROW_NUMBER() OVER (PARTITION BY sample_time order by event_ms) as row_num
@@ -231,24 +206,9 @@ fn events_from_grouped_arrays(xchg: Exchange, pair: Pair, records: Vec<RecordBat
     let mut live_events = vec![];
     for record_batch in records {
         let sa: StructArray = record_batch.into();
-        let asks_col = sa
-            .column_by_name("asks")
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ListArray>()
-            .unwrap();
-        let bids_col = sa
-            .column_by_name("bids")
-            .unwrap()
-            .as_any()
-            .downcast_ref::<ListArray>()
-            .unwrap();
-        let event_ms_col = sa
-            .column_by_name("event_ms")
-            .unwrap()
-            .as_any()
-            .downcast_ref::<TimestampMillisecondArray>()
-            .unwrap();
+        let asks_col = get_col_as::<ListArray>(&sa, "asks");
+        let bids_col = get_col_as::<ListArray>(&sa, "bids");
+        let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ms");
         for i in 0..sa.len() {
             let mut bids = vec![];
             for bid in bids_col
@@ -282,19 +242,33 @@ fn events_from_grouped_arrays(xchg: Exchange, pair: Pair, records: Vec<RecordBat
                     .values();
                 asks.push((vals[0], vals[1]));
             }
-            let i1 = event_ms_col.value(i);
-            let orderbook = Orderbook {
-                timestamp: i1,
-                pair: pair.clone(),
-                asks,
-                bids,
-                last_order_id: None,
-            };
-            live_events.push(LiveEventEnvelope {
-                xch: xchg,
-                e: LiveEvent::LiveOrderbook(orderbook),
-            });
+            let ts = event_ms_col.value(i);
+            live_events.push(live_order_book(xchg, pair.clone(), ts, asks, bids));
         }
     }
     live_events
+}
+
+fn get_col_as<'a, T: 'static>(sa: &'a StructArray, name: &str) -> &'a T {
+    sa.column_by_name(name).unwrap().as_any().downcast_ref::<T>().unwrap()
+}
+
+fn live_order_book(
+    exchange: Exchange,
+    pair: Pair,
+    ts: i64,
+    asks: Vec<(f64, f64)>,
+    bids: Vec<(f64, f64)>,
+) -> LiveEventEnvelope {
+    let orderbook = Orderbook {
+        timestamp: ts,
+        pair,
+        asks,
+        bids,
+        last_order_id: None,
+    };
+    LiveEventEnvelope {
+        xch: exchange,
+        e: LiveEvent::LiveOrderbook(orderbook),
+    }
 }

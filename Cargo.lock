@@ -653,7 +653,7 @@ dependencies = [
  "strum 0.18.0",
  "strum_macros 0.18.0",
  "thiserror",
- "typed-builder",
+ "typed-builder 0.5.1",
  "uuid",
  "zerocopy",
 ]
@@ -675,7 +675,7 @@ dependencies = [
  "strum 0.18.0",
  "strum_macros 0.18.0",
  "thiserror",
- "typed-builder",
+ "typed-builder 0.5.1",
  "uuid",
  "zerocopy",
 ]
@@ -738,6 +738,7 @@ dependencies = [
  "structopt",
  "thiserror",
  "tokio",
+ "typed-builder 0.9.1",
  "util",
 ]
 
@@ -6060,6 +6061,17 @@ name = "typed-builder"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78cea224ddd4282dfc40d1edabbd0c020a12e946e3a48e2c2b8f6ff167ad29fe"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "typed-builder"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a46ee5bd706ff79131be9c94e7edcb82b703c487766a114434e5790361cf08c5"
 dependencies = [
  "proc-macro2",
  "quote",

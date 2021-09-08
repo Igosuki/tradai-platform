@@ -1,9 +1,16 @@
-use chrono::{DateTime, TimeZone, Utc};
-use coinnect_rt::exchange::Exchange;
-use ordered_float::OrderedFloat;
-use plotters::prelude::*;
 use std::error::Error;
 use std::time::Instant;
+
+use chrono::{DateTime, TimeZone, Utc};
+use ordered_float::OrderedFloat;
+use plotters::prelude::*;
+use tracing_futures::Instrument;
+
+use coinnect_rt::exchange::Exchange;
+use db::DbOptions;
+use math::indicators::macd_apo::MACDApo;
+use util::date::now_str;
+use util::test::test_results_dir;
 
 use crate::input;
 use crate::mean_reverting::ema_model::ema_indicator_model;
@@ -13,11 +20,6 @@ use crate::mean_reverting::{MeanRevertingStrategy, SinglePosRow};
 use crate::order_manager::test_util::mock_manager;
 use crate::test_util::{init, test_db};
 use crate::types::{BookPosition, OperationEvent, OrderMode, TradeEvent};
-use db::DbOptions;
-use math::indicators::macd_apo::MACDApo;
-use tracing_futures::Instrument;
-use util::date::now_str;
-use util::test::test_results_dir;
 
 #[derive(Debug, Serialize, Clone)]
 struct StrategyLog {
@@ -55,7 +57,11 @@ impl StrategyLog {
 
 fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn Error>> {
     std::fs::create_dir_all("graphs").unwrap();
-    let out_file = format!("graphs/mean_reverting_plot_{}.svg", now_str());
+    let out_file = format!(
+        "{}/graphs/mean_reverting_plot_{}.svg",
+        util::test::test_results_dir(module_path!()),
+        now_str()
+    );
     let color_wheel = vec![&BLACK, &BLUE, &RED];
     let more_lines: Vec<StrategyEntry<'_>> = vec![
         ("Prices and EMA", vec![|x| x.mid, |x| x.value.short_ema.current, |x| {
