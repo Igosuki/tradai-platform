@@ -9,7 +9,7 @@ members = [
     "ext",
     "math",
     "models",
-    "portfolio",
+    "account",
     "metrics",
     "server",
     "strategies",
