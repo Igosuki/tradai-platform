@@ -1,5 +1,6 @@
-use backtest::Result;
 use chrono::{TimeZone, Utc};
+
+use backtest::{BacktestConfig, Result};
 use coinnect_rt::exchange::Exchange;
 use strategies::mean_reverting::options::Options;
 use strategies::types::OrderMode;
@@ -13,9 +14,9 @@ static PAIR: &str = "BTC_USDT";
 #[actix::test]
 async fn complete_backtest_backtest() -> Result<()> {
     init();
-    let bt = ::backtest::Backtest::try_new(&::backtest::BacktestConfig {
-        db_path: Some(util::test::test_dir().into_path()),
-        strat: StrategySettings::MeanReverting(Options {
+    let conf = BacktestConfig::builder()
+        .db_path(util::test::test_dir().into_path())
+        .strat(StrategySettings::MeanReverting(Options {
             pair: PAIR.into(),
             threshold_long: -0.01,
             threshold_short: 0.01,
@@ -31,16 +32,17 @@ async fn complete_backtest_backtest() -> Result<()> {
             sample_freq: "1min".to_string(),
             exchange: Exchange::Binance,
             order_mode: OrderMode::Limit,
-        }),
-        fees: 0.001,
-        period: ::backtest::Period::Interval {
+        }))
+        .fees(0.001)
+        .period(::backtest::Period::Interval {
             from: Utc.ymd(2021, 8, 1).naive_utc(),
             to: Some(Utc.ymd(2021, 8, 9).naive_utc()),
-        },
-        input_sample_rate: "1min".to_string(),
-        data_dir: data_cache_dir(),
-        use_generic: false,
-    })?;
+        })
+        .input_sample_rate("1min".to_string())
+        .data_dir(data_cache_dir())
+        .use_generic(false)
+        .build();
+    let bt = ::backtest::Backtest::try_new(&conf)?;
     bt.run().await?;
     let _test_results_dir = test_results_dir(module_path!());
 

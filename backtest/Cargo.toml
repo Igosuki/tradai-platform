@@ -13,9 +13,15 @@ path = "src/main.rs"
 required-features = ["env_logger"]
 
 [dependencies]
+# trader
 strategies = { path = "../strategies" }
 util = { path = "../util" }
 
+# async
+tokio = "1.10"
+actix = "0.12"
+
+# std
 log = "0.4"
 structopt = "0.3"
 config = "0.11"
@@ -26,8 +32,8 @@ serde_yaml = "0.8"
 serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 parse_duration = "2.1"
-tokio = "1.10"
-actix = "0.12"
-env_logger = { version="0.9", optional = true}
+env_logger = { version = "0.9", optional = true }
+typed-builder = "0.9"
+# data
 datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "main_i", version = "5.0.0", default-features = false }
 #datafusion = { path = "/home/geps/dev/oss/arrow-datafusion/datafusion", version = "5.0.0", default-features = false }
