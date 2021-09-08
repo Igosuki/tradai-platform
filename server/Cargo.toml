@@ -26,7 +26,7 @@ zstd = ["awc/compress-zstd", "actix-web/compress-zstd"]
 # Self crates
 models = { path = "../models" }
 util = { path = "../util" }
-portfolio = { path = "../portfolio" }
+portfolio = { path = "../account" }
 strategies = { path = "../strategies" }
 #coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
 coinnect_rt = { path = "../coinnect" }
