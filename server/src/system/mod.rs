@@ -13,8 +13,10 @@ use futures::future::select_all;
 use tracing::Instrument;
 
 use coinnect_rt::coinnect::Coinnect;
-use coinnect_rt::exchange::{Exchange, ExchangeApi, ExchangeSettings};
+use coinnect_rt::exchange::manager::ExchangeManager;
+use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{AccountEventEnveloppe, LiveEventEnvelope};
+use db::DbOptions;
 use metrics::prom::PrometheusPushActor;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use strategies::order_manager::OrderManager;
@@ -25,7 +27,6 @@ use crate::logging::live_event::LiveEventPartitioner;
 use crate::nats::{NatsConsumer, NatsProducer, Subject};
 use crate::server;
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
-use db::DbOptions;
 
 pub mod bots;
 
@@ -39,7 +40,11 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     }
 
     let exchanges_conf = Arc::new(exchanges.clone());
-    let apis = Arc::new(Coinnect::build_exchange_apis(exchanges_conf.clone(), keys_path.clone()).await);
+    let manager = Coinnect::new_manager();
+    manager
+        .build_exchange_apis(exchanges_conf.clone(), keys_path.clone())
+        .await;
+    let apis = manager.exchange_apis();
     // Temporarily load symbol cache from here
     // TODO: do this to a read-only memory mapped file somewhere else that is used as a cache
     Coinnect::load_pair_registries(apis.clone())
@@ -68,8 +73,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 broadcast_recipients.push(NatsProducer::start(producer).recipient())
             }
             OutputSettings::Strategies => {
-                let oms =
-                    Arc::new(order_managers(keys_path.clone(), &settings_v.storage, exchanges_conf.clone()).await?);
+                let oms = Arc::new(order_managers(&settings_v.storage, &manager).await?);
                 if !oms.is_empty() {
                     termination_handles.push(Box::pin(bots::poll_pingables(
                         oms.values().map(|addr| addr.clone().recipient()).collect(),
@@ -252,20 +256,13 @@ async fn balance_reporter(
 /// Get an order manager for each exchange
 /// N.B.: Does not currently use test mode
 async fn order_managers(
-    keys_path: PathBuf,
     db: &DbOptions<String>,
-    exchanges: Arc<HashMap<Exchange, ExchangeSettings>>,
+    exchange_manager: &ExchangeManager,
 ) -> anyhow::Result<HashMap<Exchange, Addr<OrderManager>>> {
     let mut oms: HashMap<Exchange, Addr<OrderManager>> = HashMap::new();
-    for (xch, conf) in exchanges.iter() {
-        if !conf.use_account {
-            continue;
-        }
-        let api = Coinnect::build_exchange_api(keys_path.clone(), xch, conf.use_test)
-            .await
-            .unwrap();
+    for (xch, api) in exchange_manager.exchange_apis().iter() {
         let om_db_path = format!("om_{}", xch);
-        let order_manager = OrderManager::new(api, db, om_db_path);
+        let order_manager = OrderManager::new(api.clone(), db, om_db_path);
         oms.insert(*xch, OrderManager::start(order_manager));
     }
     Ok(oms)

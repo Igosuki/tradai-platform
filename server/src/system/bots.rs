@@ -4,12 +4,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use actix::Recipient;
+use tracing::Instrument;
 
+use coinnect_rt::bot::{ExchangeBot, Ping};
 use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
-use coinnect_rt::exchange_bot::{ExchangeBot, Ping};
 use coinnect_rt::types::{AccountEventEnveloppe, LiveEventEnvelope};
-use tracing::Instrument;
 
 pub async fn exchange_bots(
     exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
@@ -66,7 +66,7 @@ pub async fn poll_pingables(recipients: Vec<Recipient<Ping>>) -> std::io::Result
         interval.tick().await;
         for recipient in recipients.iter() {
             recipient
-                .do_send(coinnect_rt::exchange_bot::Ping)
+                .do_send(coinnect_rt::bot::Ping)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
         }
     }
