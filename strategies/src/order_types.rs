@@ -1,12 +1,13 @@
 use actix::Message;
-use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderStatus, OrderSubmission, OrderUpdate, Pair};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 
-use crate::error::*;
-use crate::wal::WalCmp;
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::pair::symbol_to_pair;
+use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderStatus, OrderSubmission, OrderUpdate, Pair};
+
+use crate::error::*;
+use crate::wal::WalCmp;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "reject_type", content = "__field0")]
@@ -60,6 +61,7 @@ impl TransactionStatus {
                 Ok(symbol_to_pair(&xchg, &ou.symbol.clone().into())?)
             }
             TransactionStatus::New(os) => Ok(os.pair.clone()),
+            TransactionStatus::Staged(OrderQuery::AddOrder(ao)) => Ok(ao.pair.clone()),
             _ => Err(coinnect_rt::error::Error::PairUnsupported.into()),
         }
     }
@@ -133,8 +135,9 @@ pub struct OrderId(pub String);
 
 #[cfg(test)]
 mod test {
-    use crate::order_types::{Rejection, Transaction, TransactionStatus};
     use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderSubmission, OrderUpdate};
+
+    use crate::order_types::{Rejection, Transaction, TransactionStatus};
 
     #[test]
     fn test_variant_eq() {
