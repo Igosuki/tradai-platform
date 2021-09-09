@@ -19,30 +19,30 @@ rocksdb-vendor = ["rocksdb/vendor"]
 rkv-lmdb = ["rkv"]
 
 [dependencies]
+# trader
 ext = { path = "../ext" }
 
+# cli
 structopt = { version = "0.3", optional = true }
+
+# std
 anyhow = "1.0"
+thiserror = "1.0"
 bincode = "1.3"
 chrono = "0.4"
 itertools = "0.10"
-lmdb-rkv = "0.14"
-# std
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
 log = "0.4"
-
-# Optional dependencies to be used later
-# Flatdata is write once read many and fast memory mapping a structured file
-#flatdata = "0.5"
 measure_time = "0.7"
-# DB
+serde = { version = "1.0", features = ["derive"] }
+
+# databases
+lmdb-rkv = "0.14"
 rkv = { version = "0.17", optional = true }
 rocksdb = { git = "https://github.com/Igosuki/rust-rocksdb.git", branch = "librocksdb-sys-link", features = ["multi-threaded-cf", "pkg-config", "snappy", "lz4", "zstd", "zlib", "bzip2"], default-features = false }
-serde = { version = "1.0", features = ["derive"] }
-# codec
-serde_json = { version = "1.0", features = ["float_roundtrip"] }
-
-# Error
-thiserror = "1.0"
+# Flatdata is write once read many and fast memory mapping a structured file
+#flatdata = "0.5"
+diesel = { version = "1.4", features = ["sqlite", "serde_json"] }
 
 [dev-dependencies]
 env_logger = "0.9"
