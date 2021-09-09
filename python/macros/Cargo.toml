@@ -2,7 +2,7 @@
 name = "inline-python-macros"
 version = "0.7.0"
 description = "Macros for the python crate"
-edition = "2018"
+edition = "2021"
 
 [lib]
 proc_macro = true
