@@ -1,9 +1,11 @@
-use db::{get_or_create, DbEngineOptions, DbOptions, RocksDbOptions, Storage, StorageExt};
-use rocksdb::{DBRecoveryMode, Options};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+use rocksdb::{DBRecoveryMode, Options};
 use structopt::clap::arg_enum;
 use structopt::StructOpt;
+
+use db::{get_or_create, DbEngineOptions, DbOptions, RocksDbOptions, Storage, StorageExt};
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "db_tool")]
@@ -51,7 +53,7 @@ fn main() {
             let db = db(options.db_type, &path, readonly, vec![table.clone()]);
             let all = db.get_all::<serde_json::Value>(table).unwrap();
             for (k, v) in all {
-                println!("{{\"id\": {}, \"transaction\": {}}}", k, v);
+                println!("{{\"id\": \"{}\", \"transaction\": {}}}", k, v);
             }
         }
         DbCommand::Repair { skip_corrupted } => match options.db_type {
