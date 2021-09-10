@@ -261,20 +261,30 @@ impl Actor for OrderManager {
                                 let pair = tr_status.get_pair(act.xchg);
                                 debug!(order_id = ?tr_id.clone(), pair = ?pair, "fetching remote for unresolved order");
                                 pair.map(|pair| act.fetch_order(tr_id.clone(), pair, AssetType::Spot).boxed())
-                                    .unwrap_or_else(|e| Box::pin(futures::future::err(e)))
+                                    .unwrap_or_else(|e| {
+                                        debug!(error = ?e, "failed to fetch order");
+                                        Box::pin(futures::future::err(e))
+                                    })
                             },
                         ))
                         .await;
                     let mut notifications = vec![];
-                    for order in non_filled_order_futs.into_iter().flatten() {
-                        if let Some(tr_status) = orders_read_lock.get(&order.orig_order_id) {
-                            if !equivalent_status(tr_status, &order.status) {
-                                notifications
-                                    .push(AccountEventEnveloppe(act.xchg, AccountEvent::OrderUpdate(order.into())));
+                    for order in non_filled_order_futs.into_iter() {
+                        match order {
+                            Ok(order) => {
+                                if let Some(tr_status) = orders_read_lock.get(&order.orig_order_id) {
+                                    if !equivalent_status(tr_status, &order.status) {
+                                        notifications.push(AccountEventEnveloppe(
+                                            act.xchg,
+                                            AccountEvent::OrderUpdate(order.into()),
+                                        ));
+                                    }
+                                } else {
+                                    notifications
+                                        .push(AccountEventEnveloppe(act.xchg, AccountEvent::OrderUpdate(order.into())));
+                                }
                             }
-                        } else {
-                            notifications
-                                .push(AccountEventEnveloppe(act.xchg, AccountEvent::OrderUpdate(order.into())));
+                            Err(e) => error!(error = ?e, "Failed to resolve remote order"),
                         }
                     }
                     notifications
