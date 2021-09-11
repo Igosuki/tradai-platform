@@ -6,6 +6,10 @@ extern crate flame;
 #[macro_use]
 extern crate flamer;
 
+#[cfg_attr(feature = "checkers", global_allocator)]
+#[cfg(feature = "checkers")]
+static ALLOCATOR: checkers::Allocator = checkers::Allocator::system();
+
 //lazy_static! {
 //    static ref CONFIG_FILE: String = {
 //        let trader_env : String = std::env::var("TRADER_ENV").unwrap_or("development".to_string());

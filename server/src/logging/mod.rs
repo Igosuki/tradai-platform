@@ -1,8 +1,10 @@
-use chrono::{DateTime, Utc};
 use std::path::PathBuf;
+
+use chrono::{DateTime, Utc};
 
 pub mod file_actor;
 pub mod live_event;
+mod metrics;
 mod rotate;
 
 #[derive(Hash, PartialEq, Eq)]

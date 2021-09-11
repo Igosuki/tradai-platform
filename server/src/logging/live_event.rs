@@ -1,17 +1,18 @@
+use std::ops::Add;
+use std::path::PathBuf;
+use std::sync::Arc;
+
 use actix::Handler;
 use avro_rs::Schema;
 use chrono::{Duration, TimeZone, Utc};
 use log::Level::*;
-use std::path::PathBuf;
 
 use coinnect_rt::types::{LiveEvent, LiveEventEnvelope};
 use models::avro_gen::{self,
                        models::{LiveTrade as LT, Orderbook as OB}};
 
-use super::file_actor::{append_log, AvroFileActor, Error, ToAvroSchema};
+use super::file_actor::{AvroFileActor, Error, ToAvroSchema};
 use super::{Partition, Partitioner};
-use std::ops::Add;
-use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct LiveEventPartitioner {
@@ -71,12 +72,14 @@ impl Handler<Arc<LiveEventEnvelope>> for AvroFileActor<LiveEventEnvelope> {
         let rc = self.writer_for(&msg);
         if let Err(rc_err) = rc {
             if log_enabled!(Debug) {
+                self.metrics.writer_acquisition_failure();
                 debug!("Could not acquire writer for partition {:?}", rc_err);
             }
             return Err(anyhow!(rc_err));
         }
         let rc_ok = rc.unwrap();
         let mut writer = rc_ok.borrow_mut();
+        let now = Utc::now();
         let appended = match &msg.e {
             LiveEvent::LiveTrade(lt) => {
                 let lt = LT {
@@ -86,20 +89,23 @@ impl Handler<Arc<LiveEventEnvelope>> for AvroFileActor<LiveEventEnvelope> {
                     event_ms: lt.event_ms,
                     amount: lt.amount,
                 };
-                append_log(&mut writer, lt)
+                self.metrics.event_lag(now.timestamp_millis() - lt.event_ms);
+                self.append_log(&mut writer, lt)
             }
             LiveEvent::LiveOrderbook(lt) => {
+                self.metrics.event_lag(now.timestamp_millis() - lt.timestamp);
                 let orderbook = OB {
                     pair: lt.pair.to_string(),
                     event_ms: lt.timestamp,
                     asks: lt.asks.iter().map(|(p, v)| vec![*p, *v]).collect(),
                     bids: lt.bids.iter().map(|(p, v)| vec![*p, *v]).collect(),
                 };
-                append_log(&mut writer, orderbook)
+                self.append_log(&mut writer, orderbook)
             }
             _ => Ok(0),
         };
         if let Err(e) = appended.and_then(|_| writer.flush().map_err(|_e| Error::WriterError)) {
+            self.metrics.flush_failure();
             trace!("Failed to flush writer {:?}", e);
             return Err(anyhow!(e));
         }
