@@ -19,6 +19,7 @@ default = []
 flame_it = ["flame", "flamer"]
 gprof = ["gperftools"]
 zstd = ["awc/compress-zstd", "actix-web/compress-zstd"]
+checkers_alloc = ["checkers"]
 
 [dependencies]
 # Self crates
@@ -72,6 +73,8 @@ fs_extra = "1.1"
 futures = { version = "0.3", features = ["thread-pool"] }
 futures-util = "0.3"
 gperftools = { version = "0.2", optional = true, features = ["heap"] }
+checkers = { version = "0.6", optional = true, features = ["zeroed", "backtrace", "checkers-macros", "fxhash", "macros", "realloc"] }
+
 hmac = "0.11"
 itertools = "0.10"
 

@@ -1074,6 +1074,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "checkers"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f60835e6ddb5e57aff37466792ee97b3c9a95994c49c8bee25586354bf4ebec"
+dependencies = [
+ "backtrace",
+ "checkers-macros",
+ "fxhash",
+]
+
+[[package]]
+name = "checkers-macros"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39389b9e531d825565e7f32bf441d8ef381158965ec50b12a19d82dceace424c"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5983,6 +6004,7 @@ dependencies = [
  "bidir-map",
  "byte-unit",
  "bytes",
+ "checkers",
  "chrono",
  "clap 3.0.0-beta.4",
  "coinnect_rt",

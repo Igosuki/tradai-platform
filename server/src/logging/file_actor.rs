@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use actix::{Actor, SyncContext};
+use actix::{Actor, Running, SyncContext};
 use avro_rs::encode;
 use avro_rs::{types::Value, Codec, Schema, Writer};
 use chrono::Duration;
@@ -17,6 +17,7 @@ use serde::Serialize;
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::logging::metrics::FileLoggerMetrics;
 use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
 use crate::logging::{Partition, Partitioner};
 
@@ -47,6 +48,7 @@ pub struct AvroFileActor<T> {
     writers: Rc<RefCell<HashMap<Partition, Rc<RefCell<RotatingWriter>>>>>,
     rotation_policy: SizeAndExpirationPolicy,
     session_uuid: Uuid,
+    pub(super) metrics: &'static FileLoggerMetrics,
 }
 
 const AVRO_EXTENSION: &str = "avro";
@@ -71,6 +73,7 @@ where
                 max_size_b: options.max_file_size,
                 max_time_ms: options.max_file_time,
             },
+            metrics: super::metrics::metrics(),
         }
     }
 
@@ -131,6 +134,24 @@ where
         let mut ref_mut = self.writers.borrow_mut();
         ref_mut.retain(|partition, _| !partition.is_expired());
     }
+
+    /// Append an avro serializable to this writer
+    pub fn append_log<S: std::fmt::Debug + Serialize, W: Write>(
+        &self,
+        writer: &mut RefMut<'_, Writer<'_, W>>,
+        s: S,
+    ) -> Result<i32, Error> {
+        match writer.append_ser(s) {
+            Err(e) => {
+                self.metrics.write_append_failure();
+                if log_enabled!(Trace) {
+                    trace!("Error writing avro bean {:?}", e);
+                }
+                Err(Error::WriterError)
+            }
+            _ => Ok(0),
+        }
+    }
 }
 
 impl<T: ToAvroSchema> Actor for AvroFileActor<T>
@@ -143,11 +164,17 @@ where
         info!("avro file logger started");
     }
 
+    fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
+        info!("avro file logger stopping, flushing writers...");
+        Running::Stop
+    }
+
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         info!("avro file logger stopped, flushing writers...");
         let writers = &self.writers.borrow_mut();
         for (_k, v) in writers.iter() {
             v.borrow_mut().flush().unwrap_or_else(|_| {
+                self.metrics.flush_failure();
                 trace!("error flushing writer");
                 0
             });
@@ -155,22 +182,9 @@ where
     }
 }
 
-/// Append an avro serializable to this writer
-pub fn append_log<S: std::fmt::Debug + Serialize, W: Write>(
-    writer: &mut RefMut<'_, Writer<'_, W>>,
-    s: S,
-) -> Result<i32, Error> {
-    if log_enabled!(Trace) {
-        trace!("Avro bean {:?}", s);
-    }
-    match writer.append_ser(s) {
-        Err(e) => {
-            if log_enabled!(Trace) {
-                trace!("Error writing avro bean {:?}", e);
-            }
-            Err(Error::WriterError)
-        }
-        _ => Ok(0),
+impl<T> Drop for AvroFileActor<T> {
+    fn drop(&mut self) {
+        info!("avro file logger being dropped, flushing writers...");
     }
 }
 
@@ -196,6 +210,7 @@ fn avro_header(schema: &Schema, marker: Vec<u8>) -> Result<Vec<u8>, Error> {
 
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
     use std::thread;
 
     use actix::SyncArbiter;
@@ -208,7 +223,6 @@ mod test {
     use crate::logging::live_event::LiveEventPartitioner;
 
     use super::*;
-    use std::sync::Arc;
 
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 

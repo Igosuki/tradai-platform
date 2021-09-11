@@ -7,7 +7,6 @@
 
 #[macro_use]
 extern crate anyhow;
-
 #[cfg(feature = "flame_it")]
 extern crate flame;
 #[cfg(feature = "flame_it")]
@@ -15,6 +14,8 @@ extern crate flame;
 extern crate flamer;
 #[macro_use]
 extern crate juniper;
+#[macro_use]
+extern crate lazy_static;
 #[macro_use]
 extern crate measure_time;
 #[macro_use]

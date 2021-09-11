@@ -4,8 +4,10 @@ use pyo3::exceptions::PyBaseException;
 use pyo3::prelude::*;
 
 use coinnect_rt::exchange::Exchange;
+use coinnect_rt::types::AssetType;
 
 use crate::generic::{InputEvent, TradeSignal};
+use crate::types::*;
 
 #[pymethods]
 impl TradeSignal {
