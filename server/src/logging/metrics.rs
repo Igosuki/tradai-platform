@@ -1,10 +1,16 @@
 use std::collections::HashMap;
 
-use prometheus::{labels, opts, register_counter_vec, register_int_gauge_vec, CounterVec, IntGaugeVec};
+use prometheus::{histogram_opts, labels, opts, register_counter_vec, register_histogram_vec, register_int_gauge_vec,
+                 CounterVec, HistogramVec, IntGaugeVec};
+
+pub const EVENT_LAG_BUCKETS: &[f64; 11] = &[
+    1.0, 5.0, 10.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0, 10000.0,
+];
 
 #[derive(Clone)]
 pub struct FileLoggerMetrics {
     event_lag: IntGaugeVec,
+    event_lag_hist: HistogramVec,
     writer_acquisition_failure: CounterVec,
     flush_failure: CounterVec,
     write_append_failure: CounterVec,
@@ -17,6 +23,15 @@ impl FileLoggerMetrics {
         Self {
             event_lag: register_int_gauge_vec!(
                 opts!("event_lag", "current time vs event time", const_labels),
+                pos_labels
+            )
+            .unwrap(),
+            event_lag_hist: register_histogram_vec!(
+                histogram_opts!(
+                    "event_lag_hist",
+                    "current time vs event time",
+                    EVENT_LAG_BUCKETS.to_vec()
+                ),
                 pos_labels
             )
             .unwrap(),
@@ -46,7 +61,10 @@ impl FileLoggerMetrics {
         }
     }
 
-    pub(super) fn event_lag(&self, millis: i64) { self.event_lag.with_label_values(&[]).set(millis) }
+    pub(super) fn event_lag(&self, millis: i64) {
+        self.event_lag.with_label_values(&[]).set(millis);
+        self.event_lag_hist.with_label_values(&[]).observe(millis as f64);
+    }
 
     pub(super) fn writer_acquisition_failure(&self) { self.writer_acquisition_failure.with_label_values(&[]).inc() }
 

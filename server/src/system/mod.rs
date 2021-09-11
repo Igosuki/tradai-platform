@@ -7,9 +7,11 @@ use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
+//use actix::System;
 use actix::{Actor, Addr, Recipient, SyncArbiter};
 use futures::future::select_all;
-//use tokio::signal::unix::{signal, SignalKind};
+// use tokio::select;
+// use tokio::signal::unix::{signal, SignalKind};
 use tracing::Instrument;
 
 use coinnect_rt::coinnect::Coinnect;
@@ -188,26 +190,31 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     // let mut interrupt = signal(SignalKind::interrupt())?;
     // let mut userint = signal(SignalKind::user_defined1())?;
     // Somehow necessary because settings_v doesn't live long enough
+    termination_handles.push(Box::pin(tokio::signal::ctrl_c()));
     let x = select_all(termination_handles).await.0.map_err(|e| anyhow!(e));
     x
-
-    /*select! {
-        r = select_all(termination_handles).fuse() => {
-            r.0.map_err(|e| anyhow!(e))
-        },
-        _ = terminate.recv().fuse() => {
-            info!("Caught termination signal");
-            Ok(())
-        }
-        _ = interrupt.recv().fuse() => {
-            info!("Caught interrupt signal");
-            Ok(())
-        }
-        _ = userint.recv().fuse() => {
-            info!("Caught user int signal");
-            Ok(())
-        }
-    }*/
+    //use futures::FutureExt;
+    // select! {
+    //     r = select_all(termination_handles).fuse() => {
+    //         System::current().stop();
+    //         r.0.map_err(|e| anyhow!(e))
+    //     },
+    //     _ = terminate.recv().fuse() => {
+    //         info!("Caught termination signal");
+    //         System::current().stop();
+    //         Ok(())
+    //     }
+    //     _ = interrupt.recv().fuse() => {
+    //         info!("Caught interrupt signal");
+    //         System::current().stop();
+    //         Ok(())
+    //     }
+    //     _ = userint.recv().fuse() => {
+    //         info!("Caught user int signal");
+    //         System::current().stop();
+    //         Ok(())
+    //     }
+    // }
 }
 
 fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<LiveEventEnvelope>> {
