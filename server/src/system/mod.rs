@@ -187,6 +187,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     // let mut terminate = signal(SignalKind::terminate())?;
     // let mut interrupt = signal(SignalKind::interrupt())?;
     // let mut userint = signal(SignalKind::user_defined1())?;
+    // Somehow necessary because settings_v doesn't live long enough
     let x = select_all(termination_handles).await.0.map_err(|e| anyhow!(e));
     x
 
