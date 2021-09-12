@@ -19,7 +19,7 @@ use crate::mean_reverting::state::MeanRevertingState;
 use crate::mean_reverting::{MeanRevertingStrategy, SinglePosRow};
 use crate::order_manager::test_util::mock_manager;
 use crate::test_util::{init, test_db};
-use crate::types::{BookPosition, OperationEvent, OrderMode, TradeEvent};
+use crate::types::{BookPosition, OperationEvent, TradeEvent};
 
 #[derive(Debug, Serialize, Clone)]
 struct StrategyLog {
@@ -165,7 +165,9 @@ async fn complete_backtest() {
             long_window_size: 1000,
             sample_freq: "1min".to_string(),
             exchange: Exchange::Binance,
-            order_mode: OrderMode::Limit,
+            order_mode: None,
+            execution_instruction: None,
+            order_asset_type: None,
         },
         order_manager_addr,
     );

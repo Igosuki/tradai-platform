@@ -1,8 +1,10 @@
-use crate::types::OrderMode;
 use chrono::Duration;
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::Pair;
 use parse_duration::parse;
+
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::types::{AssetType, Pair};
+
+use crate::types::{ExecutionInstruction, OrderMode};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Options {
@@ -20,7 +22,12 @@ pub struct Options {
     pub stop_loss: f64,
     pub stop_gain: f64,
     pub exchange: Exchange,
-    pub order_mode: OrderMode,
+    /// Default is `OrdereMode::Limit`
+    pub order_mode: Option<OrderMode>,
+    /// Default is None
+    pub execution_instruction: Option<ExecutionInstruction>,
+    /// Default is `AssetType::Spot`
+    pub order_asset_type: Option<AssetType>,
 }
 
 impl Options {
@@ -29,4 +36,6 @@ impl Options {
     pub(super) fn dynamic_threshold(&self) -> bool { self.dynamic_threshold.unwrap_or(true) }
 
     pub(super) fn sample_freq(&self) -> Duration { Duration::from_std(parse(&self.sample_freq).unwrap()).unwrap() }
+
+    pub(super) fn order_asset_type(&self) -> AssetType { self.order_asset_type.unwrap_or(AssetType::Spot) }
 }

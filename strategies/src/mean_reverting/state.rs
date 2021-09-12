@@ -8,6 +8,7 @@ use log::Level::Debug;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use coinnect_rt::types::AssetType;
 use db::{Storage, StorageExt};
 
 use crate::error::{Error, Result};
@@ -124,6 +125,8 @@ pub(super) struct MeanRevertingState {
     /// Remote operations are ran dry, meaning no actual action will be performed when possible
     dry_mode: bool,
     order_mode: OrderMode,
+    execution_instruction: Option<ExecutionInstruction>,
+    order_asset_type: AssetType,
     is_trading: bool,
     fees_rate: f64,
     previous_value_strat: f64,
@@ -180,7 +183,9 @@ impl MeanRevertingState {
             ts: TransactionService::new(om),
             ongoing_op: None,
             dry_mode: options.dry_mode(),
-            order_mode: options.order_mode,
+            order_mode: options.order_mode.unwrap_or(OrderMode::Limit),
+            execution_instruction: options.execution_instruction,
+            order_asset_type: options.order_asset_type(),
             is_trading: true,
             fees_rate,
             previous_value_strat: options.initial_cap,
@@ -378,7 +383,7 @@ impl MeanRevertingState {
                             let current_price = self.new_price(current_bp, &o.kind)?;
                             let new_trade = o.trade.with_new_price(current_price);
                             let staged_order = StagedOrder {
-                                request: new_trade.to_request(&self.order_mode),
+                                request: new_trade.to_request(&self.order_mode, &self.order_asset_type),
                             };
                             if let Err(e) = self
                                 .ts
@@ -472,7 +477,7 @@ impl MeanRevertingState {
         self.save_operation(op);
         self.set_ongoing_op(Some(op.clone()));
         let staged_order = StagedOrder {
-            request: op.trade.to_request(&self.order_mode),
+            request: op.trade.to_request(&self.order_mode, &self.order_asset_type),
         };
         self.ts
             .stage_order(staged_order)
