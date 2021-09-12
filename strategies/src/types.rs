@@ -6,9 +6,125 @@ use log::Level::Debug;
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
 use strum_macros::{AsRefStr, EnumString};
-use thiserror::Error;
 
-use coinnect_rt::types::{AddOrderRequest, OrderEnforcement, OrderType, Orderbook, TradeType};
+use coinnect_rt::types::{AddOrderRequest, AssetType, OrderEnforcement, OrderType, Orderbook, TradeType};
+
+use crate::error::DataTableError;
+
+// ------------ Behavioral Types ---------
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrderMode {
+    Market,
+    Limit,
+}
+
+#[derive(Copy, Clone, Debug, Deserialize, Serialize, PartialEq, EnumString)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecutionInstruction {
+    CancelIfNotBest,
+    DoNotIncrease,
+    DoNotReduce,
+    LastPrice,
+}
+
+// --------- Event Types ---------
+
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum StopEvent {
+    Gain,
+    Loss,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, juniper::GraphQLObject)]
+pub struct TradeOperation {
+    pub kind: TradeKind,
+    pub pair: String,
+    pub qty: f64,
+    pub price: f64,
+    pub dry_mode: bool,
+}
+
+impl TradeOperation {
+    pub fn with_new_price(&self, new_price: f64) -> TradeOperation {
+        TradeOperation {
+            price: new_price,
+            ..self.clone()
+        }
+    }
+
+    pub fn to_request(&self, mode: &OrderMode, asset_type: &AssetType) -> AddOrderRequest {
+        let mut request: AddOrderRequest = self.clone().into();
+        match mode {
+            OrderMode::Limit => {
+                request.order_type = OrderType::Limit;
+                request.enforcement = Some(OrderEnforcement::FOK);
+            }
+            OrderMode::Market => {
+                request.order_type = OrderType::Market;
+                request.price = None;
+            }
+        }
+        request.asset_type = Some(*asset_type);
+        request
+    }
+}
+
+impl From<TradeOperation> for AddOrderRequest {
+    fn from(to: TradeOperation) -> Self {
+        AddOrderRequest {
+            pair: to.pair.into(),
+            side: to.kind.into(),
+            quantity: Some(to.qty),
+            price: Some(to.price),
+            dry_run: to.dry_mode,
+            ..AddOrderRequest::default()
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct OperationEvent {
+    pub(crate) op: OperationKind,
+    pub(crate) pos: PositionKind,
+    pub(crate) at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct TradeEvent {
+    pub(crate) op: TradeKind,
+    pub(crate) qty: f64,
+    pub(crate) pair: String,
+    pub(crate) price: f64,
+    pub(crate) strat_value: f64,
+    pub(crate) at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "event")]
+pub enum StratEvent {
+    Stop { stop: StopEvent },
+    Operation(OperationEvent),
+    Trade(TradeEvent),
+}
+
+impl StratEvent {
+    pub fn log(&self) {
+        if log_enabled!(Debug) {
+            let s = serde_json::to_string(self).unwrap();
+            debug!("{}", s);
+        }
+    }
+}
+
+impl From<StopEvent> for StratEvent {
+    fn from(stop: StopEvent) -> Self { Self::Stop { stop } }
+}
+
+// --------- Data Types ---------
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -53,121 +169,6 @@ pub enum OperationKind {
     Open,
     #[strum(serialize = "close")]
     Close,
-}
-
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum StopEvent {
-    Gain,
-    Loss,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum OrderMode {
-    Market,
-    Limit,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, juniper::GraphQLObject)]
-pub struct TradeOperation {
-    pub kind: TradeKind,
-    pub pair: String,
-    pub qty: f64,
-    pub price: f64,
-    pub dry_mode: bool,
-}
-
-impl TradeOperation {
-    pub fn with_new_price(&self, new_price: f64) -> TradeOperation {
-        TradeOperation {
-            price: new_price,
-            ..self.clone()
-        }
-    }
-
-    pub fn to_request(&self, mode: &OrderMode) -> AddOrderRequest {
-        let mut request: AddOrderRequest = self.clone().into();
-        match mode {
-            OrderMode::Limit => {
-                request.order_type = OrderType::Limit;
-                request.enforcement = Some(OrderEnforcement::FOK);
-            }
-            OrderMode::Market => {
-                request.order_type = OrderType::Market;
-                request.price = None;
-            }
-        }
-        request
-    }
-}
-
-impl From<TradeOperation> for AddOrderRequest {
-    fn from(to: TradeOperation) -> Self {
-        AddOrderRequest {
-            pair: to.pair.into(),
-            side: to.kind.into(),
-            quantity: Some(to.qty),
-            price: Some(to.price),
-            dry_run: to.dry_mode,
-            ..AddOrderRequest::default()
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, EnumString)]
-pub enum ExecutionInstruction {
-    ParticipateDoNotInitiate,
-    CancelIfNotBest,
-    DoNotIncrease,
-    DoNotReduce,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct OperationEvent {
-    pub(crate) op: OperationKind,
-    pub(crate) pos: PositionKind,
-    pub(crate) at: DateTime<Utc>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct TradeEvent {
-    pub(crate) op: TradeKind,
-    pub(crate) qty: f64,
-    pub(crate) pair: String,
-    pub(crate) price: f64,
-    pub(crate) strat_value: f64,
-    pub(crate) at: DateTime<Utc>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-#[serde(tag = "event")]
-pub enum StratEvent {
-    Stop { stop: StopEvent },
-    Operation(OperationEvent),
-    Trade(TradeEvent),
-}
-
-impl StratEvent {
-    pub fn log(&self) {
-        if log_enabled!(Debug) {
-            let s = serde_json::to_string(self).unwrap();
-            debug!("{}", s);
-        }
-    }
-}
-
-impl From<StopEvent> for StratEvent {
-    fn from(stop: StopEvent) -> Self { Self::Stop { stop } }
-}
-
-#[derive(Error, Debug)]
-pub enum DataTableError {
-    #[error("at least one bid expected")]
-    MissingBids,
-    #[error("at least one ask expected")]
-    MissingAsks,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

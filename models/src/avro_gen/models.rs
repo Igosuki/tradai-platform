@@ -11,6 +11,7 @@ pub struct Orderbook {
     pub bids: Vec<Vec<f64>>,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for Orderbook {
     fn default() -> Orderbook {
         Orderbook {
@@ -36,6 +37,7 @@ pub struct LiveTrade {
     pub tt: i32,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for LiveTrade {
     fn default() -> LiveTrade {
         LiveTrade {

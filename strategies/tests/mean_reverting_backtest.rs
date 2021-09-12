@@ -3,7 +3,6 @@ use chrono::{TimeZone, Utc};
 use backtest::{BacktestConfig, Result};
 use coinnect_rt::exchange::Exchange;
 use strategies::mean_reverting::options::Options;
-use strategies::types::OrderMode;
 use strategies::StrategySettings;
 use util::test::{data_cache_dir, test_results_dir};
 
@@ -31,7 +30,9 @@ async fn complete_backtest_backtest() -> Result<()> {
             long_window_size: 1000,
             sample_freq: "1min".to_string(),
             exchange: Exchange::Binance,
-            order_mode: OrderMode::Limit,
+            order_mode: None,
+            execution_instruction: None,
+            order_asset_type: None,
         }))
         .fees(0.001)
         .period(::backtest::Period::Interval {

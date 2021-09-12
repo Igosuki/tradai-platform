@@ -53,3 +53,11 @@ impl Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Error, Debug)]
+pub enum DataTableError {
+    #[error("at least one bid expected")]
+    MissingBids,
+    #[error("at least one ask expected")]
+    MissingAsks,
+}

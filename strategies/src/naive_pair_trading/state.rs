@@ -1,13 +1,15 @@
 use std::panic;
+use std::sync::Arc;
 
 use actix::Addr;
 use chrono::{DateTime, Utc};
-use db::{Storage, StorageExt};
 use log::Level::Info;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use uuid::Uuid;
 
+use db::{Storage, StorageExt};
+
+use crate::coinnect_types::AssetType;
 use crate::error::*;
 use crate::naive_pair_trading::options::Options;
 use crate::order_manager::OrderManager;
@@ -506,7 +508,7 @@ impl MovingState {
 
     async fn stage_order(&self, trade_op: TradeOperation) -> Result<Transaction> {
         let staged_order = StagedOrder {
-            request: trade_op.to_request(&self.order_mode),
+            request: trade_op.to_request(&self.order_mode, &AssetType::Spot),
         };
         self.om
             .send(staged_order)
