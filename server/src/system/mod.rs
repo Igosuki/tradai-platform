@@ -24,6 +24,7 @@ use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use strategies::order_manager::OrderManager;
 use strategies::{self, Strategy, StrategyKey};
 
+use crate::connectivity::run_connectivity_checker;
 use crate::logging::file_actor::{AvroFileActor, FileActorOptions};
 use crate::logging::live_event::LiveEventPartitioner;
 use crate::nats::{NatsConsumer, NatsProducer, Subject};
@@ -191,6 +192,10 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     // let mut userint = signal(SignalKind::user_defined1())?;
     // Somehow necessary because settings_v doesn't live long enough
     termination_handles.push(Box::pin(tokio::signal::ctrl_c()));
+    if let Some(interval) = settings_v.connectivity_check_interval {
+        connectivity_checker(interval);
+    }
+
     let x = select_all(termination_handles).await.0.map_err(|e| anyhow!(e));
     x
     //use futures::FutureExt;
@@ -216,6 +221,8 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     //     }
     // }
 }
+
+fn connectivity_checker(interval: u64) { actix::spawn(run_connectivity_checker(interval)); }
 
 fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<LiveEventEnvelope>> {
     info!("starting avro file logger");
