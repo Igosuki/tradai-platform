@@ -90,7 +90,7 @@ test_all: ## Tests all features
 
 .PHONY: test
 test: ## Tests all features and targets, skipping coinnect
-	RUST_LOG=info BITCOINS_REPO=$(current_dir)/.. $(CARGO_BIN) test --all-targets -- --skip coinnect_tests --skip gdax_tests
+	RUST_LOG=info BITCOINS_REPO=$(current_dir)/.. $(CARGO_BIN) test --all-targets -- --skip coinnect_tests --skip coinbase_tests
 
 .PHONY: test_strats
 test_strats: ## Tests strategies
