@@ -1,3 +1,5 @@
+#![allow(clippy::needless_option_as_deref)]
+
 use std::str::FromStr;
 
 use pyo3::exceptions::PyBaseException;

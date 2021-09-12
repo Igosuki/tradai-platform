@@ -4715,7 +4715,7 @@ dependencies = [
 [[package]]
 name = "rsgen-avro"
 version = "0.9.5"
-source = "git+https://github.com/Igosuki/rsgen-avro.git?branch=master_merge#84e6d782626438bfc9b0bc1adf46be8ed65e8ba7"
+source = "git+https://github.com/Igosuki/rsgen-avro.git?branch=master_merge#eb1b3fef5953734f82f33b98f59a0bc124547ee5"
 dependencies = [
  "avro-rs 0.13.0 (git+https://github.com/Igosuki/avro-rs.git?branch=master_merge)",
  "docopt",
@@ -5006,9 +5006,9 @@ dependencies = [
 
 [[package]]
 name = "serde_yaml"
-version = "0.8.20"
+version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad104641f3c958dab30eb3010e834c2622d1f3f4c530fef1dee20ad9485f3c09"
+checksum = "d8c608a35705a5d3cdc9fbe403147647ff34b921f8e833e49306df898f9b20af"
 dependencies = [
  "dtoa",
  "indexmap",
@@ -5741,9 +5741,9 @@ dependencies = [
 
 [[package]]
 name = "tinyvec"
-version = "1.3.1"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "848a1e1181b9f6753b5e96a092749e29b11d19ede67dfbbd6c7dc7e0f49b5338"
+checksum = "5241dd6f21443a3606b432718b166d3cedc962fd4b8bea54a8bc7f514ebda986"
 dependencies = [
  "tinyvec_macros",
 ]
