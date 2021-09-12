@@ -22,6 +22,7 @@ extern crate measure_time;
 extern crate tracing;
 
 pub mod api;
+mod connectivity;
 pub mod graphql_schemas;
 pub mod logging;
 pub mod nats;

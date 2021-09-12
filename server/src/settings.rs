@@ -162,6 +162,7 @@ pub struct Settings {
     pub balance_reporter: Option<BalanceReporterOptions>,
     pub version: Option<Version>,
     pub discord_notifier: Option<DiscordNotifierOptions>,
+    pub connectivity_check_interval: Option<u64>,
 }
 
 impl Settings {
