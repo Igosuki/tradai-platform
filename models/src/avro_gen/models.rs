@@ -62,6 +62,7 @@ pub struct LiveOrder {
     pub tt: i32,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for LiveOrder {
     fn default() -> LiveOrder {
         LiveOrder {
