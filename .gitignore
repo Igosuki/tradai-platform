@@ -13,9 +13,10 @@ flame-graph.html
 graphs
 prometheus_data
 *.heap
-database
+database*
 strategies/default
 test_results
 strategy_logs.json
 .cargo
 precommit_venv
+config/local.yaml
