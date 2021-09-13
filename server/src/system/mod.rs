@@ -21,6 +21,7 @@ use coinnect_rt::types::{AccountEventEnveloppe, LiveEventEnvelope};
 use db::DbOptions;
 use metrics::prom::PrometheusPushActor;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
+use portfolio::margin::{MarginAccountReporter, MarginAccountReporterOptions};
 use strategies::order_manager::OrderManager;
 use strategies::{self, Strategy, StrategyKey};
 
@@ -57,7 +58,9 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     let mut termination_handles: Vec<Pin<Box<dyn Future<Output = std::io::Result<()>>>>> = vec![];
     let mut broadcast_recipients: Vec<Recipient<Arc<LiveEventEnvelope>>> = Vec::new();
     let mut strat_recipients: Vec<Recipient<Arc<LiveEventEnvelope>>> = Vec::new();
-    let mut account_recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>> =
+    let mut spot_account_recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>> =
+        apis.keys().map(|xch| (*xch, vec![])).collect();
+    let mut margin_account_recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>> =
         apis.keys().map(|xch| (*xch, vec![])).collect();
     let mut strategy_actors = vec![];
     let mut order_managers_addr = HashMap::new();
@@ -82,7 +85,10 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                         oms.values().map(|addr| addr.clone().recipient()).collect(),
                     )));
                     for (xchg, addr) in oms.clone().iter() {
-                        account_recipients.get_mut(xchg).unwrap().push(addr.clone().recipient());
+                        spot_account_recipients
+                            .get_mut(xchg)
+                            .unwrap()
+                            .push(addr.clone().recipient());
                         order_managers_addr.insert(*xchg, addr.clone());
                     }
                 }
@@ -102,7 +108,20 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
         info!("starting balance reporter");
         let reporter_addr = balance_reporter(balance_reporter_opts, apis.clone()).await?;
         for xch in apis.keys() {
-            account_recipients
+            spot_account_recipients
+                .get_mut(xch)
+                .unwrap()
+                .push(reporter_addr.clone().recipient());
+        }
+        termination_handles.push(Box::pin(bots::poll_pingables(vec![reporter_addr.recipient()])));
+    }
+
+    // balance reporter
+    if let Some(margin_account_reporter_opts) = &settings_v.margin_account_reporter {
+        info!("starting margin account reporter");
+        let reporter_addr = margin_account_reporter(margin_account_reporter_opts, apis.clone()).await?;
+        for xch in apis.keys() {
+            margin_account_recipients
                 .get_mut(xch)
                 .unwrap()
                 .push(reporter_addr.clone().recipient());
@@ -125,8 +144,19 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 }
             }
             StreamSettings::AccountBots => {
-                let bots =
-                    bots::account_bots(exchanges_conf.clone(), keys_path.clone(), account_recipients.clone()).await?;
+                let mut bots = bots::spot_account_bots(
+                    exchanges_conf.clone(),
+                    keys_path.clone(),
+                    spot_account_recipients.clone(),
+                )
+                .await?;
+                let margin_bots = bots::margin_account_bots(
+                    exchanges_conf.clone(),
+                    keys_path.clone(),
+                    margin_account_recipients.clone(),
+                )
+                .await?;
+                bots.extend(margin_bots);
                 if !bots.is_empty() {
                     termination_handles.push(Box::pin(bots::poll_bots_vec(bots)));
                 }
@@ -266,6 +296,15 @@ async fn balance_reporter(
     let balance_reporter = BalanceReporter::new(apis.clone(), options.clone());
     let balance_reporter_addr = BalanceReporter::start(balance_reporter);
     Ok(balance_reporter_addr)
+}
+
+async fn margin_account_reporter(
+    options: &MarginAccountReporterOptions,
+    apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
+) -> anyhow::Result<Addr<MarginAccountReporter>> {
+    let margin_account_reporter = MarginAccountReporter::new(apis.clone(), options.clone());
+    let margin_account_reporter_addr = MarginAccountReporter::start(margin_account_reporter);
+    Ok(margin_account_reporter_addr)
 }
 
 /// Get an order manager for each exchange
