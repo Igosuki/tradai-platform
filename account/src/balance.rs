@@ -143,9 +143,9 @@ impl Handler<AccountEventEnveloppe> for BalanceReporter {
     type Result = anyhow::Result<()>;
 
     fn handle(&mut self, msg: AccountEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
-        match msg.1 {
+        match msg.event {
             AccountEvent::BalanceUpdate(update) => {
-                self.with_reporter(msg.0, |balance_report| {
+                self.with_reporter(msg.xchg, |balance_report| {
                     balance_report.push(update.clone());
                 });
                 Ok(())
