@@ -39,10 +39,23 @@ pub struct Operation {
 }
 
 impl Operation {
-    fn new(pos: Position, op_kind: OperationKind, qty: f64, dry_mode: bool) -> Self {
+    fn new(
+        pos: Position,
+        op_kind: OperationKind,
+        qty: f64,
+        dry_mode: bool,
+        order_mode: OrderMode,
+        asset_type: AssetType,
+    ) -> Self {
         let trade_kind = match (&pos.kind, &op_kind) {
             (PositionKind::Short, OperationKind::Open) | (PositionKind::Long, OperationKind::Close) => TradeKind::Sell,
             (PositionKind::Long, OperationKind::Open) | (PositionKind::Short, OperationKind::Close) => TradeKind::Buy,
+        };
+        let margin_interest_rate = if asset_type == AssetType::Margin {
+            // TODO: fetch the margin interest rate from the exchange
+            Some(0.0)
+        } else {
+            None
         };
         Operation {
             id: Uuid::new_v4().to_string(),
@@ -55,6 +68,9 @@ impl Operation {
                 pair: pos.pair,
                 kind: trade_kind,
                 dry_mode,
+                mode: order_mode,
+                asset_type,
+                margin_interest_rate,
             },
             instructions: None,
         }
@@ -447,7 +463,14 @@ impl MeanRevertingState {
         self.previous_value_strat = self.value_strat;
         self.update_nominal_position(&position_kind);
         self.update_open_value(self.value_strat, &position_kind, pos.price);
-        let mut op = Operation::new(pos, OperationKind::Open, self.nominal_position, self.dry_mode);
+        let mut op = Operation::new(
+            pos,
+            OperationKind::Open,
+            self.nominal_position,
+            self.dry_mode,
+            self.order_mode,
+            self.order_asset_type,
+        );
         self.stage_operation(&mut op).await
     }
 
@@ -455,7 +478,14 @@ impl MeanRevertingState {
     pub(super) async fn close(&mut self, pos: Position) -> Result<Operation> {
         self.previous_value_strat = self.value_strat;
         self.update_close_value(self.value_strat, &pos.kind, pos.price);
-        let mut op = Operation::new(pos, OperationKind::Close, self.nominal_position, self.dry_mode);
+        let mut op = Operation::new(
+            pos,
+            OperationKind::Close,
+            self.nominal_position,
+            self.dry_mode,
+            self.order_mode,
+            self.order_asset_type,
+        );
         self.stage_operation(&mut op).await
     }
 

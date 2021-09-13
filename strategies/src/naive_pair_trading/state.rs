@@ -316,6 +316,9 @@ impl MovingState {
                 pair: pos.left_pair,
                 kind: left_op,
                 dry_mode: self.dry_mode,
+                mode: OrderMode::Limit,
+                asset_type: AssetType::Spot,
+                margin_interest_rate: None,
             },
             right_trade: TradeOperation {
                 price: pos.right_price,
@@ -323,6 +326,9 @@ impl MovingState {
                 pair: pos.right_pair,
                 kind: right_op,
                 dry_mode: self.dry_mode,
+                mode: OrderMode::Limit,
+                asset_type: AssetType::Spot,
+                margin_interest_rate: None,
             },
         }
     }

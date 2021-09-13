@@ -1219,6 +1219,7 @@ dependencies = [
  "chrono",
  "clap 3.0.0-beta.4",
  "data-encoding",
+ "derivative",
  "derive_more",
  "dyn-clone",
  "env_logger 0.9.0",
