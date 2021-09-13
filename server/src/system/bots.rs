@@ -9,7 +9,7 @@ use tracing::Instrument;
 use coinnect_rt::bot::{ExchangeBot, Ping};
 use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
-use coinnect_rt::types::{AccountEventEnveloppe, LiveEventEnvelope};
+use coinnect_rt::types::{AccountEventEnveloppe, AccountType, LiveEventEnvelope};
 
 pub async fn exchange_bots(
     exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
@@ -31,21 +31,32 @@ pub async fn account_bots(
     exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
     keys_path: PathBuf,
     recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>>,
-) -> anyhow::Result<HashMap<Exchange, Box<dyn ExchangeBot>>> {
-    let mut bots: HashMap<Exchange, Box<dyn ExchangeBot>> = HashMap::new();
+) -> anyhow::Result<Vec<Box<dyn ExchangeBot>>> {
+    let mut bots: Vec<Box<dyn ExchangeBot>> = vec![];
     for (xch, conf) in exchanges_settings.clone().iter() {
-        if !conf.use_account {
-            continue;
-        }
         let creds = Coinnect::credentials_for(*xch, keys_path.clone())?;
-        let bot = Coinnect::new_account_stream(
-            *xch,
-            creds,
-            recipients.get(xch).cloned().unwrap_or_default(),
-            conf.use_test,
-        )
-        .await?;
-        bots.insert(*xch, bot);
+        if conf.use_account {
+            let bot = Coinnect::new_account_stream(
+                *xch,
+                creds.clone(),
+                recipients.get(xch).cloned().unwrap_or_default(),
+                conf.use_test,
+                AccountType::Spot,
+            )
+            .await?;
+            bots.push(bot);
+        }
+        if conf.use_margin_account {
+            let bot = Coinnect::new_account_stream(
+                *xch,
+                creds,
+                recipients.get(xch).cloned().unwrap_or_default(),
+                conf.use_test,
+                AccountType::Margin,
+            )
+            .await?;
+            bots.push(bot);
+        }
     }
     Ok(bots)
 }
@@ -55,6 +66,16 @@ pub async fn poll_bots(bots: HashMap<Exchange, Box<dyn ExchangeBot>>) -> std::io
     loop {
         interval.tick().await;
         for bot in bots.values() {
+            bot.ping();
+        }
+    }
+}
+
+pub async fn poll_bots_vec(bots: Vec<Box<dyn ExchangeBot>>) -> std::io::Result<()> {
+    let mut interval = tokio::time::interval(Duration::from_secs(10));
+    loop {
+        interval.tick().await;
+        for bot in &bots {
             bot.ping();
         }
     }

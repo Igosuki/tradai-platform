@@ -6,13 +6,14 @@ exchanges:
   #        symbols: ['BTC_USD']
   binance:
     fees: 0.001
-    use_account: true
+    use_account: false
+    use_margin_account: false
     use_test: false
     orderbook_depth: 5
     orderbook:
-      symbols: ['.*_USDT']
+      symbols: [ '.*_USDT' ]
     trades:
-      symbols: ['.*_USDT']
+      symbols: [ '.*_USDT' ]
 
 streams:
   - type: ExchangeBots

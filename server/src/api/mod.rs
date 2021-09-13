@@ -158,6 +158,7 @@ mod tests {
             trades: None,
             fees: 0.1,
             use_account: true,
+            use_margin_account: true,
             use_test: false,
         })]
         .iter()
