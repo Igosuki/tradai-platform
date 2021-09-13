@@ -12,6 +12,7 @@ use coinnect_rt::types::Pair;
 use db::DbOptions;
 use metrics::prom::PrometheusOptions;
 use portfolio::balance::BalanceReporterOptions;
+use portfolio::margin::MarginAccountReporterOptions;
 use strategies::settings::{StrategyCopySettings, StrategySettings};
 
 use crate::notify::DiscordNotifierOptions;
@@ -160,6 +161,7 @@ pub struct Settings {
     #[serde(default)]
     pub telemetry: OpenTelemetrySettings,
     pub balance_reporter: Option<BalanceReporterOptions>,
+    pub margin_account_reporter: Option<MarginAccountReporterOptions>,
     pub version: Option<Version>,
     pub discord_notifier: Option<DiscordNotifierOptions>,
     pub connectivity_check_interval: Option<u64>,

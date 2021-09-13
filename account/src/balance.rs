@@ -10,7 +10,8 @@ use prometheus::GaugeVec;
 
 use coinnect_rt::bot::Ping;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
-use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, Asset, BalanceInformation, BalanceUpdate, Balances};
+use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AccountType, Asset, BalanceInformation, BalanceUpdate,
+                         Balances};
 
 #[derive(Clone)]
 pub struct BalanceMetrics {
@@ -143,6 +144,9 @@ impl Handler<AccountEventEnveloppe> for BalanceReporter {
     type Result = anyhow::Result<()>;
 
     fn handle(&mut self, msg: AccountEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
+        if msg.account_type != AccountType::Spot {
+            return Ok(());
+        }
         match msg.event {
             AccountEvent::BalanceUpdate(update) => {
                 self.with_reporter(msg.xchg, |balance_report| {

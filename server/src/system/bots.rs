@@ -27,7 +27,7 @@ pub async fn exchange_bots(
     Ok(bots)
 }
 
-pub async fn account_bots(
+pub async fn spot_account_bots(
     exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
     keys_path: PathBuf,
     recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>>,
@@ -46,6 +46,18 @@ pub async fn account_bots(
             .await?;
             bots.push(bot);
         }
+    }
+    Ok(bots)
+}
+
+pub async fn margin_account_bots(
+    exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
+    keys_path: PathBuf,
+    recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>>,
+) -> anyhow::Result<Vec<Box<dyn ExchangeBot>>> {
+    let mut bots: Vec<Box<dyn ExchangeBot>> = vec![];
+    for (xch, conf) in exchanges_settings.clone().iter() {
+        let creds = Coinnect::credentials_for(*xch, keys_path.clone())?;
         if conf.use_margin_account {
             let bot = Coinnect::new_account_stream(
                 *xch,
