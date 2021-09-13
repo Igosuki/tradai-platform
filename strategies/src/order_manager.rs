@@ -15,6 +15,7 @@ use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, A
                          OrderStatus, OrderUpdate, Pair};
 use db::{get_or_create, DbOptions};
 
+use crate::coinnect_types::AccountType;
 use crate::error::Error;
 use crate::error::Result;
 use crate::order_types::{OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
@@ -274,14 +275,18 @@ impl Actor for OrderManager {
                             Ok(order) => {
                                 if let Some(tr_status) = orders_read_lock.get(&order.orig_order_id) {
                                     if !equivalent_status(tr_status, &order.status) {
-                                        notifications.push(AccountEventEnveloppe(
-                                            act.xchg,
-                                            AccountEvent::OrderUpdate(order.into()),
-                                        ));
+                                        notifications.push(AccountEventEnveloppe {
+                                            xchg: act.xchg,
+                                            event: AccountEvent::OrderUpdate(order.into()),
+                                            account_type: AccountType::Spot,
+                                        });
                                     }
                                 } else {
-                                    notifications
-                                        .push(AccountEventEnveloppe(act.xchg, AccountEvent::OrderUpdate(order.into())));
+                                    notifications.push(AccountEventEnveloppe {
+                                        xchg: act.xchg,
+                                        event: AccountEvent::OrderUpdate(order.into()),
+                                        account_type: AccountType::Spot,
+                                    });
                                 }
                             }
                             Err(e) => error!(error = ?e, "Failed to resolve remote order"),
@@ -311,7 +316,7 @@ impl Handler<AccountEventEnveloppe> for OrderManager {
         let mut zis = self.clone();
         Box::pin(
             async move {
-                match msg.1 {
+                match msg.event {
                     AccountEvent::OrderUpdate(update) => zis.update_order(update).await.map_err(|e| anyhow!(e)),
                     // Ignore anything besides order updates
                     _ => Ok(()),
