@@ -1,13 +1,16 @@
+use std::ops::{Add, Mul};
+
+use chrono::{DateTime, Duration, Utc};
+
+pub use indicator_model::IndicatorModel;
+pub use persist::Window;
+pub use windowed_model::WindowedModel;
+
+use crate::error::Result;
+
 pub mod indicator_model;
 mod persist;
 pub mod windowed_model;
-
-use crate::error::Result;
-use chrono::{DateTime, Duration, Utc};
-pub use indicator_model::IndicatorModel;
-pub use persist::Window;
-use std::ops::{Add, Mul};
-pub use windowed_model::WindowedModel;
 
 pub trait Model {
     fn ser(&self) -> Option<serde_json::Value>;
@@ -15,7 +18,7 @@ pub trait Model {
     fn try_load(&mut self) -> Result<()>;
 }
 
-// TODO : Maybe used in a middleware like structure
+// TODO: Maybe used in a middleware like structure
 // with Filter { fn filters -> Option<T> }, filters: Vec<Filter>
 // filters.fold().is_some()
 // Could be an enum with various types of samplers, distribution based, time based

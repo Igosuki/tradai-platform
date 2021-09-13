@@ -18,7 +18,8 @@ members = [
 ]
 
 exclude = [
-    "python_dylib"
+    "python_dylib",
+    "python"
 ]
 
 [profile.test]

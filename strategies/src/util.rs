@@ -1,8 +1,9 @@
+use std::ops::{Add, Mul};
+
 use chrono::Duration;
 use chrono::{DateTime, Utc};
 
 use crate::types::{StopEvent, StratEvent};
-use std::ops::{Add, Mul};
 
 /// Time obsolescence is defined by last_time + (sample_freq * eval_freq) > current_time
 pub fn is_eval_time_reached(
@@ -35,7 +36,6 @@ impl<T: std::cmp::PartialOrd + Copy> Stopper<T> {
         stop_type
             .map(|stop| {
                 let strat_event = StratEvent::Stop { stop };
-                // TODO: get rid of side effects like these
                 strat_event.log();
                 strat_event
             })

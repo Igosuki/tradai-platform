@@ -13,11 +13,15 @@ use crate::error::DataTableError;
 
 // ------------ Behavioral Types ---------
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize, Serialize, juniper::GraphQLEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum OrderMode {
     Market,
     Limit,
+}
+
+impl Default for OrderMode {
+    fn default() -> Self { Self::Limit }
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, PartialEq, EnumString)]
@@ -38,13 +42,29 @@ pub enum StopEvent {
     Loss,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, juniper::GraphQLObject)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct TradeOperation {
     pub kind: TradeKind,
     pub pair: String,
     pub qty: f64,
     pub price: f64,
     pub dry_mode: bool,
+    #[serde(default)]
+    pub mode: OrderMode,
+    #[serde(default)]
+    pub asset_type: AssetType,
+    pub margin_interest_rate: Option<f64>,
+}
+
+#[juniper::graphql_object]
+impl TradeOperation {
+    fn kind(&self) -> &TradeKind { &self.kind }
+    fn pair(&self) -> &str { &self.pair }
+    fn qty(&self) -> f64 { self.qty }
+    fn price(&self) -> f64 { self.price }
+    fn dry_mode(&self) -> bool { self.dry_mode }
+    fn mode(&self) -> OrderMode { self.mode }
+    fn asset_type(&self) -> &str { self.asset_type.as_ref() }
 }
 
 impl TradeOperation {
@@ -114,8 +134,7 @@ pub enum StratEvent {
 impl StratEvent {
     pub fn log(&self) {
         if log_enabled!(Debug) {
-            let s = serde_json::to_string(self).unwrap();
-            debug!("{}", s);
+            tracing::debug!(strat_event = ?self);
         }
     }
 }

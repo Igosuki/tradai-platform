@@ -38,7 +38,7 @@ clap = { version = "2.33", optional = true }
 coinnect_rt = { path = "../coinnect" }
 csv = "1.1"
 
-derivative = "2.1.1"
+derivative = "2.2"
 derive_more = "0.99"
 env_logger = "0.9"
 
