@@ -128,7 +128,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 let bots =
                     bots::account_bots(exchanges_conf.clone(), keys_path.clone(), account_recipients.clone()).await?;
                 if !bots.is_empty() {
-                    termination_handles.push(Box::pin(bots::poll_bots(bots)));
+                    termination_handles.push(Box::pin(bots::poll_bots_vec(bots)));
                 }
             }
             StreamSettings::Nats(nats_settings) => {

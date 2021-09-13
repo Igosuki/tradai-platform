@@ -1,6 +1,7 @@
 exchanges:
   binance:
     use_account: true
+    use_margin_account: true
     use_test: false
     fees: 0.001
 
