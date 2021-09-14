@@ -39,14 +39,14 @@ actix-codec = "0.4"
 actix-cors = { version = "0.6.0-beta.2", default-features = false }
 actix-web = { version = "4.0.0-beta.6", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
 actix_derive = "0.6"
+awc = { version = "3.0.0-beta.7", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
+
+# Errors
 anyhow = "1.0"
 
 # Futures
 async-std = "1.5"
 avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "master_merge" }
-
-# Actix
-awc = { version = "3.0.0-beta.7", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
 
 # Data structures
 bidir-map = "1.0"
@@ -60,7 +60,7 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = "3.0.0-beta.1"
 
 # Crypto
-config = { version = "0.11", features = ["yaml"] }
+config = { version = "0.11", features = ["yaml", "toml", "json"], default-features = false }
 data-encoding = "2.2"
 
 derive_more = "0.99"
