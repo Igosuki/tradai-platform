@@ -8,6 +8,9 @@ exchanges:
 balance_reporter:
   refresh_rate: 10s
 
+margin_account_reporter:
+  refresh_rate: 10s
+
 keys: ./config/keys_real_test.json
 
 storage:
