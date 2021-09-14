@@ -24,7 +24,7 @@ actix = "0.12"
 # std
 log = "0.4"
 structopt = "0.3"
-config = "0.11"
+config = { version = "0.11", features = ["yaml", "toml", "json"], default-features = false }
 thiserror = "1.0"
 serde = "1.0"
 serde_derive = "1.0"
