@@ -25,7 +25,7 @@ checkers_alloc = ["checkers"]
 # Self crates
 models = { path = "../models" }
 util = { path = "../util" }
-portfolio = { path = "../account" }
+account = { path = "../account" }
 strategies = { path = "../strategies" }
 #coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
 coinnect_rt = { path = "../coinnect" }
