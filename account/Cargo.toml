@@ -1,5 +1,5 @@
 [package]
-name = "portfolio"
+name = "account"
 version = "0.1.0"
 authors = ["Guillaume Balaine <igosuki@gmail.com>"]
 edition = "2021"
