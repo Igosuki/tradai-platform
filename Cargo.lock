@@ -5719,6 +5719,7 @@ dependencies = [
  "rand 0.8.4",
  "serde",
  "serde_json",
+ "snap 1.0.5",
  "socket2",
  "sqlx",
  "structopt",

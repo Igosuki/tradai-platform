@@ -1,13 +1,17 @@
-use super::persist::{ModelValue, PersistentModel};
-use crate::error::Result;
-use crate::models::Model;
+use std::sync::Arc;
+
 use chrono::{DateTime, Utc};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+
 use db::Storage;
 use ext::ResultExt;
 use math::Next;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::sync::Arc;
+
+use crate::error::Result;
+use crate::models::Model;
+
+use super::persist::{ModelValue, PersistentModel};
 
 type ModelUpdateFn<T, R> = fn(&T, R) -> T;
 
@@ -48,6 +52,13 @@ impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> IndicatorModel
     pub fn is_loaded(&self) -> bool { self.model.is_loaded() }
 
     pub fn wipe(&mut self) -> Result<()> { self.model.wipe().err_into() }
+
+    pub fn import(&mut self, v: serde_json::Value) -> Result<()> {
+        let model: T = serde_json::from_value(v)?;
+        self.model.wipe()?;
+        self.model.set_last_model(model);
+        Ok(())
+    }
 }
 
 impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> Model for IndicatorModel<T, R> {

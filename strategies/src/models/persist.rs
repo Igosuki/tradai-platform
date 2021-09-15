@@ -101,9 +101,10 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
 }
 
 pub type Window<'a, T> = impl Iterator<Item = &'a T> + Clone;
+pub type TimedWindow<'a, T> = impl Iterator<Item = &'a TimedValue<T>> + Clone;
 //pub type Window<'a, T> = Take<Rev<Map<Iter<'a, T>>>>;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TimedValue<T>(i64, T);
 
 // Fixed size vector backed by a database
@@ -152,7 +153,9 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
         }
     }
 
-    pub fn window(&self) -> Window<'_, T> { self.rows.iter().map(|r| &r.1).rev().take(self.window_size).rev() }
+    pub fn window(&self) -> Window<'_, T> { self.timed_window().map(|r| &r.1) }
+
+    pub fn timed_window(&self) -> TimedWindow<'_, T> { self.rows.iter().rev().take(self.window_size).rev() }
 
     pub fn len(&self) -> usize { self.rows.len() }
 

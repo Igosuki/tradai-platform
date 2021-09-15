@@ -15,8 +15,8 @@ use math::indicators::macd_apo::MACDApo;
 use crate::driver::StrategyDriver;
 use crate::error::Result;
 use crate::generic::{InputEvent, Strategy, TradeSignal};
-use crate::mean_reverting::ema_model::{ema_indicator_model, ApoThresholds};
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
+use crate::mean_reverting::model::{ema_indicator_model, ApoThresholds};
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
 use crate::models::{IndicatorModel, Sampler};
@@ -27,8 +27,8 @@ use crate::trading_util::Stopper;
 use crate::types::{BookPosition, PositionKind};
 use crate::{Channel, StrategyStatus};
 
-mod ema_model;
 mod metrics;
+pub mod model;
 pub mod options;
 pub mod state;
 #[cfg(test)]
@@ -84,7 +84,7 @@ impl MeanRevertingStrategy {
                     db.clone(),
                     thresold_window_size,
                     Some(thresold_window_size * 2),
-                    ema_model::threshold,
+                    model::threshold,
                 )
             })
         } else {

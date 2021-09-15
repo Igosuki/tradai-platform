@@ -88,6 +88,7 @@ serde_json = { version = "1.0", features = ["float_roundtrip"] }
 strum = "0.21"
 strum_macros = "0.21"
 tempfile = "3.1"
+snap = "1.0"
 
 # Error
 thiserror = "1.0"
