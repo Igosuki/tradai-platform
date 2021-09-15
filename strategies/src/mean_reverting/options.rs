@@ -34,9 +34,9 @@ pub struct Options {
 impl Options {
     pub(super) fn dry_mode(&self) -> bool { self.dry_mode.unwrap_or(true) }
 
-    pub(super) fn dynamic_threshold(&self) -> bool { self.dynamic_threshold.unwrap_or(true) }
+    pub(crate) fn dynamic_threshold(&self) -> bool { self.dynamic_threshold.unwrap_or(true) }
 
-    pub(super) fn sample_freq(&self) -> Duration { Duration::from_std(parse(&self.sample_freq).unwrap()).unwrap() }
+    pub(crate) fn sample_freq(&self) -> Duration { Duration::from_std(parse(&self.sample_freq).unwrap()).unwrap() }
 
     pub(super) fn order_asset_type(&self) -> AssetType { self.order_asset_type.unwrap_or(AssetType::Spot) }
 }

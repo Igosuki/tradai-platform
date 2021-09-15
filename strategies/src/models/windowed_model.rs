@@ -1,13 +1,17 @@
-use super::persist::{PersistentModel, PersistentVec, Window};
-use crate::error::Result;
-use crate::models::persist::ModelValue;
-use crate::models::Model;
+use std::sync::Arc;
+
 use chrono::{DateTime, Utc};
-use db::Storage;
-use ext::ResultExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::sync::Arc;
+
+use db::Storage;
+use ext::ResultExt;
+
+use crate::error::Result;
+use crate::models::persist::{ModelValue, TimedWindow};
+use crate::models::Model;
+
+use super::persist::{PersistentModel, PersistentVec, Window};
 
 type WindowFn<T, M> = fn(&M, Window<'_, T>) -> M;
 
@@ -53,6 +57,8 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
 
     pub fn window(&self) -> Window<'_, T> { self.rows.window() }
 
+    pub fn timed_window(&self) -> TimedWindow<'_, T> { self.rows.timed_window() }
+
     pub fn len(&self) -> usize { self.rows.len() }
 
     pub fn model(&self) -> Option<ModelValue<M>> { self.model.model() }
@@ -81,14 +87,16 @@ impl<R: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
 mod test {
     extern crate test;
 
+    use test::Bencher;
+
+    use chrono::{DateTime, Utc};
+    use fake::Fake;
+    use quickcheck::{Arbitrary, Gen};
+
     use crate::models::WindowedModel;
     use crate::models::{Model, Window};
     use crate::test_util::test_db;
     use crate::types::BookPosition;
-    use chrono::{DateTime, Utc};
-    use fake::Fake;
-    use quickcheck::{Arbitrary, Gen};
-    use test::Bencher;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct TestRow {

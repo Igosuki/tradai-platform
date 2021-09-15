@@ -1,10 +1,9 @@
 use chrono::Duration;
 
-use backtest::Dataset;
-
 #[cfg(feature = "backtests")]
 #[actix::test]
 async fn complete_backtest_backtest() -> backtest::Result<()> {
+    use backtest::Dataset;
     use chrono::{TimeZone, Utc};
 
     use backtest::BacktestConfig;
