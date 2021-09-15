@@ -9,6 +9,7 @@ pub use windowed_model::WindowedModel;
 use crate::error::Result;
 
 pub mod indicator_model;
+mod loadable;
 mod persist;
 pub mod windowed_model;
 

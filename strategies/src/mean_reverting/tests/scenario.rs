@@ -15,7 +15,7 @@ use util::test::test_results_dir;
 use crate::driver::StrategyDriver;
 use crate::input;
 use crate::margin_interest_rates::test_util::mock_interest_rate_provider;
-use crate::mean_reverting::ema_model::ema_indicator_model;
+use crate::mean_reverting::model::ema_indicator_model;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation};
 use crate::mean_reverting::MeanRevertingStrategy;

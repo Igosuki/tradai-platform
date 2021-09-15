@@ -1,7 +1,8 @@
-use crate::error::*;
-use crate::Storage;
 use std::collections::BTreeMap;
 use std::sync::RwLock;
+
+use crate::error::*;
+use crate::Storage;
 
 #[derive(Debug)]
 pub struct MemoryKVStore {
@@ -15,6 +16,10 @@ impl MemoryKVStore {
             inner: RwLock::new(BTreeMap::new()),
         }
     }
+}
+
+impl Default for MemoryKVStore {
+    fn default() -> Self { Self::new() }
 }
 
 impl Storage for MemoryKVStore {
