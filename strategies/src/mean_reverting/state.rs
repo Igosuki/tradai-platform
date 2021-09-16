@@ -225,6 +225,9 @@ impl MeanRevertingState {
                 Some(Transaction {
                     status: TransactionStatus::Rejected(_),
                     ..
+                }) | Some(Transaction {
+                    status: TransactionStatus::Staged(_),
+                    ..
                 })
             )
         });
