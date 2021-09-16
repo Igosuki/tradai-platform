@@ -95,6 +95,9 @@ tracing-futures = "0.2"
 pyo3 = { version = "0.14", features = ["serde", "auto-initialize"], optional = true }
 pyo3-log = { version = "0.4", optional = true }
 
+# sql
+sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "sqlite", "macros", "migrate", "chrono", "time", "json", "tls"] }
+
 [dev-dependencies]
 # ours
 backtest = { path = "../backtest" }
