@@ -207,6 +207,12 @@ check-bloat:
 check-deps:
 	readelf -d target/release/trader | grep 'NEEDED'
 
+create_engine_db:
+	( DATABASE_URL="sqlite:trader.db" sqlx db create )
+
 migrate_engine_db:
+	DATABASE_URL="sqlite:trader.db" sqlx migrate --source strategies/migrations run
+
+migrate_engine_db_diesel:
 	 diesel migration run --migration-dir strategies/migrations
 

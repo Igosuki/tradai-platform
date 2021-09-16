@@ -27,13 +27,19 @@ impl OrderRepository<Sqlite> {
         Ok(Self { pool })
     }
 
-    pub fn add_order(_order: OrderDetail) -> Result<()> { Ok(()) }
+    pub fn add_order(&self, _order: OrderDetail) -> Result<()> { Ok(()) }
 
-    pub fn get_order(_order_id: String) -> Result<()> { Ok(()) }
+    pub async fn get_order(&self, id: String) -> Result<OrderDetail> {
+        let query = r#"select id, transaction_id, remote_id, status, exchange, pair, base_asset, quote_asset, side, order_type, enforcement, base_qty, quote_qty, price, stop_price, iceberg_qty, is_test, asset_type, executed_qty, cummulative_quote_qty, margin_side_effect, borrowed_amount, borrowed_asset, fills, weighted_price, total_executed_qty, rejection_reason as "rejection_reason: Json<RejectionReason>", created_at, updated_at, closed_at from orders where id = ?"#;
+        Ok(sqlx::query_as!(OrderDetail, query)
+            .bind(&id)
+            .fetch_one(&self.pool)
+            .await?)
+    }
 
-    pub fn orders_by_transaction_id(_transaction_id: String) -> Result<()> { Ok(()) }
+    pub fn orders_by_transaction_id(&self, _transaction_id: String) -> Result<()> { Ok(()) }
 
-    pub fn orders_by(_query: OrdersPaginatedQuery) -> Result<()> { Ok(()) }
+    pub fn orders_by(&self, _query: OrdersPaginatedQuery) -> Result<()> { Ok(()) }
 }
 
 #[cfg(test)]
