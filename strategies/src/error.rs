@@ -29,6 +29,8 @@ pub enum Error {
     #[cfg(feature = "python")]
     #[error("error running python code")]
     Python(#[from] pyo3::PyErr),
+    #[error("sql error")]
+    SQL(#[from] sqlx::Error),
 }
 
 impl Error {
@@ -48,6 +50,7 @@ impl Error {
             Error::OperationBadRequest => "operation_bad_request",
             #[cfg(feature = "python")]
             Error::Python(_) => "python",
+            Error::SQL(_) => "sql",
         }
     }
 }
