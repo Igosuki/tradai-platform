@@ -13,13 +13,33 @@ use coinnect_rt::error::Error as CoinnectError;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, AssetType, Order, OrderQuery,
                          OrderStatus, OrderUpdate, Pair};
-use db::{get_or_create, DbOptions};
+use db::{get_or_create, DbOptions, Storage, StorageExt};
+use ext::ResultExt;
 
 use crate::coinnect_types::AccountType;
 use crate::error::Error;
+use crate::error::Error::OrderNotFound;
 use crate::error::Result;
-use crate::order_types::{OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
+use crate::order_types::{OrderDetail, OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
 use crate::wal::{Wal, WalCmp};
+
+static TRANSACTIONS_TABLE: &str = "transactions_wal";
+static ORDERS_TABLE: &str = "orders";
+
+#[derive(Debug, Clone)]
+pub(crate) struct OrderRepository {
+    db: Arc<dyn Storage>,
+}
+
+impl OrderRepository {
+    pub(crate) fn new(db: Arc<dyn Storage>) -> Self { Self { db } }
+
+    pub(crate) fn get(&self, id: &str) -> Result<OrderDetail> { self.db.get(ORDERS_TABLE, id).err_into() }
+
+    pub(crate) fn put(&self, order: OrderDetail) -> Result<()> {
+        self.db.put(ORDERS_TABLE, &order.id.clone(), order).err_into()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct TransactionService {
@@ -83,9 +103,8 @@ pub struct OrderManager {
     api: Arc<dyn ExchangeApi>,
     orders: Arc<RwLock<HashMap<String, TransactionStatus>>>,
     transactions_wal: Arc<Wal>,
+    repo: OrderRepository,
 }
-
-static TRANSACTIONS_TABLE: &str = "transactions_wal";
 
 // TODO: notify listeners every time a transaction is updated
 impl OrderManager {
@@ -95,13 +114,14 @@ impl OrderManager {
         db_path: S2,
     ) -> Self {
         let wal_db = get_or_create(db_options, db_path, vec![TRANSACTIONS_TABLE.to_string()]);
-        let wal = Arc::new(Wal::new(wal_db, TRANSACTIONS_TABLE.to_string()));
+        let wal = Arc::new(Wal::new(wal_db.clone(), TRANSACTIONS_TABLE.to_string()));
         let orders = Arc::new(RwLock::new(HashMap::new()));
         OrderManager {
             xchg: api.exchange(),
             api,
             orders,
             transactions_wal: wal,
+            repo: OrderRepository::new(wal_db),
         }
     }
 
@@ -191,6 +211,11 @@ impl OrderManager {
         reader.get(&order_id).cloned()
     }
 
+    /// Get the order from storage
+    pub(crate) async fn get_order_from_storage(&self, order_id: String) -> Option<OrderDetail> {
+        self.repo.get(&order_id).ok()
+    }
+
     /// Get the latest remote status for this order id
     pub(crate) async fn fetch_order(&self, order_id: String, pair: Pair, asset_type: AssetType) -> Result<Order> {
         Ok(self.api.get_order(order_id, pair, asset_type).await?)
@@ -206,6 +231,28 @@ impl OrderManager {
                 .map(|status| status.is_before(&tr))
                 .unwrap_or(true)
         };
+        let order = self.repo.get(&order_id);
+        let result = match (tr.clone(), order) {
+            (TransactionStatus::Staged(OrderQuery::AddOrder(add_order)), _) => {
+                self.repo.put(OrderDetail::from_query(self.xchg, None, add_order))
+            }
+            (TransactionStatus::New(submission), Ok(mut order)) => {
+                order.from_submission(submission);
+                self.repo.put(order)
+            }
+            (TransactionStatus::Filled(update) | TransactionStatus::PartiallyFilled(update), Ok(mut order)) => {
+                order.from_fill_update(update);
+                self.repo.put(order)
+            }
+            (TransactionStatus::Rejected(rejection), Ok(mut order)) => {
+                order.from_rejected(rejection);
+                self.repo.put(order)
+            }
+            _ => Err(OrderNotFound(order_id.clone())),
+        };
+        if let Err(e) = result {
+            tracing::error!(order_id = %order_id, error = %e, "Failed to update order in order table")
+        }
         if should_write {
             let mut writer = self.orders.write().await;
             writer.insert(order_id.clone(), tr.clone());
