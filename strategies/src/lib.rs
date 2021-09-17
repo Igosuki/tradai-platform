@@ -18,10 +18,6 @@ extern crate async_trait;
 #[macro_use]
 extern crate derivative;
 #[macro_use]
-extern crate diesel;
-#[macro_use]
-extern crate diesel_derive_enum;
-#[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
@@ -68,11 +64,9 @@ pub mod mean_reverting;
 mod models;
 pub mod naive_pair_trading;
 pub mod order_manager;
-mod order_repository;
 pub mod order_types;
 pub mod query;
 pub mod settings;
-mod sql_schema;
 #[cfg(test)]
 mod test_util;
 pub mod types;
