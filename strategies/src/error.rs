@@ -30,7 +30,9 @@ pub enum Error {
     #[error("error running python code")]
     Python(#[from] pyo3::PyErr),
     #[error("sql error")]
-    SQL(#[from] sqlx::Error),
+    SQL(#[from] diesel::result::Error),
+    #[error("sql connection error")]
+    SqlConnectionError(#[from] diesel::result::ConnectionError),
 }
 
 impl Error {
@@ -51,6 +53,7 @@ impl Error {
             #[cfg(feature = "python")]
             Error::Python(_) => "python",
             Error::SQL(_) => "sql",
+            Error::SqlConnectionError(_) => "sql_connection_error",
         }
     }
 }

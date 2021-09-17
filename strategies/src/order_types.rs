@@ -1,6 +1,13 @@
+use std::io::Write;
+
 use actix::Message;
 use chrono::{DateTime, TimeZone, Utc};
 use derive_more::Display;
+use diesel::backend::Backend;
+use diesel::deserialize::FromSql;
+use diesel::serialize::{Output, ToSql};
+use diesel::sql_types::Text;
+use diesel::Queryable;
 use serde::{Deserialize, Serialize};
 
 use coinnect_rt::exchange::Exchange;
@@ -35,6 +42,33 @@ impl Rejection {
             ExchangeOrderStatus::Canceled | ExchangeOrderStatus::PendingCancel => Rejection::Cancelled(reason),
             _ => Rejection::Unknown("".to_string()),
         }
+    }
+}
+
+impl FromSql<Text, diesel::sqlite::Sqlite> for Rejection {
+    fn from_sql(bytes: Option<&<diesel::sqlite::Sqlite as Backend>::RawValue>) -> diesel::deserialize::Result<Self> {
+        let t = <String as FromSql<Text, diesel::sqlite::Sqlite>>::from_sql(bytes)?;
+        Ok(serde_json::from_str(&t)?)
+    }
+}
+
+impl ToSql<Text, diesel::sqlite::Sqlite> for Rejection {
+    fn to_sql<W: Write>(&self, out: &mut Output<W, diesel::sqlite::Sqlite>) -> diesel::serialize::Result {
+        let s = serde_json::to_string(&self)?;
+        <String as ToSql<Text, diesel::sqlite::Sqlite>>::to_sql(&s, out)
+    }
+}
+
+impl<DB> Queryable<Text, DB> for Rejection
+where
+    DB: Backend,
+    String: FromSql<Text, DB>,
+{
+    type Row = String;
+
+    fn build(s: String) -> Self {
+        let rejection: Rejection = serde_json::from_str(&s).unwrap();
+        rejection
     }
 }
 
@@ -136,7 +170,7 @@ pub struct PassOrder {
 #[rtype(result = "Result<Transaction>")]
 pub struct OrderId(pub String);
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, DbEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum OrderStatus {
     Staged,
@@ -162,14 +196,15 @@ impl From<ExchangeOrderStatus> for OrderStatus {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Queryable)]
 pub struct OrderDetail {
     /// Order id
-    id: String,
+    pub id: String,
     /// Optional transaction id, if this order was part of a larger transaction
     transaction_id: Option<String>,
     /// Identifer with the remote platform
     remote_id: Option<String>,
+    #[diesel(deserialize_as = "OrderStatus")]
     status: OrderStatus,
     exchange: String,
     pair: String,
@@ -190,15 +225,20 @@ pub struct OrderDetail {
     margin_side_effect: Option<MarginSideEffect>,
     borrowed_amount: Option<f64>,
     borrowed_asset: Option<String>,
-    fills: Vec<OrderFill>,
+    #[diesel(deserialize_as = "OrderFills")]
+    fills: OrderFills,
     /// Weighted price updated from fills
     weighted_price: f64,
     total_executed_qty: f64,
+    #[diesel(deserialize_as = "Option<Rejection>")]
     rejection_reason: Option<Rejection>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
     closed_at: Option<DateTime<Utc>>,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OrderFills(Vec<OrderFill>);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OrderFill {
@@ -207,6 +247,19 @@ pub struct OrderFill {
     pub fee: f64,
     pub fee_asset: Option<String>,
     pub ts: DateTime<Utc>,
+}
+
+impl<DB> Queryable<Text, DB> for OrderFills
+where
+    DB: Backend,
+    String: FromSql<Text, DB>,
+{
+    type Row = String;
+
+    fn build(s: String) -> Self {
+        let fills = serde_json::from_str(&s).unwrap();
+        OrderFills(fills)
+    }
 }
 
 impl OrderDetail {
