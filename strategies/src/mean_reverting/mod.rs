@@ -10,6 +10,7 @@ use itertools::Itertools;
 use ordered_float::OrderedFloat;
 
 use coinnect_rt::exchange::Exchange;
+use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
 use coinnect_rt::types::{AssetType, LiveEvent, LiveEventEnvelope, Pair};
 use db::{get_or_create, DbOptions};
 use ext::ResultExt;
@@ -67,11 +68,17 @@ pub struct MeanRevertingStrategy {
 static MEAN_REVERTING_DB_KEY: &str = "mean_reverting";
 
 impl MeanRevertingStrategy {
-    pub fn new<S: AsRef<Path>>(db_opts: &DbOptions<S>, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
+    pub fn new<S: AsRef<Path>>(
+        db_opts: &DbOptions<S>,
+        fees_rate: f64,
+        n: &Options,
+        om: Addr<OrderManager>,
+        mirp: Addr<MarginInterestRateProvider>,
+    ) -> Self {
         let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
         let strat_db_path = format!("{}_{}.{}", MEAN_REVERTING_DB_KEY, n.exchange.to_string(), n.pair);
         let db = get_or_create(db_opts, strat_db_path, vec![]);
-        let state = MeanRevertingState::new(n, fees_rate, db.clone(), om);
+        let state = MeanRevertingState::new(n, fees_rate, db.clone(), om, mirp);
         let ema_model = ema_indicator_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
         let threshold_table = if n.dynamic_threshold() {
             n.threshold_window_size.map(|thresold_window_size| {
@@ -232,7 +239,7 @@ impl MeanRevertingStrategy {
         }
         // Possibly close a short position
         else if self.state.is_short() {
-            self.state.set_position_return(lr.ask);
+            self.state.set_position_return(lr.ask).await;
             if (apo < 0.0) || self.stopper.should_stop(self.state.position_return()) {
                 let position = self.short_position(lr.ask, lr.event_time);
                 self.state.close(position).await?;
@@ -246,7 +253,7 @@ impl MeanRevertingStrategy {
         }
         // Possibly close a long position
         else if self.state.is_long() {
-            self.state.set_position_return(lr.bid);
+            self.state.set_position_return(lr.bid).await;
             if (apo > 0.0) || self.stopper.should_stop(self.state.position_return()) {
                 let position = self.long_position(lr.bid, lr.event_time);
                 self.state.close(position).await?;

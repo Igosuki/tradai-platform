@@ -22,6 +22,7 @@ use db::DbOptions;
 use metrics::prom::PrometheusPushActor;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use portfolio::margin::{MarginAccountReporter, MarginAccountReporterOptions};
+use strategies::margin_interest_rates::MarginInterestRateProvider;
 use strategies::order_manager::OrderManager;
 use strategies::{self, Strategy, StrategyKey};
 
@@ -92,7 +93,8 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                         order_managers_addr.insert(*xchg, addr.clone());
                     }
                 }
-                let strategies = strategies(settings_arc.clone(), oms.clone())
+                let mirp = margin_interest_rate_provider(apis.clone());
+                let strategies = strategies(settings_arc.clone(), oms.clone(), mirp.clone())
                     .instrument(tracing::info_span!("starting strategies"))
                     .await;
                 for a in strategies.clone() {
@@ -269,7 +271,11 @@ fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<LiveEventE
 }
 
 #[tracing::instrument(skip(settings, oms), level = "info")]
-async fn strategies(settings: Arc<RwLock<Settings>>, oms: Arc<HashMap<Exchange, Addr<OrderManager>>>) -> Vec<Strategy> {
+async fn strategies(
+    settings: Arc<RwLock<Settings>>,
+    oms: Arc<HashMap<Exchange, Addr<OrderManager>>>,
+    mirp: Addr<MarginInterestRateProvider>,
+) -> Vec<Strategy> {
     let arc = Arc::clone(&settings);
     let arc1 = arc.clone();
     let settings_v = arc1.read().unwrap();
@@ -283,7 +289,8 @@ async fn strategies(settings: Arc<RwLock<Settings>>, oms: Arc<HashMap<Exchange, 
         let fees = exchanges_conf.get(&exchange).unwrap().fees;
         let oms = oms.clone();
         let db = storage.clone();
-        async move { Strategy::new(db.as_ref(), fees, &strategy_settings, oms.get(&exchange).cloned()) }
+        let mirp = mirp.clone();
+        async move { Strategy::new(db.as_ref(), fees, &strategy_settings, oms.get(&exchange).cloned(), mirp) }
     }))
     .await;
     strats
@@ -320,6 +327,13 @@ async fn order_managers(
         oms.insert(*xch, OrderManager::start(order_manager));
     }
     Ok(oms)
+}
+
+fn margin_interest_rate_provider(
+    apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
+) -> Addr<MarginInterestRateProvider> {
+    let provider = MarginInterestRateProvider::new(apis);
+    MarginInterestRateProvider::start(provider)
 }
 
 pub async fn poll<T: Actor>(addr: Addr<T>) -> std::io::Result<()> {

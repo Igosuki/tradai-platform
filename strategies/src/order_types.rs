@@ -175,9 +175,9 @@ pub struct OrderDetail {
     /// Identifer with the remote platform
     remote_id: Option<String>,
     pub status: OrderStatus,
-    exchange: String,
+    pub exchange: String,
     pair: String,
-    base_asset: String,
+    pub base_asset: String,
     quote_asset: String,
     side: TradeType,
     order_type: OrderType,
@@ -192,16 +192,16 @@ pub struct OrderDetail {
     executed_qty: Option<f64>,
     cummulative_quote_qty: Option<f64>,
     margin_side_effect: Option<MarginSideEffect>,
-    borrowed_amount: Option<f64>,
+    pub borrowed_amount: Option<f64>,
     borrowed_asset: Option<String>,
     fills: Vec<OrderFill>,
     /// Weighted price updated from fills
     pub weighted_price: f64,
     pub total_executed_qty: f64,
     rejection_reason: Option<Rejection>,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-    closed_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub closed_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

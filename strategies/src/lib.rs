@@ -45,6 +45,8 @@ use strum_macros::EnumString;
 use uuid::Uuid;
 
 pub use coinnect_rt::exchange::Exchange;
+pub use coinnect_rt::margin_interest_rates;
+use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
 pub use coinnect_rt::types as coinnect_types;
 use coinnect_rt::types::{LiveEventEnvelope, Pair};
 pub use db::DbOptions;
@@ -121,13 +123,20 @@ impl StrategyKey {
 pub struct Strategy(pub StrategyKey, pub Addr<StrategyActor>, pub Vec<Channel>);
 
 impl Strategy {
-    pub fn new(db: &DbOptions<String>, fees: f64, settings: &StrategySettings, om: Option<Addr<OrderManager>>) -> Self {
+    // TODO: om, mirp and fees could be in a single trading engine struct
+    pub fn new(
+        db: &DbOptions<String>,
+        fees: f64,
+        settings: &StrategySettings,
+        om: Option<Addr<OrderManager>>,
+        mirp: Addr<MarginInterestRateProvider>,
+    ) -> Self {
         let uuid = Uuid::new_v4();
         let key = settings.key();
         let db = db.clone();
         let settings = settings.clone();
         let actor = StrategyActor::new_with_uuid(
-            Box::new(move || settings::from_settings(&db, fees, &settings, om.clone())),
+            Box::new(move || settings::from_settings(&db, fees, &settings, om.clone(), mirp.clone())),
             uuid,
         );
         let channels = actor.channels();

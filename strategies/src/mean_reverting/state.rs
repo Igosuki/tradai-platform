@@ -1,3 +1,4 @@
+use std::ops::Sub;
 use std::panic;
 use std::sync::Arc;
 
@@ -8,7 +9,9 @@ use log::Level::Debug;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use coinnect_rt::types::AssetType;
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::margin_interest_rates::{GetInterestRate, MarginInterestRateProvider};
+use coinnect_rt::types::{AssetType, InterestRate};
 use db::{Storage, StorageExt};
 
 use crate::error::{Error, Result};
@@ -148,6 +151,10 @@ pub(super) struct MeanRevertingState {
     is_trading: bool,
     fees_rate: f64,
     previous_value_strat: f64,
+    last_open_order: Option<OrderDetail>,
+    #[serde(skip_serializing)]
+    mirp: Addr<MarginInterestRateProvider>,
+    exchange: Exchange,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -182,10 +189,17 @@ impl From<&mut MeanRevertingState> for TransientState {
 }
 
 impl MeanRevertingState {
-    pub fn new(options: &Options, fees_rate: f64, db: Arc<dyn Storage>, om: Addr<OrderManager>) -> MeanRevertingState {
+    pub fn new(
+        options: &Options,
+        fees_rate: f64,
+        db: Arc<dyn Storage>,
+        om: Addr<OrderManager>,
+        mirp: Addr<MarginInterestRateProvider>,
+    ) -> MeanRevertingState {
         db.ensure_table(STATE_KEY).unwrap();
         db.ensure_table(OPERATIONS_KEY).unwrap();
         let mut state = MeanRevertingState {
+            exchange: options.exchange,
             position: None,
             value_strat: options.initial_cap,
             nominal_position: 0.0,
@@ -207,6 +221,8 @@ impl MeanRevertingState {
             is_trading: true,
             fees_rate,
             previous_value_strat: options.initial_cap,
+            last_open_order: None,
+            mirp,
         };
         state.reload_state();
         state
@@ -233,6 +249,7 @@ impl MeanRevertingState {
         if let Some(o) = last_unrejected_op {
             if matches!(o.kind, OperationKind::Open) {
                 self.set_position(o.pos.kind.clone());
+                self.last_open_order = o.order_detail.clone();
             }
         }
     }
@@ -276,7 +293,7 @@ impl MeanRevertingState {
     #[allow(dead_code)]
     pub(super) fn nominal_position(&self) -> f64 { self.nominal_position }
 
-    pub(super) fn set_position_return(&mut self, current_price: f64) {
+    pub(super) async fn set_position_return(&mut self, current_price: f64) {
         match self.position {
             Some(PositionKind::Long) => {
                 self.position_return = self.nominal_position
@@ -284,8 +301,19 @@ impl MeanRevertingState {
                     / (self.nominal_position * self.traded_price)
             }
             Some(PositionKind::Short) => {
-                self.position_return = self.nominal_position
+                let interest_fees = match &self.last_open_order {
+                    Some(order) if self.order_asset_type == AssetType::Margin => {
+                        let interest_rate = self.get_interest_rate(self.exchange, order.base_asset.clone()).await;
+                        let hours_elapsed = Utc::now().sub(order.created_at);
+                        interest_rate
+                            .map(|ir| ir.resolve(order.borrowed_amount.unwrap(), hours_elapsed.num_hours()))
+                            .unwrap_or(0.0)
+                    }
+                    _ => 0.0,
+                };
+                self.position_return = (self.nominal_position
                     * (self.traded_price - current_price * (1.0 + self.fees_rate))
+                    - interest_fees)
                     / (self.nominal_position * self.traded_price)
             }
             _ => {}
@@ -325,6 +353,9 @@ impl MeanRevertingState {
             Some(o) if o.is_open() => {
                 self.traded_price = last_price;
                 self.nominal_position = cummulative_qty;
+                if o.kind == OperationKind::Open {
+                    self.last_open_order = o.order_detail;
+                }
                 self.update_open_value(self.previous_value_strat, &o.pos.kind, last_price);
             }
             _ => {}
@@ -463,6 +494,7 @@ impl MeanRevertingState {
     }
 
     fn clear_position(&mut self) {
+        self.last_open_order = None;
         self.position = None;
         self.position_return = 0.0;
         self.nominal_position = 0.0;
@@ -547,5 +579,13 @@ impl MeanRevertingState {
                 Err(Error::InvalidPosition)
             }
         }
+    }
+
+    async fn get_interest_rate(&self, exchange: Exchange, asset: String) -> Option<InterestRate> {
+        self.mirp
+            .send(GetInterestRate { asset, exchange })
+            .await
+            .ok()
+            .and_then(|o| o)
     }
 }

@@ -1,6 +1,7 @@
 use actix::Addr;
 
 use coinnect_rt::exchange::Exchange;
+use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
 use coinnect_rt::pair::filter_pairs;
 
 use crate::generic::Strategy;
@@ -71,6 +72,7 @@ pub fn from_settings(
     fees: f64,
     s: &StrategySettings,
     om: Option<Addr<OrderManager>>,
+    mirp: Addr<MarginInterestRateProvider>,
 ) -> Box<dyn StrategyDriver> {
     match s {
         StrategySettings::Naive(n) => {
@@ -85,7 +87,7 @@ pub fn from_settings(
         }
         StrategySettings::MeanReverting(n) => {
             if let Some(o) = om {
-                Box::new(crate::mean_reverting::MeanRevertingStrategy::new(db, fees, n, o))
+                Box::new(crate::mean_reverting::MeanRevertingStrategy::new(db, fees, n, o, mirp))
             } else {
                 log::error!(
                     "Expected an order manager to be available for the targeted exchange of this MeanRevertingStrategy"
@@ -94,7 +96,7 @@ pub fn from_settings(
             }
         }
         StrategySettings::Generic(s) => {
-            let inner: Box<dyn generic::Strategy> = from_settings_s(db, fees, s, om);
+            let inner: Box<dyn generic::Strategy> = from_settings_s(db, fees, s, om, mirp);
             Box::new(crate::generic::GenericStrategy::try_new(inner.channels().into_iter().collect(), inner).unwrap())
         }
     }
@@ -105,11 +107,12 @@ pub(crate) fn from_settings_s(
     fees: f64,
     s: &StrategySettings,
     om: Option<Addr<OrderManager>>,
+    mirp: Addr<MarginInterestRateProvider>,
 ) -> Box<dyn Strategy> {
     match s {
         StrategySettings::MeanReverting(n) => {
             if let Some(o) = om {
-                Box::new(crate::mean_reverting::MeanRevertingStrategy::new(db, fees, n, o))
+                Box::new(crate::mean_reverting::MeanRevertingStrategy::new(db, fees, n, o, mirp))
             } else {
                 log::error!(
                     "Expected an order manager to be available for the targeted exchange of this MeanRevertingStrategy"
