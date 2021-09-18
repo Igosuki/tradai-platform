@@ -20,11 +20,18 @@ use crate::coinnect_types::AccountType;
 use crate::error::Error;
 use crate::error::Error::OrderNotFound;
 use crate::error::Result;
-use crate::order_types::{OrderDetail, OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
+use crate::order_types::{OrderDetail, OrderDetailId, OrderId, PassOrder, Rejection, StagedOrder, Transaction,
+                         TransactionStatus};
+use crate::types::TradeOperation;
 use crate::wal::{Wal, WalCmp};
 
 static TRANSACTIONS_TABLE: &str = "transactions_wal";
 static ORDERS_TABLE: &str = "orders";
+
+pub enum OrderResolution {
+    OperationCancelled,
+    NoTransactionChange,
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct OrderRepository {
@@ -51,35 +58,47 @@ impl TransactionService {
 
     /// Stage an order
     #[tracing::instrument(skip(self), level = "debug")]
-    pub async fn stage_order(&self, staged_order: StagedOrder) -> Result<Transaction> {
+    pub async fn stage_order(&self, staged_order: StagedOrder) -> Result<OrderDetail> {
         self.om
             .send(staged_order)
             .await
             .map_err(|_| Error::OrderManagerMailboxError)?
     }
 
-    /// Fetches the latest version of this transaction for the order id
-    /// Returns whether it changed, and the latest transaction retrieved
-    pub async fn latest_transaction_change(&self, tr: &Transaction) -> crate::error::Result<(bool, Transaction)> {
-        let new_tr = self
-            .om
-            .send(OrderId(tr.id.clone()))
-            .await
-            .map_err(|_| Error::OrderManagerMailboxError)??;
-        Ok((!new_tr.variant_eq(tr), new_tr))
+    /// Retry staging an order if it was rejected
+    pub async fn stage_trade(&self, trade: &TradeOperation) -> Result<OrderDetail> {
+        let staged_order = StagedOrder {
+            request: trade.clone().into(),
+        };
+        self.stage_order(staged_order).await.map_err(|e| {
+            error!("Failed to retry trade {:?} : {}", trade, e);
+            e
+        })
     }
 
-    /// Retry staging an order if it was rejected
-    pub async fn maybe_retry_trade(&self, tr: Transaction, order: StagedOrder) -> Result<Transaction> {
-        if tr.is_rejected() {
-            // Changed and rejected, retry transaction
-            // TODO need to handle rejections in a finer grained way
-            // TODO introduce a backoff
-            self.stage_order(order).await
-        } else {
-            // TODO: Timeout can be managed here
-            Ok(tr)
+    /// TODO: handle finer grained rejections such as timeouts
+    /// TODO: introduce a optional backoff for restaging orders
+    pub async fn resolve_pending_order(&self, order: &OrderDetail) -> Result<(OrderDetail, Result<()>)> {
+        if order.is_cancelled() {
+            return Err(Error::OperationCancelled);
         }
+        let stored_order = self
+            .om
+            .send(OrderDetailId(order.id.clone()))
+            .await
+            .map_err(|_| Error::OrderManagerMailboxError)??;
+        let result = if !order.is_same_status(&stored_order.status) {
+            return Err(Error::NoTransactionChange);
+        } else if stored_order.is_filled() {
+            Ok(())
+        } else if order.is_bad_request() {
+            Err(Error::OperationBadRequest)
+        } else if order.is_rejected() {
+            Err(Error::OperationRestaged)
+        } else {
+            Err(Error::NoTransactionChange)
+        };
+        Ok((stored_order, result))
     }
 }
 
@@ -142,17 +161,14 @@ impl OrderManager {
 
     /// Registers an order, and passes it to be later processed
     #[tracing::instrument(skip(self), level = "info")]
-    pub(crate) async fn stage_order(&mut self, staged_order: StagedOrder) -> Result<Transaction> {
+    pub(crate) async fn stage_order(&mut self, staged_order: StagedOrder) -> Result<(AddOrderRequest, OrderDetail)> {
         let mut request = staged_order.request;
         let order_id = Uuid::new_v4().to_string();
         request.order_id = Some(order_id.clone());
-        let add_order = OrderQuery::AddOrder(request);
+        let add_order = OrderQuery::AddOrder(request.clone());
         let staged_transaction = TransactionStatus::Staged(add_order.clone());
         self.register(order_id.clone(), staged_transaction.clone()).await?;
-        Ok(Transaction {
-            id: order_id.clone(),
-            status: staged_transaction,
-        })
+        Ok((request, self.repo.get(&order_id)?))
     }
 
     /// Directly passes an order query
@@ -375,7 +391,7 @@ impl Handler<AccountEventEnveloppe> for OrderManager {
 }
 
 impl Handler<StagedOrder> for OrderManager {
-    type Result = ResponseActFuture<Self, Result<Transaction>>;
+    type Result = ResponseActFuture<Self, Result<OrderDetail>>;
 
     fn handle(&mut self, order: StagedOrder, _ctx: &mut Self::Context) -> Self::Result {
         let mut zis = self.clone();
@@ -383,17 +399,13 @@ impl Handler<StagedOrder> for OrderManager {
             async move { zis.stage_order(order).await }
                 .into_actor(self)
                 .map(|tr, _act, ctx| {
-                    if let Ok(Transaction {
-                        id,
-                        status: TransactionStatus::Staged(query),
-                    }) = &tr
-                    {
+                    if let Ok((request, order_detail)) = &tr {
                         ctx.notify(PassOrder {
-                            id: id.clone(),
-                            query: query.clone(),
+                            id: order_detail.id.clone(),
+                            query: OrderQuery::AddOrder(request.clone()),
                         });
                     }
-                    tr
+                    tr.map(|r| r.1)
                 }),
         )
     }
@@ -420,6 +432,23 @@ impl Handler<OrderId> for OrderManager {
                     .await
                     .ok_or_else(|| Error::OrderNotFound(order_id.clone()))
                     .map(move |status| Transaction { id: order_id, status })
+            }
+            .into_actor(self),
+        )
+    }
+}
+
+impl Handler<OrderDetailId> for OrderManager {
+    type Result = ResponseActFuture<Self, Result<OrderDetail>>;
+
+    fn handle(&mut self, order: OrderDetailId, _ctx: &mut Self::Context) -> Self::Result {
+        let zis = self.clone();
+        Box::pin(
+            async move {
+                let order_id = order.0.clone();
+                zis.get_order_from_storage(order_id.clone())
+                    .await
+                    .ok_or_else(|| Error::OrderNotFound(order_id.clone()))
             }
             .into_actor(self),
         )
@@ -493,11 +522,13 @@ pub mod test_util {
 #[cfg(test)]
 mod test {
     use coinnect_rt::exchange::Exchange::Binance;
-    use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderSubmission, OrderUpdate, TradeType};
+    use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderSubmission, OrderUpdate, Pair, TradeType};
     use util::test::test_dir;
 
     use crate::order_manager::test_util::{it_order_manager, new_mock_manager};
-    use crate::order_types::{Rejection, StagedOrder, Transaction, TransactionStatus};
+    use crate::order_types::{OrderStatus, Rejection, StagedOrder, Transaction, TransactionStatus};
+    use crate::test_util::binance::local_api;
+    use crate::test_util::binance_account_ws;
 
     #[actix::test]
     async fn test_append_rejected() {
@@ -600,5 +631,50 @@ mod test {
             statuses.last(),
             "Compacted record should be the highest inserted status"
         )
+    }
+
+    #[actix::test]
+    async fn test_trade_workflow() {
+        // System
+        // Account stream
+        let _account_server = crate::test_util::ws_it_server(binance_account_ws()).await;
+        // Binance stream ?
+        // Binance API
+        let (_server, binance_api) = local_api().await;
+        // Order Manager
+        let test_dir = util::test::test_dir();
+        let om = crate::order_manager::test_util::local_manager(test_dir, binance_api);
+
+        // Workflow :
+        // Strategy has reached a certain initial state
+        // 1.
+        // Strategy makes an open, order is rejected
+        // Strategy receives a new event, order is retried and passes, ongoing operation is cleared
+        // Strategy closes, order passes, ongoing operation is cleared and pnl is updated
+        // 2.
+        // Strategy makes an open, order passes and ongoing operation is cleared
+        // Strategy closes, order passes, ongoing operation is cleared and pnl is updated
+        let pair: Pair = "BTC_USDT".to_string().into();
+        let order_detail = om
+            .send(StagedOrder {
+                request: AddOrderRequest {
+                    pair,
+                    price: Some(0.1),
+                    dry_run: false,
+                    quantity: Some(0.1),
+                    side: TradeType::Buy,
+                    ..AddOrderRequest::default()
+                },
+            })
+            .await;
+        // Strategy
+        assert!(order_detail.is_ok());
+        let res = order_detail.unwrap();
+        println!("{:?}", &res);
+        assert!(res.is_ok());
+        if let Ok(tr) = res {
+            assert_ne!(tr.id, "".to_string());
+            assert!(!matches!(tr.status, OrderStatus::Rejected));
+        }
     }
 }

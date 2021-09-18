@@ -68,16 +68,20 @@ impl TradeOperation {
 }
 
 impl TradeOperation {
-    pub fn with_new_price(&self, new_price: f64) -> TradeOperation {
-        TradeOperation {
-            price: new_price,
-            ..self.clone()
-        }
-    }
+    pub fn with_new_price(&mut self, new_price: f64) { self.price = new_price; }
+}
 
-    pub fn to_request(&self, mode: &OrderMode, asset_type: &AssetType) -> AddOrderRequest {
-        let mut request: AddOrderRequest = self.clone().into();
-        match mode {
+impl From<TradeOperation> for AddOrderRequest {
+    fn from(to: TradeOperation) -> Self {
+        let mut request = AddOrderRequest {
+            pair: to.pair.into(),
+            side: to.kind.into(),
+            quantity: Some(to.qty),
+            price: Some(to.price),
+            dry_run: to.dry_mode,
+            ..AddOrderRequest::default()
+        };
+        match to.mode {
             OrderMode::Limit => {
                 request.order_type = OrderType::Limit;
                 request.enforcement = Some(OrderEnforcement::FOK);
@@ -87,21 +91,8 @@ impl TradeOperation {
                 request.price = None;
             }
         }
-        request.asset_type = Some(*asset_type);
+        request.asset_type = Some(to.asset_type);
         request
-    }
-}
-
-impl From<TradeOperation> for AddOrderRequest {
-    fn from(to: TradeOperation) -> Self {
-        AddOrderRequest {
-            pair: to.pair.into(),
-            side: to.kind.into(),
-            quantity: Some(to.qty),
-            price: Some(to.price),
-            dry_run: to.dry_mode,
-            ..AddOrderRequest::default()
-        }
     }
 }
 

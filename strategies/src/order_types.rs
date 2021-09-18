@@ -120,7 +120,7 @@ impl Transaction {
 }
 
 #[derive(Message, Debug)]
-#[rtype(result = "Result<Transaction>")]
+#[rtype(result = "Result<OrderDetail>")]
 pub(crate) struct StagedOrder {
     pub request: AddOrderRequest,
 }
@@ -135,6 +135,10 @@ pub struct PassOrder {
 #[derive(Message)]
 #[rtype(result = "Result<Transaction>")]
 pub struct OrderId(pub String);
+
+#[derive(Message)]
+#[rtype(result = "Result<OrderDetail>")]
+pub struct OrderDetailId(pub String);
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -162,7 +166,7 @@ impl From<ExchangeOrderStatus> for OrderStatus {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct OrderDetail {
     /// Order id
     pub id: String,
@@ -170,7 +174,7 @@ pub struct OrderDetail {
     transaction_id: Option<String>,
     /// Identifer with the remote platform
     remote_id: Option<String>,
-    status: OrderStatus,
+    pub status: OrderStatus,
     exchange: String,
     pair: String,
     base_asset: String,
@@ -192,15 +196,15 @@ pub struct OrderDetail {
     borrowed_asset: Option<String>,
     fills: Vec<OrderFill>,
     /// Weighted price updated from fills
-    weighted_price: f64,
-    total_executed_qty: f64,
+    pub weighted_price: f64,
+    pub total_executed_qty: f64,
     rejection_reason: Option<Rejection>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
     closed_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct OrderFill {
     pub price: f64,
     pub qty: f64,
@@ -210,6 +214,22 @@ pub struct OrderFill {
 }
 
 impl OrderDetail {
+    pub fn is_same_status(&self, os: &OrderStatus) -> bool {
+        std::mem::discriminant(&self.status) == std::mem::discriminant(os)
+    }
+
+    pub fn is_filled(&self) -> bool { matches!(self.status, OrderStatus::Filled) }
+
+    pub fn is_bad_request(&self) -> bool {
+        self.is_rejected() && matches!(self.rejection_reason, Some(Rejection::BadRequest(_)))
+    }
+
+    pub fn is_rejected(&self) -> bool { matches!(self.status, OrderStatus::Rejected) }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.is_rejected() && matches!(self.rejection_reason, Some(Rejection::Cancelled(_)))
+    }
+
     #[allow(dead_code)]
     pub fn from_query(exchange: Exchange, transaction_id: Option<String>, add_order: AddOrderRequest) -> Self {
         let pair_string = add_order.pair.to_string();
@@ -257,7 +277,7 @@ impl OrderDetail {
         self.borrowed_asset = submission.borrow_asset;
         self.borrowed_amount = submission.borrowed_amount;
         self.remote_id = Some(submission.id);
-        self.status = OrderStatus::Created;
+        self.status = submission.status.into();
         self.updated_at = Utc::now();
     }
 
