@@ -14,7 +14,7 @@ use db::{Storage, StorageExt};
 use crate::error::{Error, Result};
 use crate::mean_reverting::options::Options;
 use crate::order_manager::{OrderManager, TransactionService};
-use crate::order_types::{Rejection, StagedOrder, Transaction, TransactionStatus};
+use crate::order_types::{OrderDetail, Rejection, Transaction, TransactionStatus};
 use crate::query::MutableField;
 use crate::types::{BookPosition, ExecutionInstruction, OperationEvent, OrderMode, StratEvent, TradeEvent,
                    TradeOperation};
@@ -34,6 +34,7 @@ pub struct Operation {
     pub kind: OperationKind,
     pub pos: Position,
     pub transaction: Option<Transaction>,
+    pub order_detail: Option<OrderDetail>,
     pub trade: TradeOperation,
     pub instructions: Option<ExecutionInstruction>,
 }
@@ -62,6 +63,7 @@ impl Operation {
             pos: pos.clone(),
             kind: op_kind,
             transaction: None,
+            order_detail: None,
             trade: TradeOperation {
                 price: pos.price,
                 qty,
@@ -358,68 +360,39 @@ impl MeanRevertingState {
 
     #[tracing::instrument(skip(self), level = "trace")]
     pub(super) async fn resolve_pending_operations(&mut self, current_bp: &BookPosition) -> Result<()> {
-        match self.ongoing_op.as_ref() {
-            // There is an ongoing operation
-            Some(o) => {
-                match &o.transaction {
-                    Some(olt) => {
-                        if olt.is_cancelled() {
-                            return Err(Error::OperationCancelled);
-                        }
-                        let pending_transaction = self.ts.latest_transaction_change(olt).await?;
-                        if !pending_transaction.0 {
-                            return Err(Error::NoTransactionChange);
-                        }
-                        // One of the operations has changed, update the ongoing operation
-                        let transaction = &pending_transaction.1;
-                        let mut new_op = o.clone();
-                        new_op.transaction = Some(transaction.clone());
-                        // Operation filled, clear position
-                        let result = if transaction.is_filled() {
-                            if log_enabled!(Debug) {
-                                debug!("Transaction is {} for operation {}", transaction.status, &o.id);
-                            }
-                            match &transaction.status {
-                                TransactionStatus::Filled(update) => self
-                                    .clear_ongoing_operation(update.last_executed_price, update.cummulative_filled_qty),
-                                TransactionStatus::New(sub) => {
-                                    let total_qty = sub.trades.iter().map(|fill| fill.qty).sum::<f64>();
-                                    let weighted_price =
-                                        sub.trades.iter().map(|fill| fill.price * fill.qty).sum::<f64>() / total_qty;
-                                    self.clear_ongoing_operation(weighted_price, total_qty)
-                                }
-                                _ => {}
-                            }
-                            Ok(())
-                        } else if transaction.is_bad_request() {
-                            self.stop_trading();
-                            Err(Error::OperationBadRequest)
-                        } else {
-                            // Need to resolve the operation, potentially with a new price
-                            let current_price = self.new_price(current_bp, &o.kind)?;
-                            let new_trade = o.trade.with_new_price(current_price);
-                            let staged_order = StagedOrder {
-                                request: new_trade.to_request(&self.order_mode, &self.order_asset_type),
-                            };
-                            if let Err(e) = self
-                                .ts
-                                .maybe_retry_trade(transaction.clone(), staged_order)
-                                .await
-                                .map(|tr| new_op.transaction = Some(tr))
-                            {
-                                error!("Failed to retry trade {:?}, {:?} : {}", &transaction, &new_trade, e);
-                            }
-                            self.set_ongoing_op(Some(new_op.clone()));
-                            Err(Error::OperationRestaged)
-                        };
-                        self.save_operation(&new_op);
-                        result
-                    }
-                    _ => Err(Error::NoTransactionInOperation),
-                }
-            }
-            None => Ok(()),
+        if self.ongoing_op.is_none() {
+            return Ok(());
         }
+        let ongoing_op = self.ongoing_op.as_ref().unwrap();
+        if ongoing_op.order_detail.is_none() {
+            return Err(Error::NoTransactionInOperation);
+        }
+        let order_detail = ongoing_op.order_detail.as_ref().unwrap();
+        let (new_order, resolution) = self.ts.resolve_pending_order(order_detail).await?;
+        let mut new_op = ongoing_op.clone();
+        new_op.order_detail = Some(new_order.clone());
+        let result = match resolution {
+            Ok(_) => {
+                self.clear_ongoing_operation(new_order.weighted_price, new_order.total_executed_qty);
+                Ok(())
+            }
+            Err(e) => {
+                if matches!(e, Error::OperationRestaged) {
+                    let current_price = self.new_price(current_bp, &ongoing_op.kind)?;
+                    new_op.trade.with_new_price(current_price);
+                    if let Ok(order_detail) = self.ts.stage_trade(&new_op.trade).await {
+                        new_op.order_detail = Some(order_detail);
+                    }
+                }
+                if matches!(e, Error::OperationBadRequest) {
+                    self.stop_trading();
+                }
+                self.set_ongoing_op(Some(new_op.clone()));
+                Err(e)
+            }
+        };
+        self.save_operation(&new_op);
+        result
     }
 
     fn update_nominal_position(&mut self, position_kind: &PositionKind) {
@@ -506,14 +479,11 @@ impl MeanRevertingState {
     async fn stage_operation(&mut self, op: &mut Operation) -> Result<Operation> {
         self.save_operation(op);
         self.set_ongoing_op(Some(op.clone()));
-        let staged_order = StagedOrder {
-            request: op.trade.to_request(&self.order_mode, &self.order_asset_type),
-        };
         self.ts
-            .stage_order(staged_order)
+            .stage_trade(&op.trade)
             .await
-            .map(|tr| {
-                op.transaction = Some(tr);
+            .map(|order| {
+                op.order_detail = Some(order);
                 self.save_operation(op);
                 self.set_ongoing_op(Some(op.clone()));
                 op.log();
@@ -563,6 +533,7 @@ impl MeanRevertingState {
             debug!("{}", serde_json::to_string(&s).unwrap());
         }
     }
+
     fn new_price(&self, bp: &BookPosition, operation_kind: &OperationKind) -> Result<f64> {
         match (&self.position, operation_kind) {
             (Some(PositionKind::Short), OperationKind::Open) | (Some(PositionKind::Long), OperationKind::Close) => {

@@ -421,7 +421,7 @@ impl StrategyDriver for NaiveTradingStrategy {
         ]
     }
 
-    fn stop_trading(&mut self) {}
+    fn stop_trading(&mut self) { self.state.stop_trading(); }
 
-    fn resume_trading(&mut self) {}
+    fn resume_trading(&mut self) { self.state.resume_trading(); }
 }

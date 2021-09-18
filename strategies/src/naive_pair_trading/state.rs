@@ -12,8 +12,8 @@ use db::{Storage, StorageExt};
 use crate::coinnect_types::AssetType;
 use crate::error::*;
 use crate::naive_pair_trading::options::Options;
-use crate::order_manager::OrderManager;
-use crate::order_types::{OrderId, StagedOrder, Transaction};
+use crate::order_manager::{OrderManager, TransactionService};
+use crate::order_types::{OrderDetail, Transaction};
 use crate::query::MutableField;
 use crate::types::{BookPosition, OperationEvent, OrderMode, StratEvent, TradeEvent, TradeOperation};
 use crate::types::{OperationKind, PositionKind, TradeKind};
@@ -37,6 +37,8 @@ pub struct Operation {
     pub right_coef: f64,
     pub left_transaction: Option<Transaction>,
     pub right_transaction: Option<Transaction>,
+    pub left_order: Option<OrderDetail>,
+    pub right_order: Option<OrderDetail>,
     pub left_trade: TradeOperation,
     pub right_trade: TradeOperation,
 }
@@ -113,12 +115,13 @@ pub(super) struct MovingState {
     pnl: f64,
     #[serde(skip_serializing)]
     db: Arc<dyn Storage>,
-    #[serde(skip_serializing)]
-    om: Addr<OrderManager>,
     ongoing_op: Option<Operation>,
     /// Remote operations are ran dry, meaning no actual action will be performed when possible
     dry_mode: bool,
     order_mode: OrderMode,
+    #[serde(skip_serializing)]
+    ts: TransactionService,
+    is_trading: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -154,10 +157,11 @@ impl MovingState {
             long_position_return: 0.0,
             pnl: n.initial_cap,
             db,
-            om,
             ongoing_op: None,
             dry_mode: n.dry_mode(),
             order_mode: n.order_mode,
+            ts: TransactionService::new(om),
+            is_trading: true,
         };
         state.reload_state();
         state
@@ -310,6 +314,8 @@ impl MovingState {
             right_coef,
             left_transaction: None,
             right_transaction: None,
+            left_order: None,
+            right_order: None,
             left_trade: TradeOperation {
                 price: pos.left_price,
                 qty: spread * self.beta_val,
@@ -333,29 +339,6 @@ impl MovingState {
         }
     }
 
-    /// Fetches the latest version of this transaction for the order id
-    /// Returns whether it changed, and the latest transaction retrieved
-    async fn latest_transaction_change(&self, tr: &Transaction) -> Result<(bool, Transaction)> {
-        let new_tr = self
-            .om
-            .send(OrderId(tr.id.clone()))
-            .await
-            .map_err(|_| Error::OrderManagerMailboxError)??;
-        Ok((!new_tr.variant_eq(tr), new_tr))
-    }
-
-    async fn maybe_retry_trade(&self, tr: Transaction, trade: &TradeOperation) -> Result<Transaction> {
-        if tr.is_rejected() {
-            // Changed and rejected, retry transaction
-            // TODO need to handle rejections in a finer grained way
-            // TODO introduce a backoff
-            self.stage_order(trade.clone()).await
-        } else {
-            // TODO: Timeout can be managed here
-            Ok(tr)
-        }
-    }
-
     fn clear_ongoing_operation(&mut self) {
         if let Some(Operation {
             kind: OperationKind::Close,
@@ -374,80 +357,70 @@ impl MovingState {
         left_bp: &BookPosition,
         right_bp: &BookPosition,
     ) -> Result<()> {
-        match self.ongoing_op.as_ref() {
-            // There is an ongoing operation
-            Some(o) => {
-                match (&o.left_transaction, &o.right_transaction) {
-                    (Some(olt), Some(ort)) => {
-                        let pending_trs = futures::future::join(
-                            self.latest_transaction_change(olt),
-                            self.latest_transaction_change(ort),
-                        )
-                        .await;
-
-                        let olr = pending_trs.0?;
-                        let orr = pending_trs.1?;
-                        // One of the operations has changed, update the ongoing operation
-                        let lts = &olr.1;
-                        let rts = &orr.1;
-                        let mut new_op = o.clone();
-                        // Left or Right transaction changed
-                        if olr.0 || orr.0 {
-                            new_op.left_transaction = Some(lts.clone());
-                            new_op.right_transaction = Some(rts.clone());
-                        }
-                        // Both operations filled, clear position
-                        let result = if lts.is_filled() && rts.is_filled() {
-                            info!("Both transactions filled for {}", &o.id);
-                            self.clear_ongoing_operation();
-                            Ok(())
-                        } else if lts.is_bad_request() && rts.is_bad_request() {
-                            // In this case, our bot did something wrong and repeating the operation
-                            // will always fail, so cancel the operation
-                            let oid = &o.id.clone();
-                            self.ongoing_op = None;
-                            info!("Both transactions rejected with bad request for {}", &oid);
-                            self.clear_ongoing_operation();
-                            Ok(())
-                        } else {
-                            // Need to resolve the operation, potentially with a new price
-                            let (current_price_left, current_price_right) = match (&self.position, &o.kind) {
-                                (Some(PositionKind::Short), OperationKind::Open)
-                                | (Some(PositionKind::Long), OperationKind::Close) => (left_bp.ask, right_bp.bid),
-                                (Some(PositionKind::Short), OperationKind::Close)
-                                | (Some(PositionKind::Long), OperationKind::Open) => (left_bp.bid, right_bp.ask),
-                                _ => {
-                                    error!("Tried to determine new price for transactions when no position is taken");
-                                    (0.0, 0.0)
-                                }
-                            };
-                            let new_left_trade = o.left_trade.with_new_price(current_price_left);
-                            if let Err(e) = self
-                                .maybe_retry_trade(lts.clone(), &new_left_trade)
-                                .await
-                                .map(|tr| new_op.left_transaction = Some(tr))
-                            {
-                                error!("Failed to retry trade {:?}, {:?} : {}", &lts, &new_left_trade, e);
-                            }
-                            let new_right_trade = o.right_trade.with_new_price(current_price_right);
-                            if let Err(e) = self
-                                .maybe_retry_trade(rts.clone(), &new_right_trade)
-                                .await
-                                .map(|tr| new_op.right_transaction = Some(tr))
-                            {
-                                error!("Failed to retry right trade {:?}, {:?} : {}", &rts, &new_right_trade, e);
-                            }
-                            self.set_ongoing_op(Some(new_op.clone()));
-                            Err(Error::OperationRestaged)
-                        };
-                        self.save_operation(&new_op);
-                        result
-                    }
-                    _ => Err(Error::NoTransactionInOperation),
+        if self.ongoing_op.is_none() {
+            return Ok(());
+        }
+        let ongoing_op = self.ongoing_op.as_ref().unwrap();
+        if ongoing_op.left_order.is_none() || ongoing_op.right_order.is_none() {
+            return Err(Error::NoTransactionInOperation);
+        }
+        let left_order = ongoing_op.left_order.as_ref().unwrap();
+        let right_order = ongoing_op.right_order.as_ref().unwrap();
+        let (olr, orr) = futures::future::join(
+            self.ts.resolve_pending_order(left_order),
+            self.ts.resolve_pending_order(right_order),
+        )
+        .await;
+        let olr = olr?;
+        let orr = orr?;
+        let mut new_op = ongoing_op.clone();
+        new_op.left_order = Some(olr.0.clone());
+        new_op.right_order = Some(orr.0.clone());
+        let (current_price_left, current_price_right) = match (&self.position, &ongoing_op.kind) {
+            (Some(PositionKind::Short), OperationKind::Open) | (Some(PositionKind::Long), OperationKind::Close) => {
+                (left_bp.ask, right_bp.bid)
+            }
+            (Some(PositionKind::Short), OperationKind::Close) | (Some(PositionKind::Long), OperationKind::Open) => {
+                (left_bp.bid, right_bp.ask)
+            }
+            _ => {
+                error!("Tried to determine new price for transactions when no position is taken");
+                (0.0, 0.0)
+            }
+        };
+        let result = if olr.1.is_ok() && orr.1.is_ok() {
+            info!("Both transactions filled for {}", &ongoing_op.id);
+            self.clear_ongoing_operation();
+            Ok(())
+        } else if let Err(e) = olr.1 {
+            if matches!(e, Error::OperationRestaged) {
+                new_op.left_trade.with_new_price(current_price_left);
+                if let Ok(order_detail) = self.ts.stage_trade(&new_op.left_trade).await {
+                    new_op.left_order = Some(order_detail);
                 }
             }
-            None => Ok(()),
-        }
+            if matches!(e, Error::OperationBadRequest) {
+                self.stop_trading();
+            }
+            self.set_ongoing_op(Some(new_op.clone()));
+            Err(e)
+        } else if let Err(e) = orr.1 {
+            if matches!(e, Error::OperationRestaged) {
+                new_op.right_trade.with_new_price(current_price_right);
+                if let Ok(order_detail) = self.ts.stage_trade(&new_op.right_trade).await {
+                    new_op.right_order = Some(order_detail);
+                }
+            }
+            if matches!(e, Error::OperationBadRequest) {
+                self.stop_trading();
+            }
+            self.set_ongoing_op(Some(new_op.clone()));
+            Err(e)
+        } else {
+            unreachable!()
+        };
+        self.save_operation(&new_op);
+        result
     }
 
     pub(super) async fn open(&mut self, pos: Position, fees: f64) -> Operation {
@@ -512,16 +485,6 @@ impl MovingState {
         self.traded_price_right = 0.0;
     }
 
-    async fn stage_order(&self, trade_op: TradeOperation) -> Result<Transaction> {
-        let staged_order = StagedOrder {
-            request: trade_op.to_request(&self.order_mode, &AssetType::Spot),
-        };
-        self.om
-            .send(staged_order)
-            .await
-            .map_err(|_| Error::OrderManagerMailboxError)?
-    }
-
     fn save_operation(&mut self, op: &Operation) {
         if let Err(e) = self.db.put(OPERATIONS_KEY, &op.id, op.clone()) {
             error!("Error saving operation: {:?}", e);
@@ -529,16 +492,16 @@ impl MovingState {
     }
     async fn stage_operation(&mut self, op: &mut Operation) {
         self.save_operation(op);
-        let reqs: (Result<Transaction>, Result<Transaction>) = futures::future::join(
-            self.stage_order(op.left_trade.clone()),
-            self.stage_order(op.right_trade.clone()),
+        let reqs: (Result<OrderDetail>, Result<OrderDetail>) = futures::future::join(
+            self.ts.stage_trade(&op.left_trade),
+            self.ts.stage_trade(&op.right_trade),
         )
         .await;
 
-        op.left_transaction = reqs.0.ok();
-        op.right_transaction = reqs.1.ok();
+        op.left_order = reqs.0.ok();
+        op.right_order = reqs.1.ok();
         self.save_operation(op);
-        match (&op.left_transaction, &op.right_transaction) {
+        match (&op.left_order, &op.right_order) {
             (None, _) | (_, None) => error!("Failed transaction"),
             _ => trace!("Transaction ok"),
         }
@@ -602,4 +565,8 @@ impl MovingState {
             );
         }
     }
+
+    pub fn stop_trading(&mut self) { self.is_trading = false; }
+
+    pub fn resume_trading(&mut self) { self.is_trading = true; }
 }
