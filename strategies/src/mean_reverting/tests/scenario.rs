@@ -13,6 +13,7 @@ use util::date::now_str;
 use util::test::test_results_dir;
 
 use crate::input;
+use crate::margin_interest_rates::test_util::mock_interest_rate_provider;
 use crate::mean_reverting::ema_model::ema_indicator_model;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::MeanRevertingState;
@@ -145,6 +146,7 @@ async fn complete_backtest() {
     //setup_opentelemetry();
     let path = util::test::test_dir();
     let order_manager_addr = mock_manager(&path);
+    let margin_interest_rate_provider_addr = mock_interest_rate_provider(Exchange::Binance);
     let test_results_dir = test_results_dir(module_path!());
 
     let mut strat = MeanRevertingStrategy::new(
@@ -170,6 +172,7 @@ async fn complete_backtest() {
             order_asset_type: None,
         },
         order_manager_addr,
+        margin_interest_rate_provider_addr,
     );
     let mut elapsed = 0_u128;
     let csv_records =
