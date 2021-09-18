@@ -225,9 +225,6 @@ impl MeanRevertingState {
                 Some(Transaction {
                     status: TransactionStatus::Rejected(_),
                     ..
-                }) | Some(Transaction {
-                    status: TransactionStatus::Staged(_),
-                    ..
                 })
             )
         });
@@ -354,7 +351,6 @@ impl MeanRevertingState {
                 self.save_operation(&op);
                 self.ongoing_op = None;
                 self.save();
-                self.resume_trading();
                 true
             }
         }
