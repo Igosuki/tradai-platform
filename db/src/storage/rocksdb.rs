@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+use std::iter::FromIterator;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -7,17 +9,18 @@ use ext::ResultExt;
 
 use crate::error::*;
 use crate::storage::Storage;
-use std::collections::HashSet;
-use std::iter::FromIterator;
 
 type Bytes = Box<[u8]>;
 
 fn default_read_option() -> bool { false }
 
+/// TODO: macro + serde flatten to get all options
 #[derive(Deserialize, Serialize, Debug, Clone, Default)]
 pub struct RocksDbOptions {
     #[serde(default = "default_read_option")]
     read_only: bool,
+    max_log_file_size: Option<usize>,
+    keep_log_file_num: Option<usize>,
 }
 
 impl RocksDbOptions {
@@ -33,11 +36,17 @@ pub struct RocksDbStorage {
 }
 
 impl RocksDbStorage {
-    pub fn try_new<S: AsRef<Path>>(options: &RocksDbOptions, db_path: S, tables: Vec<String>) -> Result<Self> {
-        let is_read_only = options.read_only;
+    pub fn try_new<S: AsRef<Path>>(rocksdb_options: &RocksDbOptions, db_path: S, tables: Vec<String>) -> Result<Self> {
+        let is_read_only = rocksdb_options.read_only;
         let mut options = Options::default();
         options.create_if_missing(true);
         options.create_missing_column_families(true);
+        if let Some(max_log_file_size) = rocksdb_options.max_log_file_size {
+            options.set_max_log_file_size(max_log_file_size);
+        }
+        if let Some(keep_log_file_num) = rocksdb_options.keep_log_file_num {
+            options.set_keep_log_file_num(keep_log_file_num);
+        }
         let mut tables: HashSet<String> = HashSet::from_iter(tables);
         let query = DB::list_cf(&options, db_path.as_ref());
         if let Ok(cfs) = query {
@@ -127,11 +136,12 @@ impl Storage for RocksDbStorage {
 #[cfg(test)]
 mod test {
     extern crate test;
-    use util;
 
     use test::Bencher;
 
     use chrono::Utc;
+
+    use util;
 
     use crate::error::Error;
     use crate::storage::rocksdb::{RocksDbOptions, RocksDbStorage};
