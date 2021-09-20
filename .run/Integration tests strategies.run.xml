@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Integration tests strategies" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="test --package strategies --tests 'scenarios::mean_reverting' " />
+    <option name="command" value="test --package strategies --tests 'scenarios::mean_reverting'  --features=backtests" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />
