@@ -10,6 +10,7 @@ pub fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
 static PAIR: &str = "BTC_USDT";
 
+#[cfg(feature = "backtests")]
 #[actix::test]
 async fn complete_backtest_backtest() -> Result<()> {
     init();

@@ -1,11 +1,14 @@
-use crate::error::Result;
+use std::sync::Arc;
+
 use chrono::{DateTime, TimeZone, Utc};
-use db::Storage;
-use db::StorageExt;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+
+use db::Storage;
+use db::StorageExt;
+
+use crate::error::Result;
 
 static MODELS_TABLE_NAME: &str = "models";
 
@@ -119,6 +122,7 @@ pub struct PersistentVec<T> {
 impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
     pub fn new(db: Arc<dyn Storage>, key: &str, max_size: usize, window_size: usize) -> Self {
         db.ensure_table(key).unwrap();
+        assert!(max_size > window_size);
         Self {
             rows: vec![],
             db,
@@ -139,7 +143,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
             error!("Failed writing row : {:?}", e);
         }
         if self.rows.len() > self.max_size {
-            let mut drained = self.rows.drain(0..self.window_size);
+            let mut drained = self.rows.drain(0..(self.max_size - self.window_size));
             let from = drained.next().unwrap();
             let to = drained.last().unwrap();
             if let Err(e) = self.db.delete_range(&self.key, from.0.to_string(), to.0.to_string()) {
@@ -196,17 +200,21 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
 mod test {
     extern crate test;
 
-    use super::ModelValue;
-    use super::PersistentModel;
+    use test::Bencher;
+
+    use chrono::{DateTime, Utc};
+    use fake::Fake;
+    use quickcheck::{Arbitrary, Gen};
+
+    use db::{get_or_create, DbOptions};
+    use util::test::test_dir;
+
     use crate::models::persist::PersistentVec;
     use crate::test_util::test_db;
     use crate::types::BookPosition;
-    use chrono::{DateTime, Utc};
-    use db::{get_or_create, DbOptions};
-    use fake::Fake;
-    use quickcheck::{Arbitrary, Gen};
-    use test::Bencher;
-    use util::test::test_dir;
+
+    use super::ModelValue;
+    use super::PersistentModel;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct MockLinearModel;
