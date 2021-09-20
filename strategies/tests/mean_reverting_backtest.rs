@@ -1,9 +1,9 @@
 #[cfg(feature = "backtests")]
 #[actix::test]
-async fn complete_backtest_backtest() -> Result<()> {
+async fn complete_backtest_backtest() -> backtest::Result<()> {
     use chrono::{TimeZone, Utc};
 
-    use backtest::{BacktestConfig, Result};
+    use backtest::BacktestConfig;
     use coinnect_rt::exchange::Exchange;
     use strategies::mean_reverting::options::Options;
     use strategies::StrategySettings;

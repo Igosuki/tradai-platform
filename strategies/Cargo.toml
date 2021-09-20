@@ -100,6 +100,7 @@ pyo3-log = { version = "0.4", optional = true }
 # ours
 backtest = { path = "../backtest" }
 util = { path = "../util" }
+binance-rs-async = { path = "../binance-rs" }
 
 # actix
 actix-codec = "0.4"
@@ -129,4 +130,5 @@ rand = "0.8"
 # http
 http = "0.2"
 httpmock = { git = "https://github.com/Igosuki/httpmock.git" }
+wiremock = "0.5"
 socket2 = "0.4"
