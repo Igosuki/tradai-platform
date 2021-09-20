@@ -24,6 +24,7 @@ pub async fn httpserver(
     // Make and start the api
     let port = settings.port.0;
     let cors_mode = settings.cors.clone();
+    let allowed_origins = settings.allowed_origins.as_ref().unwrap_or(&vec![]).clone();
     let app = move || {
         let schema = create_schema();
 
@@ -37,16 +38,21 @@ pub async fn httpserver(
             http::header::CONTENT_TYPE,
         ];
         let cors = match cors_mode {
-            CorsMode::Restricted => Cors::default()
-                .allowed_origin(&format!("http://localhost:{}", port))
-                .allowed_origin("http://localhost:3001")
-                .allowed_methods(vec!["GET", "POST", "OPTIONS"])
-                .allowed_headers(exposed_headers.clone())
-                .allowed_header(http::header::CONTENT_TYPE)
-                .allowed_header(http::header::ACCESS_CONTROL_EXPOSE_HEADERS)
-                .expose_headers(exposed_headers)
-                .supports_credentials()
-                .max_age(3600),
+            CorsMode::Restricted => {
+                let mut cors = Cors::default().allowed_origin(&format!("http://localhost:{}", port));
+
+                for allowed_origin in allowed_origins.clone() {
+                    cors = cors.allowed_origin(&allowed_origin.clone());
+                }
+
+                cors.allowed_methods(vec!["GET", "POST", "OPTIONS"])
+                    .allowed_headers(exposed_headers.clone())
+                    .allowed_header(http::header::CONTENT_TYPE)
+                    .allowed_header(http::header::ACCESS_CONTROL_EXPOSE_HEADERS)
+                    .expose_headers(exposed_headers)
+                    .supports_credentials()
+                    .max_age(3600)
+            }
             CorsMode::Permissive => Cors::permissive(),
         };
         actix_web::App::new()

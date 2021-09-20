@@ -150,4 +150,7 @@ prometheus:
 
 api:
   port: 8180
+  allowed_origins:
+    - "http://10.104.0.3:3001"
+    - "http://localhost:3001"
 
