@@ -370,6 +370,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloc-no-stdlib"
+version = "2.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35ef4730490ad1c4eae5c4325b2a95f521d023e5c885853ff7aca0a6a1631db3"
+
+[[package]]
+name = "alloc-stdlib"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "697ed7edc0f1711de49ce108c541623a0af97c6c60b2f6e2b65229847ac843c2"
+dependencies = [
+ "alloc-no-stdlib",
+]
+
+[[package]]
 name = "ansi_term"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -667,30 +682,6 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 [[package]]
 name = "avro-rs"
 version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ece550dd6710221de9bcdc1697424d8eee4fc4ca7e017479ea9d50c348465e37"
-dependencies = [
- "byteorder",
- "crc",
- "digest 0.9.0",
- "lazy_static 1.4.0",
- "libflate",
- "num-bigint 0.2.6",
- "rand 0.7.3",
- "serde",
- "serde_json",
- "snap 0.2.5",
- "strum 0.18.0",
- "strum_macros 0.18.0",
- "thiserror",
- "typed-builder 0.5.1",
- "uuid",
- "zerocopy",
-]
-
-[[package]]
-name = "avro-rs"
-version = "0.13.0"
 source = "git+https://github.com/Igosuki/avro-rs.git?branch=master_merge#c03f02e2b44b2921ad239802a0967429198190e8"
 dependencies = [
  "byteorder",
@@ -964,6 +955,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "brotli"
+version = "3.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71cb90ade945043d3d53597b2fc359bb063db8ade2bcffe7997351d0756e9d50"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
+ "brotli-decompressor",
+]
+
+[[package]]
+name = "brotli-decompressor"
+version = "2.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59ad2d4653bf5ca36ae797b1f4bb4dbddb60ce49ca4aed8a2ce4829f60425b80"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
+]
+
+[[package]]
 name = "brotli-sys"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1011,12 +1023,6 @@ dependencies = [
  "regex-automata",
  "serde",
 ]
-
-[[package]]
-name = "build_const"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4ae4235e6dac0694637c763029ecea1a2ec9e4e06ec2729bd21ba4d9c863eb7"
 
 [[package]]
 name = "bumpalo"
@@ -1410,15 +1416,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crc"
-version = "1.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d663548de7f5cca343f1e0a48d14dcfb0e9eb4e079ec58883b7251539fa10aeb"
-dependencies = [
- "build_const",
-]
-
-[[package]]
 name = "crc32fast"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1662,17 +1659,15 @@ checksum = "3ee2393c4a91429dffb4bedf19f4d6abf27d8a732c8ce4980305d782e5426d57"
 [[package]]
 name = "datafusion"
 version = "5.1.0"
-source = "git+https://github.com/Igosuki/arrow-datafusion?branch=main_i#3c5cab56cfa6e858f09fe618e21aa5c7270b219f"
+source = "git+https://github.com/Igosuki/arrow-datafusion?branch=map_access_i#960a1b764d475a53d970819655e5b1ae6bf5a47d"
 dependencies = [
  "ahash",
  "arrow",
  "async-trait",
- "avro-rs 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
  "futures",
  "hashbrown",
  "log",
- "num-traits",
  "num_cpus",
  "ordered-float 2.8.0",
  "parquet",
@@ -3386,7 +3381,7 @@ dependencies = [
 name = "models"
 version = "0.1.0"
 dependencies = [
- "avro-rs 0.13.0 (git+https://github.com/Igosuki/avro-rs.git?branch=master_merge)",
+ "avro-rs",
  "crc32fast",
  "lazy_static 1.4.0",
  "rsgen-avro",
@@ -3872,6 +3867,7 @@ checksum = "f231efd0363ac0d8e6e98113e1913b8298ec15fccb42f142c386831fccbe9ddd"
 dependencies = [
  "arrow",
  "base64",
+ "brotli",
  "byteorder",
  "chrono",
  "flate2",
@@ -3879,7 +3875,7 @@ dependencies = [
  "num-bigint 0.4.2",
  "parquet-format",
  "rand 0.8.4",
- "snap 1.0.5",
+ "snap",
  "thrift",
 ]
 
@@ -4747,7 +4743,7 @@ name = "rsgen-avro"
 version = "0.9.5"
 source = "git+https://github.com/Igosuki/rsgen-avro.git?branch=master_merge#eb1b3fef5953734f82f33b98f59a0bc124547ee5"
 dependencies = [
- "avro-rs 0.13.0 (git+https://github.com/Igosuki/avro-rs.git?branch=master_merge)",
+ "avro-rs",
  "docopt",
  "glob",
  "heck",
@@ -5211,16 +5207,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31aa6a31c0c2b21327ce875f7e8952322acfcfd0c27569a6e18a647281352c9b"
 dependencies = [
  "static_assertions",
-]
-
-[[package]]
-name = "snap"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95d697d63d44ad8b78b8d235bf85b34022a78af292c8918527c5f0cffdde7f43"
-dependencies = [
- "byteorder",
- "lazy_static 1.4.0",
 ]
 
 [[package]]
@@ -6036,7 +6022,7 @@ dependencies = [
  "actix_derive",
  "anyhow",
  "async-std",
- "avro-rs 0.13.0 (git+https://github.com/Igosuki/avro-rs.git?branch=master_merge)",
+ "avro-rs",
  "awc",
  "bidir-map",
  "byte-unit",
