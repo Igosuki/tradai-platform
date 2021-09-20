@@ -1,5 +1,10 @@
 use std::path::{Path, PathBuf};
+
 use tempdir::TempDir;
+
+pub fn e2e_test_dir() -> String {
+    std::env::var("BITCOINS_E2E_TEST_DIR").unwrap_or_else(|_| "/media/ramdisk/e2e_test_dir".to_string())
+}
 
 pub fn test_dir() -> TempDir {
     let basedir = std::env::var("BITCOINS_TEST_RAMFS_DIR").unwrap_or_else(|_| "/media/ramdisk".to_string());

@@ -19,6 +19,7 @@ binary = ["clap"]
 zstd = ["awc/compress-zstd"]
 python = ["pyo3", "pyo3-log"]
 backtests = []
+live_e2e_tests = []
 
 [dependencies]
 # trader

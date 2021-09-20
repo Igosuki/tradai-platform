@@ -157,7 +157,7 @@ pub fn create_ok_margin_order_mock(server: &MockServer, order: OrderDetail) -> M
                 commission_asset: "USDT".to_string(),
             },
         ],
-        cumulative_quote_qty: 0.0,
+        cummulative_quote_qty: 0.0,
     };
     server.mock(|when, then| {
         when.method(POST).path("/sapi/v1/margin/order");
