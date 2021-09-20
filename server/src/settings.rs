@@ -68,6 +68,8 @@ pub struct ApiSettings {
     pub port: Port,
     #[serde(default)]
     pub cors: CorsMode,
+    #[serde(default)]
+    pub allowed_origins: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
