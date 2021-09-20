@@ -171,34 +171,34 @@ pub struct OrderDetail {
     /// Order id
     pub id: String,
     /// Optional transaction id, if this order was part of a larger transaction
-    transaction_id: Option<String>,
+    pub transaction_id: Option<String>,
     /// Identifer with the remote platform
-    remote_id: Option<String>,
+    pub remote_id: Option<String>,
     pub status: OrderStatus,
     pub exchange: String,
-    pair: String,
+    pub pair: String,
     pub base_asset: String,
-    quote_asset: String,
-    side: TradeType,
-    order_type: OrderType,
-    enforcement: Option<OrderEnforcement>,
-    base_qty: Option<f64>,
-    quote_qty: Option<f64>,
-    price: Option<f64>,
-    stop_price: Option<f64>,
-    iceberg_qty: Option<f64>,
-    is_test: bool,
-    asset_type: AssetType,
-    executed_qty: Option<f64>,
-    cummulative_quote_qty: Option<f64>,
-    margin_side_effect: Option<MarginSideEffect>,
+    pub quote_asset: String,
+    pub side: TradeType,
+    pub order_type: OrderType,
+    pub enforcement: Option<OrderEnforcement>,
+    pub base_qty: Option<f64>,
+    pub quote_qty: Option<f64>,
+    pub price: Option<f64>,
+    pub stop_price: Option<f64>,
+    pub iceberg_qty: Option<f64>,
+    pub is_test: bool,
+    pub asset_type: AssetType,
+    pub executed_qty: Option<f64>,
+    pub cummulative_quote_qty: Option<f64>,
+    pub margin_side_effect: Option<MarginSideEffect>,
     pub borrowed_amount: Option<f64>,
-    borrowed_asset: Option<String>,
-    fills: Vec<OrderFill>,
+    pub borrowed_asset: Option<String>,
+    pub fills: Vec<OrderFill>,
     /// Weighted price updated from fills
     pub weighted_price: f64,
     pub total_executed_qty: f64,
-    rejection_reason: Option<Rejection>,
+    pub rejection_reason: Option<Rejection>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub closed_at: Option<DateTime<Utc>>,
@@ -278,11 +278,27 @@ impl OrderDetail {
         self.borrowed_amount = submission.borrowed_amount;
         self.remote_id = Some(submission.id);
         self.status = submission.status.into();
+        self.fills = submission
+            .trades
+            .into_iter()
+            .map(|trade| OrderFill {
+                price: trade.price,
+                qty: trade.qty,
+                fee: trade.fee,
+                fee_asset: Some(trade.fee_asset.to_string()),
+                ts: Utc.timestamp_millis(submission.timestamp as i64),
+            })
+            .collect();
+        self.update_weighted_price();
         self.updated_at = Utc::now();
+        self.total_executed_qty = self.fills.iter().map(|f| f.qty).sum();
     }
 
     #[allow(dead_code)]
     pub fn from_fill_update(&mut self, update: OrderUpdate) {
+        if self.status == OrderStatus::Filled {
+            return;
+        }
         let fill = OrderFill {
             price: update.last_executed_price,
             qty: update.last_executed_qty,
@@ -298,8 +314,7 @@ impl OrderDetail {
             self.closed_at = Some(Utc::now());
         }
         self.updated_at = Utc::now();
-        self.weighted_price = self.fills.iter().map(|fill| fill.price * fill.qty).sum::<f64>()
-            / self.fills.iter().map(|fill| fill.qty).sum::<f64>();
+        self.update_weighted_price();
     }
 
     #[allow(dead_code)]
@@ -307,6 +322,11 @@ impl OrderDetail {
         self.rejection_reason = Some(rejection);
         self.status = OrderStatus::Rejected;
         self.updated_at = Utc::now();
+    }
+
+    pub fn update_weighted_price(&mut self) {
+        self.weighted_price = self.fills.iter().map(|fill| fill.price * fill.qty).sum::<f64>()
+            / self.fills.iter().map(|fill| fill.qty).sum::<f64>();
     }
 }
 
