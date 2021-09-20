@@ -257,7 +257,7 @@ impl OrderDetail {
             asset_type: add_order.asset_type.unwrap_or_default(),
             executed_qty: None,
             cummulative_quote_qty: None,
-            margin_side_effect: None,
+            margin_side_effect: add_order.side_effect_type,
             borrowed_amount: None,
             borrowed_asset: None,
             fills: vec![],
@@ -292,6 +292,9 @@ impl OrderDetail {
         self.update_weighted_price();
         self.updated_at = Utc::now();
         self.total_executed_qty = self.fills.iter().map(|f| f.qty).sum();
+        if self.status == OrderStatus::Filled {
+            self.closed_at = Some(Utc::now());
+        }
     }
 
     #[allow(dead_code)]

@@ -668,10 +668,10 @@ mod test {
     ) -> Result<()> {
         let staged_detail = OrderDetail::from_query(Exchange::Binance, None, request.clone());
         let mocked_pass_order = create_ok_order_mock(server, staged_detail);
-        pass_order_and_expect_status(om, mocked_pass_order, request, expected).await
+        pass_mock_order_and_expect_status(om, mocked_pass_order, request, expected).await
     }
 
-    async fn pass_order_and_expect_status(
+    async fn pass_mock_order_and_expect_status(
         om: Addr<OrderManager>,
         mock: Mock<'_>,
         request: AddOrderRequest,
@@ -769,6 +769,113 @@ mod test {
         };
         let staged_detail = OrderDetail::from_query(Exchange::Binance, None, request.clone());
         let mocked_pass_order = create_ok_margin_order_mock(&server, staged_detail);
-        pass_order_and_expect_status(om, mocked_pass_order, request, OrderStatus::Filled).await
+        pass_mock_order_and_expect_status(om, mocked_pass_order, request, OrderStatus::Filled).await
+    }
+
+    async fn pass_live_order(om: Addr<OrderManager>, request: AddOrderRequest) -> Result<OrderDetail> {
+        let order_detail = om
+            .send(StagedOrder { request })
+            .await
+            .map_err(|_| Error::OrderManagerMailboxError)??;
+        assert_eq!(order_detail.status, OrderStatus::Staged);
+        assert_ne!(order_detail.id, "".to_string());
+        assert!(!matches!(order_detail.status, OrderStatus::Rejected));
+        // Wait for order to pass
+        let order_detail_id = order_detail.id.clone();
+        loop {
+            let order_detail = om
+                .clone()
+                .send(OrderDetailId(order_detail_id.clone()))
+                .await
+                .map_err(|_| Error::OrderManagerMailboxError)??;
+            if order_detail.status != OrderStatus::Staged {
+                return Ok(order_detail);
+            }
+        }
+    }
+
+    #[cfg(feature = "live_e2e_tests")]
+    #[actix::test]
+    async fn test_live_market_margin_order_workflow() -> Result<()> {
+        use coinnect_rt::{coinnect::Coinnect, exchange::ExchangeApi, types::AccountType};
+        use std::collections::HashMap;
+        use std::path::PathBuf;
+        use std::sync::Arc;
+
+        init();
+        let test_dir = util::test::e2e_test_dir();
+        // Build a valid test engine
+        let credentials_file = std::env::var("BITCOINS_E2E_TEST_CREDS_FILE").expect("BITCOINS_E2E_TEST_CREDS_FILE");
+        let credentials_path = PathBuf::from(credentials_file);
+        let credentials = coinnect_rt::coinnect::Coinnect::credentials_for(Exchange::Binance, credentials_path.clone())
+            .expect("valid credentials file");
+        let manager = coinnect_rt::coinnect::Coinnect::new_manager();
+        let api = manager
+            .build_exchange_api(credentials_path, &Exchange::Binance, false)
+            .await?;
+        let mut apis_map = HashMap::new();
+        apis_map.insert(Exchange::Binance, api.clone());
+        let apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>> = Arc::new(apis_map);
+        let om = crate::order_manager::test_util::local_manager(test_dir, api);
+        let _account_stream = coinnect_rt::coinnect::Coinnect::new_account_stream(
+            Exchange::Binance,
+            credentials,
+            vec![om.clone().recipient()],
+            false,
+            AccountType::Margin,
+        )
+        .await?;
+        Coinnect::load_pair_registries(apis.clone()).await?;
+        // Scenario based on trading BTC vs USDT on a margin account
+        // 1- LONG : Buy the minimal BTC amount, then sell it without side effect
+        // 1a - check that there is no borrowed amount
+        // 2- SHORT : Sell the minimal BTC amount, then buy it with MARGIN_BUY and AUTO_REPAY
+        // 2a - check that there is a borrowed amount
+        let pair: Pair = "BTC_USDT".into();
+        let base_margin_order = AddOrderRequest {
+            pair: pair.clone(),
+            dry_run: false,
+            quantity: Some(0.0004),
+            order_type: OrderType::Market,
+            asset_type: Some(AssetType::Margin),
+            ..AddOrderRequest::default()
+        };
+        let buy_long = AddOrderRequest {
+            side: TradeType::Buy,
+            side_effect_type: None,
+            order_id: Some(Uuid::new_v4().to_string()),
+            ..base_margin_order.clone()
+        };
+        let buy_long_order_detail = pass_live_order(om.clone(), buy_long).await?;
+        eprintln!("buy_long_order_detail = {:?}", buy_long_order_detail);
+        let sell_long = AddOrderRequest {
+            side: TradeType::Sell,
+            side_effect_type: None,
+            order_id: Some(Uuid::new_v4().to_string()),
+            ..base_margin_order.clone()
+        };
+        let sell_long_order_detail = pass_live_order(om.clone(), sell_long).await?;
+        eprintln!("sell_long_order_detail = {:?}", sell_long_order_detail);
+        let margined_qty = base_margin_order.quantity.map(|q| q * 1.2);
+        let sell_short = AddOrderRequest {
+            side: TradeType::Sell,
+            quantity: margined_qty,
+            side_effect_type: Some(MarginSideEffect::MarginBuy),
+            order_id: Some(Uuid::new_v4().to_string()),
+            ..base_margin_order.clone()
+        };
+        let sell_short_order_detail = pass_live_order(om.clone(), sell_short).await?;
+        eprintln!("sell_short_order_detail = {:?}", sell_short_order_detail);
+        let buy_short = AddOrderRequest {
+            side: TradeType::Buy,
+            quantity: margined_qty,
+            side_effect_type: Some(MarginSideEffect::AutoRepay),
+            order_id: Some(Uuid::new_v4().to_string()),
+            ..base_margin_order.clone()
+        };
+        let buy_short_order_detail = pass_live_order(om.clone(), buy_short).await?;
+        eprintln!("buy_short_order_detail = {:?}", buy_short_order_detail);
+
+        Ok(())
     }
 }
