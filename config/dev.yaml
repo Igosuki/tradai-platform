@@ -6,7 +6,7 @@ exchanges:
     use_test: false
     orderbook_depth: 5
     orderbook:
-      symbols: [ '(?!LTC|BTC|ETC).*_USDT' ]
+      symbols: [ 'BTC_USDT' ]
 
 streams:
   - type: ExchangeBots
@@ -14,27 +14,22 @@ streams:
 outputs:
   - type: Strategies
 
-strategies: [ ]
-
-strategies_copy:
-  - type: mean_reverting
-    pairs: [ '(?!LTC|BTC|ETC).*_USDT' ]
-    base:
-      pair: ''
-      short_window_size: 100
-      long_window_size: 1000
-      dry_mode: true
-      sample_freq: 1min
-      initial_cap: 100.0
-      threshold_short: 0.02
-      threshold_long: -0.02
-      threshold_eval_freq: 1
-      dynamic_threshold: true
-      threshold_window_size: 1000
-      stop_loss: -0.1
-      stop_gain: 0.075
-      exchange: Binance
-      order_mode: limit
+strategies:
+  - pair: 'BTC_USDT'
+    short_window_size: 100
+    long_window_size: 1000
+    dry_mode: true
+    sample_freq: 1min
+    initial_cap: 100.0
+    threshold_short: 0.02
+    threshold_long: -0.02
+    threshold_eval_freq: 1
+    dynamic_threshold: true
+    threshold_window_size: 1000
+    stop_loss: -0.1
+    stop_gain: 0.075
+    exchange: Binance
+    order_mode: limit
 
 keys: ./config/keys_real_test.json
 

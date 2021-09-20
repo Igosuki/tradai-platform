@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use actix::Addr;
 use actix_cors::Cors;
+use actix_web::middleware::{Compat, Logger};
 use actix_web::web::Data;
 use actix_web::{http, HttpServer};
 
@@ -12,7 +13,6 @@ use strategies::{Strategy, StrategyKey};
 
 use crate::graphql_schemas::root::create_schema;
 use crate::settings::{ApiSettings, CorsMode, Version};
-use actix_web::middleware::{Compat, Logger};
 
 pub async fn httpserver(
     settings: &ApiSettings,
@@ -60,5 +60,5 @@ pub async fn httpserver(
             .configure(crate::api::config_app)
     };
     debug!("Starting api server on {} ...", port);
-    HttpServer::new(app).bind(format!("localhost:{}", port))?.run().await
+    HttpServer::new(app).bind(format!("0.0.0.0:{}", port))?.run().await
 }

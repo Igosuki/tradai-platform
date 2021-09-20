@@ -1,18 +1,18 @@
-use chrono::{TimeZone, Utc};
-
-use backtest::{BacktestConfig, Result};
-use coinnect_rt::exchange::Exchange;
-use strategies::mean_reverting::options::Options;
-use strategies::StrategySettings;
-use util::test::{data_cache_dir, test_results_dir};
-
-pub fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
-
-static PAIR: &str = "BTC_USDT";
-
 #[cfg(feature = "backtests")]
 #[actix::test]
 async fn complete_backtest_backtest() -> Result<()> {
+    use chrono::{TimeZone, Utc};
+
+    use backtest::{BacktestConfig, Result};
+    use coinnect_rt::exchange::Exchange;
+    use strategies::mean_reverting::options::Options;
+    use strategies::StrategySettings;
+    use util::test::{data_cache_dir, test_results_dir};
+
+    pub fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
+
+    static PAIR: &str = "BTC_USDT";
+
     init();
     let conf = BacktestConfig::builder()
         .db_path(util::test::test_dir().into_path())
