@@ -1,22 +1,37 @@
-target
+# ide
 .idea
 *.iml
-data
-keys_real.json
-local.yaml
-cargo-git
-cargo-target
-cargo-registry/*
-binance-rs
-flame-graph.html
+
+# trash files
 .DS_Store
-graphs
-prometheus_data
-*.heap
-database*
+
 strategies/default
+
+# ci stuff
+target
+build/cargo-git
+build/cargo-target
+build/cargo-registry/*
 test_results
-strategy_logs.json
 .cargo
 precommit_venv
+
+# local config
+keys_real.json
+local.yaml
 config/local.yaml
+
+# data
+data
+graphs
+prometheus_data
+
+database*
+.local_data
+
+# profiling
+*.heap
+flame-graph.html
+
+# submodule
+binance-rs
