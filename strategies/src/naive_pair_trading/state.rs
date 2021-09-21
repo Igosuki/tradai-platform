@@ -223,9 +223,11 @@ impl MovingState {
     pub(super) fn predicted_right(&self) -> f64 { self.predicted_right }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     pub(super) fn traded_price_right(&self) -> f64 { self.traded_price_right }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     pub(super) fn traded_price_left(&self) -> f64 { self.traded_price_left }
 
     pub(super) fn set_pnl(&mut self) { self.pnl = self.value_strat; }

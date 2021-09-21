@@ -772,6 +772,7 @@ mod test {
         pass_mock_order_and_expect_status(om, mocked_pass_order, request, OrderStatus::Filled).await
     }
 
+    #[cfg(feature = "live_e2e_tests")]
     async fn pass_live_order(om: Addr<OrderManager>, request: AddOrderRequest) -> Result<OrderDetail> {
         let order_detail = om
             .send(StagedOrder { request })
@@ -797,26 +798,14 @@ mod test {
     #[cfg(feature = "live_e2e_tests")]
     #[actix::test]
     async fn test_live_market_margin_order_workflow() -> Result<()> {
-        use coinnect_rt::{coinnect::Coinnect, exchange::ExchangeApi, types::AccountType};
-        use std::collections::HashMap;
-        use std::path::PathBuf;
-        use std::sync::Arc;
+        use coinnect_rt::{coinnect::Coinnect, types::AccountType};
 
         init();
         let test_dir = util::test::e2e_test_dir();
         // Build a valid test engine
-        let credentials_file = std::env::var("BITCOINS_E2E_TEST_CREDS_FILE").expect("BITCOINS_E2E_TEST_CREDS_FILE");
-        let credentials_path = PathBuf::from(credentials_file);
-        let credentials = coinnect_rt::coinnect::Coinnect::credentials_for(Exchange::Binance, credentials_path.clone())
-            .expect("valid credentials file");
-        let manager = coinnect_rt::coinnect::Coinnect::new_manager();
-        let api = manager
-            .build_exchange_api(credentials_path, &Exchange::Binance, false)
-            .await?;
-        let mut apis_map = HashMap::new();
-        apis_map.insert(Exchange::Binance, api.clone());
-        let apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>> = Arc::new(apis_map);
-        let om = crate::order_manager::test_util::local_manager(test_dir, api);
+        let (credentials, apis) = crate::test_util::e2e::build_apis().await?;
+        let om =
+            crate::order_manager::test_util::local_manager(test_dir, apis.get(&Exchange::Binance).unwrap().clone());
         let _account_stream = coinnect_rt::coinnect::Coinnect::new_account_stream(
             Exchange::Binance,
             credentials,

@@ -1,5 +1,6 @@
 use crate::types::{OperationEvent, TradeEvent};
 
+#[allow(dead_code)]
 pub fn write_trade_events(test_results_dir: &str, trade_events: &[(OperationEvent, TradeEvent)]) {
     write_csv(
         format!("{}/trade_events.csv", test_results_dir),
@@ -18,6 +19,7 @@ pub fn write_trade_events(test_results_dir: &str, trade_events: &[(OperationEven
     );
 }
 
+#[allow(dead_code)]
 pub fn write_csv<I, J>(path: String, header: &[&str], records: I)
 where
     I: Iterator<Item = J>,

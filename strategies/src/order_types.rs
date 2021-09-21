@@ -1,3 +1,5 @@
+use std::ops::Sub;
+
 use actix::Message;
 use chrono::{DateTime, TimeZone, Utc};
 use derive_more::Display;
@@ -5,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::pair::symbol_to_pair;
-use coinnect_rt::types::{AddOrderRequest, AssetType, MarginSideEffect, OrderQuery, OrderStatus as ExchangeOrderStatus,
-                         OrderSubmission, OrderType, OrderUpdate, Pair, TradeType};
+use coinnect_rt::types::{AddOrderRequest, AssetType, InterestRate, MarginSideEffect, OrderQuery,
+                         OrderStatus as ExchangeOrderStatus, OrderSubmission, OrderType, OrderUpdate, Pair, TradeType};
 
 use crate::coinnect_types::OrderEnforcement;
 use crate::error::*;
@@ -202,6 +204,7 @@ pub struct OrderDetail {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub closed_at: Option<DateTime<Utc>>,
+    pub open_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -267,6 +270,7 @@ impl OrderDetail {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             closed_at: None,
+            open_at: None,
         }
     }
 
@@ -277,8 +281,9 @@ impl OrderDetail {
         self.borrowed_asset = submission.borrow_asset;
         self.borrowed_amount = submission.borrowed_amount;
         self.remote_id = Some(submission.id);
+        self.enforcement = Some(submission.enforcement);
         self.status = submission.status.into();
-        self.fills = submission
+        let fills = submission
             .trades
             .into_iter()
             .map(|trade| OrderFill {
@@ -289,11 +294,13 @@ impl OrderDetail {
                 ts: Utc.timestamp_millis(submission.timestamp as i64),
             })
             .collect();
+        self.fills = fills;
         self.update_weighted_price();
         self.updated_at = Utc::now();
         self.total_executed_qty = self.fills.iter().map(|f| f.qty).sum();
+        self.open_at = Some(Utc.timestamp_millis(submission.timestamp));
         if self.status == OrderStatus::Filled {
-            self.closed_at = Some(Utc::now());
+            self.closed_at = self.open_at;
         }
     }
 
@@ -302,19 +309,20 @@ impl OrderDetail {
         if self.status == OrderStatus::Filled {
             return;
         }
+        let time = Utc.timestamp_millis(update.timestamp as i64);
         let fill = OrderFill {
             price: update.last_executed_price,
             qty: update.last_executed_qty,
             fee: update.commission,
             fee_asset: update.commission_asset,
-            ts: Utc.timestamp_millis(update.timestamp as i64),
+            ts: time,
         };
         self.fills.push(fill);
         self.cummulative_quote_qty = Some(update.cummulative_quote_asset_transacted_qty);
         self.total_executed_qty = update.cummulative_filled_qty;
         self.status = update.new_status.into();
         if self.status == OrderStatus::Filled {
-            self.closed_at = Some(Utc::now());
+            self.closed_at = Some(time);
         }
         self.updated_at = Utc::now();
         self.update_weighted_price();
@@ -331,13 +339,25 @@ impl OrderDetail {
         self.weighted_price = self.fills.iter().map(|fill| fill.price * fill.qty).sum::<f64>()
             / self.fills.iter().map(|fill| fill.qty).sum::<f64>();
     }
+
+    /// Calculate total interest owed
+    pub fn total_interest(&self, interest_rate: InterestRate) -> f64 {
+        let hours_elapsed = Utc::now().sub(self.closed_at.unwrap());
+        interest_rate.resolve(self.borrowed_amount.unwrap(), hours_elapsed.num_hours())
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use coinnect_rt::types::{AddOrderRequest, OrderQuery, OrderSubmission, OrderUpdate};
+    use std::ops::Sub;
 
-    use crate::order_types::{Rejection, Transaction, TransactionStatus};
+    use chrono::{Duration, Utc};
+
+    use coinnect_rt::exchange::Exchange;
+    use coinnect_rt::types::{AddOrderRequest, InterestRate, InterestRatePeriod, OrderQuery,
+                             OrderStatus as CoinOrderStatus, OrderSubmission, OrderUpdate, Trade};
+
+    use crate::order_types::{OrderDetail, OrderStatus, Rejection, Transaction, TransactionStatus};
 
     #[test]
     fn test_variant_eq() {
@@ -362,5 +382,198 @@ mod test {
         };
         assert!(tr0.variant_eq(&tr0));
         assert!(!tr0.variant_eq(&tr1));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_order_detail_bad_pair() {
+        let request = AddOrderRequest {
+            order_id: Some("id".to_string()),
+            pair: "btcusdt".into(),
+            ..AddOrderRequest::default()
+        };
+        OrderDetail::from_query(Exchange::Binance, None, request);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_order_detail_no_order_id() {
+        let request = AddOrderRequest {
+            order_id: None,
+            pair: "BTC_USDT".into(),
+            ..AddOrderRequest::default()
+        };
+        OrderDetail::from_query(Exchange::Binance, None, request);
+    }
+
+    fn trades() -> Vec<Trade> {
+        vec![
+            Trade {
+                id: None,
+                price: 1.0,
+                qty: 1.0,
+                fee: 0.001,
+                fee_asset: "BTC".into(),
+            },
+            Trade {
+                id: None,
+                price: 1.1,
+                qty: 1.2,
+                fee: 0.001,
+                fee_asset: "BTC".into(),
+            },
+        ]
+    }
+
+    #[test]
+    fn test_order_detail_new_filled() {
+        let request = AddOrderRequest {
+            order_id: Some("id".to_string()),
+            pair: "BTC_USDT".into(),
+            ..AddOrderRequest::default()
+        };
+        let mut order = OrderDetail::from_query(Exchange::Binance, None, request.clone());
+        let transact_time = Utc::now();
+        let i = transact_time.timestamp_millis();
+        let submission = OrderSubmission {
+            status: CoinOrderStatus::Filled,
+            timestamp: i,
+            trades: trades(),
+            ..request.into()
+        };
+        assert_eq!(order.status, OrderStatus::Staged);
+        order.from_submission(submission);
+        assert_eq!(order.status, OrderStatus::Filled);
+        // Compare only millis as nanos is a random value
+        assert_eq!(
+            order.closed_at.map(|d| d.timestamp_millis()),
+            Some(transact_time.timestamp_millis()),
+            "closed_at"
+        );
+        assert_eq!(
+            order.open_at.map(|d| d.timestamp_millis()),
+            Some(transact_time.timestamp_millis()),
+            "open_at"
+        );
+        assert_eq!(format!("{:.6}", order.weighted_price), "1.054545");
+        assert_eq!(format!("{:.6}", order.total_executed_qty), "2.200000");
+    }
+
+    #[test]
+    fn test_order_detail_fill_after_already_filled() {
+        let request = AddOrderRequest {
+            order_id: Some("id".to_string()),
+            pair: "BTC_USDT".into(),
+            ..AddOrderRequest::default()
+        };
+        let mut order = OrderDetail::from_query(Exchange::Binance, None, request.clone());
+        let transact_time = Utc::now();
+        let i = transact_time.timestamp_millis();
+        let trades = trades();
+        let submission = OrderSubmission {
+            status: CoinOrderStatus::Filled,
+            timestamp: i,
+            trades: trades.clone(),
+            ..request.into()
+        };
+        assert_eq!(order.status, OrderStatus::Staged);
+        order.from_submission(submission);
+        assert_eq!(order.status, OrderStatus::Filled);
+        let first_trade = trades.first().unwrap();
+        let update = OrderUpdate {
+            last_executed_price: first_trade.price,
+            last_executed_qty: first_trade.qty,
+            new_status: CoinOrderStatus::Filled,
+            ..OrderUpdate::default()
+        };
+        order.from_fill_update(update);
+        assert_eq!(order.fills.len(), trades.len());
+    }
+
+    #[test]
+    fn test_order_detail_successive_fills() {
+        let request = AddOrderRequest {
+            order_id: Some("id".to_string()),
+            pair: "BTC_USDT".into(),
+            ..AddOrderRequest::default()
+        };
+        let mut order = OrderDetail::from_query(Exchange::Binance, None, request.clone());
+        let transact_time = Utc::now();
+        let i = transact_time.timestamp_millis();
+        let trades = trades();
+        let submission = OrderSubmission {
+            status: CoinOrderStatus::New,
+            timestamp: i,
+            trades: trades.clone(),
+            ..request.into()
+        };
+        assert_eq!(order.status, OrderStatus::Staged);
+        order.from_submission(submission);
+        assert_eq!(order.status, OrderStatus::Created);
+        let first_trade = trades.first().unwrap();
+        let partial_update = OrderUpdate {
+            last_executed_price: first_trade.price,
+            last_executed_qty: first_trade.qty,
+            new_status: CoinOrderStatus::PartialyFilled,
+            ..OrderUpdate::default()
+        };
+        order.from_fill_update(partial_update);
+        assert_eq!(order.fills.len(), trades.len() + 1);
+        assert_eq!(order.status, OrderStatus::PartiallyFilled);
+        let fill_update = OrderUpdate {
+            last_executed_price: first_trade.price,
+            last_executed_qty: first_trade.qty,
+            new_status: CoinOrderStatus::Filled,
+            ..OrderUpdate::default()
+        };
+        order.from_fill_update(fill_update);
+        assert_eq!(order.fills.len(), trades.len() + 2);
+        assert_eq!(order.status, OrderStatus::Filled);
+    }
+
+    #[test]
+    fn test_order_detail_rejected() {
+        let request = AddOrderRequest {
+            order_id: Some("id".to_string()),
+            pair: "BTC_USDT".into(),
+            ..AddOrderRequest::default()
+        };
+        let mut order = OrderDetail::from_query(Exchange::Binance, None, request);
+        assert_eq!(order.status, OrderStatus::Staged);
+        let rejection = Rejection::Cancelled(None);
+        order.from_rejected(rejection.clone());
+        assert_eq!(order.status, OrderStatus::Rejected);
+        assert_eq!(order.rejection_reason, Some(rejection));
+    }
+
+    #[test]
+    fn test_order_detail_margin_interest_rate() {
+        let request = AddOrderRequest {
+            order_id: Some("id".to_string()),
+            pair: "BTC_USDT".into(),
+            ..AddOrderRequest::default()
+        };
+        let mut order = OrderDetail::from_query(Exchange::Binance, None, request.clone());
+        let transact_time = Utc::now().sub(Duration::days(1)).sub(Duration::hours(2));
+        let i = transact_time.timestamp_millis();
+        assert_eq!(order.status, OrderStatus::Staged);
+        let submission = OrderSubmission {
+            status: CoinOrderStatus::Filled,
+            timestamp: i,
+            trades: trades(),
+            borrowed_amount: Some(0.01),
+            borrow_asset: Some("USDT".to_string()),
+            ..request.into()
+        };
+        order.from_submission(submission);
+        assert_eq!(order.status, OrderStatus::Filled);
+        let interest_rate = InterestRate {
+            symbol: "BTC".to_string(),
+            ts: 0,
+            rate: 0.002,
+            period: InterestRatePeriod::Daily,
+        };
+        let total_interest = order.total_interest(interest_rate);
+        assert_eq!(format!("{:.6}", total_interest), "0.000022");
     }
 }

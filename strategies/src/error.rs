@@ -10,6 +10,8 @@ pub enum Error {
     Db(#[from] db::Error),
     #[error("model not loaded : {0}")]
     ModelLoadError(String),
+    #[error("there are pending operations")]
+    PendingOperation,
     #[error("no transaction found in operation")]
     NoTransactionInOperation,
     #[error("ongoing operation status has not changed")]
@@ -20,6 +22,8 @@ pub enum Error {
     OperationBadRequest,
     #[error("order manager mailbox was full")]
     OrderManagerMailboxError,
+    #[error("interest rate provider mailbox was full")]
+    InterestRateProviderMailboxError,
     #[error("order not found : {0}")]
     OrderNotFound(String),
     #[error("invalid position")]
@@ -48,6 +52,8 @@ impl Error {
             Error::OperationBadRequest => "operation_bad_request",
             #[cfg(feature = "python")]
             Error::Python(_) => "python",
+            Error::InterestRateProviderMailboxError => "interest_rate_provider_mailbox",
+            Error::PendingOperation => "pending_operation",
         }
     }
 }

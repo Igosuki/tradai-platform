@@ -1,4 +1,3 @@
-use std::ops::Sub;
 use std::panic;
 use std::sync::Arc;
 
@@ -13,6 +12,7 @@ use coinnect_rt::exchange::Exchange;
 use coinnect_rt::margin_interest_rates::{GetInterestRate, MarginInterestRateProvider};
 use coinnect_rt::types::{AssetType, InterestRate};
 use db::{Storage, StorageExt};
+use ext::ResultExt;
 
 use crate::error::{Error, Result};
 use crate::mean_reverting::options::Options;
@@ -293,7 +293,7 @@ impl MeanRevertingState {
     #[allow(dead_code)]
     pub(super) fn nominal_position(&self) -> f64 { self.nominal_position }
 
-    pub(super) async fn set_position_return(&mut self, current_price: f64) {
+    pub(super) async fn set_position_return(&mut self, current_price: f64) -> Result<()> {
         match self.position {
             Some(PositionKind::Long) => {
                 self.position_return = self.nominal_position
@@ -303,11 +303,8 @@ impl MeanRevertingState {
             Some(PositionKind::Short) => {
                 let interest_fees = match &self.last_open_order {
                     Some(order) if self.order_asset_type == AssetType::Margin => {
-                        let interest_rate = self.get_interest_rate(self.exchange, order.base_asset.clone()).await;
-                        let hours_elapsed = Utc::now().sub(order.created_at);
-                        interest_rate
-                            .map(|ir| ir.resolve(order.borrowed_amount.unwrap(), hours_elapsed.num_hours()))
-                            .unwrap_or(0.0)
+                        let interest_rate = self.get_interest_rate(self.exchange, order.base_asset.clone()).await?;
+                        order.total_interest(interest_rate)
                     }
                     _ => 0.0,
                 };
@@ -318,6 +315,7 @@ impl MeanRevertingState {
             }
             _ => {}
         }
+        Ok(())
     }
 
     pub(super) fn position_return(&self) -> f64 { self.position_return }
@@ -581,11 +579,11 @@ impl MeanRevertingState {
         }
     }
 
-    async fn get_interest_rate(&self, exchange: Exchange, asset: String) -> Option<InterestRate> {
+    async fn get_interest_rate(&self, exchange: Exchange, asset: String) -> Result<InterestRate> {
         self.mirp
             .send(GetInterestRate { asset, exchange })
             .await
-            .ok()
-            .and_then(|o| o)
+            .map_err(|_| Error::InterestRateProviderMailboxError)?
+            .err_into()
     }
 }
