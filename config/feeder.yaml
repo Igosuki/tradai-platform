@@ -23,7 +23,7 @@ outputs:
 keys: ./config/keys_real_test.json
 
 storage:
-  path: './database'
+  path: './.local_data/database'
   engine:
     type: rocks_db
 
