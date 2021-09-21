@@ -1,14 +1,16 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="test" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="test --exclude coinnect_rt --workspace" />
+  <configuration default="false" name="test engine" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="command" value="test --all-targets --exclude coinnect_rt --workspace" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />
-    <option name="allFeatures" value="true" />
+    <option name="allFeatures" value="false" />
     <option name="emulateTerminal" value="true" />
     <option name="withSudo" value="false" />
     <option name="backtrace" value="SHORT" />
-    <envs />
+    <envs>
+      <env name="RUST_LOG" value="info" />
+    </envs>
     <option name="isRedirectInput" value="false" />
     <option name="redirectInputPath" value="" />
     <method v="2">
