@@ -53,7 +53,6 @@ pub struct TradeOperation {
     pub mode: OrderMode,
     #[serde(default)]
     pub asset_type: AssetType,
-    pub margin_interest_rate: Option<f64>,
 }
 
 #[juniper::graphql_object]

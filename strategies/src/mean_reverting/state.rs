@@ -38,6 +38,7 @@ pub struct Operation {
     pub pos: Position,
     pub transaction: Option<Transaction>,
     pub order_detail: Option<OrderDetail>,
+    pub total_interests: Option<f64>,
     pub trade: TradeOperation,
     pub instructions: Option<ExecutionInstruction>,
 }
@@ -55,18 +56,13 @@ impl Operation {
             (PositionKind::Short, OperationKind::Open) | (PositionKind::Long, OperationKind::Close) => TradeKind::Sell,
             (PositionKind::Long, OperationKind::Open) | (PositionKind::Short, OperationKind::Close) => TradeKind::Buy,
         };
-        let margin_interest_rate = if asset_type == AssetType::Margin {
-            // TODO: fetch the margin interest rate from the exchange
-            Some(0.0)
-        } else {
-            None
-        };
         Operation {
             id: Uuid::new_v4().to_string(),
             pos: pos.clone(),
             kind: op_kind,
             transaction: None,
             order_detail: None,
+            total_interests: None,
             trade: TradeOperation {
                 price: pos.price,
                 qty,
@@ -75,7 +71,6 @@ impl Operation {
                 dry_mode,
                 mode: order_mode,
                 asset_type,
-                margin_interest_rate,
             },
             instructions: None,
         }
@@ -293,6 +288,16 @@ impl MeanRevertingState {
     #[allow(dead_code)]
     pub(super) fn nominal_position(&self) -> f64 { self.nominal_position }
 
+    pub(super) async fn interest_fees_since_open(&self) -> Result<f64> {
+        Ok(match &self.last_open_order {
+            Some(order) if self.order_asset_type == AssetType::Margin => {
+                let interest_rate = self.get_interest_rate(self.exchange, order.base_asset.clone()).await?;
+                order.total_interest(interest_rate)
+            }
+            _ => 0.0,
+        })
+    }
+
     pub(super) async fn set_position_return(&mut self, current_price: f64) -> Result<()> {
         match self.position {
             Some(PositionKind::Long) => {
@@ -301,13 +306,7 @@ impl MeanRevertingState {
                     / (self.nominal_position * self.traded_price)
             }
             Some(PositionKind::Short) => {
-                let interest_fees = match &self.last_open_order {
-                    Some(order) if self.order_asset_type == AssetType::Margin => {
-                        let interest_rate = self.get_interest_rate(self.exchange, order.base_asset.clone()).await?;
-                        order.total_interest(interest_rate)
-                    }
-                    _ => 0.0,
-                };
+                let interest_fees = self.interest_fees_since_open().await?;
                 self.position_return = (self.nominal_position
                     * (self.traded_price - current_price * (1.0 + self.fees_rate))
                     - interest_fees)
@@ -341,10 +340,11 @@ impl MeanRevertingState {
 
     pub fn resume_trading(&mut self) { self.is_trading = true; }
 
-    fn clear_ongoing_operation(&mut self, last_price: f64, cummulative_qty: f64) {
+    async fn clear_ongoing_operation(&mut self, last_price: f64, cummulative_qty: f64) -> Result<()> {
         match self.ongoing_op.clone() {
             Some(o) if o.is_close() => {
-                self.update_close_value(self.previous_value_strat, &o.pos.kind, last_price);
+                self.update_close_value(self.previous_value_strat, &o.pos.kind, last_price)
+                    .await?;
                 self.set_pnl();
                 self.clear_position();
             }
@@ -360,6 +360,7 @@ impl MeanRevertingState {
         }
         self.set_ongoing_op(None);
         self.save();
+        Ok(())
     }
 
     pub fn cancel_ongoing_op(&mut self) -> bool {
@@ -402,7 +403,8 @@ impl MeanRevertingState {
         new_op.order_detail = Some(new_order.clone());
         let result = match resolution {
             Ok(_) => {
-                self.clear_ongoing_operation(new_order.weighted_price, new_order.total_executed_qty);
+                self.clear_ongoing_operation(new_order.weighted_price, new_order.total_executed_qty)
+                    .await?;
                 Ok(())
             }
             Err(e) => {
@@ -446,15 +448,20 @@ impl MeanRevertingState {
         }
     }
 
-    fn update_close_value(&mut self, previous_value_strat: f64, kind: &PositionKind, price: f64) {
+    async fn update_close_value(&mut self, previous_value_strat: f64, kind: &PositionKind, price: f64) -> Result<()> {
         match kind {
             PositionKind::Short => {
-                self.value_strat = previous_value_strat - self.nominal_position * price;
+                let interest_fees = self.interest_fees_since_open().await?;
+                self.value_strat = previous_value_strat - self.nominal_position * price - interest_fees;
+                if let Some(mut operation) = self.ongoing_op.as_mut() {
+                    operation.total_interests = Some(interest_fees);
+                }
             }
             PositionKind::Long => {
                 self.value_strat = previous_value_strat + self.nominal_position * price * (1.0 - self.fees_rate);
             }
         }
+        Ok(())
     }
 
     #[tracing::instrument(skip(self), level = "debug")]
@@ -479,7 +486,7 @@ impl MeanRevertingState {
     #[tracing::instrument(skip(self), level = "debug")]
     pub(super) async fn close(&mut self, pos: Position) -> Result<Operation> {
         self.previous_value_strat = self.value_strat;
-        self.update_close_value(self.value_strat, &pos.kind, pos.price);
+        self.update_close_value(self.value_strat, &pos.kind, pos.price).await?;
         let mut op = Operation::new(
             pos,
             OperationKind::Close,
