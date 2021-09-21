@@ -17,7 +17,7 @@ use ext::ResultExt;
 use math::indicators::macd_apo::MACDApo;
 use math::iter::QuantileExt;
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::generic::{InputEvent, TradeSignal};
 use crate::mean_reverting::ema_model::{ema_indicator_model, ApoThresholds};
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
@@ -149,6 +149,7 @@ impl MeanRevertingStrategy {
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     fn model_value(&self) -> Option<MACDApo> { self.model.value() }
 
     fn log_state(&self) { self.metrics.log_state(&self.state); }
@@ -222,6 +223,10 @@ impl MeanRevertingStrategy {
         // In case of error return immediately as no trades can be made until the position is resolved
         self.state.resolve_pending_operations(lr).await?;
 
+        if self.state.ongoing_op().is_some() {
+            return Err(Error::PendingOperation);
+        }
+
         if self.state.no_position_taken() {
             self.state.update_units(lr);
         }
@@ -239,7 +244,7 @@ impl MeanRevertingStrategy {
         }
         // Possibly close a short position
         else if self.state.is_short() {
-            self.state.set_position_return(lr.ask).await;
+            self.state.set_position_return(lr.ask).await?;
             if (apo < 0.0) || self.stopper.should_stop(self.state.position_return()) {
                 let position = self.short_position(lr.ask, lr.event_time);
                 self.state.close(position).await?;
@@ -253,7 +258,7 @@ impl MeanRevertingStrategy {
         }
         // Possibly close a long position
         else if self.state.is_long() {
-            self.state.set_position_return(lr.bid).await;
+            self.state.set_position_return(lr.bid).await?;
             if (apo > 0.0) || self.stopper.should_stop(self.state.position_return()) {
                 let position = self.long_position(lr.bid, lr.event_time);
                 self.state.close(position).await?;

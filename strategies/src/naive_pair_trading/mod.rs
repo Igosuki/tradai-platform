@@ -344,6 +344,7 @@ impl NaiveTradingStrategy {
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     fn model_value(&self) -> Option<LinearModelValue> { self.data_table.model().map(|m| m.value) }
 
     fn log_state(&self) { self.metrics.log_state(&self.state); }
