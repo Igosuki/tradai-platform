@@ -30,7 +30,8 @@ strategies:
     stop_loss: -0.1
     stop_gain: 0.075
     exchange: Binance
-    order_mode: limit
+    order_mode: market
+    order_asset_type: margin
 
 keys: /root/config/margin_keys_real.json
 
