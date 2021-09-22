@@ -18,6 +18,7 @@ precommit_venv
 
 # local config
 keys_real.json
+margin_keys_real.json
 local.yaml
 config/local.yaml
 
