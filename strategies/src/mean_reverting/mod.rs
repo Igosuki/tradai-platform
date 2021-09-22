@@ -27,8 +27,8 @@ use crate::models::{IndicatorModel, Sampler};
 use crate::models::{Model, WindowedModel};
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation};
+use crate::trading_util::Stopper;
 use crate::types::{BookPosition, PositionKind};
-use crate::util::Stopper;
 use crate::{Channel, StrategyDriver, StrategyStatus};
 
 mod ema_model;
@@ -183,7 +183,7 @@ impl MeanRevertingStrategy {
     #[tracing::instrument(skip(self), level = "trace")]
     fn maybe_eval_threshold(&mut self, current_time: DateTime<Utc>) {
         if let (Some(threshold_table), Some(threshold_eval_freq)) = (&self.threshold_table, self.threshold_eval_freq) {
-            if crate::util::is_eval_time_reached(
+            if crate::models::is_eval_time_reached(
                 current_time,
                 self.last_threshold_time,
                 self.sample_freq,
@@ -270,7 +270,7 @@ impl MeanRevertingStrategy {
     fn can_eval(&self) -> bool { self.models_loaded() }
 
     async fn process_row(&mut self, row: &SinglePosRow) {
-        let should_sample = crate::util::is_eval_time_reached(row.time, self.last_sample_time, self.sample_freq, 1);
+        let should_sample = crate::models::is_eval_time_reached(row.time, self.last_sample_time, self.sample_freq, 1);
         // A model is available
         if should_sample {
             self.last_sample_time = row.time;
