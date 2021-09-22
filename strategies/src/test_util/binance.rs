@@ -19,7 +19,7 @@ use coinnect_rt::types::{OrderEnforcement, TradeType};
 use ext::MapInto;
 
 use crate::coinnect_types::OrderType;
-use crate::order_types::OrderDetail;
+use crate::order_manager::types::OrderDetail;
 
 type WSResponse = impl Future<Output = Result<ws::Message, io::Error>>;
 

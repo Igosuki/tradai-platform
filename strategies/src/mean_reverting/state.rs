@@ -16,8 +16,8 @@ use ext::ResultExt;
 
 use crate::error::{Error, Result};
 use crate::mean_reverting::options::Options;
+use crate::order_manager::types::{OrderDetail, OrderStatus, Rejection, Transaction, TransactionStatus};
 use crate::order_manager::{OrderManager, TransactionService};
-use crate::order_types::{OrderDetail, OrderStatus, Rejection, Transaction, TransactionStatus};
 use crate::query::MutableField;
 use crate::types::{BookPosition, ExecutionInstruction, OperationEvent, OrderMode, StratEvent, TradeEvent,
                    TradeOperation};
