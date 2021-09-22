@@ -7,7 +7,7 @@ use juniper::{FieldError, FieldResult, RootNode};
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::OrderQuery;
 use ext::MapInto;
-use strategies::order_types::PassOrder;
+use strategies::order_manager::types::PassOrder;
 use strategies::query::{DataQuery, DataResult, ModelReset, StateFieldMutation};
 use strategies::{order_manager, StrategyKey, StrategyLifecycleCmd, StrategyStatus};
 

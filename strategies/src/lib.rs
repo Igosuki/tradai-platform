@@ -66,7 +66,6 @@ pub mod mean_reverting;
 mod models;
 pub mod naive_pair_trading;
 pub mod order_manager;
-pub mod order_types;
 pub mod query;
 pub mod settings;
 #[cfg(test)]

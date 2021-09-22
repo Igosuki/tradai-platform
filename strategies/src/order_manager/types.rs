@@ -357,7 +357,7 @@ mod test {
     use coinnect_rt::types::{AddOrderRequest, InterestRate, InterestRatePeriod, OrderQuery,
                              OrderStatus as CoinOrderStatus, OrderSubmission, OrderUpdate, Trade};
 
-    use crate::order_types::{OrderDetail, OrderStatus, Rejection, Transaction, TransactionStatus};
+    use super::{OrderDetail, OrderStatus, Rejection, Transaction, TransactionStatus};
 
     #[test]
     fn test_variant_eq() {
