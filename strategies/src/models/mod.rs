@@ -51,3 +51,14 @@ impl Sampler {
     #[allow(dead_code)]
     pub fn set_last_time(&mut self, last_time: DateTime<Utc>) { self.last_time = last_time; }
 }
+
+/// Time obsolescence is defined by last_time + (sample_freq * eval_freq) > current_time
+pub fn is_eval_time_reached(
+    current_time: DateTime<Utc>,
+    last_time: DateTime<Utc>,
+    sample_freq: Duration,
+    eval_freq: i32,
+) -> bool {
+    let obsolete_time = last_time.add(sample_freq.mul(eval_freq));
+    current_time.ge(&obsolete_time)
+}

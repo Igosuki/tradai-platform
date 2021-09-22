@@ -70,8 +70,8 @@ pub mod query;
 pub mod settings;
 #[cfg(test)]
 mod test_util;
+mod trading_util;
 pub mod types;
-mod util;
 mod wal;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
