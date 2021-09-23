@@ -112,6 +112,7 @@ pub struct OperationHistory {
     id: String,
     kind: OperationKind,
     transactions: Vec<TransactionHistory>,
+
     pub ts: DateTime<Utc>,
 }
 
@@ -124,6 +125,7 @@ pub struct TransactionHistory {
     price: f64,
     last_transaction: Option<String>,
     trade: TradeOperation,
+    last_order: Option<String>,
     qty: f64,
 }
 
@@ -143,6 +145,10 @@ impl From<strategies::naive_pair_trading::state::Operation> for OperationHistory
                     last_transaction: o.left_transaction.and_then(|tr| serde_json::to_string(&tr).ok()),
                     qty: o.left_trade.qty,
                     trade: o.left_trade,
+                    last_order: o
+                        .left_order
+                        .as_ref()
+                        .and_then(|order| serde_json::to_string(order).ok()),
                 },
                 TransactionHistory {
                     value: o.right_trade.qty * o.pos.left_price,
@@ -151,6 +157,10 @@ impl From<strategies::naive_pair_trading::state::Operation> for OperationHistory
                     pos: o.pos.kind,
                     price: o.pos.left_price,
                     last_transaction: o.right_transaction.and_then(|tr| serde_json::to_string(&tr).ok()),
+                    last_order: o
+                        .right_order
+                        .as_ref()
+                        .and_then(|order| serde_json::to_string(order).ok()),
                     qty: o.right_trade.qty,
                     trade: o.right_trade,
                 },
@@ -175,6 +185,10 @@ impl From<strategies::mean_reverting::state::Operation> for OperationHistory {
                 last_transaction: o.transaction.and_then(|tr| serde_json::to_string(&tr).ok()),
                 qty: o.trade.qty,
                 trade: o.trade,
+                last_order: o
+                    .order_detail
+                    .as_ref()
+                    .and_then(|order| serde_json::to_string(order).ok()),
             }],
         }
     }
