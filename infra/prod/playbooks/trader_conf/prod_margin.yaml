@@ -19,7 +19,7 @@ strategies:
     pair: 'BURGER_USDT'
     short_window_size: 100
     long_window_size: 1000
-    dry_mode: true
+    dry_mode: false
     sample_freq: 1min
     initial_cap: 100.0
     threshold_short: 0.02
@@ -55,3 +55,4 @@ api:
   allowed_origins:
     - "http://10.104.0.3:3001"
     - "http://localhost:3001"
+    - "http://10.104.0.2:8188"
