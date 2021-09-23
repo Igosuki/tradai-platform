@@ -12,8 +12,8 @@
         mode: '+x'
     - name: Trader margin Conf
       copy:
-        src: ./trader_conf/prod.yaml
-        dest: /root/config/prod.yaml
+        src: ./trader_conf/prod_margin.yaml
+        dest: /root/config/prod_margin.yaml
         owner: root
         group: root
         mode: '+x'
