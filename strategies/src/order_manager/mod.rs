@@ -335,8 +335,12 @@ impl Actor for OrderManager {
                         futures::future::join_all(orders_read_lock.iter().filter(|(_k, v)| v.is_incomplete()).map(
                             |(tr_id, tr_status)| {
                                 let pair = tr_status.get_pair(act.xchg);
-                                debug!(order_id = ?tr_id.clone(), pair = ?pair, "fetching remote for unresolved order");
-                                pair.map(|pair| act.fetch_order(tr_id.clone(), pair, AssetType::Spot).boxed())
+                                info!(order_id = ?tr_id.clone(), pair = ?pair, "fetching remote for unresolved order");
+                                let order = act.repo.get(tr_id);
+                                order
+                                    .and_then(|o| {
+                                        pair.map(|pair| act.fetch_order(tr_id.clone(), pair, o.asset_type).boxed())
+                                    })
                                     .unwrap_or_else(|e| {
                                         debug!(error = ?e, "failed to fetch order");
                                         Box::pin(futures::future::err(e))
