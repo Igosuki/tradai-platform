@@ -33,6 +33,9 @@ $(HOOKS): $(VENV) .pre-commit-config.yaml
 	@$(CARGO_BIN) fmt --help > /dev/null || rustup component add rustfmt
 	@$(CARGO_BIN) clippy --help > /dev/null || rustup component add clippy
 	@$(CARGO_BIN) readme --help > /dev/null || cargo install cargo-readme
+	@$(CARGO_BIN) diesel_cli --help > /dev/null || cargo install diesel_cli --no-default-features --features postgres
+	@$(CARGO_BIN) sqlx --help > /dev/null || cargo install sqlx-cli --no-default-features --features sqlite
+
 
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 current_dir := $(notdir $(patsubst %/,%,$(dir $(mkfile_path))))
@@ -146,7 +149,7 @@ features=rocksdb-vendor,zstd
 profile=release
 .PHONY: release
 release:
-	docker run --cpus=$(shell nproc) --rm -it -v "$(PWD)/cargo-git":/home/rust/.cargo/git -v "$(PWD)/cargo-registry":/home/rust/.cargo/registry -v "$(PWD)/cargo-target":/home/rust/src/target -v "$(PWD)":/home/rust/src -v "$(PWD)/config_release.toml":/home/rust/src/.cargo/config.toml -e LIB_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -e BUILD_GIT_SHA="$(GIT_SHA)" -e CFLAGS=-I/usr/local/musl/include -e CC=musl-gcc rust-musl-builder-nightly cargo build --bin $(target) --profile $(profile) --target=x86_64-unknown-linux-gnu --no-default-features --features=$(features) -Z unstable-options
+	docker run --cpus=$(shell nproc) --rm -it -v "$(PWD)/build/cargo-git":/home/rust/.cargo/git -v "$(PWD)/build/cargo-registry":/home/rust/.cargo/registry -v "$(PWD)/build/cargo-target":/home/rust/src/target -v "$(PWD)":/home/rust/src -v "$(PWD)/config_release.toml":/home/rust/src/.cargo/config.toml -e LIB_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -e BUILD_GIT_SHA="$(GIT_SHA)" -e CFLAGS=-I/usr/local/musl/include -e CC=musl-gcc rust-musl-builder-nightly cargo build --bin $(target) --profile $(profile) --target=x86_64-unknown-linux-gnu --no-default-features --features=$(features) -Z unstable-options
 
 release_trader: release
 
@@ -188,6 +191,9 @@ deploy_feeder24:
 deploy_feeder:
 	./infra/prod/deploy_feeder.sh
 
+deploy_trader_margin:
+	./infra/prod/deploy_trader_margin.sh
+
 ### Checks
 
 .PHONY: check-bloat
@@ -200,3 +206,7 @@ check-bloat:
 .PHONY: check-deps
 check-deps:
 	readelf -d target/release/trader | grep 'NEEDED'
+
+migrate_engine_db:
+	 diesel migration run --migration-dir strategies/migrations
+
