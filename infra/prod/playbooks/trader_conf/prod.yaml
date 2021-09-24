@@ -11,7 +11,7 @@ exchanges:
     use_test: false
     orderbook_depth: 5
     orderbook:
-      symbols: [ 'BTC_USDT', 'LTC_USDT', 'ETC_USDT', 'FIS_USDT', 'VITE_USDT', 'BURGER_USDT', 'BAKE_USDT' ]
+      symbols: [ 'BTC_USDT', 'LTC_USDT', 'ETC_USDT', 'FIS_USDT', 'VITE_USDT', 'BURGER_USDT', 'BAKE_USDT', 'ARPA_USDT' ]
 
 balance_reporter:
   refresh_rate: 10s
@@ -122,6 +122,22 @@ strategies:
     order_mode: limit
   - type: mean_reverting
     pair: 'BAKE_USDT'
+    short_window_size: 100
+    long_window_size: 1000
+    dry_mode: false
+    sample_freq: 1min
+    initial_cap: 100.0
+    threshold_short: 0.02
+    threshold_long: -0.02
+    threshold_eval_freq: 1
+    dynamic_threshold: true
+    threshold_window_size: 1000
+    stop_loss: -0.1
+    stop_gain: 0.075
+    exchange: Binance
+    order_mode: limit
+  - type: mean_reverting
+    pair: 'ARPA_USDT'
     short_window_size: 100
     long_window_size: 1000
     dry_mode: false
