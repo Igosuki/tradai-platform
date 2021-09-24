@@ -383,9 +383,10 @@ impl MeanRevertingState {
                                 TransactionStatus::Filled(update) => self
                                     .clear_ongoing_operation(update.last_executed_price, update.cummulative_filled_qty),
                                 TransactionStatus::New(sub) => {
-                                    if let Some(trade) = sub.trades.first() {
-                                        self.clear_ongoing_operation(trade.price, trade.qty)
-                                    }
+                                    let total_qty = sub.trades.iter().map(|fill| fill.qty).sum::<f64>();
+                                    let weighted_price =
+                                        sub.trades.iter().map(|fill| fill.price * fill.qty).sum::<f64>() / total_qty;
+                                    self.clear_ongoing_operation(weighted_price, total_qty)
                                 }
                                 _ => {}
                             }
