@@ -173,7 +173,7 @@ async fn complete_backtest() {
     );
     let mut elapsed = 0_u128;
     let csv_records =
-        input::load_csv_records(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 9), vec![PAIR], EXCHANGE, CHANNEL).await;
+        input::load_csv_records(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 10), vec![PAIR], EXCHANGE, CHANNEL).await;
     let num_records = csv_records.len();
     // align data
     let pair_csv_records = csv_records[0].iter();
@@ -226,8 +226,14 @@ async fn complete_backtest() {
     let copied = std::fs::copy(&out_file, "graphs/mean_reverting_plot_latest.svg");
     assert!(copied.is_ok(), "{}", format!("{:?} : {}", copied, out_file));
 
-    assert_eq!(Some(7308.47998046875), last_position.map(|p| p.pos.price));
-    assert_eq!(Some(90.11699784066761), last_position.map(|p| p.value()));
+    assert_eq!(
+        Some("44015.99".to_string()),
+        last_position.map(|p| format!("{:.2}", p.pos.price))
+    );
+    assert_eq!(
+        Some("88.35".to_string()),
+        last_position.map(|p| format!("{:.2}", p.value()))
+    );
 }
 
 fn write_ema_values(test_results_dir: &str, model_values: &[(DateTime<Utc>, MACDApo, f64)]) {
