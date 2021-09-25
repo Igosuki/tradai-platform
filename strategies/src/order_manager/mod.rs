@@ -13,7 +13,7 @@ use coinnect_rt::bot::Ping;
 use coinnect_rt::error::Error as CoinnectError;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, AssetType, Order, OrderQuery,
-                         OrderStatus, OrderUpdate, Pair};
+                         OrderStatus, OrderSubmission, OrderUpdate, Pair};
 use db::{get_or_create, DbOptions, Storage, StorageExt};
 use ext::ResultExt;
 
@@ -60,6 +60,7 @@ impl OrderRepository {
 
     pub(crate) fn get(&self, id: &str) -> Result<OrderDetail> { self.db.get(ORDERS_TABLE, id).err_into() }
 
+    #[tracing::instrument(skip(self), level = "info")]
     pub(crate) fn put(&self, order: OrderDetail) -> Result<()> {
         self.db.put(ORDERS_TABLE, &order.id.clone(), order).err_into()
     }
@@ -183,7 +184,6 @@ impl OrderManager {
     }
 
     /// Registers an order, and passes it to be later processed
-    #[tracing::instrument(skip(self), level = "info")]
     pub(crate) async fn stage_order(&mut self, staged_order: StagedOrder) -> Result<(AddOrderRequest, OrderDetail)> {
         let mut request = staged_order.request;
         if request.order_id.is_none() {
@@ -198,28 +198,18 @@ impl OrderManager {
     }
 
     /// Directly passes an order query
-    #[tracing::instrument(skip(self), level = "info")]
     pub(crate) async fn pass_order(&mut self, order: PassOrder) -> Result<()> {
         // Dry mode simulates transactions as filled
         let written_transaction = if let PassOrder {
-            query:
-                OrderQuery::AddOrder(AddOrderRequest {
-                    dry_run: true,
-                    quantity: Some(qty),
-                    price: Some(price),
-                    side,
-                    ..
-                }),
+            query: OrderQuery::AddOrder(request @ AddOrderRequest { dry_run: true, .. }),
             ..
         } = order
         {
-            let update = OrderUpdate {
-                cummulative_filled_qty: qty,
-                last_executed_price: price,
-                side,
-                ..OrderUpdate::default()
+            let submission = OrderSubmission {
+                status: OrderStatus::Filled,
+                ..request.into()
             };
-            TransactionStatus::Filled(update)
+            TransactionStatus::New(submission)
         } else {
             // Here the order is truncated according to the exchange configuration
             let pair_conf = coinnect_rt::pair::pair_conf(&self.xchg, &order.query.pair())?;
@@ -264,6 +254,7 @@ impl OrderManager {
     }
 
     /// Registers a transaction
+    #[tracing::instrument(skip(self), level = "info")]
     pub(crate) async fn register(&mut self, order_id: String, tr: TransactionStatus) -> Result<()> {
         self.transactions_wal.append(order_id.clone(), tr.clone())?;
         let should_write = {

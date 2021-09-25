@@ -4,6 +4,7 @@ use std::time::Instant;
 use chrono::{DateTime, TimeZone, Utc};
 use ordered_float::OrderedFloat;
 use plotters::prelude::*;
+use tokio::time::Duration;
 use tracing_futures::Instrument;
 
 use coinnect_rt::exchange::Exchange;
@@ -174,15 +175,14 @@ async fn complete_backtest() {
     );
     let mut elapsed = 0_u128;
     let csv_records =
-        input::load_csv_records(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 10), vec![PAIR], EXCHANGE, CHANNEL).await;
-    let num_records = csv_records.len();
+        input::load_csv_records(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 9), vec![PAIR], EXCHANGE, CHANNEL).await;
+    let num_records = csv_records[0].len();
     // align data
     let pair_csv_records = csv_records[0].iter();
     let mut strategy_logs: Vec<StrategyLog> = Vec::new();
     let mut model_values: Vec<(DateTime<Utc>, MACDApo, f64)> = Vec::new();
     let mut trade_events: Vec<(OperationEvent, TradeEvent)> = Vec::new();
 
-    // Feed all csv records to the strat
     let before_evals = Instant::now();
     for csvr in pair_csv_records {
         let now = Instant::now();
@@ -197,7 +197,12 @@ async fn complete_backtest() {
             .instrument(tracing::trace_span!("process_row"))
             .await;
         if strat.state.ongoing_op().is_some() {
+            error!(
+                "strat.state.ongoing_op() = {}",
+                serde_json::to_string_pretty(&strat.state.ongoing_op()).unwrap()
+            );
             strat.resolve_orders().await;
+            tokio::time::sleep(Duration::from_millis(10)).await;
         }
         let value = strat.model_value().unwrap();
         model_values.push((row_time, value.clone(), strat.state.value_strat()));
@@ -233,7 +238,7 @@ async fn complete_backtest() {
         last_position.map(|p| format!("{:.2}", p.pos.price))
     );
     assert_eq!(
-        Some("88.35".to_string()),
+        Some("88.36".to_string()),
         last_position.map(|p| format!("{:.2}", p.value()))
     );
 }
