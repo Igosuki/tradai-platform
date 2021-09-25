@@ -32,16 +32,16 @@ extern crate serde;
 extern crate tracing;
 
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 
 use actix::{Actor, ActorContext, ActorFutureExt, Addr, Context, Handler, ResponseActFuture, Running, WrapFuture};
-use async_std::sync::Arc;
-use async_std::sync::RwLock;
 use backoff::ExponentialBackoff;
 use derive_more::Display;
 use serde::Deserialize;
 use strum_macros::AsRefStr;
 use strum_macros::EnumString;
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 pub use coinnect_rt::exchange::Exchange;
