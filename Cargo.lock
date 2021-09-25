@@ -816,7 +816,7 @@ dependencies = [
 
 [[package]]
 name = "binance-rs-async"
-version = "1.1.0-beta.5"
+version = "1.1.0"
 dependencies = [
  "chrono",
  "csv",
@@ -1231,7 +1231,6 @@ dependencies = [
  "actix_derive",
  "again",
  "anyhow",
- "async-std",
  "async-trait",
  "awc",
  "backoff",
@@ -5408,7 +5407,6 @@ dependencies = [
  "actix-server",
  "actix_derive",
  "anyhow",
- "async-std",
  "async-trait",
  "awc",
  "backoff",
@@ -6117,7 +6115,6 @@ dependencies = [
  "actix-web",
  "actix_derive",
  "anyhow",
- "async-std",
  "avro-rs",
  "awc",
  "bidir-map",

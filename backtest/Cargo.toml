@@ -18,7 +18,7 @@ strategies = { path = "../strategies" }
 util = { path = "../util" }
 
 # async
-tokio = "1.10"
+tokio = "1"
 actix = "0.12"
 
 # std

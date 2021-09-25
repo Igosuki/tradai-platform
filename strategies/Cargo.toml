@@ -50,7 +50,6 @@ glob = "0.3"
 itertools = "0.10"
 convert_case = "0.4"
 anyhow = "1.0"
-async-std = "1.6"
 chrono = { version = "0.4", features = ["serde"] }
 
 uuid = { version = "0.8", features = ["v4"] }
@@ -86,7 +85,7 @@ tempfile = "3.1"
 
 # Error
 thiserror = "1.0"
-tokio = { version = "1.5", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
 
 # Tracing
 tracing = "0.1"
