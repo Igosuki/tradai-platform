@@ -229,14 +229,7 @@ impl NaiveTradingStrategy {
     }
 
     async fn eval_latest(&mut self, lr: &DataRow) {
-        // If a position is taken, resolve pending operations
-        // In case of error return immediately as no trades can be made until the position is resolved
-        if self
-            .state
-            .resolve_pending_operations(&lr.left, &lr.right)
-            .await
-            .is_err()
-        {
+        if self.state.ongoing_op().is_some() {
             return;
         }
 
@@ -352,7 +345,7 @@ impl NaiveTradingStrategy {
 
     fn get_operations(&self) -> Vec<Operation> { self.state.get_operations() }
 
-    fn get_ongoing_op(&self) -> &Option<Operation> { self.state.ongoing_op() }
+    fn get_ongoing_op(&self) -> Option<&Operation> { self.state.ongoing_op() }
 
     fn cancel_ongoing_op(&mut self) -> bool { self.state.cancel_ongoing_op() }
 
@@ -390,7 +383,7 @@ impl StrategyDriver for NaiveTradingStrategy {
     fn data(&mut self, q: DataQuery) -> Option<DataResult> {
         match q {
             DataQuery::OperationHistory => Some(DataResult::NaiveOperations(self.get_operations())),
-            DataQuery::OpenOperations => Some(DataResult::NaiveOperation(Box::new(self.get_ongoing_op().clone()))),
+            DataQuery::OpenOperations => Some(DataResult::NaiveOperation(Box::new(self.get_ongoing_op().cloned()))),
             DataQuery::CancelOngoingOp => Some(DataResult::Success(self.cancel_ongoing_op())),
             DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
             DataQuery::Status => Some(DataResult::Status(StrategyStatus::Running)),
@@ -426,4 +419,27 @@ impl StrategyDriver for NaiveTradingStrategy {
     fn stop_trading(&mut self) { self.state.stop_trading(); }
 
     fn resume_trading(&mut self) { self.state.resume_trading(); }
+
+    async fn resolve_orders(&mut self) {
+        // If a position is taken, resolve pending operations
+        // In case of error return immediately as no trades can be made until the position is resolved
+        if let Some(operation) = self.state.ongoing_op().cloned() {
+            match self.state.resolve_pending_operations(&operation).await {
+                Ok(resolution) => self.metrics.log_error(resolution.as_ref()),
+                Err(e) => self.metrics.log_error(e.short_name()),
+            }
+            if self.state.ongoing_op().is_none()
+                && self.state.is_trading()
+                && self.last_right.is_some()
+                && self.last_left.is_some()
+            {
+                self.eval_latest(&DataRow {
+                    left: self.last_left.as_ref().unwrap().clone(),
+                    right: self.last_right.as_ref().unwrap().clone(),
+                    time: Utc::now(),
+                })
+                .await;
+            }
+        }
+    }
 }

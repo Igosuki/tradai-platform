@@ -12,6 +12,7 @@ use math::indicators::macd_apo::MACDApo;
 use util::date::now_str;
 use util::test::test_results_dir;
 
+use crate::driver::StrategyDriver;
 use crate::input;
 use crate::margin_interest_rates::test_util::mock_interest_rate_provider;
 use crate::mean_reverting::ema_model::ema_indicator_model;
@@ -57,12 +58,9 @@ impl StrategyLog {
 }
 
 fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn Error>> {
-    std::fs::create_dir_all("graphs").unwrap();
-    let out_file = format!(
-        "{}/graphs/mean_reverting_plot_{}.svg",
-        util::test::test_results_dir(module_path!()),
-        now_str()
-    );
+    let graph_dir = format!("{}/graphs", util::test::test_results_dir(module_path!()),);
+    std::fs::create_dir_all(&graph_dir).unwrap();
+    let out_file = format!("{}/mean_reverting_plot_{}.svg", graph_dir, now_str());
     let color_wheel = vec![&BLACK, &BLUE, &RED];
     let more_lines: Vec<StrategyEntry<'_>> = vec![
         ("Prices and EMA", vec![|x| x.mid, |x| x.value.short_ema.current, |x| {
@@ -198,13 +196,14 @@ async fn complete_backtest() {
             .process_row(&row)
             .instrument(tracing::trace_span!("process_row"))
             .await;
-
+        if strat.state.ongoing_op().is_some() {
+            strat.resolve_orders().await;
+        }
         let value = strat.model_value().unwrap();
         model_values.push((row_time, value.clone(), strat.state.value_strat()));
         strategy_logs.push(StrategyLog::from_state(row_time, &strat.state, &row, value));
-        match strat.state.ongoing_op() {
-            Some(op) => trade_events.push((op.operation_event().clone(), op.trade_event())),
-            None => (),
+        if let Some(op) = strat.state.ongoing_op() {
+            trade_events.push((op.operation_event().clone(), op.trade_event()))
         }
         elapsed += now.elapsed().as_nanos();
     }
@@ -225,9 +224,9 @@ async fn complete_backtest() {
     let last_position = positions.last();
     assert!(last_position.is_some(), "No position found in operations");
     // Output SVG graphs
-    let out_file = draw_line_plot(strategy_logs).expect("Should have drawn plots from strategy logs");
-    let copied = std::fs::copy(&out_file, "graphs/mean_reverting_plot_latest.svg");
-    assert!(copied.is_ok(), "{}", format!("{:?} : {}", copied, out_file));
+    let _out_file = draw_line_plot(strategy_logs).expect("Should have drawn plots from strategy logs");
+    // let copied = std::fs::copy(&out_file, ".local_data/graphs/mean_reverting_plot_latest.svg");
+    // assert!(copied.is_ok(), "{}", format!("{:?} : {}", copied, out_file));
 
     assert_eq!(
         Some("44015.99".to_string()),

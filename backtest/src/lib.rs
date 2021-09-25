@@ -15,13 +15,14 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::prelude::ExecutionContext;
 use serde::{ser::SerializeSeq, Serializer};
 
+use strategies::actor::StrategyActorOptions;
 use strategies::coinnect_types::{LiveEvent, LiveEventEnvelope, Orderbook, Pair};
 use strategies::input::partition_path;
 use strategies::margin_interest_rates::test_util::mock_interest_rate_provider;
 use strategies::order_manager::test_util::mock_manager;
 use strategies::query::{DataQuery, DataResult};
 use strategies::settings::StrategySettings;
-use strategies::{Channel, DbOptions, Exchange, Strategy};
+use strategies::{Channel, DbOptions, Exchange, ExchangeSettings, Strategy};
 use util::date::DateRange;
 use util::test::test_dir;
 
@@ -61,24 +62,24 @@ impl Backtest {
         info!("output_path = {:?}", db_path);
         let order_manager_addr = mock_manager(&db_path);
         let margin_interest_rate_provider_addr = mock_interest_rate_provider(conf.strat.exchange());
-
-        let strategy = if conf.use_generic {
-            strategies::Strategy::new(
-                &DbOptions::new(db_path),
-                conf.fees,
-                &StrategySettings::Generic(Box::new(conf.strat.clone())),
-                Some(order_manager_addr),
-                margin_interest_rate_provider_addr,
-            )
-        } else {
-            strategies::Strategy::new(
-                &DbOptions::new(db_path),
-                conf.fees,
-                &conf.strat,
-                Some(order_manager_addr),
-                margin_interest_rate_provider_addr,
-            )
-        };
+        let generic_strat = StrategySettings::Generic(Box::new(conf.strat.clone()));
+        let strategy_settings = if conf.use_generic { &generic_strat } else { &conf.strat };
+        let strategy = strategies::Strategy::new(
+            &DbOptions::new(db_path),
+            &ExchangeSettings {
+                fees: conf.fees,
+                trades: None,
+                orderbook: None,
+                orderbook_depth: None,
+                use_margin_account: false,
+                use_account: true,
+                use_test: true,
+            },
+            &StrategyActorOptions::default(),
+            strategy_settings,
+            Some(order_manager_addr),
+            margin_interest_rate_provider_addr,
+        );
         Ok(Self {
             period: conf.period.as_range(),
             strategy: Arc::new(strategy),

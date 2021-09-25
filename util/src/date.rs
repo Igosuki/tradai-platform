@@ -1,5 +1,6 @@
-use chrono::{Date, Duration, Utc};
 use std::mem;
+
+use chrono::{Date, Duration, Utc};
 
 #[derive(Clone)]
 pub enum DurationRangeType {
@@ -28,9 +29,8 @@ impl Iterator for DateRange {
     }
 }
 
-pub const TIMESTAMP_FORMAT: &str = "%Y%m%d %H:%M:%S";
+pub const TIMESTAMP_FORMAT: &str = "%Y%m%d_%H:%M:%S";
 
-#[allow(dead_code)]
 pub fn now_str() -> String {
     let now = Utc::now();
     now.format(TIMESTAMP_FORMAT).to_string()

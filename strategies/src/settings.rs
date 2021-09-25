@@ -1,6 +1,6 @@
 use actix::Addr;
 
-use coinnect_rt::exchange::Exchange;
+use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
 use coinnect_rt::pair::filter_pairs;
 
@@ -70,7 +70,7 @@ impl StrategyCopySettings {
 
 pub fn from_settings(
     db: &DbOptions<String>,
-    fees: f64,
+    exchange_conf: &ExchangeSettings,
     s: &StrategySettings,
     om: Option<Addr<OrderManager>>,
     mirp: Addr<MarginInterestRateProvider>,
@@ -78,7 +78,12 @@ pub fn from_settings(
     match s {
         StrategySettings::Naive(n) => {
             if let Some(o) = om {
-                Box::new(crate::naive_pair_trading::NaiveTradingStrategy::new(db, fees, n, o))
+                Box::new(crate::naive_pair_trading::NaiveTradingStrategy::new(
+                    db,
+                    exchange_conf.fees,
+                    n,
+                    o,
+                ))
             } else {
                 log::error!(
                     "Expected an order manager to be available for the targeted exchange of this NaiveStrategy"
@@ -88,7 +93,13 @@ pub fn from_settings(
         }
         StrategySettings::MeanReverting(n) => {
             if let Some(o) = om {
-                Box::new(crate::mean_reverting::MeanRevertingStrategy::new(db, fees, n, o, mirp))
+                Box::new(crate::mean_reverting::MeanRevertingStrategy::new(
+                    db,
+                    exchange_conf.fees,
+                    n,
+                    o,
+                    mirp,
+                ))
             } else {
                 log::error!(
                     "Expected an order manager to be available for the targeted exchange of this MeanRevertingStrategy"
@@ -97,7 +108,7 @@ pub fn from_settings(
             }
         }
         StrategySettings::Generic(s) => {
-            let inner: Box<dyn generic::Strategy> = from_settings_s(db, fees, s, om, mirp);
+            let inner: Box<dyn generic::Strategy> = from_settings_s(db, exchange_conf, s, om, mirp);
             Box::new(crate::generic::GenericStrategy::try_new(inner.channels().into_iter().collect(), inner).unwrap())
         }
     }
@@ -105,7 +116,7 @@ pub fn from_settings(
 
 pub(crate) fn from_settings_s(
     db: &DbOptions<String>,
-    fees: f64,
+    exchange_conf: &ExchangeSettings,
     s: &StrategySettings,
     om: Option<Addr<OrderManager>>,
     mirp: Addr<MarginInterestRateProvider>,
@@ -113,7 +124,13 @@ pub(crate) fn from_settings_s(
     match s {
         StrategySettings::MeanReverting(n) => {
             if let Some(o) = om {
-                Box::new(crate::mean_reverting::MeanRevertingStrategy::new(db, fees, n, o, mirp))
+                Box::new(crate::mean_reverting::MeanRevertingStrategy::new(
+                    db,
+                    exchange_conf.fees,
+                    n,
+                    o,
+                    mirp,
+                ))
             } else {
                 log::error!(
                     "Expected an order manager to be available for the targeted exchange of this MeanRevertingStrategy"

@@ -184,4 +184,6 @@ impl StrategyDriver for GenericStrategy {
     fn stop_trading(&mut self) { self.is_trading = false; }
 
     fn resume_trading(&mut self) { self.is_trading = true; }
+
+    async fn resolve_orders(&mut self) { todo!() }
 }

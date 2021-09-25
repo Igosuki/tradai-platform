@@ -286,11 +286,21 @@ async fn strategies(
     let strats = futures::future::join_all(strategies.into_iter().map(move |strategy_settings| {
         let exchanges_conf = exchanges.clone();
         let exchange = strategy_settings.exchange();
-        let fees = exchanges_conf.get(&exchange).unwrap().fees;
+        let exchange_conf = exchanges_conf.get(&exchange).unwrap().clone();
         let oms = oms.clone();
         let db = storage.clone();
         let mirp = mirp.clone();
-        async move { Strategy::new(db.as_ref(), fees, &strategy_settings, oms.get(&exchange).cloned(), mirp) }
+        let actor_options = settings_v.strat_actor.clone();
+        async move {
+            Strategy::new(
+                db.as_ref(),
+                &exchange_conf,
+                &actor_options,
+                &strategy_settings,
+                oms.get(&exchange).cloned(),
+                mirp,
+            )
+        }
     }))
     .await;
     strats

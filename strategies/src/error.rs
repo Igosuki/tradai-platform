@@ -17,7 +17,7 @@ pub enum Error {
     #[error("ongoing operation status has not changed")]
     NoTransactionChange,
     #[error("operation had to be restaged")]
-    OperationRestaged,
+    OperationRejected,
     #[error("operation was a bad request")]
     OperationBadRequest,
     #[error("order manager mailbox was full")]
@@ -44,7 +44,7 @@ impl Error {
             Error::ModelLoadError(_) => "model_load",
             Error::NoTransactionChange => "no_transaction_change",
             Error::NoTransactionInOperation => "no_transaction_in_operation",
-            Error::OperationRestaged => "operation_restaged",
+            Error::OperationRejected => "operation_restaged",
             Error::OrderManagerMailboxError => "order_manager_mailbox",
             Error::OrderNotFound(_) => "order_not_found",
             Error::InvalidPosition => "invalid_position",
