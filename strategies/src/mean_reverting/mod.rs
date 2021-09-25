@@ -17,6 +17,7 @@ use ext::ResultExt;
 use math::indicators::macd_apo::MACDApo;
 use math::iter::QuantileExt;
 
+use crate::driver::StrategyDriver;
 use crate::error::{Error, Result};
 use crate::generic::{InputEvent, TradeSignal};
 use crate::mean_reverting::ema_model::{ema_indicator_model, ApoThresholds};
@@ -29,7 +30,7 @@ use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation};
 use crate::trading_util::Stopper;
 use crate::types::{BookPosition, PositionKind};
-use crate::{Channel, StrategyDriver, StrategyStatus};
+use crate::{Channel, StrategyStatus};
 
 mod ema_model;
 mod metrics;

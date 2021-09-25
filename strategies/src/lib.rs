@@ -32,23 +32,20 @@ extern crate serde;
 extern crate tracing;
 
 use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
 
-use actix::{Actor, ActorContext, ActorFutureExt, Addr, Context, Handler, ResponseActFuture, Running, WrapFuture};
-use backoff::ExponentialBackoff;
+use actix::Addr;
 use derive_more::Display;
 use serde::Deserialize;
 use strum_macros::AsRefStr;
 use strum_macros::EnumString;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
+use actor::StrategyActor;
 pub use coinnect_rt::exchange::Exchange;
 pub use coinnect_rt::margin_interest_rates;
 use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
 pub use coinnect_rt::types as coinnect_types;
-use coinnect_rt::types::{LiveEventEnvelope, Pair};
+use coinnect_rt::types::Pair;
 pub use db::DbOptions;
 use error::*;
 #[cfg(feature = "python")]
@@ -57,8 +54,10 @@ pub use models::Model;
 pub use settings::{StrategyCopySettings, StrategySettings};
 
 use crate::order_manager::OrderManager;
-use crate::query::{DataQuery, DataResult, ModelReset, Mutation, StateFieldMutation};
+use crate::query::{DataQuery, DataResult};
 
+pub mod actor;
+mod driver;
 pub mod error;
 mod generic;
 pub mod input;
@@ -144,198 +143,19 @@ impl Strategy {
     }
 }
 
-pub type StrategySpawner = dyn Fn() -> Box<dyn StrategyDriver>;
-
-pub struct StrategyActor {
-    session_uuid: Uuid,
-    spawner: Box<StrategySpawner>,
-    inner: Arc<RwLock<Box<dyn StrategyDriver>>>,
-    #[allow(dead_code)]
-    conn_backoff: ExponentialBackoff,
-    channels: Vec<Channel>,
-}
-
-unsafe impl Send for StrategyActor {}
-
-impl StrategyActor {
-    pub fn new(spawner: Box<StrategySpawner>) -> Self { Self::new_with_uuid(spawner, Uuid::new_v4()) }
-
-    pub fn new_with_uuid(spawner: Box<StrategySpawner>, session_uuid: Uuid) -> Self {
-        let inner = spawner();
-        let channels = inner.channels();
-        let inner = Arc::new(RwLock::new(inner));
-        Self {
-            session_uuid,
-            spawner,
-            inner,
-            channels,
-            conn_backoff: ExponentialBackoff {
-                max_elapsed_time: Some(Duration::from_secs(5)),
-                ..ExponentialBackoff::default()
-            },
-        }
-    }
-
-    fn channels(&self) -> Vec<Channel> { self.channels.clone() }
-}
-
-impl Actor for StrategyActor {
-    type Context = Context<Self>;
-
-    fn started(&mut self, _: &mut Self::Context) {
-        info!(uuid = %self.session_uuid, "strategy started");
-    }
-
-    fn stopping(&mut self, _ctx: &mut Self::Context) -> actix::Running {
-        info!(uuid = %self.session_uuid, "strategy stopping, flushing...");
-        Running::Stop
-    }
-
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!(uuid = %self.session_uuid, "strategy stopped");
-    }
-}
-
-impl actix::Supervised for StrategyActor {
-    fn restarting(&mut self, _ctx: &mut <Self as Actor>::Context) {
-        info!(session_uuid = %self.session_uuid, "strategy restarting");
-        self.inner = Arc::new(RwLock::new((self.spawner)()));
-    }
-}
-
-type StratActorResponseFuture<T> = ResponseActFuture<StrategyActor, T>;
-
-impl Handler<Arc<LiveEventEnvelope>> for StrategyActor {
-    type Result = StratActorResponseFuture<anyhow::Result<()>>;
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    fn handle(&mut self, msg: Arc<LiveEventEnvelope>, _ctx: &mut Self::Context) -> Self::Result {
-        let lock = self.inner.clone();
-        Box::pin(
-            async move {
-                let mut inner = lock.write().await;
-                inner.add_event(msg.as_ref()).await.map_err(|e| anyhow!(e))
-            }
-            .into_actor(self),
-        )
-    }
-}
-
-impl Handler<DataQuery> for StrategyActor {
-    type Result = StratActorResponseFuture<<DataQuery as actix::Message>::Result>;
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    fn handle(&mut self, msg: DataQuery, _ctx: &mut Self::Context) -> Self::Result {
-        let lock = self.inner.clone();
-        Box::pin(
-            async move {
-                let mut inner = lock.write().await;
-                Ok(inner.data(msg))
-            }
-            .into_actor(self),
-        )
-    }
-}
-
-impl Handler<StateFieldMutation> for StrategyActor {
-    type Result = StratActorResponseFuture<<StateFieldMutation as actix::Message>::Result>;
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    fn handle(&mut self, msg: StateFieldMutation, _ctx: &mut Self::Context) -> Self::Result {
-        let lock = self.inner.clone();
-        Box::pin(
-            async move {
-                let mut inner = lock.write().await;
-                inner.mutate(Mutation::State(msg))
-            }
-            .into_actor(self),
-        )
-    }
-}
-
-impl Handler<ModelReset> for StrategyActor {
-    type Result = StratActorResponseFuture<<ModelReset as actix::Message>::Result>;
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    fn handle(&mut self, msg: ModelReset, _ctx: &mut Self::Context) -> Self::Result {
-        let restart_after = msg.restart_after;
-        let lock = self.inner.clone();
-        Box::pin(
-            async move {
-                let mut inner = lock.write().await;
-                if msg.stop_trading {
-                    inner.stop_trading();
-                }
-                inner.mutate(Mutation::Model(msg))
-            }
-            .into_actor(self)
-            .map(move |_, _act, ctx| {
-                if restart_after {
-                    ctx.stop();
-                    Ok(StrategyStatus::Stopped)
-                } else {
-                    Ok(StrategyStatus::Running)
-                }
-            }),
-        )
-    }
-}
-
-impl Handler<StrategyLifecycleCmd> for StrategyActor {
-    type Result = StratActorResponseFuture<<StrategyLifecycleCmd as actix::Message>::Result>;
-
-    fn handle(&mut self, msg: StrategyLifecycleCmd, ctx: &mut Self::Context) -> Self::Result {
-        let lock = self.inner.clone();
-        match msg {
-            StrategyLifecycleCmd::Restart => {
-                ctx.stop();
-                Box::pin(futures::future::ready(Ok(StrategyStatus::Running)).into_actor(self))
-            }
-            StrategyLifecycleCmd::StopTrading => Box::pin(
-                async move {
-                    let mut guard = lock.write().await;
-                    guard.stop_trading();
-                    Ok(StrategyStatus::NotTrading)
-                }
-                .into_actor(self),
-            ),
-            StrategyLifecycleCmd::ResumeTrading => Box::pin(
-                async move {
-                    let mut guard = lock.write().await;
-                    guard.resume_trading();
-                    Ok(StrategyStatus::Running)
-                }
-                .into_actor(self),
-            ),
-        }
-    }
-}
-
-#[async_trait]
-pub trait StrategyDriver {
-    async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()>;
-
-    fn data(&mut self, q: DataQuery) -> Option<DataResult>;
-
-    fn mutate(&mut self, m: Mutation) -> Result<()>;
-
-    fn channels(&self) -> Vec<Channel>;
-
-    fn stop_trading(&mut self);
-
-    fn resume_trading(&mut self);
-}
-
 #[cfg(test)]
 mod test {
-    use std::sync::Mutex;
+    use std::sync::{Arc, Mutex};
     use std::thread;
 
     use actix::System;
 
     use coinnect_rt::exchange::Exchange;
     use coinnect_rt::exchange::Exchange::Binance;
-    use coinnect_rt::types::{LiveEvent, Orderbook};
+    use coinnect_rt::types::{LiveEvent, LiveEventEnvelope, Orderbook};
+
+    use crate::driver::StrategyDriver;
+    use crate::query::{ModelReset, Mutation};
 
     use super::*;
 
@@ -406,87 +226,6 @@ mod test {
             assert!(r.is_ok());
             System::current().stop();
             thread::sleep(std::time::Duration::from_secs(1));
-        });
-    }
-}
-
-#[cfg(test)]
-mod actor_test {
-    use actix::{Actor, ActorContext, Context, Handler, Running, System};
-
-    #[test]
-    #[ignore]
-    fn test_actor() {
-        let _ = env_logger::builder().is_test(true).try_init();
-
-        #[derive(actix::Message)]
-        #[rtype(result = "()")]
-        enum Cmd {
-            Restart,
-            Stop,
-        }
-        struct A(&'static str);
-
-        impl Actor for A {
-            type Context = Context<Self>;
-
-            fn started(&mut self, _: &mut Self::Context) {
-                tracing::info!(name = %self.0, "actor started");
-            }
-
-            fn stopping(&mut self, _ctx: &mut Self::Context) -> actix::Running {
-                tracing::info!(name = %self.0, "actor stopping...");
-                Running::Stop
-            }
-        }
-
-        impl actix::Supervised for A {
-            fn restarting(&mut self, _ctx: &mut <Self as Actor>::Context) {
-                tracing::info!(name = %self.0, "supervised restart");
-            }
-        }
-
-        impl Handler<Cmd> for A {
-            type Result = ();
-
-            fn handle(&mut self, msg: Cmd, ctx: &mut Self::Context) -> Self::Result {
-                if let Cmd::Restart = msg {
-                    ctx.stop();
-                }
-                if let Cmd::Stop = msg {
-                    ctx.stop();
-                }
-            }
-        }
-        let sleep = std::time::Duration::from_millis(200);
-        System::new().block_on(async move {
-            let _addr = A::start(A("unsupervised"));
-            tokio::time::sleep(sleep).await;
-            System::current().stop();
-            tokio::time::sleep(sleep).await;
-        });
-
-        System::new().block_on(async move {
-            let addr = A::start(A("unsupervised with cmd"));
-            addr.send(Cmd::Restart).await.unwrap();
-            System::current().stop();
-            tokio::time::sleep(sleep).await;
-        });
-
-        System::new().block_on(async move {
-            let _addr = actix::Supervisor::start(|_| A("supervised"));
-            tokio::time::sleep(sleep).await;
-            System::current().stop();
-            tokio::time::sleep(sleep).await;
-        });
-
-        System::new().block_on(async move {
-            let addr = actix::Supervisor::start(|_| A("supervised with cmd"));
-            addr.send(Cmd::Restart).await.unwrap();
-            addr.send(Cmd::Stop).await.unwrap();
-            tokio::time::sleep(sleep).await;
-            System::current().stop();
-            tokio::time::sleep(sleep).await;
         });
     }
 }

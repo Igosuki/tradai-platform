@@ -9,10 +9,11 @@ use tokio::sync::RwLock;
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::{AssetType, LiveEvent, LiveEventEnvelope, Pair};
 
+use crate::driver::StrategyDriver;
 use crate::error::Result;
 use crate::query::{DataQuery, DataResult, Mutation};
 use crate::types::{BookPosition, ExecutionInstruction, OperationKind, PositionKind, TradeKind};
-use crate::{Channel, StrategyDriver, StrategyStatus};
+use crate::{Channel, StrategyStatus};
 
 #[cfg(feature = "python")]
 pub mod python_strat;

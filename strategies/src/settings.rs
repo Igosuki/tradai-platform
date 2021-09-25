@@ -4,11 +4,12 @@ use coinnect_rt::exchange::Exchange;
 use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
 use coinnect_rt::pair::filter_pairs;
 
+use crate::driver::StrategyDriver;
 use crate::generic::Strategy;
 use crate::mean_reverting::options::Options as MeanRevertingStrategyOptions;
 use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::order_manager::OrderManager;
-use crate::{error, generic, DbOptions, StrategyDriver, StrategyKey, StrategyType};
+use crate::{error, generic, DbOptions, StrategyKey, StrategyType};
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type")]
