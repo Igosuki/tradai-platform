@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use prometheus::{GaugeVec, Opts, Registry};
+use prometheus::{CounterVec, GaugeVec, Opts, Registry};
 
 use metrics::store::MetricStore;
 
@@ -25,6 +25,7 @@ type StateGauge = (String, fn(&MovingState) -> f64);
 pub struct NaiveStrategyMetrics {
     gauges: HashMap<String, GaugeVec>,
     state_gauges: Vec<StateGauge>,
+    error_counter: CounterVec,
 }
 
 impl NaiveStrategyMetrics {
@@ -36,15 +37,16 @@ impl NaiveStrategyMetrics {
 
     fn new_metrics(registry: &Registry, left_pair: &str, right_pair: &str) -> NaiveStrategyMetrics {
         let mut gauges: HashMap<String, GaugeVec> = HashMap::new();
-
+        let mut const_labels = HashMap::new();
+        const_labels.insert("left_pair".to_string(), left_pair.to_string());
+        const_labels.insert("right_pair".to_string(), right_pair.to_string());
         {
             let pos_labels = &["pair", "as", "pos", "op"];
             let pos_gauge_names = vec!["position"];
             for gauge_name in pos_gauge_names {
                 let gauge_vec_opts = Opts::new(gauge_name, &format!("gauge for {}", gauge_name))
                     .namespace("naive_pair_trading")
-                    .const_label("left_pair", left_pair)
-                    .const_label("right_pair", right_pair);
+                    .const_labels(const_labels.clone());
                 let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
                 gauges.insert(gauge_name.to_string(), gauge_vec.clone());
                 registry.register(Box::new(gauge_vec.clone())).unwrap();
@@ -56,8 +58,7 @@ impl NaiveStrategyMetrics {
             for gauge_name in right_mid_names {
                 let gauge_vec_opts = Opts::new(gauge_name, &format!("gauge for {}", gauge_name))
                     .namespace("naive_pair_trading")
-                    .const_label("left_pair", left_pair)
-                    .const_label("right_pair", right_pair);
+                    .const_labels(const_labels.clone());
                 let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
                 gauges.insert(gauge_name.to_string(), gauge_vec.clone());
                 registry.register(Box::new(gauge_vec.clone())).unwrap();
@@ -86,9 +87,17 @@ impl NaiveStrategyMetrics {
                 registry.register(Box::new(gauge_vec.clone())).unwrap();
             }
         }
+        let const_labels = labels! {"left_pair" => left_pair, "right_pair" => right_pair};
+        let error_counter = register_counter_vec!(
+            opts!("naive_strat_error", "Total number of process errors.", const_labels),
+            &["kind"]
+        )
+        .unwrap();
+
         NaiveStrategyMetrics {
             gauges,
             state_gauges: state_gauges.clone(),
+            error_counter,
         }
     }
 
@@ -117,4 +126,6 @@ impl NaiveStrategyMetrics {
             g.with_label_values(&[]).set(lr.right.mid)
         };
     }
+
+    pub(super) fn log_error(&self, label: &str) { self.error_counter.with_label_values(&[label]).inc(); }
 }

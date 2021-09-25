@@ -18,7 +18,7 @@ use math::indicators::macd_apo::MACDApo;
 use math::iter::QuantileExt;
 
 use crate::driver::StrategyDriver;
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::generic::{InputEvent, TradeSignal};
 use crate::mean_reverting::ema_model::{ema_indicator_model, ApoThresholds};
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
@@ -64,6 +64,7 @@ pub struct MeanRevertingStrategy {
     last_threshold_time: DateTime<Utc>,
     stopper: Stopper<f64>,
     sampler: Sampler,
+    last_book_pos: Option<BookPosition>,
 }
 
 static MEAN_REVERTING_DB_KEY: &str = "mean_reverting";
@@ -111,6 +112,7 @@ impl MeanRevertingStrategy {
             stopper: Stopper::new(n.stop_gain, n.stop_loss),
             metrics: Arc::new(metrics),
             sampler: Sampler::new(n.sample_freq(), Utc.timestamp_millis(0)),
+            last_book_pos: None,
         };
         if let Err(e) = strat.load() {
             error!("{}", e);
@@ -157,7 +159,7 @@ impl MeanRevertingStrategy {
 
     fn get_operations(&self) -> Vec<Operation> { self.state.get_operations() }
 
-    fn get_ongoing_op(&self) -> &Option<Operation> { self.state.ongoing_op() }
+    fn get_ongoing_op(&self) -> Option<&Operation> { self.state.ongoing_op() }
 
     fn cancel_ongoing_op(&mut self) -> bool { self.state.cancel_ongoing_op() }
 
@@ -219,13 +221,9 @@ impl MeanRevertingStrategy {
     fn apo(&self) -> Option<f64> { self.model.value().map(|m| m.apo) }
 
     #[tracing::instrument(skip(self), level = "trace")]
-    async fn eval_latest(&mut self, lr: &BookPosition) -> Result<&Option<Operation>> {
-        // If a position is taken, resolve pending operations
-        // In case of error return immediately as no trades can be made until the position is resolved
-        self.state.resolve_pending_operations(lr).await?;
-
+    async fn eval_latest(&mut self, lr: &BookPosition) -> Result<Option<&Operation>> {
         if self.state.ongoing_op().is_some() {
-            return Err(Error::PendingOperation);
+            return Ok(None);
         }
 
         if self.state.no_position_taken() {
@@ -271,6 +269,7 @@ impl MeanRevertingStrategy {
     fn can_eval(&self) -> bool { self.models_loaded() }
 
     async fn process_row(&mut self, row: &SinglePosRow) {
+        self.last_book_pos = Some(row.pos.clone());
         let should_sample = crate::models::is_eval_time_reached(row.time, self.last_sample_time, self.sample_freq, 1);
         // A model is available
         if should_sample {
@@ -374,7 +373,7 @@ impl StrategyDriver for MeanRevertingStrategy {
         match q {
             DataQuery::OperationHistory => Some(DataResult::MeanRevertingOperations(self.get_operations())),
             DataQuery::OpenOperations => Some(DataResult::MeanRevertingOperation(Box::new(
-                self.get_ongoing_op().clone(),
+                self.get_ongoing_op().cloned(),
             ))),
             DataQuery::CancelOngoingOp => Some(DataResult::Success(self.cancel_ongoing_op())),
             DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
@@ -400,6 +399,24 @@ impl StrategyDriver for MeanRevertingStrategy {
     fn stop_trading(&mut self) { self.state.stop_trading(); }
 
     fn resume_trading(&mut self) { self.state.resume_trading(); }
+
+    async fn resolve_orders(&mut self) {
+        // If a position is taken, resolve pending operations
+        // In case of error return immediately as no trades can be made until the position is resolved
+        if let Some(operation) = self.state.ongoing_op().cloned() {
+            match self.state.resolve_pending_operations(&operation).await {
+                Ok(resolution) => self.metrics.log_error(resolution.as_ref()),
+                Err(e) => self.metrics.log_error(e.short_name()),
+            }
+            if self.state.ongoing_op().is_none() && self.state.is_trading() {
+                if let Some(bp) = self.last_book_pos.clone() {
+                    if let Err(e) = self.eval_latest(&bp).await {
+                        self.metrics.log_error(e.short_name());
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[async_trait]

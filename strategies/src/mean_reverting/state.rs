@@ -17,7 +17,7 @@ use ext::ResultExt;
 use crate::error::{Error, Result};
 use crate::mean_reverting::options::Options;
 use crate::order_manager::types::{OrderDetail, OrderStatus, Rejection, Transaction, TransactionStatus};
-use crate::order_manager::{OrderManager, TransactionService};
+use crate::order_manager::{OrderManager, OrderResolution, TransactionService};
 use crate::query::MutableField;
 use crate::types::{BookPosition, ExecutionInstruction, OperationEvent, OrderMode, StratEvent, TradeEvent,
                    TradeOperation};
@@ -273,7 +273,7 @@ impl MeanRevertingState {
 
     fn set_ongoing_op(&mut self, op: Option<Operation>) { self.ongoing_op = op; }
 
-    pub fn ongoing_op(&self) -> &Option<Operation> { &self.ongoing_op }
+    pub fn ongoing_op(&self) -> Option<&Operation> { self.ongoing_op.as_ref() }
 
     pub(super) fn traded_price(&self) -> f64 { self.traded_price }
 
@@ -367,21 +367,24 @@ impl MeanRevertingState {
         match &self.ongoing_op {
             None => false,
             Some(op) => {
-                let mut op = op.clone();
                 self.value_strat = self.previous_value_strat;
+                // If there was no transaction, insert a rejection
+                if op.transaction.as_ref().is_none() {
+                    let mut op = op.clone();
+                    op.transaction = Some(Transaction {
+                        id: op
+                            .transaction
+                            .as_ref()
+                            .map(|tr| tr.id.clone())
+                            .unwrap_or_else(|| op.id.clone()),
+                        status: TransactionStatus::Rejected(Rejection::Cancelled(Some("auto".to_string()))),
+                    });
+                    self.save_operation(&op);
+                }
                 if op.is_open() {
                     self.clear_position();
                 }
-                op.transaction = Some(Transaction {
-                    id: op
-                        .transaction
-                        .as_ref()
-                        .map(|tr| tr.id.clone())
-                        .unwrap_or_else(|| op.id.clone()),
-                    status: TransactionStatus::Rejected(Rejection::Cancelled(Some("canceled by strategy".to_string()))),
-                });
-                self.save_operation(&op);
-                self.ongoing_op = None;
+                self.set_ongoing_op(None);
                 self.save();
                 true
             }
@@ -389,42 +392,31 @@ impl MeanRevertingState {
     }
 
     #[tracing::instrument(skip(self), level = "trace")]
-    pub(super) async fn resolve_pending_operations(&mut self, current_bp: &BookPosition) -> Result<()> {
-        if self.ongoing_op.is_none() {
-            return Ok(());
-        }
-        let ongoing_op = self.ongoing_op.as_ref().unwrap();
+    pub(super) async fn resolve_pending_operations(&mut self, ongoing_op: &Operation) -> Result<OrderResolution> {
         if ongoing_op.order_detail.is_none() {
             return Err(Error::NoTransactionInOperation);
         }
         let order_detail = ongoing_op.order_detail.as_ref().unwrap();
         let (new_order, transaction, resolution) = self.ts.resolve_pending_order(order_detail).await?;
-        let mut new_op = ongoing_op.clone();
-        new_op.order_detail = Some(new_order.clone());
-        new_op.transaction = transaction;
-        let result = match resolution {
-            Ok(_) => {
+        match resolution {
+            OrderResolution::Filled => {
                 self.clear_ongoing_operation(new_order.weighted_price, new_order.total_executed_qty)
                     .await?;
-                Ok(())
             }
-            Err(e) => {
-                if matches!(e, Error::OperationRestaged) {
-                    let current_price = self.new_price(current_bp, &ongoing_op.kind)?;
-                    new_op.trade.with_new_price(current_price);
-                    if let Ok(order_detail) = self.ts.stage_trade(&new_op.trade).await {
-                        new_op.order_detail = Some(order_detail);
-                    }
-                }
-                if matches!(e, Error::OperationBadRequest) {
-                    self.stop_trading();
-                }
+            OrderResolution::Retryable | OrderResolution::Cancelled => {
+                self.cancel_ongoing_op();
+            }
+            OrderResolution::NoChange => {}
+            OrderResolution::BadRequest | OrderResolution::Rejected => {
+                let mut new_op = ongoing_op.clone();
+                new_op.order_detail = Some(new_order.clone());
+                new_op.transaction = transaction;
                 self.set_ongoing_op(Some(new_op.clone()));
-                Err(e)
+                self.save_operation(&new_op);
+                self.stop_trading();
             }
         };
-        self.save_operation(&new_op);
-        result
+        Ok(resolution)
     }
 
     fn update_nominal_position(&mut self, position_kind: &PositionKind) {
@@ -506,7 +498,7 @@ impl MeanRevertingState {
         self.nominal_position = 0.0;
     }
 
-    fn save_operation(&mut self, op: &Operation) {
+    fn save_operation(&self, op: &Operation) {
         let save = op.clone();
         if let Err(e) = self.db.put(OPERATIONS_KEY, &op.id, save) {
             error!("Error saving operation: {:?}", e);
@@ -569,21 +561,6 @@ impl MeanRevertingState {
         if log_enabled!(Debug) {
             let s: TransientState = self.into();
             debug!("{}", serde_json::to_string(&s).unwrap());
-        }
-    }
-
-    fn new_price(&self, bp: &BookPosition, operation_kind: &OperationKind) -> Result<f64> {
-        match (&self.position, operation_kind) {
-            (Some(PositionKind::Short), OperationKind::Open) | (Some(PositionKind::Long), OperationKind::Close) => {
-                Ok(bp.bid)
-            }
-            (Some(PositionKind::Short), OperationKind::Close) | (Some(PositionKind::Long), OperationKind::Open) => {
-                Ok(bp.ask)
-            }
-            _ => {
-                // Return early as there is nothing to be done, this should never happen
-                Err(Error::InvalidPosition)
-            }
         }
     }
 

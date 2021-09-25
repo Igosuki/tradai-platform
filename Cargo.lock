@@ -5459,6 +5459,7 @@ dependencies = [
  "test-env-log",
  "thiserror",
  "tokio",
+ "tokio-stream",
  "tracing",
  "tracing-futures",
  "util",
@@ -6396,6 +6397,7 @@ checksum = "7cf7d77f457ef8dfa11e4cd5933c5ddb5dc52a94664071951219a97710f0a32b"
 name = "util"
 version = "0.1.0"
 dependencies = [
+ "byte-unit",
  "chrono",
  "opentelemetry",
  "opentelemetry-jaeger",

@@ -1,11 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use byte_unit::Byte;
 use chrono::Duration;
 use config::{Config, ConfigError, Environment, File};
 use itertools::Itertools;
-use serde::de;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::types::Pair;
@@ -13,36 +11,11 @@ use db::DbOptions;
 use metrics::prom::PrometheusOptions;
 use portfolio::balance::BalanceReporterOptions;
 use portfolio::margin::MarginAccountReporterOptions;
+use strategies::actor::StrategyActorOptions;
 use strategies::settings::{StrategyCopySettings, StrategySettings};
+use util::serde::{decode_duration, decode_duration_str, decode_file_size};
 
 use crate::notify::DiscordNotifierOptions;
-
-fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
-where
-    Duration: Sized,
-    D: Deserializer<'de>,
-{
-    let val = Deserialize::deserialize(deserializer)?;
-    Ok(Duration::seconds(val))
-}
-
-fn decode_file_size<'de, D>(deserializer: D) -> Result<u64, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let val: String = Deserialize::deserialize(deserializer)?;
-    let size_bytes = Byte::from_str(val).map_err(|e| de::Error::custom(format!("{:?}", e)))?;
-    Ok(size_bytes.get_bytes() as u64)
-}
-
-fn decode_duration_str<'de, D>(deserializer: D) -> Result<Duration, D::Error>
-where
-    Duration: Sized,
-    D: Deserializer<'de>,
-{
-    let val: String = Deserialize::deserialize(deserializer)?;
-    Duration::from_std(parse_duration::parse(&val).map_err(serde::de::Error::custom)?).map_err(serde::de::Error::custom)
-}
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct FileRotation {
@@ -167,6 +140,8 @@ pub struct Settings {
     pub version: Option<Version>,
     pub discord_notifier: Option<DiscordNotifierOptions>,
     pub connectivity_check_interval: Option<u64>,
+    #[serde(default)]
+    pub strat_actor: StrategyActorOptions,
 }
 
 impl Settings {

@@ -225,6 +225,13 @@ impl OrderDetail {
 
     pub fn is_rejected(&self) -> bool { matches!(self.status, OrderStatus::Rejected) }
 
+    pub fn is_retryable(&self) -> bool {
+        matches!(
+            self.rejection_reason,
+            Some(Rejection::Cancelled(_)) | Some(Rejection::Timeout)
+        )
+    }
+
     pub fn is_cancelled(&self) -> bool {
         self.is_rejected() && matches!(self.rejection_reason, Some(Rejection::Cancelled(_)))
     }

@@ -41,7 +41,7 @@ use strum_macros::EnumString;
 use uuid::Uuid;
 
 use actor::StrategyActor;
-pub use coinnect_rt::exchange::Exchange;
+pub use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 pub use coinnect_rt::margin_interest_rates;
 use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
 pub use coinnect_rt::types as coinnect_types;
@@ -53,6 +53,7 @@ pub use generic::python_strat;
 pub use models::Model;
 pub use settings::{StrategyCopySettings, StrategySettings};
 
+use crate::actor::StrategyActorOptions;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult};
 
@@ -124,7 +125,8 @@ impl Strategy {
     // TODO: om, mirp and fees could be in a single trading engine struct
     pub fn new(
         db: &DbOptions<String>,
-        fees: f64,
+        exchange_conf: &ExchangeSettings,
+        actor_settings: &StrategyActorOptions,
         settings: &StrategySettings,
         om: Option<Addr<OrderManager>>,
         mirp: Addr<MarginInterestRateProvider>,
@@ -133,8 +135,10 @@ impl Strategy {
         let key = settings.key();
         let db = db.clone();
         let settings = settings.clone();
+        let exchange_conf = exchange_conf.clone();
         let actor = StrategyActor::new_with_uuid(
-            Box::new(move || settings::from_settings(&db, fees, &settings, om.clone(), mirp.clone())),
+            Box::new(move || settings::from_settings(&db, &exchange_conf, &settings, om.clone(), mirp.clone())),
+            actor_settings,
             uuid,
         );
         let channels = actor.channels();
@@ -147,8 +151,10 @@ impl Strategy {
 mod test {
     use std::sync::{Arc, Mutex};
     use std::thread;
+    use std::time::Duration;
 
     use actix::System;
+    use futures::StreamExt;
 
     use coinnect_rt::exchange::Exchange;
     use coinnect_rt::exchange::Exchange::Binance;
@@ -163,9 +169,12 @@ mod test {
 
     const TEST_PAIR: &str = "BTC_USDT";
 
-    #[derive(Clone)]
     struct LoggingStrat {
         log: Arc<Mutex<Vec<LiveEventEnvelope>>>,
+    }
+
+    impl LoggingStrat {
+        fn new(log: Arc<Mutex<Vec<LiveEventEnvelope>>>) -> Self { Self { log } }
     }
 
     #[async_trait]
@@ -190,6 +199,8 @@ mod test {
         fn stop_trading(&mut self) {}
 
         fn resume_trading(&mut self) {}
+
+        async fn resolve_orders(&mut self) { todo!() }
     }
 
     #[test]
@@ -209,21 +220,25 @@ mod test {
             let log = Arc::new(Mutex::new(vec![]));
             let events: Vec<LiveEventEnvelope> = std::iter::repeat(order_book_event).take(10).collect();
             let log_a = log.clone();
-            let addr = actix::Supervisor::start(|_| {
-                StrategyActor::new(Box::new(move || Box::new(LoggingStrat { log: log_a.clone() })))
+            let options = StrategyActorOptions::default();
+            let addr = actix::Supervisor::start(move |_| {
+                StrategyActor::new(Box::new(move || Box::new(LoggingStrat::new(log_a.clone()))), &options)
             });
             for event in events.clone() {
                 addr.send(Arc::new(event)).await.unwrap().unwrap();
             }
             let log = log.lock().unwrap().clone();
             assert_eq!(log, events);
-            let r = addr.send(StrategyLifecycleCmd::Restart).await.unwrap();
-            assert_eq!(r.ok(), Some(StrategyStatus::Running));
+            //let r = addr.send(StrategyLifecycleCmd::Restart).await.unwrap();
+            //assert_eq!(r.ok(), Some(StrategyStatus::Running));
             assert!(addr.connected());
             let r = addr.send(DataQuery::Status).await.unwrap().unwrap();
             assert_eq!(r, Some(DataResult::Success(true)));
             let r = addr.send(ModelReset::default()).await.unwrap();
             assert!(r.is_ok());
+            tokio_stream::iter(0..10)
+                .for_each(|_| tokio::time::sleep(Duration::from_millis(100)))
+                .await;
             System::current().stop();
             thread::sleep(std::time::Duration::from_secs(1));
         });

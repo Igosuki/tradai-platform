@@ -5,6 +5,7 @@ use std::sync::Arc;
 use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, WrapFuture};
 use actix_derive::{Message, MessageResponse};
 use futures::FutureExt;
+use strum_macros::AsRefStr;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -33,9 +34,20 @@ pub mod types;
 static TRANSACTIONS_TABLE: &str = "transactions_wal";
 static ORDERS_TABLE: &str = "orders";
 
+#[derive(AsRefStr, PartialEq)]
 pub enum OrderResolution {
-    OperationCancelled,
-    NoTransactionChange,
+    #[strum(serialize = "filled")]
+    Filled,
+    #[strum(serialize = "cancelled")]
+    Cancelled,
+    #[strum(serialize = "no_change")]
+    NoChange,
+    #[strum(serialize = "bad_request")]
+    BadRequest,
+    #[strum(serialize = "rejected")]
+    Rejected,
+    #[strum(serialize = "retryable")]
+    Retryable,
 }
 
 #[derive(Debug, Clone)]
@@ -81,15 +93,10 @@ impl TransactionService {
         })
     }
 
-    /// TODO: handle finer grained rejections such as timeouts
-    /// TODO: introduce a optional backoff for restaging orders
     pub async fn resolve_pending_order(
         &self,
         order: &OrderDetail,
-    ) -> Result<(OrderDetail, Option<Transaction>, Result<()>)> {
-        if order.is_cancelled() {
-            return Err(Error::OperationCancelled);
-        }
+    ) -> Result<(OrderDetail, Option<Transaction>, OrderResolution)> {
         let (resolved_order, resolved_transaction) = self
             .om
             .send(OrderId(order.id.clone()))
@@ -97,15 +104,19 @@ impl TransactionService {
             .map_err(|_| Error::OrderManagerMailboxError)?;
         let stored_order = resolved_order?;
         let result = if !order.is_same_status(&stored_order.status) {
-            return Err(Error::NoTransactionChange);
+            OrderResolution::NoChange
         } else if stored_order.is_filled() {
-            Ok(())
+            OrderResolution::Filled
         } else if order.is_bad_request() {
-            Err(Error::OperationBadRequest)
+            OrderResolution::BadRequest
         } else if order.is_rejected() {
-            Err(Error::OperationRestaged)
+            if order.is_retryable() {
+                OrderResolution::Retryable
+            } else {
+                OrderResolution::Rejected
+            }
         } else {
-            Err(Error::NoTransactionChange)
+            OrderResolution::NoChange
         };
         Ok((stored_order, resolved_transaction.ok(), result))
     }

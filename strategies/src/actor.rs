@@ -1,16 +1,35 @@
 use std::sync::Arc;
-use std::time::Duration;
 
-use actix::{Actor, ActorContext, ActorFutureExt, Context, Handler, ResponseActFuture, Running, WrapFuture};
+use actix::{Actor, ActorContext, ActorFutureExt, AsyncContext, Context, Handler, ResponseActFuture, Running,
+            WrapFuture};
 use backoff::ExponentialBackoff;
+use chrono::Duration;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use coinnect_rt::types::LiveEventEnvelope;
+use util::serde::decode_duration_str;
 
 use crate::driver::StrategyDriver;
 use crate::query::{DataQuery, ModelReset, Mutation, StateFieldMutation};
 use crate::{Channel, StrategyLifecycleCmd, StrategyStatus};
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct StrategyActorOptions {
+    #[serde(deserialize_with = "decode_duration_str")]
+    conn_backoff_max: Duration,
+    #[serde(deserialize_with = "decode_duration_str")]
+    order_resolution_interval: Duration,
+}
+
+impl Default for StrategyActorOptions {
+    fn default() -> Self {
+        Self {
+            conn_backoff_max: Duration::seconds(5),
+            order_resolution_interval: Duration::seconds(1),
+        }
+    }
+}
 
 pub type StrategySpawner = dyn Fn() -> Box<dyn StrategyDriver>;
 
@@ -21,14 +40,18 @@ pub struct StrategyActor {
     #[allow(dead_code)]
     conn_backoff: ExponentialBackoff,
     channels: Vec<Channel>,
+    order_resolution_interval: Duration,
+    is_checking_orders: bool,
 }
 
 unsafe impl Send for StrategyActor {}
 
 impl StrategyActor {
-    pub fn new(spawner: Box<StrategySpawner>) -> Self { Self::new_with_uuid(spawner, Uuid::new_v4()) }
+    pub fn new(spawner: Box<StrategySpawner>, options: &StrategyActorOptions) -> Self {
+        Self::new_with_uuid(spawner, options, Uuid::new_v4())
+    }
 
-    pub fn new_with_uuid(spawner: Box<StrategySpawner>, session_uuid: Uuid) -> Self {
+    pub fn new_with_uuid(spawner: Box<StrategySpawner>, options: &StrategyActorOptions, session_uuid: Uuid) -> Self {
         let inner = spawner();
         let channels = inner.channels();
         let inner = Arc::new(RwLock::new(inner));
@@ -38,9 +61,11 @@ impl StrategyActor {
             inner,
             channels,
             conn_backoff: ExponentialBackoff {
-                max_elapsed_time: Some(Duration::from_secs(5)),
+                max_elapsed_time: Some(options.conn_backoff_max.to_std().unwrap()),
                 ..ExponentialBackoff::default()
             },
+            order_resolution_interval: options.order_resolution_interval,
+            is_checking_orders: false,
         }
     }
 
@@ -50,8 +75,24 @@ impl StrategyActor {
 impl Actor for StrategyActor {
     type Context = Context<Self>;
 
-    fn started(&mut self, _: &mut Self::Context) {
+    fn started(&mut self, ctx: &mut Self::Context) {
         info!(uuid = %self.session_uuid, "strategy started");
+        ctx.run_interval(self.order_resolution_interval.to_std().unwrap(), |act, ctx| {
+            // This will prevent stacking tasks if resolution interval is too low
+            if act.is_checking_orders {
+                return;
+            }
+            act.is_checking_orders = true;
+            let inner = act.inner.clone();
+            ctx.spawn(
+                async move {
+                    let mut w = inner.write().await;
+                    w.resolve_orders().await;
+                }
+                .into_actor(act),
+            );
+            act.is_checking_orders = false;
+        });
     }
 
     fn stopping(&mut self, _ctx: &mut Self::Context) -> actix::Running {
