@@ -45,7 +45,6 @@ awc = { version = "3.0.0-beta.7", features = ["openssl", "compress-brotli", "com
 anyhow = "1.0"
 
 # Futures
-async-std = "1.5"
 avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "master_merge" }
 
 # Data structures
@@ -116,7 +115,7 @@ native-tls = "0.2"
 
 # Error
 thiserror = "1.0"
-tokio = { version = "1.5", features = ["full", "time"] }
+tokio = { version = "1", features = ["full", "time"] }
 tokio-stream = "0.1"
 url = "2.2"
 
