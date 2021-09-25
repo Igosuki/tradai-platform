@@ -10,9 +10,10 @@ use actix::{Addr, MailboxError};
 use juniper::executor::{FieldError, FieldResult};
 
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
+use strategies::actor::StrategyActor;
 use strategies::order_manager::OrderManager;
 use strategies::query::{DataQuery, DataResult};
-use strategies::{Strategy, StrategyActor, StrategyKey};
+use strategies::{Strategy, StrategyKey};
 
 use crate::graphql_schemas::unhandled_data_result;
 

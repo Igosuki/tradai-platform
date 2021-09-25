@@ -13,6 +13,7 @@ use db::{get_or_create, DbOptions, Storage};
 use options::Options;
 use state::{MovingState, Position};
 
+use crate::driver::StrategyDriver;
 use crate::error::*;
 use crate::models::{Model, WindowedModel};
 use crate::naive_pair_trading::covar_model::{DataRow, LinearModelValue};
@@ -20,7 +21,7 @@ use crate::naive_pair_trading::state::Operation;
 use crate::order_manager::OrderManager;
 use crate::query::{ModelReset, MutableField, Mutation};
 use crate::types::{BookPosition, PositionKind};
-use crate::{Channel, DataQuery, DataResult, StrategyDriver, StrategyStatus};
+use crate::{Channel, DataQuery, DataResult, StrategyStatus};
 
 use self::metrics::NaiveStrategyMetrics;
 
