@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, WrapFuture};
 use actix_derive::{Message, MessageResponse};
-use async_std::sync::RwLock;
 use futures::FutureExt;
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use coinnect_rt::bot::Ping;
@@ -23,8 +23,7 @@ use crate::error::Result;
 use crate::types::TradeOperation;
 use crate::wal::{Wal, WalCmp};
 
-use self::types::{OrderDetail, OrderDetailId, OrderId, PassOrder, Rejection, StagedOrder, Transaction,
-                  TransactionStatus};
+use self::types::{OrderDetail, OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
 
 pub mod test_util;
 #[cfg(test)]
@@ -84,15 +83,19 @@ impl TransactionService {
 
     /// TODO: handle finer grained rejections such as timeouts
     /// TODO: introduce a optional backoff for restaging orders
-    pub async fn resolve_pending_order(&self, order: &OrderDetail) -> Result<(OrderDetail, Result<()>)> {
+    pub async fn resolve_pending_order(
+        &self,
+        order: &OrderDetail,
+    ) -> Result<(OrderDetail, Option<Transaction>, Result<()>)> {
         if order.is_cancelled() {
             return Err(Error::OperationCancelled);
         }
-        let stored_order = self
+        let (resolved_order, resolved_transaction) = self
             .om
-            .send(OrderDetailId(order.id.clone()))
+            .send(OrderId(order.id.clone()))
             .await
-            .map_err(|_| Error::OrderManagerMailboxError)??;
+            .map_err(|_| Error::OrderManagerMailboxError)?;
+        let stored_order = resolved_order?;
         let result = if !order.is_same_status(&stored_order.status) {
             return Err(Error::NoTransactionChange);
         } else if stored_order.is_filled() {
@@ -104,7 +107,7 @@ impl TransactionService {
         } else {
             Err(Error::NoTransactionChange)
         };
-        Ok((stored_order, result))
+        Ok((stored_order, resolved_transaction.ok(), result))
     }
 }
 
@@ -240,7 +243,7 @@ impl OrderManager {
     }
 
     /// Get the order from storage
-    pub(crate) async fn get_order_from_storage(&self, order_id: String) -> Option<OrderDetail> {
+    pub(crate) fn get_order_from_storage(&self, order_id: String) -> Option<OrderDetail> {
         self.repo.get(&order_id).ok()
     }
 
@@ -437,34 +440,21 @@ impl Handler<PassOrder> for OrderManager {
 }
 
 impl Handler<OrderId> for OrderManager {
-    type Result = ResponseActFuture<Self, Result<Transaction>>;
+    type Result = ResponseActFuture<Self, (Result<OrderDetail>, Result<Transaction>)>;
 
     fn handle(&mut self, order: OrderId, _ctx: &mut Self::Context) -> Self::Result {
         let zis = self.clone();
         Box::pin(
             async move {
                 let order_id = order.0.clone();
-                zis.get_order(order_id.clone())
-                    .await
-                    .ok_or_else(|| Error::OrderNotFound(order_id.clone()))
-                    .map(move |status| Transaction { id: order_id, status })
-            }
-            .into_actor(self),
-        )
-    }
-}
-
-impl Handler<OrderDetailId> for OrderManager {
-    type Result = ResponseActFuture<Self, Result<OrderDetail>>;
-
-    fn handle(&mut self, order: OrderDetailId, _ctx: &mut Self::Context) -> Self::Result {
-        let zis = self.clone();
-        Box::pin(
-            async move {
-                let order_id = order.0.clone();
-                zis.get_order_from_storage(order_id.clone())
-                    .await
-                    .ok_or_else(|| Error::OrderNotFound(order_id.clone()))
+                (
+                    zis.get_order_from_storage(order_id.clone())
+                        .ok_or_else(|| Error::OrderNotFound(order_id.clone())),
+                    zis.get_order(order_id.clone())
+                        .await
+                        .ok_or_else(|| Error::OrderNotFound(order_id.clone()))
+                        .map(move |status| Transaction { id: order_id, status }),
+                )
             }
             .into_actor(self),
         )

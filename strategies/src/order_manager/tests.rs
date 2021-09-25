@@ -11,11 +11,12 @@ use util::test::test_dir;
 use crate::coinnect_types::OrderType;
 use crate::error::*;
 use crate::order_manager::test_util::{it_order_manager, new_mock_manager};
+use crate::order_manager::types::OrderId;
 use crate::order_manager::OrderManager;
 use crate::test_util::binance::{create_ok_margin_order_mock, create_ok_order_mock, local_api};
 use crate::test_util::{binance_account_ws, init};
 
-use super::types::{OrderDetail, OrderDetailId, OrderStatus, Rejection, StagedOrder, Transaction, TransactionStatus};
+use super::types::{OrderDetail, OrderStatus, Rejection, StagedOrder, Transaction, TransactionStatus};
 
 #[actix::test]
 async fn test_append_rejected() {
@@ -156,13 +157,14 @@ async fn pass_mock_order_and_expect_status(
     assert_ne!(order_detail.id, "".to_string());
     assert!(!matches!(order_detail.status, OrderStatus::Rejected));
     // Wait for order to pass
-    let order_detail_id = order_detail.id.clone();
+    let order_id = order_detail.id.clone();
     loop {
-        let order_detail = om
+        let (order_detail, _) = om
             .clone()
-            .send(OrderDetailId(order_detail_id.clone()))
+            .send(OrderId(order_id.clone()))
             .await
-            .map_err(|_| Error::OrderManagerMailboxError)??;
+            .map_err(|_| Error::OrderManagerMailboxError)?;
+        let order_detail = order_detail?;
         if order_detail.status != OrderStatus::Staged {
             assert_eq!(order_detail.status, expected, "{:?}", order_detail);
             mock.assert();
@@ -253,13 +255,14 @@ async fn pass_live_order(om: Addr<OrderManager>, request: AddOrderRequest) -> Re
     assert_ne!(order_detail.id, "".to_string());
     assert!(!matches!(order_detail.status, OrderStatus::Rejected));
     // Wait for order to pass
-    let order_detail_id = order_detail.id.clone();
+    let order_id = order_detail.id.clone();
     loop {
-        let order_detail = om
+        let (order_detail, _) = om
             .clone()
-            .send(OrderDetailId(order_detail_id.clone()))
+            .send(OrderId(order_id.clone()))
             .await
-            .map_err(|_| Error::OrderManagerMailboxError)??;
+            .map_err(|_| Error::OrderManagerMailboxError)?;
+        let order_detail = order_detail?;
         if order_detail.status != OrderStatus::Staged {
             return Ok(order_detail);
         }
@@ -337,3 +340,43 @@ async fn test_live_market_margin_order_workflow() -> Result<()> {
 
     Ok(())
 }
+
+// #[cfg(feature = "live_e2e_tests")]
+// #[actix::test]
+// async fn test_live() -> Result<()> {
+//     use coinnect_rt::{coinnect::Coinnect, types::AccountType};
+//
+//     init();
+//     let test_dir = util::test::e2e_test_dir();
+//     // Build a valid test engine
+//     let (credentials, apis) = crate::test_util::e2e::build_apis().await?;
+//     let om = crate::order_manager::test_util::local_manager(test_dir, apis.get(&Exchange::Binance).unwrap().clone());
+//     let _account_stream = coinnect_rt::coinnect::Coinnect::new_account_stream(
+//         Exchange::Binance,
+//         credentials,
+//         vec![om.clone().recipient()],
+//         false,
+//         AccountType::Margin,
+//     )
+//     .await?;
+//     Coinnect::load_pair_registries(apis.clone()).await?;
+//     let pair: Pair = "BURGER_USDT".into();
+//     let qty = 28.40;
+//     let base_margin_order = AddOrderRequest {
+//         pair: pair.clone(),
+//         dry_run: false,
+//         quantity: Some(qty),
+//         order_type: OrderType::Market,
+//         asset_type: Some(AssetType::Margin),
+//         ..AddOrderRequest::default()
+//     };
+//     let buy_long = AddOrderRequest {
+//         side: TradeType::Buy,
+//         side_effect_type: None,
+//         order_id: Some(Uuid::new_v4().to_string()),
+//         ..base_margin_order.clone()
+//     };
+//     let buy_long_order_detail = pass_live_order(om.clone(), buy_long).await?;
+//     eprintln!("buy_long_order_detail = {:?}", buy_long_order_detail);
+//     Ok(())
+// }

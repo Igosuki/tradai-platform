@@ -135,12 +135,8 @@ pub struct PassOrder {
 }
 
 #[derive(Message)]
-#[rtype(result = "Result<Transaction>")]
+#[rtype(result = "(Result<OrderDetail>, Result<Transaction>)")]
 pub struct OrderId(pub String);
-
-#[derive(Message)]
-#[rtype(result = "Result<OrderDetail>")]
-pub struct OrderDetailId(pub String);
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]

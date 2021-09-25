@@ -388,11 +388,11 @@ impl MovingState {
                 (0.0, 0.0)
             }
         };
-        let result = if olr.1.is_ok() && orr.1.is_ok() {
+        let result = if olr.2.is_ok() && orr.2.is_ok() {
             info!("Both transactions filled for {}", &ongoing_op.id);
             self.clear_ongoing_operation();
             Ok(())
-        } else if let Err(e) = olr.1 {
+        } else if let Err(e) = olr.2 {
             if matches!(e, Error::OperationRestaged) {
                 new_op.left_trade.with_new_price(current_price_left);
                 if let Ok(order_detail) = self.ts.stage_trade(&new_op.left_trade).await {
@@ -404,7 +404,7 @@ impl MovingState {
             }
             self.set_ongoing_op(Some(new_op.clone()));
             Err(e)
-        } else if let Err(e) = orr.1 {
+        } else if let Err(e) = orr.2 {
             if matches!(e, Error::OperationRestaged) {
                 new_op.right_trade.with_new_price(current_price_right);
                 if let Ok(order_detail) = self.ts.stage_trade(&new_op.right_trade).await {

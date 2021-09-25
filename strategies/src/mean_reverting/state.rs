@@ -398,9 +398,10 @@ impl MeanRevertingState {
             return Err(Error::NoTransactionInOperation);
         }
         let order_detail = ongoing_op.order_detail.as_ref().unwrap();
-        let (new_order, resolution) = self.ts.resolve_pending_order(order_detail).await?;
+        let (new_order, transaction, resolution) = self.ts.resolve_pending_order(order_detail).await?;
         let mut new_op = ongoing_op.clone();
         new_op.order_detail = Some(new_order.clone());
+        new_op.transaction = transaction;
         let result = match resolution {
             Ok(_) => {
                 self.clear_ongoing_operation(new_order.weighted_price, new_order.total_executed_qty)
