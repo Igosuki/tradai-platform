@@ -134,13 +134,6 @@ impl Backtest {
                     report.model_failures += 1;
                 }
             }
-            match self.strategy.1.send(DataQuery::Models).await {
-                Err(_) => log::error!("Mailbox error, strategy full"),
-                Ok(Ok(Some(DataResult::Models(models)))) => all_models.push(models),
-                _ => {
-                    report.model_failures += 1;
-                }
-            }
         }
         std::fs::create_dir_all(self.output_dir.clone())?;
         write_models(self.output_dir.clone(), all_models);
