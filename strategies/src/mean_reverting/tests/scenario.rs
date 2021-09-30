@@ -197,10 +197,10 @@ async fn complete_backtest() {
             .instrument(tracing::trace_span!("process_row"))
             .await;
         if strat.state.ongoing_op().is_some() {
-            error!(
-                "strat.state.ongoing_op() = {}",
-                serde_json::to_string_pretty(&strat.state.ongoing_op()).unwrap()
-            );
+            // error!(
+            //     "strat.state.ongoing_op() = {}",
+            //     serde_json::to_string_pretty(&strat.state.ongoing_op()).unwrap()
+            // );
             strat.resolve_orders().await;
             tokio::time::sleep(Duration::from_millis(10)).await;
         }

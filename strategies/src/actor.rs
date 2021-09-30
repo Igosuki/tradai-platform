@@ -139,7 +139,13 @@ impl Handler<DataQuery> for StrategyActor {
         Box::pin(
             async move {
                 let mut inner = lock.write().await;
-                Ok(inner.data(msg))
+                Ok(inner
+                    .data(msg)
+                    .map_err(|e| {
+                        error!("{}", e);
+                        e
+                    })
+                    .ok())
             }
             .into_actor(self),
         )

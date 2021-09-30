@@ -161,7 +161,7 @@ impl MeanRevertingStrategy {
 
     fn get_ongoing_op(&self) -> Option<&Operation> { self.state.ongoing_op() }
 
-    fn cancel_ongoing_op(&mut self) -> bool { self.state.cancel_ongoing_op() }
+    fn cancel_ongoing_op(&mut self) -> Result<bool> { self.state.cancel_ongoing_op() }
 
     fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> { self.state.change_state(field, v) }
 
@@ -369,16 +369,16 @@ impl StrategyDriver for MeanRevertingStrategy {
         Ok(())
     }
 
-    fn data(&mut self, q: DataQuery) -> Option<DataResult> {
+    fn data(&mut self, q: DataQuery) -> Result<DataResult> {
         match q {
-            DataQuery::OperationHistory => Some(DataResult::MeanRevertingOperations(self.get_operations())),
-            DataQuery::OpenOperations => Some(DataResult::MeanRevertingOperation(Box::new(
+            DataQuery::OperationHistory => Ok(DataResult::MeanRevertingOperations(self.get_operations())),
+            DataQuery::OpenOperations => Ok(DataResult::MeanRevertingOperation(Box::new(
                 self.get_ongoing_op().cloned(),
             ))),
-            DataQuery::CancelOngoingOp => Some(DataResult::Success(self.cancel_ongoing_op())),
-            DataQuery::State => Some(DataResult::State(serde_json::to_string(&self.state).unwrap())),
-            DataQuery::Status => Some(DataResult::Status(self.status())),
-            DataQuery::Models => Some(DataResult::Models(self.get_models())),
+            DataQuery::CancelOngoingOp => Ok(DataResult::Success(self.cancel_ongoing_op()?)),
+            DataQuery::State => Ok(DataResult::State(serde_json::to_string(&self.state).unwrap())),
+            DataQuery::Status => Ok(DataResult::Status(self.status())),
+            DataQuery::Models => Ok(DataResult::Models(self.get_models())),
         }
     }
 

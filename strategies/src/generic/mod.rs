@@ -154,14 +154,14 @@ impl StrategyDriver for GenericStrategy {
         Ok(())
     }
 
-    fn data(&mut self, q: DataQuery) -> Option<DataResult> {
+    fn data(&mut self, q: DataQuery) -> Result<DataResult> {
         match q {
-            DataQuery::OperationHistory => Some(DataResult::Operations(vec![])),
-            DataQuery::OpenOperations => Some(DataResult::Operations(vec![])),
-            DataQuery::CancelOngoingOp => Some(DataResult::Success(false)),
-            DataQuery::State => Some(DataResult::State("".to_string())),
-            DataQuery::Models => Some(DataResult::Models(self.last_models.to_owned())),
-            DataQuery::Status => Some(DataResult::Status(StrategyStatus::NotTrading)),
+            DataQuery::OperationHistory => Ok(DataResult::Operations(vec![])),
+            DataQuery::OpenOperations => Ok(DataResult::Operations(vec![])),
+            DataQuery::CancelOngoingOp => Ok(DataResult::Success(false)),
+            DataQuery::State => Ok(DataResult::State("".to_string())),
+            DataQuery::Models => Ok(DataResult::Models(self.last_models.to_owned())),
+            DataQuery::Status => Ok(DataResult::Status(StrategyStatus::NotTrading)),
         }
     }
 

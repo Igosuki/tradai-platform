@@ -19,6 +19,7 @@ use crate::mean_reverting::options::Options;
 use crate::order_manager::types::{OrderDetail, OrderStatus, Rejection, Transaction, TransactionStatus};
 use crate::order_manager::{OrderManager, OrderResolution, TransactionService};
 use crate::query::MutableField;
+use crate::repos::OperationsRepository;
 use crate::types::{BookPosition, ExecutionInstruction, OperationEvent, OrderMode, StratEvent, TradeEvent,
                    TradeOperation};
 use crate::types::{OperationKind, PositionKind, TradeKind};
@@ -64,6 +65,7 @@ impl Operation {
             order_detail: None,
             total_interests: None,
             trade: TradeOperation {
+                id: Some(TradeOperation::new_id()),
                 price: pos.price,
                 qty,
                 pair: pos.pair,
@@ -116,71 +118,49 @@ impl Operation {
     }
 }
 
-pub(crate) static OPERATIONS_KEY: &str = "orders";
-
 pub(crate) static STATE_KEY: &str = "state";
 
 #[derive(Debug, Serialize)]
 pub(super) struct MeanRevertingState {
+    // Persist
     position: Option<PositionKind>,
-    value_strat: f64,
-    nominal_position: f64,
-    traded_price: f64,
     position_return: f64,
+    is_trading: bool,
+    last_open_order: Option<OrderDetail>,
+    ongoing_op: Option<Operation>,
+    state_key: String,
     units_to_buy: f64,
     units_to_sell: f64,
-    pnl: f64,
-    threshold_short: f64,
-    threshold_long: f64,
-    #[serde(skip_serializing)]
-    db: Arc<dyn Storage>,
-    key: String,
-    #[serde(skip_serializing)]
-    ts: TransactionService,
-    ongoing_op: Option<Operation>,
-    /// Remote operations are ran dry, meaning no actual action will be performed when possible
+    vars: TransientState,
+    // Conf
     dry_mode: bool,
     order_mode: OrderMode,
     execution_instruction: Option<ExecutionInstruction>,
     order_asset_type: AssetType,
-    is_trading: bool,
     fees_rate: f64,
-    previous_value_strat: f64,
-    last_open_order: Option<OrderDetail>,
+    exchange: Exchange,
+    // Access
+    #[serde(skip_serializing)]
+    db: Arc<dyn Storage>,
+    #[serde(skip_serializing)]
+    ts: TransactionService,
     #[serde(skip_serializing)]
     mirp: Addr<MarginInterestRateProvider>,
-    exchange: Exchange,
+    #[serde(skip_serializing)]
+    operations_repo: OperationsRepository,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 struct TransientState {
-    value_strat: f64,
-    pnl: f64,
-    traded_price: f64,
-    nominal_position: Option<f64>,
-    ongoing_op: Option<String>,
-    units_to_buy: f64,
-    units_to_sell: f64,
-    threshold_short: f64,
-    threshold_long: f64,
-    previous_value_strat: f64,
-}
-
-impl From<&mut MeanRevertingState> for TransientState {
-    fn from(trs: &mut MeanRevertingState) -> Self {
-        TransientState {
-            value_strat: trs.value_strat,
-            pnl: trs.pnl,
-            nominal_position: Some(trs.nominal_position),
-            ongoing_op: trs.ongoing_op.as_ref().map(|o| o.id.clone()),
-            units_to_buy: trs.units_to_buy,
-            traded_price: trs.traded_price,
-            units_to_sell: trs.units_to_sell,
-            threshold_short: trs.threshold_short,
-            threshold_long: trs.threshold_long,
-            previous_value_strat: trs.previous_value_strat,
-        }
-    }
+    pub value_strat: f64,
+    pub pnl: f64,
+    pub traded_price: f64,
+    #[serde(default)]
+    pub nominal_position: f64,
+    pub ongoing_op: Option<String>,
+    pub threshold_short: f64,
+    pub threshold_long: f64,
+    pub previous_value_strat: f64,
 }
 
 impl MeanRevertingState {
@@ -192,21 +172,14 @@ impl MeanRevertingState {
         mirp: Addr<MarginInterestRateProvider>,
     ) -> MeanRevertingState {
         db.ensure_table(STATE_KEY).unwrap();
-        db.ensure_table(OPERATIONS_KEY).unwrap();
         let mut state = MeanRevertingState {
             exchange: options.exchange,
             position: None,
-            value_strat: options.initial_cap,
-            nominal_position: 0.0,
-            traded_price: 0.0,
             position_return: 0.0,
             units_to_buy: 0.0,
             units_to_sell: 0.0,
-            pnl: options.initial_cap,
-            threshold_short: options.threshold_short,
-            threshold_long: options.threshold_long,
-            db,
-            key: format!("{}", options.pair),
+            db: db.clone(),
+            state_key: format!("{}", options.pair),
             ts: TransactionService::new(om),
             ongoing_op: None,
             dry_mode: options.dry_mode(),
@@ -215,21 +188,28 @@ impl MeanRevertingState {
             order_asset_type: options.order_asset_type(),
             is_trading: true,
             fees_rate,
-            previous_value_strat: options.initial_cap,
             last_open_order: None,
             mirp,
+            operations_repo: OperationsRepository::new(db),
+            vars: TransientState {
+                pnl: options.initial_cap,
+                value_strat: options.initial_cap,
+                threshold_long: options.threshold_long,
+                threshold_short: options.threshold_short,
+                ..TransientState::default()
+            },
         };
         state.reload_state();
         state
     }
 
     fn reload_state(&mut self) {
-        let previous_state: Option<TransientState> = self.db.get(STATE_KEY, &self.key).ok();
+        let previous_state: Option<TransientState> = self.db.get(STATE_KEY, &self.state_key).ok();
         if let Some(ps) = previous_state {
-            if let Some(id) = &ps.ongoing_op {
-                self.ongoing_op = self.get_operation(id);
+            if let Some(id) = ps.ongoing_op.as_ref() {
+                self.ongoing_op = self.get_operation(id).ok();
             }
-            self.load_from(ps);
+            self.vars = ps;
         }
         let ops: Vec<Operation> = self.get_operations();
         let last_unrejected_op = ops.iter().sorted_by(|p1, p2| p2.pos.time.cmp(&p1.pos.time)).find(|o| {
@@ -249,20 +229,6 @@ impl MeanRevertingState {
         }
     }
 
-    fn load_from(&mut self, ps: TransientState) {
-        self.set_units_to_sell(ps.units_to_sell);
-        self.set_units_to_buy(ps.units_to_buy);
-        self.set_threshold_short(ps.threshold_short);
-        self.set_threshold_long(ps.threshold_long);
-        self.value_strat = ps.value_strat;
-        self.pnl = ps.pnl;
-        self.traded_price = ps.traded_price;
-        if let Some(np) = ps.nominal_position {
-            self.nominal_position = np;
-        }
-        self.previous_value_strat = ps.previous_value_strat;
-    }
-
     pub(super) fn no_position_taken(&self) -> bool { self.position.is_none() }
 
     pub(super) fn is_long(&self) -> bool { matches!(self.position, Some(PositionKind::Long)) }
@@ -271,22 +237,25 @@ impl MeanRevertingState {
 
     pub(super) fn set_position(&mut self, k: PositionKind) { self.position = Some(k); }
 
-    fn set_ongoing_op(&mut self, op: Option<Operation>) { self.ongoing_op = op; }
+    fn set_ongoing_op(&mut self, op: Option<Operation>) {
+        self.vars.ongoing_op = op.as_ref().map(|o| o.id.clone());
+        self.ongoing_op = op;
+    }
 
     pub fn ongoing_op(&self) -> Option<&Operation> { self.ongoing_op.as_ref() }
 
-    pub(super) fn traded_price(&self) -> f64 { self.traded_price }
+    pub(super) fn traded_price(&self) -> f64 { self.vars.traded_price }
 
-    pub(super) fn set_pnl(&mut self) { self.pnl = self.value_strat; }
+    pub(super) fn set_pnl(&mut self) { self.vars.pnl = self.vars.value_strat; }
 
-    pub(super) fn pnl(&self) -> f64 { self.pnl }
+    pub(super) fn pnl(&self) -> f64 { self.vars.pnl }
 
-    pub(super) fn value_strat(&self) -> f64 { self.value_strat }
+    pub(super) fn value_strat(&self) -> f64 { self.vars.value_strat }
 
-    pub(super) fn previous_value_strat(&self) -> f64 { self.previous_value_strat }
+    pub(super) fn previous_value_strat(&self) -> f64 { self.vars.previous_value_strat }
 
     #[allow(dead_code)]
-    pub(super) fn nominal_position(&self) -> f64 { self.nominal_position }
+    pub(super) fn nominal_position(&self) -> f64 { self.vars.nominal_position }
 
     pub(super) async fn interest_fees_since_open(&self) -> Result<f64> {
         Ok(match &self.last_open_order {
@@ -301,16 +270,16 @@ impl MeanRevertingState {
     pub(super) async fn set_position_return(&mut self, current_price: f64) -> Result<()> {
         match self.position {
             Some(PositionKind::Long) => {
-                self.position_return = self.nominal_position
-                    * (current_price * (1.0 - self.fees_rate) - self.traded_price)
-                    / (self.nominal_position * self.traded_price)
+                self.position_return = self.vars.nominal_position
+                    * (current_price * (1.0 - self.fees_rate) - self.vars.traded_price)
+                    / (self.vars.nominal_position * self.vars.traded_price)
             }
             Some(PositionKind::Short) => {
                 let interest_fees = self.interest_fees_since_open().await?;
-                self.position_return = (self.nominal_position
-                    * (self.traded_price - current_price * (1.0 + self.fees_rate))
+                self.position_return = (self.vars.nominal_position
+                    * (self.vars.traded_price - current_price * (1.0 + self.fees_rate))
                     - interest_fees)
-                    / (self.nominal_position * self.traded_price)
+                    / (self.vars.nominal_position * self.vars.traded_price)
             }
             _ => {}
         }
@@ -320,21 +289,21 @@ impl MeanRevertingState {
     pub(super) fn position_return(&self) -> f64 { self.position_return }
 
     pub(super) fn update_units(&mut self, bp: &BookPosition) {
-        self.units_to_buy = self.value_strat / bp.ask * (1.0 + self.fees_rate);
-        self.units_to_sell = self.value_strat / bp.bid * (1.0 - self.fees_rate);
+        self.set_units_to_buy(self.vars.value_strat / bp.ask * (1.0 + self.fees_rate));
+        self.set_units_to_sell(self.vars.value_strat / bp.bid * (1.0 - self.fees_rate));
     }
 
     fn set_units_to_buy(&mut self, v: f64) { self.units_to_buy = v; }
 
     fn set_units_to_sell(&mut self, v: f64) { self.units_to_sell = v; }
 
-    pub fn set_threshold_short(&mut self, v: f64) { self.threshold_short = v; }
+    pub fn set_threshold_short(&mut self, v: f64) { self.vars.threshold_short = v; }
 
-    pub fn set_threshold_long(&mut self, v: f64) { self.threshold_long = v; }
+    pub fn set_threshold_long(&mut self, v: f64) { self.vars.threshold_long = v; }
 
-    pub fn threshold_short(&self) -> f64 { self.threshold_short }
+    pub fn threshold_short(&self) -> f64 { self.vars.threshold_short }
 
-    pub fn threshold_long(&self) -> f64 { self.threshold_long }
+    pub fn threshold_long(&self) -> f64 { self.vars.threshold_long }
 
     pub fn stop_trading(&mut self) { self.is_trading = false; }
 
@@ -343,31 +312,29 @@ impl MeanRevertingState {
     async fn clear_ongoing_operation(&mut self, last_price: f64, cummulative_qty: f64) -> Result<()> {
         match self.ongoing_op.clone() {
             Some(o) if o.is_close() => {
-                self.update_close_value(self.previous_value_strat, &o.pos.kind, last_price)
+                self.update_close_value(self.vars.previous_value_strat, &o.pos.kind, last_price)
                     .await?;
                 self.set_pnl();
-                self.clear_position();
+                self.clear_open_position();
             }
             Some(o) if o.is_open() => {
-                self.traded_price = last_price;
-                self.nominal_position = cummulative_qty;
+                self.vars.traded_price = last_price;
+                self.vars.nominal_position = cummulative_qty;
                 if o.kind == OperationKind::Open {
                     self.last_open_order = o.order_detail;
                 }
-                self.update_open_value(self.previous_value_strat, &o.pos.kind, last_price);
+                self.update_open_value(self.vars.previous_value_strat, &o.pos.kind, last_price);
             }
             _ => {}
         }
         self.set_ongoing_op(None);
-        self.save();
-        Ok(())
+        self.save()
     }
 
-    pub fn cancel_ongoing_op(&mut self) -> bool {
+    pub fn cancel_ongoing_op(&mut self) -> Result<bool> {
         match &self.ongoing_op {
-            None => false,
+            None => Ok(false),
             Some(op) => {
-                self.value_strat = self.previous_value_strat;
                 // If there was no transaction, insert a rejection
                 if op.transaction.as_ref().is_none() {
                     let mut op = op.clone();
@@ -379,14 +346,20 @@ impl MeanRevertingState {
                             .unwrap_or_else(|| op.id.clone()),
                         status: TransactionStatus::Rejected(Rejection::Cancelled(Some("auto".to_string()))),
                     });
-                    self.save_operation(&op);
+                    self.save_operation(&op)?;
                 }
+                let previous_vars = self.vars.clone();
                 if op.is_open() {
-                    self.clear_position();
+                    self.clear_open_position();
                 }
+                self.vars.value_strat = self.vars.previous_value_strat;
                 self.set_ongoing_op(None);
-                self.save();
-                true
+                self.save().map_err(|e| {
+                    self.vars = previous_vars;
+                    e
+                })?;
+
+                Ok(true)
             }
         }
     }
@@ -398,13 +371,14 @@ impl MeanRevertingState {
         }
         let order_detail = ongoing_op.order_detail.as_ref().unwrap();
         let (new_order, transaction, resolution) = self.ts.resolve_pending_order(order_detail).await?;
+        error!("{:?} {:?} {:?}", new_order, transaction, resolution);
         match resolution {
             OrderResolution::Filled => {
                 self.clear_ongoing_operation(new_order.weighted_price, new_order.total_executed_qty)
                     .await?;
             }
             OrderResolution::Retryable | OrderResolution::Cancelled => {
-                self.cancel_ongoing_op();
+                self.cancel_ongoing_op()?;
             }
             OrderResolution::NoChange => {}
             OrderResolution::BadRequest | OrderResolution::Rejected => {
@@ -412,7 +386,7 @@ impl MeanRevertingState {
                 new_op.order_detail = Some(new_order.clone());
                 new_op.transaction = transaction;
                 self.set_ongoing_op(Some(new_op.clone()));
-                self.save_operation(&new_op);
+                self.save_operation(&new_op)?;
                 self.stop_trading();
             }
         };
@@ -422,10 +396,10 @@ impl MeanRevertingState {
     fn update_nominal_position(&mut self, position_kind: &PositionKind) {
         match position_kind {
             PositionKind::Short => {
-                self.nominal_position = self.units_to_sell;
+                self.vars.nominal_position = self.units_to_sell;
             }
             PositionKind::Long => {
-                self.nominal_position = self.units_to_buy;
+                self.vars.nominal_position = self.units_to_buy;
             }
         }
     }
@@ -433,10 +407,11 @@ impl MeanRevertingState {
     fn update_open_value(&mut self, previous_value_strat: f64, kind: &PositionKind, price: f64) {
         match kind {
             PositionKind::Short => {
-                self.value_strat = previous_value_strat + self.nominal_position * price;
+                self.vars.value_strat = previous_value_strat + self.vars.nominal_position * price;
             }
             PositionKind::Long => {
-                self.value_strat = previous_value_strat - self.nominal_position * price * (1.0 + self.fees_rate);
+                self.vars.value_strat =
+                    previous_value_strat - self.vars.nominal_position * price * (1.0 + self.fees_rate);
             }
         }
     }
@@ -445,13 +420,14 @@ impl MeanRevertingState {
         match kind {
             PositionKind::Short => {
                 let interest_fees = self.interest_fees_since_open().await?;
-                self.value_strat = previous_value_strat - self.nominal_position * price - interest_fees;
+                self.vars.value_strat = previous_value_strat - self.vars.nominal_position * price - interest_fees;
                 if let Some(mut operation) = self.ongoing_op.as_mut() {
                     operation.total_interests = Some(interest_fees);
                 }
             }
             PositionKind::Long => {
-                self.value_strat = previous_value_strat + self.nominal_position * price * (1.0 - self.fees_rate);
+                self.vars.value_strat =
+                    previous_value_strat + self.vars.nominal_position * price * (1.0 - self.fees_rate);
             }
         }
         Ok(())
@@ -461,14 +437,14 @@ impl MeanRevertingState {
     pub(super) async fn open(&mut self, pos: Position) -> Result<Operation> {
         let position_kind = pos.kind.clone();
         self.set_position(position_kind.clone());
-        self.traded_price = pos.price;
-        self.previous_value_strat = self.value_strat;
+        self.vars.traded_price = pos.price;
+        self.vars.previous_value_strat = self.vars.value_strat;
         self.update_nominal_position(&position_kind);
-        self.update_open_value(self.value_strat, &position_kind, pos.price);
+        self.update_open_value(self.vars.value_strat, &position_kind, pos.price);
         let mut op = Operation::new(
             pos,
             OperationKind::Open,
-            self.nominal_position,
+            self.vars.nominal_position,
             self.dry_mode,
             self.order_mode,
             self.order_asset_type,
@@ -478,12 +454,13 @@ impl MeanRevertingState {
 
     #[tracing::instrument(skip(self), level = "debug")]
     pub(super) async fn close(&mut self, pos: Position) -> Result<Operation> {
-        self.previous_value_strat = self.value_strat;
-        self.update_close_value(self.value_strat, &pos.kind, pos.price).await?;
+        self.vars.previous_value_strat = self.vars.value_strat;
+        self.update_close_value(self.vars.value_strat, &pos.kind, pos.price)
+            .await?;
         let mut op = Operation::new(
             pos,
             OperationKind::Close,
-            self.nominal_position,
+            self.vars.nominal_position,
             self.dry_mode,
             self.order_mode,
             self.order_asset_type,
@@ -491,76 +468,58 @@ impl MeanRevertingState {
         self.stage_operation(&mut op).await
     }
 
-    fn clear_position(&mut self) {
+    fn clear_open_position(&mut self) {
         self.last_open_order = None;
         self.position = None;
         self.position_return = 0.0;
-        self.nominal_position = 0.0;
+        self.vars.nominal_position = 0.0;
     }
 
-    fn save_operation(&self, op: &Operation) {
-        let save = op.clone();
-        if let Err(e) = self.db.put(OPERATIONS_KEY, &op.id, save) {
-            error!("Error saving operation: {:?}", e);
-        }
-    }
+    fn get_operation(&self, id: &str) -> Result<Operation> { self.operations_repo.get(id) }
+
+    fn save_operation(&self, op: &Operation) -> Result<()> { self.operations_repo.put(&op.id, op) }
 
     #[tracing::instrument(skip(self), level = "debug")]
     async fn stage_operation(&mut self, op: &mut Operation) -> Result<Operation> {
-        self.save_operation(op);
+        self.save_operation(op)?;
         self.set_ongoing_op(Some(op.clone()));
         self.ts
             .stage_trade(&op.trade)
             .await
-            .map(|order| {
+            .and_then(|order| {
                 op.order_detail = Some(order);
-                self.save_operation(op);
+                self.save_operation(op)?;
                 self.set_ongoing_op(Some(op.clone()));
                 op.log();
-                self.save();
+                self.save()?;
                 self.log_indicators();
-                op.clone()
+                Ok(op.clone())
             })
-            .map_err(|e| {
-                self.cancel_ongoing_op();
-                e
+            .map_err(|e| match self.cancel_ongoing_op() {
+                Ok(_) => e,
+                Err(e) => e,
             })
     }
 
-    fn save(&mut self) {
-        let ts: TransientState = self.into();
-        if let Err(e) = self.db.put(STATE_KEY, &self.key, ts) {
-            error!("Error saving state: {:?}", e);
-        }
-    }
+    fn save(&mut self) -> Result<()> { self.db.put(STATE_KEY, &self.state_key, &self.vars).err_into() }
 
     pub fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> {
         match field {
-            MutableField::ValueStrat => self.value_strat = v,
-            MutableField::NominalPosition => self.nominal_position = v,
-            MutableField::Pnl => self.pnl = v,
-            MutableField::PreviousValueStrat => self.previous_value_strat = v,
+            MutableField::ValueStrat => self.vars.value_strat = v,
+            MutableField::NominalPosition => self.vars.nominal_position = v,
+            MutableField::Pnl => self.vars.pnl = v,
+            MutableField::PreviousValueStrat => self.vars.previous_value_strat = v,
         }
-        self.save();
-        Ok(())
+        self.save()
     }
 
-    pub fn get_operations(&self) -> Vec<Operation> {
-        self.db
-            .get_all::<Operation>(OPERATIONS_KEY)
-            .map(|v| v.into_iter().map(|kv| kv.1).collect())
-            .unwrap_or_else(|_| Vec::new())
-    }
+    pub fn get_operations(&self) -> Vec<Operation> { self.operations_repo.all() }
 
     pub(crate) fn is_trading(&self) -> bool { self.is_trading }
 
-    #[allow(dead_code)]
-    fn get_operation(&self, uuid: &str) -> Option<Operation> { self.db.get(OPERATIONS_KEY, uuid).ok() }
-
     fn log_indicators(&mut self) {
         if log_enabled!(Debug) {
-            let s: TransientState = self.into();
-            debug!("{}", serde_json::to_string(&s).unwrap());
+            debug!("{}", serde_json::to_string(&self.vars).unwrap());
         }
     }
 

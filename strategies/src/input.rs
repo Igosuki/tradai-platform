@@ -149,8 +149,12 @@ pub async fn load_csv_dataset(
 ) -> Vec<Vec<CsvRecord>> {
     let base_path = test_data_dir().join(exchange).join(channel);
     for s in pairs.clone() {
-        if !base_path.exists() || !base_path.join(&format!("pr={}", s)).exists() {
-            info!("downloading dataset from spaces");
+        let pair_path = base_path.join(&format!("pr={}", s));
+        if !base_path.exists() || !pair_path.exists() {
+            info!(
+                "downloading dataset from spaces because {} does not exist",
+                pair_path.to_str().unwrap_or("")
+            );
             std::fs::create_dir_all(&base_path).unwrap();
             crate::input::dl_test_data(test_data_dir().as_path().to_str().unwrap(), exchange, channel, s).await;
         }

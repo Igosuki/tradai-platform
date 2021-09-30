@@ -9,7 +9,6 @@
 #![feature(inherent_associated_types)]
 #![feature(fn_traits)]
 #![feature(result_cloned)]
-#![feature(macro_attributes_in_derive_output)]
 
 #[macro_use]
 extern crate anyhow;
@@ -67,6 +66,7 @@ mod models;
 pub mod naive_pair_trading;
 pub mod order_manager;
 pub mod query;
+mod repos;
 pub mod settings;
 #[cfg(test)]
 mod test_util;
@@ -185,7 +185,7 @@ mod test {
             Ok(())
         }
 
-        fn data(&mut self, _: DataQuery) -> Option<DataResult> { Some(DataResult::Success(true)) }
+        fn data(&mut self, _: DataQuery) -> Result<DataResult> { Ok(DataResult::Success(true)) }
 
         fn mutate(&mut self, _: Mutation) -> Result<()> { Ok(()) }
 

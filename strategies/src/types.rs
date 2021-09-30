@@ -10,6 +10,7 @@ use strum_macros::{AsRefStr, EnumString};
 use coinnect_rt::types::{AddOrderRequest, AssetType, OrderEnforcement, OrderType, Orderbook, TradeType};
 
 use crate::error::DataTableError;
+use uuid::Uuid;
 
 // ------------ Behavioral Types ---------
 
@@ -44,6 +45,7 @@ pub enum StopEvent {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct TradeOperation {
+    pub id: Option<String>,
     pub kind: TradeKind,
     pub pair: String,
     pub qty: f64,
@@ -67,12 +69,14 @@ impl TradeOperation {
 }
 
 impl TradeOperation {
+    pub fn new_id() -> String { Uuid::new_v4().to_string() }
     pub fn with_new_price(&mut self, new_price: f64) { self.price = new_price; }
 }
 
 impl From<TradeOperation> for AddOrderRequest {
     fn from(to: TradeOperation) -> Self {
         let mut request = AddOrderRequest {
+            order_id: to.id,
             pair: to.pair.into(),
             side: to.kind.into(),
             quantity: Some(to.qty),
@@ -90,6 +94,7 @@ impl From<TradeOperation> for AddOrderRequest {
                 request.price = None;
             }
         }
+
         request.asset_type = Some(to.asset_type);
         request
     }
