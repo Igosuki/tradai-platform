@@ -196,20 +196,25 @@ async fn complete_backtest() {
             .process_row(&row)
             .instrument(tracing::trace_span!("process_row"))
             .await;
-        if strat.state.ongoing_op().is_some() {
-            // error!(
-            //     "strat.state.ongoing_op() = {}",
-            //     serde_json::to_string_pretty(&strat.state.ongoing_op()).unwrap()
-            // );
-            strat.resolve_orders().await;
-            tokio::time::sleep(Duration::from_millis(10)).await;
+        let mut tries = 0;
+        loop {
+            if tries > 5 {
+                break;
+            }
+            if let Some(op) = strat.state.ongoing_op().cloned() {
+                strat.resolve_orders().await;
+                if strat.state.ongoing_op().is_none() {
+                    trade_events.push((op.operation_event().clone(), op.trade_event()))
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                tries += 1;
+            } else {
+                break;
+            }
         }
         let value = strat.model_value().unwrap();
         model_values.push((row_time, value.clone(), strat.state.value_strat()));
         strategy_logs.push(StrategyLog::from_state(row_time, &strat.state, &row, value));
-        if let Some(op) = strat.state.ongoing_op() {
-            trade_events.push((op.operation_event().clone(), op.trade_event()))
-        }
         elapsed += now.elapsed().as_nanos();
     }
     info!(
@@ -238,7 +243,7 @@ async fn complete_backtest() {
         last_position.map(|p| format!("{:.2}", p.pos.price))
     );
     assert_eq!(
-        Some("88.36".to_string()),
+        Some("88.42".to_string()),
         last_position.map(|p| format!("{:.2}", p.value()))
     );
 }
