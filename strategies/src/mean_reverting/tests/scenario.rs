@@ -5,9 +5,9 @@ use chrono::{DateTime, TimeZone, Utc};
 use ordered_float::OrderedFloat;
 use plotters::prelude::*;
 use tokio::time::Duration;
-use tracing_futures::Instrument;
 
 use coinnect_rt::exchange::Exchange;
+use coinnect_rt::types::{LiveEvent, LiveEventEnvelope, Orderbook};
 use db::DbOptions;
 use math::indicators::macd_apo::MACDApo;
 use util::date::now_str;
@@ -19,7 +19,7 @@ use crate::margin_interest_rates::test_util::mock_interest_rate_provider;
 use crate::mean_reverting::ema_model::ema_indicator_model;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::MeanRevertingState;
-use crate::mean_reverting::{MeanRevertingStrategy, SinglePosRow};
+use crate::mean_reverting::MeanRevertingStrategy;
 use crate::order_manager::test_util::mock_manager;
 use crate::test_util::{init, test_db};
 use crate::types::{BookPosition, OperationEvent, TradeEvent};
@@ -38,15 +38,10 @@ struct StrategyLog {
 }
 
 impl StrategyLog {
-    fn from_state(
-        time: DateTime<Utc>,
-        state: &MeanRevertingState,
-        last_row: &SinglePosRow,
-        value: MACDApo,
-    ) -> StrategyLog {
+    fn from_state(time: DateTime<Utc>, state: &MeanRevertingState, ob: &Orderbook, value: MACDApo) -> StrategyLog {
         StrategyLog {
             time,
-            mid: last_row.pos.mid,
+            mid: ob.avg_price().unwrap(),
             threshold_short: state.threshold_short(),
             threshold_long: state.threshold_long(),
             apo: value.apo,
@@ -184,18 +179,13 @@ async fn complete_backtest() {
     let mut trade_events: Vec<(OperationEvent, TradeEvent)> = Vec::new();
 
     let before_evals = Instant::now();
-    for csvr in pair_csv_records {
+    for row in pair_csv_records.map(|csvr| LiveEventEnvelope {
+        xch: Exchange::from(EXCHANGE.to_string()),
+        e: LiveEvent::LiveOrderbook(csvr.to_orderbook(PAIR)),
+    }) {
         let now = Instant::now();
-        let row_time = csvr.event_ms;
-        let row = SinglePosRow {
-            time: row_time,
-            pos: csvr.into(),
-        };
 
-        strat
-            .process_row(&row)
-            .instrument(tracing::trace_span!("process_row"))
-            .await;
+        strat.add_event(&row).await.unwrap();
         let mut tries = 0;
         loop {
             if tries > 5 {
@@ -213,8 +203,11 @@ async fn complete_backtest() {
             }
         }
         let value = strat.model_value().unwrap();
+        let row_time = row.e.time();
         model_values.push((row_time, value.clone(), strat.state.value_strat()));
-        strategy_logs.push(StrategyLog::from_state(row_time, &strat.state, &row, value));
+        if let LiveEvent::LiveOrderbook(ob) = row.e {
+            strategy_logs.push(StrategyLog::from_state(row_time, &strat.state, &ob, value));
+        }
         elapsed += now.elapsed().as_nanos();
     }
     info!(

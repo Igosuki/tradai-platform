@@ -1,13 +1,15 @@
 #[macro_use]
 extern crate clap;
 
-use chrono::{Duration, TimeZone, Utc};
-use clap::{App, Arg};
-use db::{get_or_create, DbOptions};
-use itertools::EitherOrBoth::{Both, Left, Right};
-use itertools::Itertools;
 use std::ops::Sub;
 use std::path::Path;
+
+use chrono::{Duration, TimeZone, Utc};
+use clap::{App, Arg};
+use itertools::EitherOrBoth::{Both, Left, Right};
+use itertools::Itertools;
+
+use db::{get_or_create, DbOptions};
 use strategies::input::CsvRecord;
 use strategies::naive_pair_trading::covar_model::DataRow;
 use strategies::naive_pair_trading::NaiveTradingStrategy;
