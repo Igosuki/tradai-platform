@@ -152,7 +152,6 @@ impl MeanRevertingStrategy {
     }
 
     #[cfg(test)]
-    #[allow(dead_code)]
     fn model_value(&self) -> Option<MACDApo> { self.model.value() }
 
     fn log_state(&self) { self.metrics.log_state(&self.state); }

@@ -29,7 +29,7 @@ impl Iterator for DateRange {
     }
 }
 
-pub const TIMESTAMP_FORMAT: &str = "%Y%m%d_%H:%M:%S";
+pub const TIMESTAMP_FORMAT: &str = "%Y%m%d %H:%M:%S";
 
 pub fn now_str() -> String {
     let now = Utc::now();
