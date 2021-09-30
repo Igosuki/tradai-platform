@@ -6,7 +6,7 @@ extern crate serde_derive;
 use std::collections::BTreeMap;
 use std::io::BufWriter;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use chrono::Duration;
 use datafusion::arrow::array::{Array, ListArray, PrimitiveArray, StructArray, TimestampMillisecondArray};
@@ -17,6 +17,7 @@ use serde::{ser::SerializeSeq, Serializer};
 
 use strategies::actor::StrategyActorOptions;
 use strategies::coinnect_types::{LiveEvent, LiveEventEnvelope, Orderbook, Pair};
+use strategies::driver::StrategyDriver;
 use strategies::input::partition_path;
 use strategies::margin_interest_rates::test_util::mock_interest_rate_provider;
 use strategies::order_manager::test_util::mock_manager;
@@ -38,7 +39,7 @@ struct BacktestReport {
 
 pub struct Backtest {
     period: DateRange,
-    strategy: Arc<Strategy>,
+    strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
     data_dir: PathBuf,
     sample_rate: Duration,
     output_dir: PathBuf,
@@ -64,25 +65,26 @@ impl Backtest {
         let margin_interest_rate_provider_addr = mock_interest_rate_provider(conf.strat.exchange());
         let generic_strat = StrategySettings::Generic(Box::new(conf.strat.clone()));
         let strategy_settings = if conf.use_generic { &generic_strat } else { &conf.strat };
-        let strategy = strategies::Strategy::new(
-            &DbOptions::new(db_path),
-            &ExchangeSettings {
-                fees: conf.fees,
-                trades: None,
-                orderbook: None,
-                orderbook_depth: None,
-                use_margin_account: false,
-                use_account: true,
-                use_test: true,
-            },
-            &StrategyActorOptions::default(),
-            strategy_settings,
+        let db_conf = DbOptions::new(db_path);
+        let exchange_conf = ExchangeSettings {
+            fees: conf.fees,
+            trades: None,
+            orderbook: None,
+            orderbook_depth: None,
+            use_margin_account: false,
+            use_account: true,
+            use_test: true,
+        };
+        let strategy_driver = strategies::settings::from_settings(
+            &db_conf,
+            &exchange_conf,
+            &strategy_settings,
             Some(order_manager_addr),
-            margin_interest_rate_provider_addr,
+            margin_interest_rate_provider_addr.clone(),
         );
         Ok(Self {
             period: conf.period.as_range(),
-            strategy: Arc::new(strategy),
+            strategy: Arc::new(Mutex::new(strategy_driver)),
             data_dir: conf.data_dir.clone(),
             sample_rate: conf.sample_rate(),
             output_dir: output_path,
@@ -90,9 +92,8 @@ impl Backtest {
     }
 
     pub async fn run(&self) -> Result<()> {
-        let _act = &self.strategy.as_ref().1;
-        let chans = self.strategy.2.as_slice();
-        //let mut heap = BinaryHeap::new();
+        let mut strategy = self.strategy.lock().unwrap();
+        let chans = strategy.channels();
         let period = self.period.clone();
         let mut live_events = vec![];
         for chan in chans {
@@ -113,7 +114,7 @@ impl Backtest {
                         }
                     }
                     let records = avro_orderbooks_df(partitions, self.sample_rate, false).await?;
-                    live_events.extend(events_from_grouped_arrays(*xch, pair.clone(), records))
+                    live_events.extend(events_from_grouped_arrays(xch, pair.clone(), records))
                 }
                 Channel::Trades { .. } => {
                     panic!("cannot yet read from trades");
@@ -126,10 +127,9 @@ impl Backtest {
         let mut all_models: Vec<Vec<(String, Option<serde_json::Value>)>> = vec![];
         let mut report = BacktestReport::default();
         for live_event in live_events {
-            self.strategy.1.do_send(Arc::new(live_event));
-            match self.strategy.1.send(DataQuery::Models).await {
-                Err(_) => log::error!("Mailbox error, strategy full"),
-                Ok(Ok(Some(DataResult::Models(models)))) => all_models.push(models),
+            strategy.add_event(&live_event);
+            match strategy.data(DataQuery::Models) {
+                Ok(DataResult::Models(models)) => all_models.push(models),
                 _ => {
                     report.model_failures += 1;
                 }

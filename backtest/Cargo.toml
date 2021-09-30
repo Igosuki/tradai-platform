@@ -35,5 +35,5 @@ parse_duration = "2.1"
 env_logger = { version = "0.9", optional = true }
 typed-builder = "0.9"
 # data
-datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "map_access_i", version = "5.1", default-features = false }
-#datafusion = { path = "/home/geps/dev/oss/arrow-datafusion/datafusion", version = "5.0.0", default-features = false }
+datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "map_access_i_optional_features", version = "5.1", default-features = false, features = ["avro"] }
+#datafusion = { path = "/home/geps/dev/oss/arrow-datafusion/datafusion", version = "5.1", default-features = false }

@@ -57,7 +57,7 @@ use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult};
 
 pub mod actor;
-mod driver;
+pub mod driver;
 pub mod error;
 mod generic;
 pub mod input;

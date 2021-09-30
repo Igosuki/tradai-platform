@@ -10,11 +10,12 @@ use chrono::{DateTime, Utc};
 use glob::glob;
 use serde::{Deserialize, Serialize};
 
+use coinnect_rt::types::Orderbook;
 use util::date::{DateRange, DurationRangeType};
 use util::serde::date_time_format;
+use util::test::test_data_dir;
 
 use crate::types::BookPosition;
-use util::test::test_data_dir;
 
 pub fn partition_path(exchange: &str, ts: i64, channel: &str, pair: &str) -> Option<PathBuf> {
     let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d");
@@ -80,24 +81,40 @@ pub struct CsvRecord {
     pub bq5: f64,
 }
 
-impl From<CsvRecord> for BookPosition {
-    fn from(csvr: CsvRecord) -> BookPosition {
-        let asks = [
-            (csvr.a1, csvr.aq1),
-            (csvr.a2, csvr.aq2),
-            (csvr.a3, csvr.aq3),
-            (csvr.a4, csvr.aq4),
-            (csvr.a5, csvr.aq5),
-        ];
-        let bids = [
-            (csvr.b1, csvr.bq1),
-            (csvr.b2, csvr.bq2),
-            (csvr.b3, csvr.bq3),
-            (csvr.b4, csvr.bq4),
-            (csvr.b5, csvr.bq5),
-        ];
-        BookPosition::new(csvr.event_ms, &asks, &bids)
+impl CsvRecord {
+    fn asks(&self) -> [(f64, f64); 5] {
+        [
+            (self.a1, self.aq1),
+            (self.a2, self.aq2),
+            (self.a3, self.aq3),
+            (self.a4, self.aq4),
+            (self.a5, self.aq5),
+        ]
     }
+
+    fn bids(&self) -> [(f64, f64); 5] {
+        [
+            (self.b1, self.bq1),
+            (self.b2, self.bq2),
+            (self.b3, self.bq3),
+            (self.b4, self.bq4),
+            (self.b5, self.bq5),
+        ]
+    }
+
+    pub fn to_orderbook(&self, pair: &str) -> Orderbook {
+        Orderbook {
+            timestamp: self.event_ms.timestamp_millis(),
+            pair: pair.into(),
+            asks: self.asks().into(),
+            bids: self.bids().into(),
+            last_order_id: None,
+        }
+    }
+}
+
+impl From<CsvRecord> for BookPosition {
+    fn from(csvr: CsvRecord) -> BookPosition { BookPosition::new(csvr.event_ms, &csvr.asks(), &csvr.bids()) }
 }
 
 impl<'a> From<&'a CsvRecord> for BookPosition {
