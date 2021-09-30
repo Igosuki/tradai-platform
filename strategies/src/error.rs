@@ -30,6 +30,8 @@ pub enum Error {
     InvalidPosition,
     #[error("operation was cancelled")]
     OperationCancelled,
+    #[error("feature is not available yet for this")]
+    FeatureNotImplemented,
     #[cfg(feature = "python")]
     #[error("error running python code")]
     Python(#[from] pyo3::PyErr),
@@ -54,6 +56,7 @@ impl Error {
             Error::Python(_) => "python",
             Error::InterestRateProviderMailboxError => "interest_rate_provider_mailbox",
             Error::PendingOperation => "pending_operation",
+            Error::FeatureNotImplemented => "feature_not_implemented",
         }
     }
 }

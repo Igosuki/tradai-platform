@@ -10,7 +10,7 @@ pub trait StrategyDriver {
 
     /// Handle a `DataQuery`
     /// this is used to inspect the internal state of strategies
-    fn data(&mut self, q: DataQuery) -> Option<DataResult>;
+    fn data(&mut self, q: DataQuery) -> crate::error::Result<DataResult>;
 
     /// Handle a `Mutation`
     /// this is used to correct strategies manually

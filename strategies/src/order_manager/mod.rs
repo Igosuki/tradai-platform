@@ -13,7 +13,7 @@ use coinnect_rt::bot::Ping;
 use coinnect_rt::error::Error as CoinnectError;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, AssetType, Order, OrderQuery,
-                         OrderStatus, OrderSubmission, OrderUpdate, Pair};
+                         OrderStatus, OrderUpdate, Pair};
 use db::{get_or_create, DbOptions, Storage, StorageExt};
 use ext::ResultExt;
 
@@ -34,7 +34,7 @@ pub mod types;
 static TRANSACTIONS_TABLE: &str = "transactions_wal";
 static ORDERS_TABLE: &str = "orders";
 
-#[derive(AsRefStr, PartialEq)]
+#[derive(Debug, AsRefStr, PartialEq)]
 pub enum OrderResolution {
     #[strum(serialize = "filled")]
     Filled,
@@ -104,7 +104,7 @@ impl TransactionService {
             .await
             .map_err(|_| Error::OrderManagerMailboxError)?;
         let stored_order = resolved_order?;
-        let result = if !order.is_same_status(&stored_order.status) {
+        let result = if order.is_same_status(&stored_order.status) {
             OrderResolution::NoChange
         } else if stored_order.is_filled() {
             OrderResolution::Filled
@@ -205,11 +205,7 @@ impl OrderManager {
             ..
         } = order
         {
-            let submission = OrderSubmission {
-                status: OrderStatus::Filled,
-                ..request.into()
-            };
-            TransactionStatus::New(submission)
+            TransactionStatus::New(request.into())
         } else {
             // Here the order is truncated according to the exchange configuration
             let pair_conf = coinnect_rt::pair::pair_conf(&self.xchg, &order.query.pair())?;
