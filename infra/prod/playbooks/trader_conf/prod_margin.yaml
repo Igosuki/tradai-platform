@@ -6,7 +6,7 @@ exchanges:
     use_test: false
     orderbook_depth: 5
     orderbook:
-      symbols: [ 'BURGER_USDT' ]
+      symbols: [ 'ARPA_USDT' ]
 
 streams:
   - type: ExchangeBots
@@ -16,7 +16,7 @@ outputs:
 
 strategies:
   - type: mean_reverting
-    pair: 'BURGER_USDT'
+    pair: 'ARPA_USDT'
     short_window_size: 100
     long_window_size: 1000
     dry_mode: false
