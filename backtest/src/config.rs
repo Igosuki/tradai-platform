@@ -10,6 +10,7 @@ use strategies::settings::StrategySettings;
 use util::date::{DateRange, DurationRangeType};
 
 use crate::error::*;
+use crate::OrderbookInputMode;
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "type")]
@@ -44,7 +45,7 @@ pub struct BacktestConfig {
     pub strat: StrategySettings,
     pub fees: f64,
     pub period: Period,
-    pub input_sample_rate: String,
+    pub orderbook_input_mode: OrderbookInputMode,
     pub data_dir: PathBuf,
     pub use_generic: bool,
     #[builder(default, setter(strip_option))]
@@ -66,5 +67,5 @@ impl BacktestConfig {
         s.try_into().map_err(|e| e.into())
     }
 
-    pub fn sample_rate(&self) -> Duration { Duration::from_std(parse(&self.input_sample_rate).unwrap()).unwrap() }
+    //pub fn sample_rate(&self) -> Duration { Duration::from_std(parse(&self.input_sample_rate).unwrap()).unwrap() }
 }

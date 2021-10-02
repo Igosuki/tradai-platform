@@ -23,12 +23,13 @@ period:
   from: 2021-07-18
   to: 2021-07-19
 
-input_sample_rate: 1min
+orderbook_input_mode:
+  type: csv_downsampled
 
 db_path: /tmp/strat_backtest_dbs
 
 data_dir: /home/geps/dev/bitcoins/history/btc_history_cache/data
 
-use_generic: true
+use_generic: false
 
 output_dir: ./backtests
