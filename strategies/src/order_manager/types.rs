@@ -348,6 +348,17 @@ impl OrderDetail {
         let hours_elapsed = Utc::now().sub(self.closed_at.unwrap());
         interest_rate.resolve(self.borrowed_amount.unwrap(), hours_elapsed.num_hours())
     }
+
+    pub fn from_status(&mut self, status: TransactionStatus) {
+        match status {
+            TransactionStatus::New(submission) => self.from_submission(submission),
+            TransactionStatus::Filled(update) | TransactionStatus::PartiallyFilled(update) => {
+                self.from_fill_update(update)
+            }
+            TransactionStatus::Rejected(rejection) => self.from_rejected(rejection),
+            _ => {}
+        }
+    }
 }
 
 #[cfg(test)]

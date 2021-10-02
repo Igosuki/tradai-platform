@@ -1,3 +1,4 @@
+#![feature(box_patterns)]
 #[macro_use]
 extern crate log;
 #[macro_use]
@@ -15,7 +16,6 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::prelude::ExecutionContext;
 use serde::{ser::SerializeSeq, Serializer};
 
-use strategies::actor::StrategyActorOptions;
 use strategies::coinnect_types::{LiveEvent, LiveEventEnvelope, Orderbook, Pair};
 use strategies::driver::StrategyDriver;
 use strategies::input::partition_path;
@@ -23,7 +23,7 @@ use strategies::margin_interest_rates::test_util::mock_interest_rate_provider;
 use strategies::order_manager::test_util::mock_manager;
 use strategies::query::{DataQuery, DataResult};
 use strategies::settings::StrategySettings;
-use strategies::{Channel, DbOptions, Exchange, ExchangeSettings, Strategy};
+use strategies::{Channel, DbOptions, Exchange, ExchangeSettings};
 use util::date::DateRange;
 use util::test::test_dir;
 
@@ -127,7 +127,25 @@ impl Backtest {
         let mut all_models: Vec<Vec<(String, Option<serde_json::Value>)>> = vec![];
         let mut report = BacktestReport::default();
         for live_event in live_events {
-            strategy.add_event(&live_event);
+            strategy.add_event(&live_event).await.unwrap();
+            // If there is an ongoing operation, resolve orders
+            let mut tries = 0;
+            loop {
+                if tries > 5 {
+                    break;
+                }
+                let open_ops = strategy.data(DataQuery::OpenOperations);
+                if matches!(
+                    open_ops,
+                    Ok(DataResult::NaiveOperation(box Some(_))) | Ok(DataResult::MeanRevertingOperation(box Some(_)))
+                ) {
+                    strategy.resolve_orders().await;
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                    tries += 1;
+                } else {
+                    break;
+                }
+            }
             match strategy.data(DataQuery::Models) {
                 Ok(DataResult::Models(models)) => all_models.push(models),
                 _ => {

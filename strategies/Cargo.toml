@@ -14,8 +14,13 @@ name = "model_loader"
 path = "src/main.rs"
 required-features = ["binary"]
 
+[[bin]]
+name = "order_details_repair"
+path = "src/repair_order_details.rs"
+required-features = ["binary"]
+
 [features]
-binary = ["clap"]
+binary = ["clap", "structopt"]
 zstd = ["awc/compress-zstd"]
 python = ["pyo3", "pyo3-log"]
 backtests = []
@@ -34,6 +39,7 @@ actix_derive = "0.6"
 
 # bin
 clap = { version = "2.33", optional = true }
+structopt = { version = "0.3.23", optional = true }
 
 # Crypto
 #coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }

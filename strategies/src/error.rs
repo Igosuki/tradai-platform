@@ -26,6 +26,8 @@ pub enum Error {
     InterestRateProviderMailboxError,
     #[error("order not found : {0}")]
     OrderNotFound(String),
+    #[error("staged order required")]
+    StagedOrderRequired,
     #[error("invalid position")]
     InvalidPosition,
     #[error("operation was cancelled")]
@@ -57,6 +59,7 @@ impl Error {
             Error::InterestRateProviderMailboxError => "interest_rate_provider_mailbox",
             Error::PendingOperation => "pending_operation",
             Error::FeatureNotImplemented => "feature_not_implemented",
+            Error::StagedOrderRequired => "staged_order_required",
         }
     }
 }
