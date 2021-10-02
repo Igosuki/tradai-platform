@@ -9,8 +9,9 @@ use std::fs::File;
 use std::future::Future;
 use std::process;
 use std::sync::mpsc::channel;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use structopt::StructOpt;
+use tokio::sync::RwLock;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
@@ -44,7 +45,7 @@ where
         settings::Settings::new(opts.config).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?,
     ));
 
-    settings.write().unwrap().version = Some(Version {
+    settings.write().await.version = Some(Version {
         version: env!("CARGO_PKG_VERSION").to_string(),
         sha: env!("GIT_HASH").to_string(),
     });
@@ -52,17 +53,17 @@ where
     // Create a channel to receive the events.
     let (tx, _rx) = channel();
     let mut watcher: RecommendedWatcher = Watcher::new(tx, std::time::Duration::from_secs(2)).unwrap();
+    let settings_r = settings.read().await;
     watcher
-        .watch(&settings.read().unwrap().__config_file, RecursiveMode::NonRecursive)
+        .watch(&settings_r.__config_file, RecursiveMode::NonRecursive)
         .unwrap();
 
     if opts.check_conf {
-        settings.read().unwrap().sanitize();
+        settings_r.sanitize();
         process::exit(0x0100);
     }
     if opts.telemetry {
-        let endpoints = settings.read().unwrap();
-        let telemetry = &endpoints.telemetry;
+        let telemetry = &settings_r.telemetry;
         util::tracing::setup_opentelemetry(
             telemetry.agents.clone(),
             telemetry.service_name.clone(),
@@ -72,8 +73,7 @@ where
         env_logger::init();
     }
 
-    let settings_guard = settings.read().unwrap();
-    if settings_guard.profile_main {
+    if settings_r.profile_main {
         #[cfg(feature = "flame_it")]
         flame::start("main bot");
     }
@@ -81,14 +81,14 @@ where
     if let Err(e) = system_fn(settings.clone()).await {
         error!("Trader system exited in error: {:?}", e);
     }
-    if settings_guard.profile_main {
+    if settings_r.profile_main {
         #[cfg(feature = "gprof")]
         HEAP_PROFILER.lock().unwrap().stop().unwrap();
     }
     System::current().stop();
     info!("Caught interrupt and stopped the system");
 
-    if settings_guard.profile_main {
+    if settings_r.profile_main {
         #[cfg(feature = "flame_it")]
         flame::end("main bot");
 

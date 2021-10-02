@@ -4,12 +4,13 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::RwLock;
 
-//use actix::System;
 use actix::{Actor, Addr, Recipient, SyncArbiter};
 use futures::future::select_all;
+// use actix::System;
 // use tokio::select;
 // use tokio::signal::unix::{signal, SignalKind};
 use tracing::Instrument;
@@ -36,8 +37,8 @@ use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSe
 pub mod bots;
 
 pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
-    let settings_v = settings.read().unwrap();
-    let exchanges = settings_v.exchanges.clone();
+    let settings_v = settings.read().await;
+    let exchanges = &settings_v.exchanges;
 
     let keys_path = PathBuf::from(settings_v.keys.clone());
     if fs::metadata(keys_path.clone()).is_err() {
@@ -276,10 +277,8 @@ async fn strategies(
     oms: Arc<HashMap<Exchange, Addr<OrderManager>>>,
     mirp: Addr<MarginInterestRateProvider>,
 ) -> Vec<Strategy> {
-    let arc = Arc::clone(&settings);
-    let arc1 = arc.clone();
-    let settings_v = arc1.read().unwrap();
-    let exchanges = Arc::new(arc.read().unwrap().exchanges.clone());
+    let settings_v = settings.read().await;
+    let exchanges = Arc::new(settings_v.exchanges.clone());
     let mut strategies = settings_v.strategies.clone();
     strategies.extend(settings_v.strategies_copy.iter().map(|sc| sc.all()).flatten().flatten());
     let storage = Arc::new(settings_v.storage.clone());
