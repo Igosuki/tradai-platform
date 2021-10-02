@@ -1,3 +1,5 @@
+use backtest::OrderbookInputMode;
+
 #[cfg(feature = "backtests")]
 #[actix::test]
 async fn complete_backtest_backtest() -> backtest::Result<()> {
@@ -40,7 +42,7 @@ async fn complete_backtest_backtest() -> backtest::Result<()> {
             from: Utc.ymd(2021, 8, 1).naive_utc(),
             to: Some(Utc.ymd(2021, 8, 9).naive_utc()),
         })
-        .input_sample_rate("1min".to_string())
+        .orderbook_input_mode(OrderbookInputMode::CsvDownsampled)
         .data_dir(data_cache_dir())
         .use_generic(false)
         .build();

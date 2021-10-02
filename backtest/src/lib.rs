@@ -5,10 +5,6 @@ extern crate log;
 extern crate serde_derive;
 
 use chrono::Duration;
-use datafusion::arrow::array::{Array, ListArray, PrimitiveArray, StructArray, TimestampMillisecondArray};
-use datafusion::arrow::datatypes::Float64Type;
-use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::prelude::ExecutionContext;
 use serde::{ser::SerializeSeq, Serializer};
 use std::collections::BTreeMap;
 use std::io::BufWriter;
@@ -16,21 +12,33 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use strategies::coinnect_types::{LiveEvent, LiveEventEnvelope, Orderbook, Pair};
 use strategies::driver::StrategyDriver;
 use strategies::input::partition_path;
 use strategies::margin_interest_rates::test_util::mock_interest_rate_provider;
 use strategies::order_manager::test_util::mock_manager;
 use strategies::query::{DataQuery, DataResult};
 use strategies::settings::StrategySettings;
-use strategies::{Channel, DbOptions, Exchange, ExchangeSettings};
+use strategies::{Channel, DbOptions, ExchangeSettings};
 use util::date::DateRange;
 use util::test::test_dir;
 
+use crate::datasources::avro_orderbook::{avro_orderbooks_df, events_from_avro_orderbooks};
+use crate::datasources::csv_orderbook::{csv_orderbooks_df, events_from_csv_orderbooks};
 pub use crate::{config::*, error::*};
 
 mod config;
+mod datasources;
 mod error;
+
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "snake_case", tag = "type")]
+pub enum OrderbookInputMode {
+    AvroRaw {
+        #[serde(deserialize_with = "util::serde::decode_duration_str")]
+        sample_rate: Duration,
+    },
+    CsvDownsampled,
+}
 
 #[derive(Serialize, Deserialize, Default)]
 struct BacktestReport {
@@ -41,8 +49,8 @@ pub struct Backtest {
     period: DateRange,
     strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
     data_dir: PathBuf,
-    sample_rate: Duration,
     output_dir: PathBuf,
+    orderbook_input_mode: OrderbookInputMode,
 }
 
 impl Backtest {
@@ -86,7 +94,7 @@ impl Backtest {
             period: conf.period.as_range(),
             strategy: Arc::new(Mutex::new(strategy_driver)),
             data_dir: conf.data_dir.clone(),
-            sample_rate: conf.sample_rate(),
+            orderbook_input_mode: conf.orderbook_input_mode.clone(),
             output_dir: output_path,
         })
     }
@@ -113,8 +121,16 @@ impl Backtest {
                             partitions.push(partition_file.as_path().to_string_lossy().to_string());
                         }
                     }
-                    let records = avro_orderbooks_df(partitions, self.sample_rate, false).await?;
-                    live_events.extend(events_from_grouped_arrays(xch, pair.clone(), records))
+                    match self.orderbook_input_mode {
+                        OrderbookInputMode::AvroRaw { sample_rate } => {
+                            let records = avro_orderbooks_df(partitions, sample_rate, false).await?;
+                            live_events.extend(events_from_avro_orderbooks(xch, pair.clone(), records))
+                        }
+                        OrderbookInputMode::CsvDownsampled => {
+                            let records = csv_orderbooks_df(partitions).await?;
+                            live_events.extend(events_from_csv_orderbooks(xch, pair.clone(), records))
+                        }
+                    }
                 }
                 Channel::Trades { .. } => {
                     panic!("cannot yet read from trades");
@@ -183,108 +199,4 @@ fn write_models(output_dir: PathBuf, all_models: Vec<Vec<(String, Option<serde_j
         seq.serialize_element(&obj).unwrap();
     }
     seq.end().unwrap();
-}
-
-async fn avro_orderbooks_df(
-    partitions: Vec<String>,
-    sample_rate: Duration,
-    order_book_split_cols: bool,
-) -> Result<Vec<RecordBatch>> {
-    let mut ctx = ExecutionContext::new();
-    dbg!(&partitions);
-    let mut records = vec![];
-    let order_book_selector = if order_book_split_cols {
-        "asks[0][0] as a1, asks[0][1] as aq1, asks[1][0] as a2, asks[1][1] as aq2, asks[2][0] as a3, asks[2][1] as aq3, asks[3][0] as a4, asks[3][1] as aq4, asks[4][0] as a5, asks[4][1] as aq5, bids[0][0] as b1, bids[0][1] as bq1, bids[1][0] as b2, bids[1][1] as bq2, bids[2][0] as b3, bids[2][1] as bq3, bids[3][0] as b4, bids[3][1] as bq4, bids[4][0] as b5, bids[4][1] as bq5"
-    } else {
-        "asks, bids"
-    };
-    for partition in partitions {
-        ctx.sql(&format!(
-            "CREATE EXTERNAL TABLE order_books STORED AS AVRO LOCATION '{partition}';",
-            partition = &partition
-        ))?;
-        //ctx.register_avro("order_books", &partition, AvroReadOptions::default())?;
-        let sql_query = format!(
-            "select to_timestamp_millis(event_ms) as event_ms, {order_book_selector} from
-   (select asks, bids, event_ms, ROW_NUMBER() OVER (PARTITION BY sample_time order by event_ms) as row_num
-    FROM (select asks, bids, event_ms / {sample_rate} as sample_time, event_ms from order_books)) where row_num = 1;",
-            sample_rate = sample_rate.num_milliseconds(),
-            order_book_selector = order_book_selector
-        );
-        let df = ctx.sql(&sql_query)?;
-        let results = df.collect().await?;
-        records.extend_from_slice(results.as_slice());
-    }
-    Ok(records)
-}
-
-fn events_from_grouped_arrays(xchg: Exchange, pair: Pair, records: Vec<RecordBatch>) -> Vec<LiveEventEnvelope> {
-    let mut live_events = vec![];
-    for record_batch in records {
-        let sa: StructArray = record_batch.into();
-        let asks_col = get_col_as::<ListArray>(&sa, "asks");
-        let bids_col = get_col_as::<ListArray>(&sa, "bids");
-        let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ms");
-        for i in 0..sa.len() {
-            let mut bids = vec![];
-            for bid in bids_col
-                .value(i)
-                .as_any()
-                .downcast_ref::<ListArray>()
-                .unwrap()
-                .iter()
-                .flatten()
-            {
-                let vals = bid
-                    .as_any()
-                    .downcast_ref::<PrimitiveArray<Float64Type>>()
-                    .unwrap()
-                    .values();
-                bids.push((vals[0], vals[1]));
-            }
-            let mut asks = vec![];
-            for ask in asks_col
-                .value(i)
-                .as_any()
-                .downcast_ref::<ListArray>()
-                .unwrap()
-                .iter()
-                .flatten()
-            {
-                let vals = ask
-                    .as_any()
-                    .downcast_ref::<PrimitiveArray<Float64Type>>()
-                    .unwrap()
-                    .values();
-                asks.push((vals[0], vals[1]));
-            }
-            let ts = event_ms_col.value(i);
-            live_events.push(live_order_book(xchg, pair.clone(), ts, asks, bids));
-        }
-    }
-    live_events
-}
-
-fn get_col_as<'a, T: 'static>(sa: &'a StructArray, name: &str) -> &'a T {
-    sa.column_by_name(name).unwrap().as_any().downcast_ref::<T>().unwrap()
-}
-
-fn live_order_book(
-    exchange: Exchange,
-    pair: Pair,
-    ts: i64,
-    asks: Vec<(f64, f64)>,
-    bids: Vec<(f64, f64)>,
-) -> LiveEventEnvelope {
-    let orderbook = Orderbook {
-        timestamp: ts,
-        pair,
-        asks,
-        bids,
-        last_order_id: None,
-    };
-    LiveEventEnvelope {
-        xch: exchange,
-        e: LiveEvent::LiveOrderbook(orderbook),
-    }
 }
