@@ -5627,6 +5627,7 @@ dependencies = [
  "serde_json",
  "socket2",
  "sqlx",
+ "structopt",
  "strum 0.21.0",
  "strum_macros 0.21.1",
  "tempdir",

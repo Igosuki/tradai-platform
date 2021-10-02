@@ -65,6 +65,13 @@ impl Wal {
         Ok(res)
     }
 
+    /// Return all values for this key sorted by time
+    pub fn get_all_k<T: DeserializeOwned>(&self, key: &str) -> Result<Vec<T>> {
+        let v = self.backend.get_ranged::<&str, serde_json::Value>(&self.table, key)?;
+        let res = v.into_iter().filter_map(|v| serde_json::from_value(v).ok()).collect();
+        Ok(res)
+    }
+
     pub fn append<T: Serialize>(&self, k: String, t: T) -> Result<()> {
         let key = format!("{}{}{}", Utc::now().timestamp_nanos(), WAL_KEY_SEP, k);
         Ok(self.backend.put(&self.table, &key, t)?)

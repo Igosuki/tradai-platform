@@ -25,6 +25,7 @@ use crate::types::TradeOperation;
 use crate::wal::{Wal, WalCmp};
 
 use self::types::{OrderDetail, OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
+use itertools::Itertools;
 
 pub mod test_util;
 #[cfg(test)]
@@ -51,7 +52,7 @@ pub enum OrderResolution {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct OrderRepository {
+pub struct OrderRepository {
     db: Arc<dyn Storage>,
 }
 
@@ -142,8 +143,8 @@ pub struct OrderManager {
     xchg: Exchange,
     api: Arc<dyn ExchangeApi>,
     orders: Arc<RwLock<HashMap<String, TransactionStatus>>>,
-    transactions_wal: Arc<Wal>,
-    repo: OrderRepository,
+    pub transactions_wal: Arc<Wal>,
+    pub repo: OrderRepository,
 }
 
 // TODO: notify listeners every time a transaction is updated
@@ -297,6 +298,82 @@ impl OrderManager {
                 .collect()
         })
     }
+
+    /// Checks that any transactions have corresponding order detail,
+    /// and refresh any unfinished order from remote
+    pub async fn repair_orders(&self) -> Vec<AccountEventEnveloppe> {
+        {
+            let mut writer = self.orders.write().await;
+            if let Ok(wal_transactions) = self.transactions_wal.get_all_compacted() {
+                writer.extend(wal_transactions);
+            }
+        }
+        let orders_read_lock = self.orders.read().await;
+        // Fetch all latest orders
+        info!(xchg = ?self.xchg, "fetching remote orders for all unfilled transactions");
+        let non_filled_order_futs =
+            futures::future::join_all(orders_read_lock.iter().filter(|(_k, v)| v.is_incomplete()).map(
+                |(tr_id, tr_status)| {
+                    let pair = tr_status.get_pair(self.xchg);
+                    info!(order_id = ?tr_id.clone(), pair = ?pair, "fetching remote for unresolved order");
+                    let order = self.repo.get(tr_id).or_else(|_| {
+                        // If not found, try to rebuild the order detail from the transactions
+                        let transactions: Vec<TransactionStatus> = self.transactions_wal.get_all_k(tr_id)?;
+                        let (mut iter, iter2) = transactions.into_iter().tee();
+                        let staged_order_predicate =
+                            |ts: &TransactionStatus| matches!(ts, TransactionStatus::Staged(_));
+                        let staged_tr = iter.find(staged_order_predicate);
+                        let other_trs = iter2.filter(|ts| !staged_order_predicate(ts));
+                        if let Some(TransactionStatus::Staged(OrderQuery::AddOrder(request))) = staged_tr {
+                            let mut od = OrderDetail::from_query(self.xchg, None, request);
+                            for tr in other_trs {
+                                od.from_status(tr);
+                            }
+                            self.repo.put(od.clone())?;
+                            Ok(od)
+                        } else {
+                            Err(Error::StagedOrderRequired)
+                        }
+                    });
+                    order
+                        .and_then(|o| pair.map(|pair| self.fetch_order(tr_id.clone(), pair, o.asset_type).boxed()))
+                        .unwrap_or_else(|e| {
+                            debug!(error = ?e, "failed to fetch order");
+                            Box::pin(futures::future::err(e))
+                        })
+                },
+            ))
+            .await;
+        let mut notifications = vec![];
+        for order in non_filled_order_futs.into_iter() {
+            match order {
+                Ok(order) => {
+                    let account_type = if order.asset_type.is_margin() {
+                        AccountType::Margin
+                    } else {
+                        AccountType::Spot
+                    };
+                    if let Some(tr_status) = orders_read_lock.get(&order.orig_order_id) {
+                        if !equivalent_status(tr_status, &order.status) {
+                            notifications.push(AccountEventEnveloppe {
+                                xchg: self.xchg,
+                                event: AccountEvent::OrderUpdate(order.into()),
+                                account_type,
+                            });
+                        }
+                    } else {
+                        notifications.push(AccountEventEnveloppe {
+                            xchg: self.xchg,
+                            event: AccountEvent::OrderUpdate(order.into()),
+                            account_type,
+                        });
+                    }
+                }
+                Err(e) => error!(error = ?e, "Failed to resolve remote order"),
+            }
+        }
+        notifications
+    }
 }
 
 #[allow(clippy::unnested_or_patterns)]
@@ -318,69 +395,15 @@ impl Actor for OrderManager {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         info!(xchg = ?self.xchg, "starting order manager");
-        let refresh_orders = async {}
-            .into_actor(self)
-            .then(|_, acty: &mut OrderManager, _ctx| {
-                let act = acty.clone();
-                async move {
-                    {
-                        let mut writer = act.orders.write().await;
-                        if let Ok(wal_transactions) = act.transactions_wal.get_all_compacted() {
-                            writer.extend(wal_transactions);
-                        }
+        let manager = self.clone();
+        let refresh_orders =
+            async move { manager.repair_orders().await }
+                .into_actor(self)
+                .map(|notifications, _, ctx| {
+                    for notification in notifications {
+                        ctx.notify(notification)
                     }
-                    let orders_read_lock = act.orders.read().await;
-                    // Fetch all latest orders
-                    info!(xchg = ?act.xchg, "fetching remote orders for all unfilled transactions");
-                    let non_filled_order_futs =
-                        futures::future::join_all(orders_read_lock.iter().filter(|(_k, v)| v.is_incomplete()).map(
-                            |(tr_id, tr_status)| {
-                                let pair = tr_status.get_pair(act.xchg);
-                                info!(order_id = ?tr_id.clone(), pair = ?pair, "fetching remote for unresolved order");
-                                let order = act.repo.get(tr_id);
-                                order
-                                    .and_then(|o| {
-                                        pair.map(|pair| act.fetch_order(tr_id.clone(), pair, o.asset_type).boxed())
-                                    })
-                                    .unwrap_or_else(|e| {
-                                        debug!(error = ?e, "failed to fetch order");
-                                        Box::pin(futures::future::err(e))
-                                    })
-                            },
-                        ))
-                        .await;
-                    let mut notifications = vec![];
-                    for order in non_filled_order_futs.into_iter() {
-                        match order {
-                            Ok(order) => {
-                                if let Some(tr_status) = orders_read_lock.get(&order.orig_order_id) {
-                                    if !equivalent_status(tr_status, &order.status) {
-                                        notifications.push(AccountEventEnveloppe {
-                                            xchg: act.xchg,
-                                            event: AccountEvent::OrderUpdate(order.into()),
-                                            account_type: AccountType::Spot,
-                                        });
-                                    }
-                                } else {
-                                    notifications.push(AccountEventEnveloppe {
-                                        xchg: act.xchg,
-                                        event: AccountEvent::OrderUpdate(order.into()),
-                                        account_type: AccountType::Spot,
-                                    });
-                                }
-                            }
-                            Err(e) => error!(error = ?e, "Failed to resolve remote order"),
-                        }
-                    }
-                    notifications
-                }
-                .into_actor(acty)
-            })
-            .map(|notifications, _, ctx| {
-                for notification in notifications {
-                    ctx.notify(notification)
-                }
-            });
+                });
         ctx.spawn(Box::pin(refresh_orders));
     }
 

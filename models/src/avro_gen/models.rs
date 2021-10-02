@@ -1,4 +1,3 @@
-
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
 pub enum TradeType {
     #[serde(rename = "BUY")]
@@ -6,7 +5,6 @@ pub enum TradeType {
     #[serde(rename = "SELL")]
     Sell,
 }
-
 
 lazy_static! {
     pub static ref LIVEORDER_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveOrder\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
@@ -35,7 +33,6 @@ impl Default for LiveOrder {
     }
 }
 
-
 lazy_static! {
     pub static ref ORDERBOOK_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"Orderbook\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"asks\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"array\",\"items\":\"double\"}}},{\"name\":\"bids\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"array\",\"items\":\"double\"}}}]}").unwrap();
 }
@@ -60,7 +57,6 @@ impl Default for Orderbook {
         }
     }
 }
-
 
 lazy_static! {
     pub static ref LIVETRADE_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveTrade\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
