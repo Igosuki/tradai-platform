@@ -4,17 +4,17 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
-use std::collections::BTreeMap;
-use std::io::BufWriter;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-
 use chrono::Duration;
 use datafusion::arrow::array::{Array, ListArray, PrimitiveArray, StructArray, TimestampMillisecondArray};
 use datafusion::arrow::datatypes::Float64Type;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::prelude::ExecutionContext;
 use serde::{ser::SerializeSeq, Serializer};
+use std::collections::BTreeMap;
+use std::io::BufWriter;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use strategies::coinnect_types::{LiveEvent, LiveEventEnvelope, Orderbook, Pair};
 use strategies::driver::StrategyDriver;
@@ -92,7 +92,7 @@ impl Backtest {
     }
 
     pub async fn run(&self) -> Result<()> {
-        let mut strategy = self.strategy.lock().unwrap();
+        let mut strategy = self.strategy.lock().await;
         let chans = strategy.channels();
         let period = self.period.clone();
         let mut live_events = vec![];
