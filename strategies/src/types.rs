@@ -7,7 +7,8 @@ use log::Level::Debug;
 use pyo3::prelude::*;
 use strum_macros::{AsRefStr, EnumString};
 
-use coinnect_rt::types::{AddOrderRequest, AssetType, OrderEnforcement, OrderType, Orderbook, TradeType};
+use coinnect_rt::types::{AddOrderRequest, AssetType, MarginSideEffect, OrderEnforcement, OrderType, Orderbook,
+                         TradeType};
 
 use crate::error::DataTableError;
 use uuid::Uuid;
@@ -55,6 +56,7 @@ pub struct TradeOperation {
     pub mode: OrderMode,
     #[serde(default)]
     pub asset_type: AssetType,
+    pub side_effect: Option<MarginSideEffect>,
 }
 
 #[juniper::graphql_object]
@@ -82,6 +84,7 @@ impl From<TradeOperation> for AddOrderRequest {
             quantity: Some(to.qty),
             price: Some(to.price),
             dry_run: to.dry_mode,
+            side_effect_type: to.side_effect,
             ..AddOrderRequest::default()
         };
         match to.mode {
