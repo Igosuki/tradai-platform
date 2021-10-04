@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::margin_interest_rates::{GetInterestRate, MarginInterestRateProvider};
-use coinnect_rt::types::{AssetType, InterestRate};
+use coinnect_rt::types::{AssetType, InterestRate, MarginSideEffect};
 use db::{Storage, StorageExt};
 use ext::ResultExt;
 
@@ -57,6 +57,15 @@ impl Operation {
             (PositionKind::Short, OperationKind::Open) | (PositionKind::Long, OperationKind::Close) => TradeKind::Sell,
             (PositionKind::Long, OperationKind::Open) | (PositionKind::Short, OperationKind::Close) => TradeKind::Buy,
         };
+        let margin_side_effect = if asset_type.is_margin() && &pos.kind == PositionKind::Short {
+            if OperationKind::Open {
+                Some(MarginSideEffect::MarginBuy)
+            } else {
+                Some(MarginSideEffect::AutoRepay)
+            }
+        } else {
+            None
+        };
         Operation {
             id: Uuid::new_v4().to_string(),
             pos: pos.clone(),
@@ -73,6 +82,7 @@ impl Operation {
                 dry_mode,
                 mode: order_mode,
                 asset_type,
+                side_effect: margin_side_effect,
             },
             instructions: None,
         }
