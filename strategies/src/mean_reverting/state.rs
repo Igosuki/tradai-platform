@@ -57,8 +57,8 @@ impl Operation {
             (PositionKind::Short, OperationKind::Open) | (PositionKind::Long, OperationKind::Close) => TradeKind::Sell,
             (PositionKind::Long, OperationKind::Open) | (PositionKind::Short, OperationKind::Close) => TradeKind::Buy,
         };
-        let margin_side_effect = if asset_type.is_margin() && &pos.kind == PositionKind::Short {
-            if OperationKind::Open {
+        let margin_side_effect = if asset_type.is_margin() && pos.kind == PositionKind::Short {
+            if op_kind == OperationKind::Open {
                 Some(MarginSideEffect::MarginBuy)
             } else {
                 Some(MarginSideEffect::AutoRepay)
@@ -171,6 +171,7 @@ struct TransientState {
     pub threshold_short: f64,
     pub threshold_long: f64,
     pub previous_value_strat: f64,
+    pub is_trading: bool,
 }
 
 impl MeanRevertingState {
