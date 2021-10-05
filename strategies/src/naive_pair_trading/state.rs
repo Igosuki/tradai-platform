@@ -327,6 +327,7 @@ impl MovingState {
                 dry_mode: self.dry_mode,
                 mode: OrderMode::Limit,
                 asset_type: AssetType::Spot,
+                side_effect: None,
             },
             right_trade: TradeOperation {
                 id: Some(TradeOperation::new_id()),
@@ -337,6 +338,7 @@ impl MovingState {
                 dry_mode: self.dry_mode,
                 mode: OrderMode::Limit,
                 asset_type: AssetType::Spot,
+                side_effect: None,
             },
         }
     }

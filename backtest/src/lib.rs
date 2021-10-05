@@ -117,7 +117,7 @@ impl Backtest {
                         );
                         if let Some(partitionCsvReadOptions) = partition {
                             let mut partition_file = self.data_dir.clone();
-                            partition_file.push(partition);
+                            partition_file.push(partitionCsvReadOptions);
                             partitions.push(partition_file.as_path().to_string_lossy().to_string());
                         }
                     }
