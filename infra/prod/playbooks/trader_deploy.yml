@@ -5,7 +5,7 @@
   pre_tasks:
     - name: Trader Binary
       copy:
-        src: ../../../build/cargo-target/x86_64-unknown-linux-gnu/release/trader
+        src: ../../../build/binaries/trader
         dest: /root/trader.staged
         owner: root
         group: root

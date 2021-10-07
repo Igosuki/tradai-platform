@@ -12,6 +12,7 @@ target
 build/cargo-git
 build/cargo-target
 build/cargo-registry/*
+build/binaries/
 test_results
 .cargo
 precommit_venv
