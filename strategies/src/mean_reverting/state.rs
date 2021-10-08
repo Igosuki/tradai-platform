@@ -135,13 +135,12 @@ pub(super) struct MeanRevertingState {
     // Persist
     position: Option<PositionKind>,
     position_return: f64,
-    is_trading: bool,
     last_open_order: Option<OrderDetail>,
     ongoing_op: Option<Operation>,
     state_key: String,
     units_to_buy: f64,
     units_to_sell: f64,
-    vars: TransientState,
+    pub vars: TransientState,
     // Conf
     dry_mode: bool,
     order_mode: OrderMode,
@@ -160,8 +159,10 @@ pub(super) struct MeanRevertingState {
     operations_repo: OperationsRepository,
 }
 
+fn default_is_trading() -> bool { true }
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-struct TransientState {
+pub(crate) struct TransientState {
     pub value_strat: f64,
     pub pnl: f64,
     pub traded_price: f64,
@@ -171,6 +172,7 @@ struct TransientState {
     pub threshold_short: f64,
     pub threshold_long: f64,
     pub previous_value_strat: f64,
+    #[serde(default = "default_is_trading")]
     pub is_trading: bool,
 }
 
@@ -181,7 +183,7 @@ impl MeanRevertingState {
         db: Arc<dyn Storage>,
         om: Addr<OrderManager>,
         mirp: Addr<MarginInterestRateProvider>,
-    ) -> MeanRevertingState {
+    ) -> Result<MeanRevertingState> {
         db.ensure_table(STATE_KEY).unwrap();
         let mut state = MeanRevertingState {
             exchange: options.exchange,
@@ -197,7 +199,6 @@ impl MeanRevertingState {
             order_mode: options.order_mode.unwrap_or(OrderMode::Limit),
             execution_instruction: options.execution_instruction,
             order_asset_type: options.order_asset_type(),
-            is_trading: true,
             fees_rate,
             last_open_order: None,
             mirp,
@@ -210,15 +211,15 @@ impl MeanRevertingState {
                 ..TransientState::default()
             },
         };
-        state.reload_state();
-        state
+        state.reload_state()?;
+        Ok(state)
     }
 
-    fn reload_state(&mut self) {
-        let previous_state: Option<TransientState> = self.db.get(STATE_KEY, &self.state_key).ok();
+    fn reload_state(&mut self) -> Result<()> {
+        let previous_state: Option<TransientState> = self.db.get(STATE_KEY, &self.state_key)?;
         if let Some(ps) = previous_state {
             if let Some(id) = ps.ongoing_op.as_ref() {
-                self.ongoing_op = self.get_operation(id).ok();
+                self.ongoing_op = Some(self.get_operation(id)?);
             }
             self.vars = ps;
         }
@@ -238,6 +239,7 @@ impl MeanRevertingState {
                 self.last_open_order = o.order_detail.clone();
             }
         }
+        Ok(())
     }
 
     pub(super) fn no_position_taken(&self) -> bool { self.position.is_none() }
@@ -316,9 +318,14 @@ impl MeanRevertingState {
 
     pub fn threshold_long(&self) -> f64 { self.vars.threshold_long }
 
-    pub fn stop_trading(&mut self) { self.is_trading = false; }
+    fn set_is_trading(&mut self, is_trading: bool) -> Result<()> {
+        self.vars.is_trading = is_trading;
+        self.save()
+    }
 
-    pub fn resume_trading(&mut self) { self.is_trading = true; }
+    pub fn stop_trading(&mut self) -> Result<()> { self.set_is_trading(false) }
+
+    pub fn resume_trading(&mut self) -> Result<()> { self.set_is_trading(true) }
 
     async fn clear_ongoing_operation(&mut self, last_price: f64, cummulative_qty: f64) -> Result<()> {
         match self.ongoing_op.clone() {
@@ -398,7 +405,7 @@ impl MeanRevertingState {
                 new_op.transaction = transaction;
                 self.set_ongoing_op(Some(new_op.clone()));
                 self.save_operation(&new_op)?;
-                self.stop_trading();
+                self.stop_trading()?;
             }
         };
         Ok(resolution)
@@ -526,7 +533,7 @@ impl MeanRevertingState {
 
     pub fn get_operations(&self) -> Vec<Operation> { self.operations_repo.all() }
 
-    pub(crate) fn is_trading(&self) -> bool { self.is_trading }
+    pub(crate) fn is_trading(&self) -> bool { self.vars.is_trading }
 
     fn log_indicators(&mut self) {
         if log_enabled!(Debug) {

@@ -80,7 +80,7 @@ impl MeanRevertingStrategy {
         let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
         let strat_db_path = format!("{}_{}.{}", MEAN_REVERTING_DB_KEY, n.exchange.to_string(), n.pair);
         let db = get_or_create(db_opts, strat_db_path, vec![]);
-        let state = MeanRevertingState::new(n, fees_rate, db.clone(), om, mirp);
+        let state = MeanRevertingState::new(n, fees_rate, db.clone(), om, mirp).unwrap();
         let ema_model = ema_indicator_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
         let threshold_table = if n.dynamic_threshold() {
             n.threshold_window_size.map(|thresold_window_size| {
@@ -375,7 +375,7 @@ impl StrategyDriver for MeanRevertingStrategy {
                 self.get_ongoing_op().cloned(),
             ))),
             DataQuery::CancelOngoingOp => Ok(DataResult::Success(self.cancel_ongoing_op()?)),
-            DataQuery::State => Ok(DataResult::State(serde_json::to_string(&self.state).unwrap())),
+            DataQuery::State => Ok(DataResult::State(serde_json::to_string(&self.state.vars).unwrap())),
             DataQuery::Status => Ok(DataResult::Status(self.status())),
             DataQuery::Models => Ok(DataResult::Models(self.get_models())),
         }
@@ -395,9 +395,9 @@ impl StrategyDriver for MeanRevertingStrategy {
         }]
     }
 
-    fn stop_trading(&mut self) { self.state.stop_trading(); }
+    fn stop_trading(&mut self) { self.state.stop_trading().unwrap(); }
 
-    fn resume_trading(&mut self) { self.state.resume_trading(); }
+    fn resume_trading(&mut self) { self.state.resume_trading().unwrap(); }
 
     async fn resolve_orders(&mut self) {
         // If a position is taken, resolve pending operations
