@@ -83,7 +83,7 @@ impl NaiveTradingStrategy {
         };
         if let Err(e) = strat.load() {
             error!("{}", e);
-            panic!("Could not loaded models");
+            panic!("Could not load models");
         }
         strat
     }
