@@ -116,7 +116,7 @@ impl MeanRevertingStrategy {
         };
         if let Err(e) = strat.load() {
             error!("{}", e);
-            panic!("Could not loaded models");
+            panic!("Could not load models");
         }
         strat
     }
@@ -148,7 +148,7 @@ impl MeanRevertingStrategy {
                 .threshold_table
                 .as_ref()
                 .map(|t| t.is_loaded())
-                .unwrap_or_else(|| false)
+                .unwrap_or_else(|| true)
     }
 
     #[cfg(test)]

@@ -153,7 +153,7 @@ impl From<ExchangeOrderStatus> for OrderStatus {
     fn from(o: ExchangeOrderStatus) -> Self {
         match o {
             ExchangeOrderStatus::New => Self::Created,
-            ExchangeOrderStatus::PartialyFilled => Self::PartiallyFilled,
+            ExchangeOrderStatus::PartiallyFilled => Self::PartiallyFilled,
             ExchangeOrderStatus::Filled => Self::Filled,
             ExchangeOrderStatus::Canceled => Self::Canceled,
             ExchangeOrderStatus::PendingCancel => Self::Canceled,
@@ -528,7 +528,7 @@ mod test {
         let partial_update = OrderUpdate {
             last_executed_price: first_trade.price,
             last_executed_qty: first_trade.qty,
-            new_status: CoinOrderStatus::PartialyFilled,
+            new_status: CoinOrderStatus::PartiallyFilled,
             ..OrderUpdate::default()
         };
         order.from_fill_update(partial_update);

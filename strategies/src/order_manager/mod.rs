@@ -174,7 +174,7 @@ impl OrderManager {
         let order_id = order.orig_order_id.clone();
         let tr = if order.new_status.is_rejection() {
             TransactionStatus::Rejected(Rejection::from_status(order.new_status, order.rejection_reason))
-        } else if order.new_status == OrderStatus::PartialyFilled {
+        } else if order.new_status == OrderStatus::PartiallyFilled {
             TransactionStatus::PartiallyFilled(order)
         } else if order.new_status == OrderStatus::Filled {
             TransactionStatus::Filled(order)
@@ -386,7 +386,7 @@ fn equivalent_status(trs: &TransactionStatus, os: &OrderStatus) -> bool {
             | (TransactionStatus::Rejected(_), OrderStatus::Canceled)
             | (TransactionStatus::Rejected(_), OrderStatus::Expired)
             | (TransactionStatus::Staged(_), OrderStatus::New)
-            | (TransactionStatus::PartiallyFilled(_), OrderStatus::PartialyFilled)
+            | (TransactionStatus::PartiallyFilled(_), OrderStatus::PartiallyFilled)
     )
 }
 
