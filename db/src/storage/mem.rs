@@ -34,6 +34,8 @@ impl Storage for MemoryKVStore {
 
     fn _get_ranged(&self, _table: &str, _from: &[u8]) -> Result<Vec<Box<[u8]>>> { todo!() }
 
+    fn _get_range(&self, _table: &str, _from: &[u8], _to: &[u8]) -> Result<Vec<(String, Box<[u8]>)>> { todo!() }
+
     fn _get_all(&self, _table: &str) -> Result<Vec<(String, Box<[u8]>)>> { todo!() }
 
     fn _delete(&self, _table: &str, key: &[u8]) -> Result<()> {

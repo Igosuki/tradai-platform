@@ -165,6 +165,9 @@ release_debug_trader:
 release_db_tool:
 	make target=db_tool features=rocksdb-vendor,zstd,structopt release
 
+release_om_tool:
+	make target=om_tool features=rocksdb-vendor,zstd,structopt release
+
 release_backtest:
 	make target=backtest release
 

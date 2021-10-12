@@ -82,7 +82,7 @@ async fn test_register_transactions() {
         assert!(reg.is_ok(), "{:?}", reg);
     }
     // Get the transactions log
-    let transactions = order_manager.transactions();
+    let transactions = order_manager.transactions(None);
     assert!(transactions.is_ok(), "{:?}", transactions);
     assert_eq!(
         transactions.unwrap(),
@@ -91,6 +91,7 @@ async fn test_register_transactions() {
             .into_iter()
             .map(|status| {
                 Transaction {
+                    ts: None,
                     status,
                     id: order_id.clone(),
                 }

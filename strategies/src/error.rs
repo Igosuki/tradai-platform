@@ -4,6 +4,8 @@ use thiserror::Error;
 pub enum Error {
     #[error("IOError {0}")]
     IOError(#[from] std::io::Error),
+    #[error("Json {0}")]
+    Json(#[from] serde_json::Error),
     #[error("Coinnect {0}")]
     Coinnect(#[from] coinnect_rt::error::Error),
     #[error("Db {0}")]
@@ -60,6 +62,7 @@ impl Error {
             Error::PendingOperation => "pending_operation",
             Error::FeatureNotImplemented => "feature_not_implemented",
             Error::StagedOrderRequired => "staged_order_required",
+            Error::Json(_) => "json",
         }
     }
 }

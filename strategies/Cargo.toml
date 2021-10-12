@@ -15,8 +15,8 @@ path = "src/main.rs"
 required-features = ["binary"]
 
 [[bin]]
-name = "order_details_repair"
-path = "src/repair_order_details.rs"
+name = "om_tool"
+path = "src/om_tool.rs"
 required-features = ["binary"]
 
 [features]

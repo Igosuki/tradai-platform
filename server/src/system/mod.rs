@@ -171,7 +171,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                     let topics = strategy
                         .2
                         .iter()
-                        .map(|c| <LiveEventEnvelope as Subject>::from_channel(c))
+                        .map(<LiveEventEnvelope as Subject>::from_channel)
                         .collect();
                     let consumer = NatsConsumer::start(
                         NatsConsumer::new::<Arc<LiveEventEnvelope>>(

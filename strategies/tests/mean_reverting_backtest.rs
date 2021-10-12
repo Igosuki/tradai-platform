@@ -1,11 +1,10 @@
-use backtest::OrderbookInputMode;
-
 #[cfg(feature = "backtests")]
 #[actix::test]
 async fn complete_backtest_backtest() -> backtest::Result<()> {
     use chrono::{TimeZone, Utc};
 
     use backtest::BacktestConfig;
+    use backtest::OrderbookInputMode;
     use coinnect_rt::exchange::Exchange;
     use strategies::mean_reverting::options::Options;
     use strategies::StrategySettings;

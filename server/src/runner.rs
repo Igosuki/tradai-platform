@@ -1,14 +1,12 @@
 use crate::settings;
 use crate::settings::{Settings, Version};
 use actix::System;
-use dialoguer::console::Style;
 #[cfg(feature = "gprof")]
 use gperftools::heap_profiler::HEAP_PROFILER;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 #[cfg(feature = "flame_it")]
 use std::fs::File;
 use std::future::Future;
-use std::path::PathBuf;
 use std::process;
 use std::sync::mpsc::channel;
 use std::sync::Arc;
@@ -102,30 +100,32 @@ where
 }
 
 async fn get_config_file(opts: &CliOptions) -> String {
-    let config_input = opts.config.as_ref().map(|s| s.as_str()).unwrap_or_else(|| "./config");
-    let config_metadata = std::fs::metadata(&config_input).expect(&format!(
-        "missing configuration file or directory {}",
-        config_input.clone()
-    ));
+    let config_input = opts.config.as_deref().unwrap_or("./config");
+    let config_metadata = std::fs::metadata(&config_input).unwrap_or_else(|_| {
+        panic!(
+            "{}",
+            format!("missing configuration file or directory {}", config_input)
+        )
+    });
     let config_file = if config_metadata.is_file() {
         config_input.to_string()
     } else {
-        if cfg!(feature = "dialoguer") {
-            config_from_stdin(&config_input).await
-        } else {
-            panic!("dialoguer is required to pick a configuration from the terminal");
-        }
+        #[cfg(not(feature = "dialoguer"))]
+        panic!("dialoguer is required to pick a configuration from the terminal");
+        #[cfg(feature = "dialoguer")]
+        config_from_stdin(&config_input).await
     };
     config_file
 }
 
 #[cfg(feature = "dialoguer")]
 async fn config_from_stdin(config_input: &&str) -> String {
+    use std::path::PathBuf;
     let mut p = PathBuf::from(&config_input);
     p.push("*.yaml");
     let glob_pattern = p.to_str().unwrap();
     let glob_r = glob::glob(glob_pattern);
-    let files = glob_r.expect(&format!("invalid glob {:?}", p));
+    let files = glob_r.unwrap_or_else(|_| panic!("{}", format!("invalid glob {:?}", p)));
     let mut choices = vec![];
     for file in files {
         choices.push(file.unwrap().to_string_lossy().to_string());
@@ -141,9 +141,10 @@ async fn config_from_stdin(config_input: &&str) -> String {
 
 #[cfg(feature = "dialoguer")]
 fn prompt_choice(choices: &mut Vec<String>) -> usize {
+    use dialoguer::console::Style;
     let mut prompt_theme = dialoguer::theme::ColorfulTheme::default();
     let white = Style::new().for_stdout().white();
-    prompt_theme.hint_style = white.clone();
+    prompt_theme.hint_style = white;
     prompt_theme.prompt_suffix = prompt_theme.prompt_suffix.white();
     let term = dialoguer::console::Term::buffered_stdout();
     let selection = dialoguer::Select::with_theme(&prompt_theme)
