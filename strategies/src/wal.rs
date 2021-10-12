@@ -31,7 +31,7 @@ impl Wal {
                 serde_json::from_value(v)
                     .map(|v| {
                         let split: Vec<&str> = k.split(WAL_KEY_SEP).collect();
-                        if let [_ts, key] = split[..] {
+                        if let [key, _ts] = split[..] {
                             let key_string = key.to_string();
                             match records.entry(key_string.clone()) {
                                 Entry::Vacant(_) => {
@@ -54,26 +54,65 @@ impl Wal {
         let v = self.backend.get_all::<serde_json::Value>(&self.table)?;
         let res = v
             .into_iter()
-            .filter_map(|(k, v)| {
-                let (t, k) = match k.split_once(WAL_KEY_SEP) {
-                    Some((ts_str, key)) => (ts_str.parse::<i64>().unwrap(), key.to_string()),
-                    None => (0i64, k),
-                };
+            .filter_map(|(key, v)| {
+                let (k, t): (String, i64) = Wal::wal_key(key);
                 serde_json::from_value(v).map(|vt| (t, (k, vt))).ok()
             })
             .collect();
         Ok(res)
     }
 
+    fn wal_key(wal_key: String) -> (String, i64) {
+        match wal_key.split_once(WAL_KEY_SEP) {
+            Some((key, ts_str)) => (key.to_string(), ts_str.parse::<i64>().unwrap()),
+            None => (wal_key, 0i64),
+        }
+    }
+
     /// Return all values for this key sorted by time
-    pub fn get_all_k<T: DeserializeOwned>(&self, key: &str) -> Result<Vec<T>> {
-        let v = self.backend.get_ranged::<&str, serde_json::Value>(&self.table, key)?;
-        let res = v.into_iter().filter_map(|v| serde_json::from_value(v).ok()).collect();
+    pub fn get_all_k<T: DeserializeOwned>(&self, key: &str) -> Result<Vec<(i64, T)>> {
+        let v = self.backend.get_range::<&str, &str, serde_json::Value>(
+            &self.table,
+            key,
+            &format!("{}{}{}", key, WAL_KEY_SEP, i64::MAX),
+        )?;
+        let res = v
+            .into_iter()
+            .filter_map(|(key, v)| {
+                let (_, t): (String, i64) = Wal::wal_key(key);
+                serde_json::from_value(v).map(|vt| (t, vt)).ok()
+            })
+            .collect::<Vec<(i64, T)>>();
         Ok(res)
     }
 
     pub fn append<T: Serialize>(&self, k: String, t: T) -> Result<()> {
-        let key = format!("{}{}{}", Utc::now().timestamp_nanos(), WAL_KEY_SEP, k);
+        self.append_raw(k, Utc::now().timestamp_nanos(), t)
+    }
+
+    pub fn append_raw<T: Serialize>(&self, k: String, ts: i64, t: T) -> Result<()> {
+        let key = format!("{}{}{}", k, WAL_KEY_SEP, ts);
         Ok(self.backend.put(&self.table, &key, t)?)
+    }
+
+    pub fn delete_v1(&self, k: String, ts: i64) -> Result<()> {
+        let key = format!("{}{}{}", ts, WAL_KEY_SEP, k);
+        Ok(self.backend.delete(&self.table, &key)?)
+    }
+
+    pub fn get_all_v1<T: DeserializeOwned>(&self) -> Result<Vec<(i64, (String, T))>> {
+        let v = self.backend.get_all::<serde_json::Value>(&self.table)?;
+        let res = v
+            .into_iter()
+            .filter_map(|(k, v)| {
+                match k.split_once(WAL_KEY_SEP) {
+                    Some((ts_str, key)) => ts_str.parse::<i64>().map(|t| (t, key.to_string())),
+                    None => Ok((0i64, k)),
+                }
+                .ok()
+                .and_then(|(t, k)| serde_json::from_value::<T>(v).map(|vt| (t, (k, vt))).ok())
+            })
+            .collect();
+        Ok(res)
     }
 }

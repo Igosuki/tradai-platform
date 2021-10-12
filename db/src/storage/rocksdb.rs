@@ -102,6 +102,19 @@ impl Storage for RocksDbStorage {
         Ok(self.inner.iterator_cf(&cf, mode).map(|(_k, v)| v).collect())
     }
 
+    fn _get_range(&self, table: &str, from: &[u8], to: &[u8]) -> Result<Vec<(String, Bytes)>> {
+        let mode = IteratorMode::From(from, Direction::Forward);
+        let cf = self.cf(table)?;
+        let mut ret_vec = vec![];
+        for (k, v) in self.inner.iterator_cf(&cf, mode) {
+            if *to < *k {
+                break;
+            }
+            ret_vec.push((String::from_utf8(k.into()).unwrap(), v));
+        }
+        Ok(ret_vec)
+    }
+
     fn _get_all(&self, table: &str) -> Result<Vec<(String, Bytes)>> {
         let mode = IteratorMode::Start;
         let cf = self.cf(table)?;

@@ -86,9 +86,9 @@ impl Backtest {
         let strategy_driver = strategies::settings::from_settings(
             &db_conf,
             &exchange_conf,
-            &strategy_settings,
+            strategy_settings,
             Some(order_manager_addr),
-            margin_interest_rate_provider_addr.clone(),
+            margin_interest_rate_provider_addr,
         );
         Ok(Self {
             period: conf.period.as_range(),

@@ -1,0 +1,45 @@
+use coinnect_rt::exchange::MockApi;
+use db::DbOptions;
+use std::path::PathBuf;
+use std::sync::Arc;
+use strategies::order_manager::types::TransactionStatus;
+use strategies::order_manager::OrderManager;
+use structopt::StructOpt;
+use strum_macros::EnumString;
+
+#[derive(StructOpt, Debug, EnumString)]
+enum Cmd {
+    #[strum(serialize = "fix_transaction_logs")]
+    FixTransactionLogs,
+    #[strum(serialize = "repair_orders")]
+    RepairOrders,
+}
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "om_tool")]
+struct RepairOrderDetailsOptions {
+    #[structopt(short, long, parse(from_os_str))]
+    db_path: PathBuf,
+    #[structopt(short, long)]
+    cmd: Cmd,
+}
+
+#[tokio::main]
+async fn main() {
+    let options: RepairOrderDetailsOptions = RepairOrderDetailsOptions::from_args();
+    let db_options = DbOptions::new(options.db_path);
+    let manager = OrderManager::new(Arc::new(MockApi), &db_options, "");
+    match options.cmd {
+        Cmd::FixTransactionLogs => {
+            let wal = manager.transactions_wal();
+            let transactions_old: Vec<(i64, (String, TransactionStatus))> = wal.get_all_v1().unwrap();
+            for (t, (k, v)) in transactions_old.into_iter() {
+                wal.append_raw(k.clone(), t, v).unwrap();
+                wal.delete_v1(k, t).unwrap();
+            }
+        }
+        Cmd::RepairOrders => {
+            manager.repair_orders().await;
+        }
+    }
+}

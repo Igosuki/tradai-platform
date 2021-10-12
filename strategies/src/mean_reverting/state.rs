@@ -362,6 +362,7 @@ impl MeanRevertingState {
                             .as_ref()
                             .map(|tr| tr.id.clone())
                             .unwrap_or_else(|| op.id.clone()),
+                        ts: Some(Utc::now().timestamp_nanos()),
                         status: TransactionStatus::Rejected(Rejection::Cancelled(Some("auto".to_string()))),
                     });
                     self.save_operation(&op)?;
@@ -389,7 +390,6 @@ impl MeanRevertingState {
         }
         let order_detail = ongoing_op.order_detail.as_ref().unwrap();
         let (new_order, transaction, resolution) = self.ts.resolve_pending_order(order_detail).await?;
-        error!("{:?} {:?} {:?}", new_order, transaction, resolution);
         match resolution {
             OrderResolution::Filled => {
                 self.clear_ongoing_operation(new_order.weighted_price, new_order.total_executed_qty)

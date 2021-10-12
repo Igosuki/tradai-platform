@@ -94,6 +94,7 @@ impl WalCmp for TransactionStatus {
 pub struct Transaction {
     pub id: String,
     pub status: TransactionStatus,
+    pub ts: Option<i64>,
 }
 
 impl Transaction {
@@ -389,10 +390,12 @@ mod test {
         let tr0 = Transaction {
             id: order_id.clone(),
             status: statuses[0].clone(),
+            ts: None,
         };
         let tr1 = Transaction {
             id: order_id,
             status: statuses[1].clone(),
+            ts: None,
         };
         assert!(tr0.variant_eq(&tr0));
         assert!(!tr0.variant_eq(&tr1));

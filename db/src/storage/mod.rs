@@ -24,6 +24,8 @@ pub trait Storage: Send + Sync + Debug + ToAny {
 
     fn _get_ranged(&self, table: &str, from: &[u8]) -> Result<Vec<Box<[u8]>>>;
 
+    fn _get_range(&self, table: &str, from: &[u8], to: &[u8]) -> Result<Vec<(String, Box<[u8]>)>>;
+
     /// TODO: this should return impl Iterator
     fn _get_all(&self, table: &str) -> Result<Vec<(String, Box<[u8]>)>>;
 
@@ -48,6 +50,12 @@ pub trait StorageExt {
     fn get_ranged<F, V>(&self, table: &str, from: F) -> Result<Vec<V>>
     where
         F: AsRef<[u8]>,
+        V: DeserializeOwned;
+
+    fn get_range<F, F2, V>(&self, table: &str, from: F, to: F2) -> Result<Vec<(String, V)>>
+    where
+        F: AsRef<[u8]>,
+        F2: AsRef<[u8]>,
         V: DeserializeOwned;
 
     fn get_all<V>(&self, table: &str) -> Result<Vec<(String, V)>>
@@ -89,6 +97,19 @@ impl<T: Storage + ?Sized> StorageExt for T {
     {
         let items = self._get_ranged(table, from.as_ref())?;
         items.iter().map(|v| serde_json::from_slice(v).err_into()).collect()
+    }
+
+    fn get_range<F, F2, V>(&self, table: &str, from: F, to: F2) -> Result<Vec<(String, V)>>
+    where
+        F: AsRef<[u8]>,
+        F2: AsRef<[u8]>,
+        V: DeserializeOwned,
+    {
+        let items = self._get_range(table, from.as_ref(), to.as_ref())?;
+        items
+            .into_iter()
+            .map(|(k, v)| serde_json::from_slice(&v).err_into().map(|d| (k, d)))
+            .collect()
     }
 
     fn get_all<V>(&self, table: &str) -> Result<Vec<(String, V)>>

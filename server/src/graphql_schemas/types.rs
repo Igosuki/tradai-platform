@@ -112,7 +112,6 @@ pub struct OperationHistory {
     id: String,
     kind: OperationKind,
     transactions: Vec<TransactionHistory>,
-
     pub ts: DateTime<Utc>,
 }
 

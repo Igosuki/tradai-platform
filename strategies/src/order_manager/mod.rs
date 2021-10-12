@@ -109,10 +109,10 @@ impl TransactionService {
             OrderResolution::NoChange
         } else if stored_order.is_filled() {
             OrderResolution::Filled
-        } else if order.is_bad_request() {
+        } else if stored_order.is_bad_request() {
             OrderResolution::BadRequest
-        } else if order.is_rejected() {
-            if order.is_retryable() {
+        } else if stored_order.is_rejected() {
+            if stored_order.is_retryable() {
                 OrderResolution::Retryable
             } else {
                 OrderResolution::Rejected
@@ -135,7 +135,8 @@ pub enum DataResult {
 #[rtype(result = "Result<Option<DataResult>>")]
 pub enum DataQuery {
     /// All transactions history
-    Transactions,
+    AllTransactions,
+    OrderTransactions(String),
 }
 
 #[derive(Debug, Clone)]
@@ -290,14 +291,38 @@ impl OrderManager {
         Ok(())
     }
 
-    /// Returns all history of transactions
-    pub(crate) fn transactions(&self) -> Result<Vec<Transaction>> {
-        self.transactions_wal.get_all().map(|r| {
-            r.into_iter()
-                .map(|(_ts, (id, status))| Transaction { status, id })
-                .collect()
-        })
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `order_id`: if None, return all transactions, if set, only the transactions of this order
+    ///
+    /// returns: Result<Vec<Transaction, Global>, Error>
+    ///
+    pub(crate) fn transactions(&self, order_id: Option<String>) -> Result<Vec<Transaction>> {
+        match order_id {
+            Some(order_id) => self.transactions_wal.get_all_k(&order_id).map(|tr| {
+                tr.into_iter()
+                    .map(|(ts, tr)| Transaction {
+                        status: tr,
+                        id: String::new(),
+                        ts: Some(ts),
+                    })
+                    .collect()
+            }),
+            None => self.transactions_wal.get_all().map(|r| {
+                r.into_iter()
+                    .map(|(ts, (id, status))| Transaction {
+                        status,
+                        id,
+                        ts: Some(ts),
+                    })
+                    .collect()
+            }),
+        }
     }
+
+    pub fn transactions_wal(&self) -> Arc<Wal> { self.transactions_wal.clone() }
 
     /// Checks that any transactions have corresponding order detail,
     /// and refresh any unfinished order from remote
@@ -318,8 +343,8 @@ impl OrderManager {
                     info!(order_id = ?tr_id.clone(), pair = ?pair, "fetching remote for unresolved order");
                     let order = self.repo.get(tr_id).or_else(|_| {
                         // If not found, try to rebuild the order detail from the transactions
-                        let transactions: Vec<TransactionStatus> = self.transactions_wal.get_all_k(tr_id)?;
-                        let (mut iter, iter2) = transactions.into_iter().tee();
+                        let transactions: Vec<(i64, TransactionStatus)> = self.transactions_wal.get_all_k(tr_id)?;
+                        let (mut iter, iter2) = transactions.into_iter().map(|t| t.1).tee();
                         let staged_order_predicate =
                             |ts: &TransactionStatus| matches!(ts, TransactionStatus::Staged(_));
                         let staged_tr = iter.find(staged_order_predicate);
@@ -474,7 +499,11 @@ impl Handler<OrderId> for OrderManager {
                     zis.get_order(order_id.clone())
                         .await
                         .ok_or_else(|| Error::OrderNotFound(order_id.clone()))
-                        .map(move |status| Transaction { id: order_id, status }),
+                        .map(move |status| Transaction {
+                            id: order_id,
+                            status,
+                            ts: None,
+                        }),
                 )
             }
             .into_actor(self),
@@ -487,8 +516,10 @@ impl Handler<DataQuery> for OrderManager {
 
     fn handle(&mut self, query: DataQuery, _ctx: &mut Self::Context) -> Self::Result {
         match query {
-            DataQuery::Transactions => self.transactions().map(|r| Some(DataResult::Transactions(r))),
+            DataQuery::AllTransactions => self.transactions(None),
+            DataQuery::OrderTransactions(id) => self.transactions(Some(id)),
         }
+        .map(|r| Some(DataResult::Transactions(r)))
     }
 }
 

@@ -45,4 +45,6 @@ prometheus:
   instance: trader
 
 api:
-  port: 0
+  port: 8188
+  allowed_origins:
+    - "http://localhost:3001"
