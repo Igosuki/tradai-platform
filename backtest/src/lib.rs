@@ -115,9 +115,9 @@ impl Backtest {
                             "order_books",
                             pair.as_ref(),
                         );
-                        if let Some(partitionCsvReadOptions) = partition {
+                        if let Some(partition_csv_read_options) = partition {
                             let mut partition_file = self.data_dir.clone();
-                            partition_file.push(partitionCsvReadOptions);
+                            partition_file.push(partition_csv_read_options);
                             partitions.push(partition_file.as_path().to_string_lossy().to_string());
                         }
                     }
