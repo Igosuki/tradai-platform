@@ -590,4 +590,28 @@ mod test {
         let total_interest = order.total_interest(interest_rate);
         assert_eq!(format!("{:.6}", total_interest), "0.000022");
     }
+
+    #[test]
+    fn test_order_detail_same_status() {
+        let transact_time = Utc::now();
+        let i = transact_time.timestamp_millis();
+        let request = AddOrderRequest {
+            order_id: Some("id".to_string()),
+            pair: "BTC_USDT".into(),
+            ..AddOrderRequest::default()
+        };
+        let order = OrderDetail::from_query(Exchange::Binance, None, request.clone());
+        let mut next_order = order.clone();
+        let submission = OrderSubmission {
+            status: CoinOrderStatus::Filled,
+            timestamp: i,
+            trades: trades(),
+            borrowed_amount: Some(0.01),
+            borrow_asset: Some("USDT".to_string()),
+            ..request.into()
+        };
+        next_order.from_submission(submission);
+
+        assert!(!order.is_same_status(&next_order.status))
+    }
 }

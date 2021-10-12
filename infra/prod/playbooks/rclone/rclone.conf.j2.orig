@@ -1,0 +1,46 @@
+[spaces]
+type = s3
+env_auth = false
+access_key_id = 
+secret_access_key = 
+endpoint = nyc3.digitaloceanspaces.com
+acl = private
+
+[cointrader]
+type = s3
+env_auth = false
+access_key_id = 
+secret_access_key = 
+endpoint = s3.us-east-1.amazonaws.com
+acl = private
+
+<<<<<<< HEAD
+<<<<<<< Updated upstream
+=======
+[coindata]
+type = s3
+env_auth = false
+access_key_id = 
+secret_access_key = 
+endpoint = 
+=======
+[coindata]
+type = s3
+env_auth = false
+access_key_id = IN6341AC2A8676ACG2HF
+secret_access_key = yFcDU11M6q4j9KubY0Nzi4vcfkNL4l0UkMMYWnem
+endpoint = coindata.us-east-1.linodeobjects.com
+>>>>>>> a3936f7 (trader: runner should prompt for config file if none is provided)
+acl = private
+
+[coindata2]
+type = s3
+env_auth = false
+access_key_id = 00277880e9dcff60000000001
+secret_access_key = K002oPwxfAlFCvMEKJciy0gE4gqmsCw
+endpoint = https://s3.us-west-002.backblazeb2.com
+acl = private
+<<<<<<< HEAD
+>>>>>>> Stashed changes
+=======
+>>>>>>> a3936f7 (trader: runner should prompt for config file if none is provided)
