@@ -88,13 +88,30 @@ impl QueryRoot {
     #[graphql(description = "Get all transactions history for an order manager")]
     async fn transactions(context: &Context, exchange: String) -> FieldResult<Vec<String>> {
         context
-            .with_order_manager(&exchange, order_manager::DataQuery::Transactions, |dr| match dr? {
+            .with_order_manager(&exchange, order_manager::DataQuery::AllTransactions, |dr| match dr? {
                 Some(order_manager::DataResult::Transactions(transaction)) => Ok(transaction
                     .into_iter()
                     .map(|t| serde_json::to_string(&t).unwrap())
                     .collect()),
                 _ => unhandled_data_result(),
             })
+            .await
+    }
+
+    #[graphql(description = "Get all transactions of a single order")]
+    async fn order_transactions(context: &Context, exchange: String, order_id: String) -> FieldResult<Vec<String>> {
+        context
+            .with_order_manager(
+                &exchange,
+                order_manager::DataQuery::OrderTransactions(order_id),
+                |dr| match dr? {
+                    Some(order_manager::DataResult::Transactions(transaction)) => Ok(transaction
+                        .into_iter()
+                        .map(|t| serde_json::to_string(&t).unwrap())
+                        .collect()),
+                    _ => unhandled_data_result(),
+                },
+            )
             .await
     }
 

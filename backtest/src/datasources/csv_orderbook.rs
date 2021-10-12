@@ -16,8 +16,8 @@ pub async fn csv_orderbooks_df(partitions: Vec<String>) -> Result<Vec<RecordBatc
             "CREATE EXTERNAL TABLE order_books STORED AS CSV LOCATION '{partition}';",
             partition = &partition
         ))?;
-        let sql_query = format!("select to_timestamp_millis(event_ms) as event_ms, * from order_books");
-        let df = ctx.sql(&sql_query)?;
+        let sql_query = "select to_timestamp_millis(event_ms) as event_ms, * from order_books";
+        let df = ctx.sql(sql_query)?;
         let results = df.collect().await?;
         records.extend_from_slice(results.as_slice());
     }
