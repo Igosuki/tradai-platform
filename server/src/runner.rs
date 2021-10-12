@@ -1,12 +1,14 @@
 use crate::settings;
 use crate::settings::{Settings, Version};
 use actix::System;
+use dialoguer::console::Style;
 #[cfg(feature = "gprof")]
 use gperftools::heap_profiler::HEAP_PROFILER;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 #[cfg(feature = "flame_it")]
 use std::fs::File;
 use std::future::Future;
+use std::path::PathBuf;
 use std::process;
 use std::sync::mpsc::channel;
 use std::sync::Arc;
@@ -19,7 +21,7 @@ struct CliOptions {
     #[structopt(long)]
     check_conf: bool,
     #[structopt(short, long)]
-    config: String,
+    config: Option<String>,
     #[structopt(short, long)]
     telemetry: bool,
     #[structopt(short, long)]
@@ -40,9 +42,10 @@ where
         println!("Commit Hash: {}", env!("GIT_HASH"));
         process::exit(0x0100);
     }
+    let config_file = get_config_file(&opts).await;
 
     let settings = Arc::new(RwLock::new(
-        settings::Settings::new(opts.config).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?,
+        settings::Settings::new(config_file).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?,
     ));
 
     settings.write().await.version = Some(Version {
@@ -96,4 +99,58 @@ where
         flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
     }
     Ok(())
+}
+
+async fn get_config_file(opts: &CliOptions) -> String {
+    let config_input = opts.config.as_ref().map(|s| s.as_str()).unwrap_or_else(|| "./config");
+    let config_metadata = std::fs::metadata(&config_input).expect(&format!(
+        "missing configuration file or directory {}",
+        config_input.clone()
+    ));
+    let config_file = if config_metadata.is_file() {
+        config_input.to_string()
+    } else {
+        if cfg!(feature = "dialoguer") {
+            config_from_stdin(&config_input).await
+        } else {
+            panic!("dialoguer is required to pick a configuration from the terminal");
+        }
+    };
+    config_file
+}
+
+#[cfg(feature = "dialoguer")]
+async fn config_from_stdin(config_input: &&str) -> String {
+    let mut p = PathBuf::from(&config_input);
+    p.push("*.yaml");
+    let glob_pattern = p.to_str().unwrap();
+    let glob_r = glob::glob(glob_pattern);
+    let files = glob_r.expect(&format!("invalid glob {:?}", p));
+    let mut choices = vec![];
+    for file in files {
+        choices.push(file.unwrap().to_string_lossy().to_string());
+    }
+    let path = tokio::time::timeout(std::time::Duration::from_secs(30), async move {
+        let selection = prompt_choice(&mut choices);
+        choices[selection].clone()
+    })
+    .await
+    .unwrap();
+    path
+}
+
+#[cfg(feature = "dialoguer")]
+fn prompt_choice(choices: &mut Vec<String>) -> usize {
+    let mut prompt_theme = dialoguer::theme::ColorfulTheme::default();
+    let white = Style::new().for_stdout().white();
+    prompt_theme.hint_style = white.clone();
+    prompt_theme.prompt_suffix = prompt_theme.prompt_suffix.white();
+    let term = dialoguer::console::Term::buffered_stdout();
+    let selection = dialoguer::Select::with_theme(&prompt_theme)
+        .with_prompt("Pick a configuration")
+        .default(0)
+        .items(&choices[..])
+        .interact_on(&term)
+        .unwrap();
+    selection
 }

@@ -31,8 +31,8 @@ pub fn events_from_csv_orderbooks(xchg: Exchange, pair: Pair, records: Vec<Recor
         let asks_col = get_col_as::<PrimitiveArray<Float64Type>>(&sa, "a1");
         let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ms");
         for i in 0..sa.len() {
-            let mut bids = vec![];
-            let mut asks = vec![];
+            let bids = vec![];
+            let asks = vec![];
             eprintln!("asks_col = {:?}", asks_col);
             let ts = event_ms_col.value(i);
             live_events.push(live_order_book(xchg, pair.clone(), ts, asks, bids));

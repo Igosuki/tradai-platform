@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="feeder24-prod" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="run --package trader --bin trader -- -c infra/prod/playbooks/trader_conf/feeder24_prod.yaml -t" />
+  <configuration default="false" name="trader-prod" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="command" value="run --package trader --bin trader -- -c infra/prod/playbooks/trader_conf -t" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />
