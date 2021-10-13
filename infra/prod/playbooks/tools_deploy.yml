@@ -1,0 +1,19 @@
+---
+- hosts: trader
+  name: Deploy trader tools
+  remote_user: root
+  tasks:
+    - name: Order Manager tool Binary
+      copy:
+        src: ../../../build/binaries/om_tool
+        dest: /root/om_tool
+        owner: root
+        group: root
+        mode: '+x'
+    - name: Database tool Binary
+      copy:
+        src: ../../../build/binaries/db_tool
+        dest: /root/db_tool
+        owner: root
+        group: root
+        mode: '+x'
