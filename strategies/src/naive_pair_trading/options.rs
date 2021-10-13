@@ -1,7 +1,6 @@
 use crate::types::OrderMode;
 use chrono::Duration;
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::Pair;
+use coinnect_rt::prelude::*;
 use parse_duration::parse;
 
 #[derive(Clone, Debug, Deserialize)]

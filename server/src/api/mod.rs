@@ -11,9 +11,8 @@ use actix_web::{body::Body,
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::pair::pair_confs;
-use coinnect_rt::types::{OrderType, Pair, Price, Volume};
+use coinnect_rt::prelude::*;
 use strategies::order_manager::OrderManager;
 use strategies::{Strategy, StrategyKey};
 
@@ -31,8 +30,8 @@ pub struct Order {
     #[serde(rename(serialize = "type", deserialize = "type"))]
     t: OrderType,
     pair: Pair,
-    qty: Volume,
-    price: Price,
+    qty: f64,
+    price: f64,
 }
 
 #[derive(Debug, Display)]
@@ -125,6 +124,7 @@ pub fn config_app(cfg: &mut web::ServiceConfig) {
 
 #[cfg(test)]
 mod tests {
+    use coinnect_rt::prelude::*;
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;
@@ -135,10 +135,6 @@ mod tests {
     use actix_web::{http::StatusCode, test, web, App};
     use tokio::time::timeout;
 
-    use coinnect_rt::coinnect::Coinnect;
-    use coinnect_rt::exchange::Exchange::Binance;
-    use coinnect_rt::exchange::{Exchange, ExchangeApi, ExchangeSettings};
-    use coinnect_rt::types::OrderType;
     use strategies::order_manager::OrderManager;
     use strategies::{Strategy, StrategyKey};
 
@@ -192,7 +188,7 @@ mod tests {
         let _ob = binance_api.orderbook("BTC_USDT".into()).await.unwrap();
         let price = 35000.02000000;
         let _o = crate::api::Order {
-            exchg: Binance,
+            exchg: Exchange::Binance,
             t: OrderType::Limit,
             pair: "BTC_USDT".into(),
             qty: 0.00000100,

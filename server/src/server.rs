@@ -7,7 +7,7 @@ use actix_web::middleware::{Compat, Logger};
 use actix_web::web::Data;
 use actix_web::{http, HttpServer};
 
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
+use coinnect_rt::prelude::*;
 use strategies::order_manager::OrderManager;
 use strategies::{Strategy, StrategyKey};
 
