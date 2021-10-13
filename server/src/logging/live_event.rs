@@ -7,7 +7,7 @@ use avro_rs::Schema;
 use chrono::{Duration, TimeZone, Utc};
 use log::Level::*;
 
-use coinnect_rt::types::{LiveEvent, LiveEventEnvelope};
+use coinnect_rt::prelude::*;
 use models::avro_gen::{self,
                        models::{LiveTrade as LT, Orderbook as OB}};
 

@@ -8,8 +8,8 @@ use log::Level::Debug;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use coinnect_rt::exchange::Exchange;
 use coinnect_rt::margin_interest_rates::{GetInterestRate, MarginInterestRateProvider};
+use coinnect_rt::prelude::*;
 use coinnect_rt::types::{AssetType, InterestRate, MarginSideEffect};
 use db::{Storage, StorageExt};
 use ext::ResultExt;

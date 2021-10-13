@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use coinnect_rt::types::{Asset, Pair};
+use coinnect_rt::prelude::*;
 use std::time::Duration;
 
 #[allow(dead_code)]

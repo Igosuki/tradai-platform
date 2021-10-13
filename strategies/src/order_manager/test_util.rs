@@ -1,7 +1,6 @@
 use actix::{Actor, Addr};
-use coinnect_rt::coinnect::Coinnect;
 use coinnect_rt::exchange::MockApi;
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
+use coinnect_rt::prelude::*;
 use db::DbOptions;
 use std::path::Path;
 use std::sync::Arc;

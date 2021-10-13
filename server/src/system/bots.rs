@@ -7,9 +7,7 @@ use actix::Recipient;
 use tracing::Instrument;
 
 use coinnect_rt::bot::{ExchangeBot, Ping};
-use coinnect_rt::coinnect::Coinnect;
-use coinnect_rt::exchange::{Exchange, ExchangeSettings};
-use coinnect_rt::types::{AccountEventEnveloppe, AccountType, LiveEventEnvelope};
+use coinnect_rt::prelude::*;
 
 pub async fn exchange_bots(
     exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
