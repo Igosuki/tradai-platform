@@ -95,11 +95,13 @@ impl Wal {
         Ok(self.backend.put(&self.table, &key, t)?)
     }
 
+    /// deprecated, wal key changed from t:k to k:t
     pub fn delete_v1(&self, k: String, ts: i64) -> Result<()> {
         let key = format!("{}{}{}", ts, WAL_KEY_SEP, k);
         Ok(self.backend.delete(&self.table, &key)?)
     }
 
+    /// deprecated, wal key changed from t:k to k:t
     pub fn get_all_v1<T: DeserializeOwned>(&self) -> Result<Vec<(i64, (String, T))>> {
         let v = self.backend.get_all::<serde_json::Value>(&self.table)?;
         let res = v
