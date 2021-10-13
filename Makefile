@@ -174,7 +174,7 @@ release_backtest:
 bin_tag=latest
 download_binary:
 	mkdir -p build/binaries
-	aws --profile btcfeed s3 cp --endpoint=https://nyc3.digitaloceanspaces.com s3://btcfeed/binaries/$(target)/trader-$(bin_tag) build/binaries/$(target)
+	aws --profile btcfeed s3 cp --endpoint=https://nyc3.digitaloceanspaces.com s3://btcfeed/binaries/$(target)/$(target)-$(bin_tag) build/binaries/$(target)
 
 release_local_backtest:
 	@$(CARGO_BIN) build --release --bin backtest --features=env_logger
@@ -207,6 +207,9 @@ deploy_feeder:
 
 deploy_trader_margin:
 	./infra/prod/deploy_trader_margin.sh
+
+deploy_tools:
+	./infra/prod/deploy_tools.sh
 
 ### Checks
 
