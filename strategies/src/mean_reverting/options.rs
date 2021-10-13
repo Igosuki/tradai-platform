@@ -1,8 +1,7 @@
 use chrono::Duration;
 use parse_duration::parse;
 
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::{AssetType, Pair};
+use coinnect_rt::prelude::*;
 
 use crate::types::{ExecutionInstruction, OrderMode};
 

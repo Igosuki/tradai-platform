@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use juniper::FieldResult;
 use uuid::Uuid;
 
-use coinnect_rt::types::{AddOrderRequest, OrderEnforcement, OrderQuery, OrderType, TradeType};
+use coinnect_rt::prelude::*;
 use strategies::query::DataQuery;
 use strategies::types::{OperationKind, PositionKind, TradeOperation};
 

@@ -11,9 +11,7 @@ use uuid::Uuid;
 
 use coinnect_rt::bot::Ping;
 use coinnect_rt::error::Error as CoinnectError;
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
-use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AddOrderRequest, AssetType, Order, OrderQuery,
-                         OrderStatus, OrderUpdate, Pair};
+use coinnect_rt::prelude::*;
 use db::{get_or_create, DbOptions, Storage, StorageExt};
 use ext::ResultExt;
 
@@ -25,6 +23,7 @@ use crate::types::TradeOperation;
 use crate::wal::{Wal, WalCmp};
 
 use self::types::{OrderDetail, OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
+use coinnect_rt::types::{Order, OrderStatus, OrderUpdate};
 use itertools::Itertools;
 
 pub mod test_util;

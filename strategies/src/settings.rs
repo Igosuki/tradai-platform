@@ -1,8 +1,8 @@
 use actix::Addr;
 
-use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
 use coinnect_rt::pair::filter_pairs;
+use coinnect_rt::prelude::*;
 
 use crate::driver::StrategyDriver;
 use crate::generic::Strategy;

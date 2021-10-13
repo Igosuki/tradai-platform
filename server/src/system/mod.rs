@@ -13,12 +13,10 @@ use futures::future::select_all;
 // use actix::System;
 // use tokio::select;
 // use tokio::signal::unix::{signal, SignalKind};
+use coinnect_rt::exchange::manager::ExchangeManager;
 use tracing::Instrument;
 
-use coinnect_rt::coinnect::Coinnect;
-use coinnect_rt::exchange::manager::ExchangeManager;
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
-use coinnect_rt::types::{AccountEventEnveloppe, LiveEventEnvelope};
+use coinnect_rt::prelude::*;
 use db::DbOptions;
 use metrics::prom::PrometheusPushActor;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};

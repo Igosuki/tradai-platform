@@ -5,8 +5,7 @@ use config::{Config, ConfigError, Environment, File};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use coinnect_rt::exchange::{Exchange, ExchangeSettings};
-use coinnect_rt::types::Pair;
+use coinnect_rt::prelude::*;
 use db::DbOptions;
 use metrics::prom::PrometheusOptions;
 use portfolio::balance::BalanceReporterOptions;

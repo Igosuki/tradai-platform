@@ -9,7 +9,7 @@ use std::sync::Arc;
 use actix::{Addr, MailboxError};
 use juniper::executor::{FieldError, FieldResult};
 
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
+use coinnect_rt::prelude::*;
 use strategies::actor::StrategyActor;
 use strategies::order_manager::OrderManager;
 use strategies::query::{DataQuery, DataResult};

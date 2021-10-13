@@ -9,9 +9,8 @@ use futures::FutureExt;
 use prometheus::GaugeVec;
 
 use coinnect_rt::bot::Ping;
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
-use coinnect_rt::types::{AccountEvent, AccountEventEnveloppe, AccountType, BalanceUpdate, MarginAccountDetails,
-                         MarginAsset};
+use coinnect_rt::prelude::*;
+use coinnect_rt::types::{BalanceUpdate, MarginAccountDetails, MarginAsset};
 
 #[derive(Clone)]
 pub struct MarginAccountMetrics {

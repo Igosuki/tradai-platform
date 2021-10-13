@@ -7,8 +7,7 @@ use actix::Addr;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use log::Level::Debug;
 
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::{LiveEvent, LiveEventEnvelope};
+use coinnect_rt::prelude::*;
 use db::{get_or_create, DbOptions, Storage};
 use options::Options;
 use state::{MovingState, Position};

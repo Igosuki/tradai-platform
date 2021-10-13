@@ -9,9 +9,8 @@ use chrono::{DateTime, Duration, TimeZone, Utc};
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 
-use coinnect_rt::exchange::Exchange;
 use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
-use coinnect_rt::types::{AssetType, LiveEvent, LiveEventEnvelope, Pair};
+use coinnect_rt::prelude::*;
 use db::{get_or_create, DbOptions};
 use ext::ResultExt;
 use math::indicators::macd_apo::MACDApo;

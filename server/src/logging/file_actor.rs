@@ -217,8 +217,7 @@ mod test {
     use actix::System;
     use fs_extra::dir::get_dir_content;
 
-    use coinnect_rt::exchange::Exchange;
-    use coinnect_rt::types::{LiveEvent, LiveEventEnvelope, Orderbook};
+    use coinnect_rt::prelude::*;
 
     use crate::logging::live_event::LiveEventPartitioner;
 

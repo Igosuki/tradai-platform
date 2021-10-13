@@ -2,10 +2,8 @@ use actix::Addr;
 use httpmock::{Mock, MockServer};
 use uuid::Uuid;
 
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::exchange::Exchange::Binance;
-use coinnect_rt::types::{AddOrderRequest, AssetType, MarginSideEffect, OrderEnforcement, OrderQuery, OrderSubmission,
-                         OrderUpdate, Pair, TradeType};
+use coinnect_rt::prelude::*;
+use coinnect_rt::types::{MarginSideEffect, OrderSubmission, OrderUpdate};
 use util::test::test_dir;
 
 use crate::coinnect_types::OrderType;
@@ -38,7 +36,7 @@ fn test_pair() -> String { "BTC_USDT".to_string() }
 #[actix::test]
 async fn test_binance_stage_order_invalid() {
     let test_dir = util::test::test_dir();
-    let mut order_manager = it_order_manager(test_keys(), test_dir, Binance).await;
+    let mut order_manager = it_order_manager(test_keys(), test_dir, Exchange::Binance).await;
     let registered = order_manager
         .stage_order(StagedOrder {
             request: AddOrderRequest {
@@ -57,7 +55,7 @@ async fn test_binance_stage_order_invalid() {
 #[actix::test]
 async fn test_register_transactions() {
     let test_dir = util::test::test_dir();
-    let mut order_manager = it_order_manager(test_keys(), test_dir, Binance).await;
+    let mut order_manager = it_order_manager(test_keys(), test_dir, Exchange::Binance).await;
     let order_id = "1".to_string();
     let pair: Pair = "BTC_USDT".into();
     let statuses = vec![
@@ -342,42 +340,40 @@ async fn test_live_market_margin_order_workflow() -> Result<()> {
     Ok(())
 }
 
-// #[cfg(feature = "live_e2e_tests")]
-// #[actix::test]
-// async fn test_live() -> Result<()> {
-//     use coinnect_rt::{coinnect::Coinnect, types::AccountType};
-//
-//     init();
-//     let test_dir = util::test::e2e_test_dir();
-//     // Build a valid test engine
-//     let (credentials, apis) = crate::test_util::e2e::build_apis().await?;
-//     let om = crate::order_manager::test_util::local_manager(test_dir, apis.get(&Exchange::Binance).unwrap().clone());
-//     let _account_stream = coinnect_rt::coinnect::Coinnect::new_account_stream(
-//         Exchange::Binance,
-//         credentials,
-//         vec![om.clone().recipient()],
-//         false,
-//         AccountType::Margin,
-//     )
-//     .await?;
-//     Coinnect::load_pair_registries(apis.clone()).await?;
-//     let pair: Pair = "BURGER_USDT".into();
-//     let qty = 28.40;
-//     let base_margin_order = AddOrderRequest {
-//         pair: pair.clone(),
-//         dry_run: false,
-//         quantity: Some(qty),
-//         order_type: OrderType::Market,
-//         asset_type: Some(AssetType::Margin),
-//         ..AddOrderRequest::default()
-//     };
-//     let buy_long = AddOrderRequest {
-//         side: TradeType::Buy,
-//         side_effect_type: None,
-//         order_id: Some(Uuid::new_v4().to_string()),
-//         ..base_margin_order.clone()
-//     };
-//     let buy_long_order_detail = pass_live_order(om.clone(), buy_long).await?;
-//     eprintln!("buy_long_order_detail = {:?}", buy_long_order_detail);
-//     Ok(())
-// }
+#[cfg(feature = "live_e2e_tests")]
+#[actix::test]
+async fn test_live() -> Result<()> {
+    init();
+    let test_dir = util::test::e2e_test_dir();
+    // Build a valid test engine
+    let (credentials, apis) = crate::test_util::e2e::build_apis().await?;
+    let om = crate::order_manager::test_util::local_manager(test_dir, apis.get(&Exchange::Binance).unwrap().clone());
+    // let _account_stream = coinnect_rt::coinnect::Coinnect::new_account_stream(
+    //     Exchange::Binance,
+    //     credentials,
+    //     vec![om.clone().recipient()],
+    //     false,
+    //     AccountType::Margin,
+    // )
+    // .await?;
+    Coinnect::load_pair_registries(apis.clone()).await?;
+    let pair: Pair = "ARPA_USDT".into();
+    let qty = 1421.06;
+    let base_margin_order = AddOrderRequest {
+        pair: pair.clone(),
+        dry_run: false,
+        quantity: Some(qty),
+        order_type: OrderType::Market,
+        asset_type: Some(AssetType::Margin),
+        ..AddOrderRequest::default()
+    };
+    let buy_long = AddOrderRequest {
+        side: TradeType::Buy,
+        side_effect_type: None,
+        order_id: Some(Uuid::new_v4().to_string()),
+        ..base_margin_order.clone()
+    };
+    let buy_long_order_detail = pass_live_order(om.clone(), buy_long).await?;
+    eprintln!("buy_long_order_detail = {:?}", buy_long_order_detail);
+    Ok(())
+}

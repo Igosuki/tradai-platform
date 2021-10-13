@@ -7,10 +7,9 @@ use log::Level::Debug;
 use pyo3::prelude::*;
 use strum_macros::{AsRefStr, EnumString};
 
-use coinnect_rt::types::{AddOrderRequest, AssetType, MarginSideEffect, OrderEnforcement, OrderType, Orderbook,
-                         TradeType};
-
 use crate::error::DataTableError;
+use coinnect_rt::prelude::*;
+use coinnect_rt::types::MarginSideEffect;
 use uuid::Uuid;
 
 // ------------ Behavioral Types ---------

@@ -5,14 +5,13 @@ use chrono::{DateTime, TimeZone, Utc};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 
+use crate::coinnect_types::OrderEnforcement;
+use crate::error::*;
+use crate::wal::WalCmp;
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::pair::symbol_to_pair;
 use coinnect_rt::types::{AddOrderRequest, AssetType, InterestRate, MarginSideEffect, OrderQuery,
                          OrderStatus as ExchangeOrderStatus, OrderSubmission, OrderType, OrderUpdate, Pair, TradeType};
-
-use crate::coinnect_types::OrderEnforcement;
-use crate::error::*;
-use crate::wal::WalCmp;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "reject_type", content = "__field0")]

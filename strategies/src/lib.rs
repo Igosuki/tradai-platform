@@ -40,11 +40,10 @@ use strum_macros::EnumString;
 use uuid::Uuid;
 
 use actor::StrategyActor;
-pub use coinnect_rt::exchange::{Exchange, ExchangeSettings};
 pub use coinnect_rt::margin_interest_rates;
 use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
+pub use coinnect_rt::prelude::*;
 pub use coinnect_rt::types as coinnect_types;
-use coinnect_rt::types::Pair;
 pub use db::DbOptions;
 use error::*;
 #[cfg(feature = "python")]
@@ -156,9 +155,7 @@ mod test {
     use actix::System;
     use futures::StreamExt;
 
-    use coinnect_rt::exchange::Exchange;
-    use coinnect_rt::exchange::Exchange::Binance;
-    use coinnect_rt::types::{LiveEvent, LiveEventEnvelope, Orderbook};
+    use coinnect_rt::prelude::*;
 
     use crate::driver::StrategyDriver;
     use crate::query::{ModelReset, Mutation};
@@ -191,7 +188,7 @@ mod test {
 
         fn channels(&self) -> Vec<Channel> {
             vec![Channel::Orderbooks {
-                xch: Binance,
+                xch: Exchange::Binance,
                 pair: TEST_PAIR.into(),
             }]
         }
