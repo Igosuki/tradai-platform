@@ -155,7 +155,7 @@ release:
 	cp build/cargo-target/$(target_arch)/release/$(target) build/binaries/$(target)
 
 release_trader_musl:
-  make target_arch=x86_64-unknown-linux-musl release
+	make target_arch=x86_64-unknown-linux-musl release
 
 release_trader: release
 
