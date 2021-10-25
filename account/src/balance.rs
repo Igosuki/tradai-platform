@@ -173,7 +173,7 @@ impl Handler<RefreshBalances> for BalanceReporter {
                 futures::future::join_all(
                     apis.clone()
                         .iter()
-                        .map(|(&xchg, api)| api.balances().map(move |r| (xchg, r))),
+                        .map(|(&xchg, api)| api.account_balances().map(move |r| (xchg, r))),
                 )
                 .await
             }
