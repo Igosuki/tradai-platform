@@ -346,7 +346,7 @@ async fn test_live() -> Result<()> {
     init();
     let test_dir = util::test::e2e_test_dir();
     // Build a valid test engine
-    let (credentials, apis) = crate::test_util::e2e::build_apis().await?;
+    let (_credentials, apis) = crate::test_util::e2e::build_apis().await?;
     let om = crate::order_manager::test_util::local_manager(test_dir, apis.get(&Exchange::Binance).unwrap().clone());
     // let _account_stream = coinnect_rt::coinnect::Coinnect::new_account_stream(
     //     Exchange::Binance,

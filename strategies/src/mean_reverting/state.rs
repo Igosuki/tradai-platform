@@ -216,7 +216,17 @@ impl MeanRevertingState {
     }
 
     fn reload_state(&mut self) -> Result<()> {
-        let previous_state: Option<TransientState> = self.db.get(STATE_KEY, &self.state_key)?;
+        let fetch = self.db.get(STATE_KEY, &self.state_key);
+        let previous_state: Option<TransientState> = match fetch {
+            Err(e) => match e {
+                db::Error::NotFound(_) => {
+                    self.save()?;
+                    self.db.get(STATE_KEY, &self.state_key)?
+                }
+                _ => return Err(e.into()),
+            },
+            Ok(p) => p,
+        };
         if let Some(ps) = previous_state {
             if let Some(id) = ps.ongoing_op.as_ref() {
                 self.ongoing_op = Some(self.get_operation(id)?);

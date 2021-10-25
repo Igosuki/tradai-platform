@@ -26,7 +26,7 @@ pub trait Subject {
 
 impl Subject for LiveEventEnvelope {
     fn subject(&self) -> String {
-        format!("live_event.{}.{}", self.xch.to_string(), match &self.e {
+        format!("live_event.{}.{}", self.xch, match &self.e {
             LiveEvent::LiveOrder(lo) => format!("{}.orders", lo.pair),
             LiveEvent::LiveTrade(lt) => format!("{}.trades", lt.pair),
             LiveEvent::LiveOrderbook(ob) => format!("{}.obs", ob.pair),
@@ -38,9 +38,9 @@ impl Subject for LiveEventEnvelope {
 
     fn from_channel(channel: &Channel) -> String {
         match channel {
-            Channel::Orderbooks { xch, pair } => format!("live_event.{}.{}.obs", xch.to_string(), pair),
-            Channel::Orders { xch, pair } => format!("live_event.{}.{}.orders", xch.to_string(), pair),
-            Channel::Trades { xch, pair } => format!("live_event.{}.{}.trades", xch.to_string(), pair),
+            Channel::Orderbooks { xch, pair } => format!("live_event.{}.{}.obs", xch, pair),
+            Channel::Orders { xch, pair } => format!("live_event.{}.{}.orders", xch, pair),
+            Channel::Trades { xch, pair } => format!("live_event.{}.{}.trades", xch, pair),
         }
     }
 }

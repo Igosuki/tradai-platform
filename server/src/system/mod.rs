@@ -6,16 +6,16 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::RwLock;
 
 use actix::{Actor, Addr, Recipient, SyncArbiter};
 use futures::future::select_all;
+use tokio::sync::RwLock;
+use tracing::Instrument;
+
 // use actix::System;
 // use tokio::select;
 // use tokio::signal::unix::{signal, SignalKind};
 use coinnect_rt::exchange::manager::ExchangeManager;
-use tracing::Instrument;
-
 use coinnect_rt::prelude::*;
 use db::DbOptions;
 use metrics::prom::PrometheusPushActor;
@@ -39,9 +39,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     let exchanges = &settings_v.exchanges;
 
     let keys_path = PathBuf::from(settings_v.keys.clone());
-    if fs::metadata(keys_path.clone()).is_err() {
-        return Err(anyhow!("key file doesn't exist at {:?}", keys_path.clone()));
-    }
+    fs::metadata(keys_path.clone()).map_err(|_| anyhow!("key file doesn't exist at {:?}", keys_path.clone()))?;
 
     let exchanges_conf = Arc::new(exchanges.clone());
     let manager = Coinnect::new_manager();

@@ -77,7 +77,7 @@ impl MeanRevertingStrategy {
         mirp: Addr<MarginInterestRateProvider>,
     ) -> Self {
         let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
-        let strat_db_path = format!("{}_{}.{}", MEAN_REVERTING_DB_KEY, n.exchange.to_string(), n.pair);
+        let strat_db_path = format!("{}_{}.{}", MEAN_REVERTING_DB_KEY, n.exchange, n.pair);
         let db = get_or_create(db_opts, strat_db_path, vec![]);
         let state = MeanRevertingState::new(n, fees_rate, db.clone(), om, mirp).unwrap();
         let ema_model = ema_indicator_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
