@@ -272,7 +272,7 @@ impl MeanRevertingState {
 
     pub(super) async fn interest_fees_since_open(&self) -> Result<f64> {
         Ok(match &self.last_open_order {
-            Some(order) if order.asset_type == AssetType::Margin && order.borrowed_amount.is_some() => {
+            Some(order) if order.asset_type.is_margin() && order.borrowed_amount.is_some() => {
                 let interest_rate = self.get_interest_rate(self.exchange, order.base_asset.clone()).await?;
                 order.total_interest(interest_rate)
             }

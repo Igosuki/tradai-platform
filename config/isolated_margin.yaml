@@ -1,0 +1,50 @@
+exchanges:
+  binance:
+    fees: 0.001
+    use_account: true
+    use_margin_account: true
+    use_test: true
+    orderbook_depth: 5
+    orderbook:
+      symbols: [ 'ARPA_USDT' ]
+
+streams:
+  - type: ExchangeBots
+
+outputs:
+  - type: Strategies
+
+strategies:
+  - pair: 'ARPA_USDT'
+    type: mean_reverting
+    short_window_size: 100
+    long_window_size: 1000
+    dry_mode: true
+    sample_freq: 1min
+    initial_cap: 100.0
+    threshold_short: 0.01
+    threshold_long: -0.01
+    threshold_eval_freq: 1
+    dynamic_threshold: false
+    threshold_window_size: 1000
+    stop_loss: -0.1
+    stop_gain: 0.075
+    exchange: Binance
+    order_mode: market
+    order_asset_type: isolated_margin
+
+keys: ./config/keys_real_test.json
+
+storage:
+  path: './.local_data/database'
+  engine:
+    type: rocks_db
+
+prometheus:
+  push_gateway: 127.0.0.1:9091
+  instance: trader
+
+api:
+  port: 8188
+  allowed_origins:
+    - "http://localhost:3001"
