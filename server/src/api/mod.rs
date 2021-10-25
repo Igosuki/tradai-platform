@@ -124,7 +124,6 @@ pub fn config_app(cfg: &mut web::ServiceConfig) {
 
 #[cfg(test)]
 mod tests {
-    use coinnect_rt::prelude::*;
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;
@@ -135,6 +134,7 @@ mod tests {
     use actix_web::{http::StatusCode, test, web, App};
     use tokio::time::timeout;
 
+    use coinnect_rt::prelude::*;
     use strategies::order_manager::OrderManager;
     use strategies::{Strategy, StrategyKey};
 
@@ -179,7 +179,7 @@ mod tests {
         config_app(cfg);
     }
 
-    #[actix::test]
+    #[actix_rt::test]
     async fn test_add_order() {
         let apis = test_apis().await;
         let app = App::new().configure(|cfg| build_test_api(apis.clone(), cfg));

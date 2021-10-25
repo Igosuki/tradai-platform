@@ -3,8 +3,6 @@ extern crate crc32fast;
 extern crate rsgen_avro;
 extern crate serde_json;
 
-use crc32fast::Hasher;
-use rsgen_avro::{Generator, Source};
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
@@ -12,6 +10,9 @@ use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 use std::{env, io};
+
+use crc32fast::Hasher;
+use rsgen_avro::{Generator, Source};
 
 type AvroState = HashMap<String, u32>;
 
@@ -66,7 +67,7 @@ fn main() -> io::Result<()> {
                 "java -jar ./tools/avro-tools-1.9.1.jar idl {} {}/{}.{}",
                 file_name.display(),
                 dest_path.as_path().display(),
-                file_name.file_stem().unwrap().to_str().unwrap().to_string(),
+                file_name.file_stem().unwrap().to_str().unwrap(),
                 "avsc"
             ))
             .output();

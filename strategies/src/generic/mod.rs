@@ -96,9 +96,7 @@ impl GenericStrategy {
         self.channels.iter().any(|c| match (c, le) {
             (
                 Channel::Orderbooks { pair, xch },
-                le
-                @
-                LiveEventEnvelope {
+                le @ LiveEventEnvelope {
                     e: LiveEvent::LiveOrderbook(ob),
                     ..
                 },

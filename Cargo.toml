@@ -23,8 +23,8 @@ exclude = [
 ]
 
 [profile.test]
-debug = false
-opt-level = 3
+debug = true
+opt-level = 1
 
 [profile.dev]
 debug = true
