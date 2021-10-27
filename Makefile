@@ -202,9 +202,6 @@ deploy_trader:
 deploy_feeder24:
 	./infra/prod/deploy_feeder24.sh
 
-deploy_feeder:
-	./infra/prod/deploy_feeder.sh
-
 deploy_trader_margin:
 	./infra/prod/deploy_trader_margin.sh
 
