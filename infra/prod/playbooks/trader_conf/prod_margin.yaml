@@ -6,7 +6,7 @@ exchanges:
     use_test: false
     orderbook_depth: 5
     orderbook:
-      symbols: [ 'ARPA_USDT' ]
+      symbols: [ 'FIS_USDT' ]
 
 streams:
   - type: ExchangeBots
@@ -16,7 +16,7 @@ outputs:
 
 strategies:
   - type: mean_reverting
-    pair: 'ARPA_USDT'
+    pair: 'FIS_USDT'
     short_window_size: 100
     long_window_size: 1000
     dry_mode: false
@@ -31,7 +31,7 @@ strategies:
     stop_gain: 0.075
     exchange: Binance
     order_mode: market
-    order_asset_type: margin
+    order_asset_type: isolated_margin
 
 keys: /root/config/margin_keys_real.json
 
