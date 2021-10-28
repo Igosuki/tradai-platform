@@ -338,14 +338,13 @@ impl MeanRevertingState {
     pub fn resume_trading(&mut self) -> Result<()> { self.set_is_trading(true) }
 
     async fn clear_ongoing_operation(&mut self, last_price: f64, cummulative_qty: f64) -> Result<()> {
-        match self.ongoing_op.clone() {
-            Some(o) if o.is_close() => {
+        if let Some(o) = self.ongoing_op.clone() {
+            if o.is_close() {
                 self.update_close_value(self.vars.previous_value_strat, &o.pos.kind, last_price)
                     .await?;
                 self.set_pnl();
                 self.clear_open_position();
-            }
-            Some(o) if o.is_open() => {
+            } else if o.is_open() {
                 self.vars.traded_price = last_price;
                 self.vars.nominal_position = cummulative_qty;
                 if o.kind == OperationKind::Open {
@@ -353,7 +352,6 @@ impl MeanRevertingState {
                 }
                 self.update_open_value(self.vars.previous_value_strat, &o.pos.kind, last_price);
             }
-            _ => {}
         }
         self.set_ongoing_op(None);
         self.save()
@@ -400,24 +398,26 @@ impl MeanRevertingState {
         }
         let order_detail = ongoing_op.order_detail.as_ref().unwrap();
         let (new_order, transaction, resolution) = self.ts.resolve_pending_order(order_detail).await?;
+        let mut new_op = ongoing_op.clone();
+        new_op.order_detail = Some(new_order.clone());
+        new_op.transaction = transaction;
         match resolution {
             OrderResolution::Filled => {
                 self.clear_ongoing_operation(new_order.weighted_price, new_order.total_executed_qty)
                     .await?;
+                self.save_operation(&new_op)?;
             }
             OrderResolution::Retryable | OrderResolution::Cancelled => {
                 self.cancel_ongoing_op()?;
             }
             OrderResolution::NoChange => {}
             OrderResolution::BadRequest | OrderResolution::Rejected => {
-                let mut new_op = ongoing_op.clone();
-                new_op.order_detail = Some(new_order.clone());
-                new_op.transaction = transaction;
-                self.set_ongoing_op(Some(new_op.clone()));
                 self.save_operation(&new_op)?;
+                self.set_ongoing_op(Some(new_op));
                 self.stop_trading()?;
             }
         };
+
         Ok(resolution)
     }
 
