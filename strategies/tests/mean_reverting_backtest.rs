@@ -1,10 +1,14 @@
+use chrono::Duration;
+
+use backtest::Dataset;
+
 #[cfg(feature = "backtests")]
 #[actix::test]
 async fn complete_backtest_backtest() -> backtest::Result<()> {
     use chrono::{TimeZone, Utc};
 
     use backtest::BacktestConfig;
-    use backtest::OrderbookInputMode;
+    use backtest::DatasetInputFormat;
     use coinnect_rt::exchange::Exchange;
     use strategies::mean_reverting::options::Options;
     use strategies::StrategySettings;
@@ -41,7 +45,9 @@ async fn complete_backtest_backtest() -> backtest::Result<()> {
             from: Utc.ymd(2021, 8, 1).naive_utc(),
             to: Some(Utc.ymd(2021, 8, 9).naive_utc()),
         })
-        .orderbook_input_mode(OrderbookInputMode::CsvDownsampled)
+        .input_format(DatasetInputFormat::Csv)
+        .input_dataset(Dataset::OrderbooksRaw)
+        .input_sample_rate(Duration::minutes(1))
         .data_dir(data_cache_dir())
         .use_generic(false)
         .build();

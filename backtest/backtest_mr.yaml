@@ -23,12 +23,13 @@ period:
   from: 2021-07-18
   to: 2021-07-19
 
-orderbook_input_mode:
-  type: csv_downsampled
+input_format: parquet
+input_dataset: order_books_1mn
+input_sample_rate: 1mn
 
 db_path: /tmp/strat_backtest_dbs
 
-data_dir: /home/geps/dev/bitcoins/history/btc_history_cache/data
+data_dir: /tmp/downsampler_out
 
 use_generic: false
 

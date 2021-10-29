@@ -10,7 +10,7 @@ use strategies::settings::StrategySettings;
 use util::date::{DateRange, DurationRangeType};
 
 use crate::error::*;
-use crate::OrderbookInputMode;
+use crate::{Dataset, DatasetInputFormat};
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "type")]
@@ -45,13 +45,16 @@ pub struct BacktestConfig {
     pub strat: StrategySettings,
     pub fees: f64,
     pub period: Period,
-    pub orderbook_input_mode: OrderbookInputMode,
+    pub input_format: DatasetInputFormat,
+    pub input_dataset: Dataset,
     pub data_dir: PathBuf,
     pub use_generic: bool,
     #[builder(default, setter(strip_option))]
     pub sql_override: Option<String>,
     #[builder(default, setter(strip_option))]
     pub output_dir: Option<PathBuf>,
+    #[serde(deserialize_with = "util::serde::decode_duration_str")]
+    pub input_sample_rate: Duration,
 }
 
 impl BacktestConfig {

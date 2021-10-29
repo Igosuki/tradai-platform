@@ -1,11 +1,14 @@
-use crate::datasources::{get_col_as, live_order_book};
-use crate::error::*;
 use datafusion::arrow::array::{Array, PrimitiveArray, StructArray, TimestampMillisecondArray};
 use datafusion::arrow::datatypes::Float64Type;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::ExecutionContext;
+
 use strategies::coinnect_types::{LiveEventEnvelope, Pair};
 use strategies::Exchange;
+
+use crate::datafusion_util::get_col_as;
+use crate::datasources::orderbook::live_order_book;
+use crate::error::*;
 
 pub async fn csv_orderbooks_df(partitions: Vec<String>) -> Result<Vec<RecordBatch>> {
     let mut ctx = ExecutionContext::new();

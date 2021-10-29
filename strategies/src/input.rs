@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{BufReader, Result};
 use std::iter::FromIterator;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
@@ -16,17 +16,6 @@ use util::serde::date_time_format;
 use util::test::test_data_dir;
 
 use crate::types::BookPosition;
-
-pub fn partition_path(exchange: &str, ts: i64, channel: &str, pair: &str) -> Option<PathBuf> {
-    let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d");
-    Some(
-        PathBuf::new()
-            .join(exchange)
-            .join(channel)
-            .join(format!("pr={}", pair))
-            .join(format!("dt={}", dt_par)),
-    )
-}
 
 async fn dl_test_data(base_path: &str, exchange_name: &str, channel: &str, pair: String) {
     let out_file_name = format!("{}.zip", pair);
