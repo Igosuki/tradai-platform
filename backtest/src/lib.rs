@@ -4,40 +4,61 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
-use chrono::Duration;
-use serde::{ser::SerializeSeq, Serializer};
 use std::collections::BTreeMap;
 use std::io::BufWriter;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+use chrono::{Duration, TimeZone, Utc};
+use serde::{ser::SerializeSeq, Serializer};
 use tokio::sync::Mutex;
 
 use strategies::driver::StrategyDriver;
-use strategies::input::partition_path;
 use strategies::margin_interest_rates::test_util::mock_interest_rate_provider;
 use strategies::order_manager::test_util::mock_manager;
 use strategies::query::{DataQuery, DataResult};
 use strategies::settings::StrategySettings;
-use strategies::{Channel, DbOptions, ExchangeSettings};
+use strategies::{Channel, DbOptions, Exchange, ExchangeSettings, Pair};
 use util::date::DateRange;
 use util::test::test_dir;
 
-use crate::datasources::avro_orderbook::{avro_orderbooks_df, events_from_avro_orderbooks};
-use crate::datasources::csv_orderbook::{csv_orderbooks_df, events_from_csv_orderbooks};
+use crate::datasources::orderbook::convert::events_from_orderbooks;
+use crate::datasources::orderbook::csv_source::{csv_orderbooks_df, events_from_csv_orderbooks};
+use crate::datasources::orderbook::raw_source::raw_orderbooks_df;
+use crate::datasources::orderbook::sampled_source::sampled_orderbooks_df;
 pub use crate::{config::*, error::*};
 
 mod config;
+mod datafusion_util;
 mod datasources;
 mod error;
 
+#[derive(Deserialize, Copy, Clone)]
+#[serde(rename_all = "snake_case", tag = "type")]
+pub enum Dataset {
+    Orderbooks1mn,
+    Orderbooks1s,
+    OrderbooksRaw,
+    Trades,
+}
+
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "snake_case", tag = "type")]
-pub enum OrderbookInputMode {
-    AvroRaw {
-        #[serde(deserialize_with = "util::serde::decode_duration_str")]
-        sample_rate: Duration,
-    },
-    CsvDownsampled,
+pub enum DatasetInputFormat {
+    Avro,
+    Parquet,
+    Csv,
+}
+
+impl ToString for DatasetInputFormat {
+    fn to_string(&self) -> String {
+        match self {
+            DatasetInputFormat::Avro => "AVRO",
+            DatasetInputFormat::Parquet => "PARQUET",
+            DatasetInputFormat::Csv => "CSV",
+        }
+        .to_string()
+    }
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -50,7 +71,9 @@ pub struct Backtest {
     strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
     data_dir: PathBuf,
     output_dir: PathBuf,
-    orderbook_input_mode: OrderbookInputMode,
+    input_format: DatasetInputFormat,
+    dataset: Dataset,
+    input_sample_rate: Duration,
 }
 
 impl Backtest {
@@ -94,42 +117,45 @@ impl Backtest {
             period: conf.period.as_range(),
             strategy: Arc::new(Mutex::new(strategy_driver)),
             data_dir: conf.data_dir.clone(),
-            orderbook_input_mode: conf.orderbook_input_mode.clone(),
+            input_format: conf.input_format.clone(),
+            input_sample_rate: conf.input_sample_rate,
             output_dir: output_path,
+            dataset: conf.input_dataset,
         })
     }
 
     pub async fn run(&self) -> Result<()> {
         let mut strategy = self.strategy.lock().await;
         let chans = strategy.channels();
-        let period = self.period.clone();
         let mut live_events = vec![];
         for chan in chans {
             match chan {
                 Channel::Orderbooks { xch, pair } => {
-                    let mut partitions = vec![];
-                    for date in period.clone() {
-                        let partition = partition_path(
-                            &xch.to_string(),
-                            date.and_hms_milli(0, 0, 0, 0).timestamp_millis(),
-                            "order_books",
-                            pair.as_ref(),
-                        );
-                        if let Some(partition_csv_read_options) = partition {
-                            let mut partition_file = self.data_dir.clone();
-                            partition_file.push(partition_csv_read_options);
-                            partitions.push(partition_file.as_path().to_string_lossy().to_string());
+                    let partitions = self.dataset_partitions(self.period.clone(), xch, &pair);
+                    match self.dataset {
+                        Dataset::Orderbooks1mn | Dataset::Orderbooks1s => {
+                            let records =
+                                sampled_orderbooks_df(partitions, pair.to_string(), &self.input_format.to_string())
+                                    .await?;
+                            live_events.extend(events_from_orderbooks(xch, pair.clone(), records))
                         }
-                    }
-                    match self.orderbook_input_mode {
-                        OrderbookInputMode::AvroRaw { sample_rate } => {
-                            let records = avro_orderbooks_df(partitions, sample_rate, false).await?;
-                            live_events.extend(events_from_avro_orderbooks(xch, pair.clone(), records))
-                        }
-                        OrderbookInputMode::CsvDownsampled => {
-                            let records = csv_orderbooks_df(partitions).await?;
-                            live_events.extend(events_from_csv_orderbooks(xch, pair.clone(), records))
-                        }
+                        Dataset::OrderbooksRaw => match self.input_format {
+                            DatasetInputFormat::Csv => {
+                                let records = csv_orderbooks_df(partitions).await?;
+                                live_events.extend(events_from_csv_orderbooks(xch, pair.clone(), records))
+                            }
+                            _ => {
+                                let records = raw_orderbooks_df(
+                                    partitions,
+                                    self.input_sample_rate,
+                                    false,
+                                    &self.input_format.to_string(),
+                                )
+                                .await?;
+                                live_events.extend(events_from_orderbooks(xch, pair.clone(), records))
+                            }
+                        },
+                        _ => panic!("order books channel requires an order books dataset"),
                     }
                 }
                 Channel::Trades { .. } => {
@@ -175,6 +201,44 @@ impl Backtest {
 
         tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         Ok(())
+    }
+
+    fn dataset_partitions(&self, period: DateRange, xch: Exchange, pair: &Pair) -> Vec<String> {
+        let mut partitions = vec![];
+        for date in period {
+            let ts = date.and_hms_milli(0, 0, 0, 0).timestamp_millis();
+            let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d");
+            let sub_partition = match self.dataset {
+                Dataset::Orderbooks1mn => vec![
+                    format!("xch={}", xch),
+                    format!("chan={}", "1mn_order_books"),
+                    format!("dt={}", dt_par),
+                ],
+                Dataset::Orderbooks1s => vec![
+                    format!("xch={}", xch),
+                    format!("chan={}", "1s_order_books"),
+                    format!("dt={}", dt_par),
+                ],
+                Dataset::OrderbooksRaw => vec![
+                    xch.to_string(),
+                    "order_books".to_string(),
+                    format!("dt={}", dt_par),
+                    format!("pr={}", pair),
+                ],
+                Dataset::Trades => vec![
+                    xch.to_string(),
+                    "trades".to_string(),
+                    format!("dt={}", dt_par),
+                    format!("pr={}", pair),
+                ],
+            };
+            let mut partition_file = self.data_dir.clone();
+            for part in sub_partition {
+                partition_file.push(part);
+            }
+            partitions.push(partition_file.as_path().to_string_lossy().to_string());
+        }
+        partitions
     }
 }
 
