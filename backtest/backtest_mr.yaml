@@ -20,17 +20,18 @@ fees: 0.001
 
 period:
   type: interval
-  from: 2021-07-18
-  to: 2021-07-19
+  from: 2021-10-21
+  to: 2021-10-26
 
-input_format: parquet
-input_dataset: order_books_1mn
-input_sample_rate: 1mn
+input_format: avro
+input_dataset: orderbooks_by_minute
+#input_dataset: orderbooks_raw
+input_sample_rate: 1min
 
 db_path: /tmp/strat_backtest_dbs
 
-data_dir: /tmp/downsampler_out
+data_dir: /home/geps/dev/bitcoins/data_cache/data
 
 use_generic: false
 
-output_dir: ./backtests
+output_dir: ./target/backtests_results
