@@ -34,16 +34,16 @@ mod datasources;
 mod error;
 
 #[derive(Deserialize, Copy, Clone)]
-#[serde(rename_all = "snake_case", tag = "type")]
+#[serde(rename_all = "snake_case")]
 pub enum Dataset {
-    Orderbooks1mn,
-    Orderbooks1s,
+    OrderbooksByMinute,
+    OrderbooksBySecond,
     OrderbooksRaw,
     Trades,
 }
 
 #[derive(Deserialize, Clone)]
-#[serde(rename_all = "snake_case", tag = "type")]
+#[serde(rename_all = "snake_case")]
 pub enum DatasetInputFormat {
     Avro,
     Parquet,
@@ -133,7 +133,7 @@ impl Backtest {
                 Channel::Orderbooks { xch, pair } => {
                     let partitions = self.dataset_partitions(self.period.clone(), xch, &pair);
                     match self.dataset {
-                        Dataset::Orderbooks1mn | Dataset::Orderbooks1s => {
+                        Dataset::OrderbooksByMinute | Dataset::OrderbooksBySecond => {
                             let records =
                                 sampled_orderbooks_df(partitions, pair.to_string(), &self.input_format.to_string())
                                     .await?;
@@ -209,12 +209,12 @@ impl Backtest {
             let ts = date.and_hms_milli(0, 0, 0, 0).timestamp_millis();
             let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d");
             let sub_partition = match self.dataset {
-                Dataset::Orderbooks1mn => vec![
+                Dataset::OrderbooksByMinute => vec![
                     format!("xch={}", xch),
                     format!("chan={}", "1mn_order_books"),
                     format!("dt={}", dt_par),
                 ],
-                Dataset::Orderbooks1s => vec![
+                Dataset::OrderbooksBySecond => vec![
                     format!("xch={}", xch),
                     format!("chan={}", "1s_order_books"),
                     format!("dt={}", dt_par),
@@ -222,14 +222,14 @@ impl Backtest {
                 Dataset::OrderbooksRaw => vec![
                     xch.to_string(),
                     "order_books".to_string(),
-                    format!("dt={}", dt_par),
                     format!("pr={}", pair),
+                    format!("dt={}", dt_par),
                 ],
                 Dataset::Trades => vec![
                     xch.to_string(),
                     "trades".to_string(),
-                    format!("dt={}", dt_par),
                     format!("pr={}", pair),
+                    format!("dt={}", dt_par),
                 ],
             };
             let mut partition_file = self.data_dir.clone();
