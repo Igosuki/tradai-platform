@@ -27,12 +27,14 @@ debug = true
 opt-level = 1
 
 [profile.dev]
+opt-level = 3
 debug = true
+#lto = "thin"
 
 [profile.release]
 opt-level = 3
-debug = false
-lto = "thin"
+debug = true
+#lto = "thin"
 
 [profile.release-fat]
 inherits = "release"

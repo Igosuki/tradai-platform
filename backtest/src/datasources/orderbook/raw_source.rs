@@ -10,7 +10,6 @@ pub async fn raw_orderbooks_df(
     order_book_split_cols: bool,
     format: &str,
 ) -> Result<Vec<RecordBatch>> {
-    let mut ctx = ExecutionContext::new();
     dbg!(&partitions);
     let mut records = vec![];
     let order_book_selector = if order_book_split_cols {
@@ -18,24 +17,33 @@ pub async fn raw_orderbooks_df(
     } else {
         "asks, bids"
     };
-    for partition in partitions {
-        ctx.sql(&format!(
-            "CREATE EXTERNAL TABLE order_books STORED AS {format} LOCATION '{partition}';",
-            partition = &partition,
-            format = format
-        ))
-        .await?;
-        //ctx.register_avro("order_books", &partition, AvroReadOptions::default())?;
-        let sql_query = format!(
-            "select to_timestamp_millis(event_ms) as event_ms, {order_book_selector} from
+    let tasks: Vec<Result<Vec<RecordBatch>>> = futures::future::join_all(partitions.iter().map(|partition| {
+        async move {
+            let mut ctx = ExecutionContext::new();
+            ctx.sql(&format!(
+                "CREATE EXTERNAL TABLE order_books STORED AS {format} LOCATION '{partition}';",
+                partition = &partition,
+                format = format
+            ))
+            .await?;
+            //ctx.register_avro("order_books", &partition, AvroReadOptions::default())?;
+            let sql_query = format!(
+                "select to_timestamp_millis(event_ms) as event_ms, {order_book_selector} from
    (select asks, bids, event_ms, ROW_NUMBER() OVER (PARTITION BY sample_time order by event_ms) as row_num
     FROM (select asks, bids, event_ms / {sample_rate} as sample_time, event_ms from order_books)) where row_num = 1;",
-            sample_rate = sample_rate.num_milliseconds(),
-            order_book_selector = order_book_selector
-        );
-        let df = ctx.sql(&sql_query).await?;
-        let results = df.collect().await?;
-        records.extend_from_slice(results.as_slice());
+                sample_rate = sample_rate.num_milliseconds(),
+                order_book_selector = order_book_selector
+            );
+            let df = ctx.sql(&sql_query).await?;
+            let results: Vec<RecordBatch> = df.collect().await?;
+            Result::Ok(results)
+        }
+    }))
+    .await;
+    for result in tasks {
+        records.extend_from_slice(result.unwrap().as_slice());
     }
+    // let results = futures::future::join_all(tasks).await;
+    // results.transpose();
     Ok(records)
 }

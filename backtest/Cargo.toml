@@ -18,6 +18,7 @@ strategies = { path = "../strategies" }
 util = { path = "../util" }
 
 # async
+futures = "0.3"
 tokio = "1"
 actix = "0.12"
 
