@@ -4,17 +4,17 @@ use datafusion::arrow::record_batch::RecordBatch;
 
 use strategies::{Exchange, LiveEventEnvelope, Pair};
 
-use crate::datafusion_util::get_col_as;
+use crate::datafusion_util::{get_col_as, to_struct_array};
 use crate::datasources::orderbook::live_order_book;
 
 /// Expects a record batch with the following schema :
 /// asks : List(Tuple(f64))
 /// bids : List(Tuple(f64))
 /// event_ms : TimestampMillisecond
-pub fn events_from_orderbooks(xchg: Exchange, pair: Pair, records: Vec<RecordBatch>) -> Vec<LiveEventEnvelope> {
+pub fn events_from_orderbooks(xchg: Exchange, pair: Pair, records: &[RecordBatch]) -> Vec<LiveEventEnvelope> {
     let mut live_events = vec![];
     for record_batch in records {
-        let sa: StructArray = record_batch.into();
+        let sa: StructArray = to_struct_array(record_batch);
         let asks_col = get_col_as::<ListArray>(&sa, "asks");
         let bids_col = get_col_as::<ListArray>(&sa, "bids");
         let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ms");
