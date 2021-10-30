@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 use std::io::BufWriter;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 
 use chrono::{Duration, TimeZone, Utc};
 use serde::{ser::SerializeSeq, Serializer};
@@ -128,16 +129,24 @@ impl Backtest {
         let mut strategy = self.strategy.lock().await;
         let chans = strategy.channels();
         let mut live_events = vec![];
+        let before_read = Instant::now();
         for chan in chans {
             match chan {
                 Channel::Orderbooks { xch, pair } => {
                     let partitions = self.dataset_partitions(self.period.clone(), xch, &pair);
                     match self.dataset {
                         Dataset::OrderbooksByMinute | Dataset::OrderbooksBySecond => {
-                            let records =
-                                sampled_orderbooks_df(partitions, pair.to_string(), &self.input_format.to_string())
-                                    .await?;
-                            live_events.extend(events_from_orderbooks(xch, pair.clone(), records))
+                            let records = sampled_orderbooks_df(
+                                partitions,
+                                Some(pair.to_string()),
+                                &self.input_format.to_string(),
+                            )
+                            .await?;
+                            live_events.extend(events_from_orderbooks(
+                                xch,
+                                pair.clone(),
+                                records.get(pair.as_ref()).unwrap(),
+                            ))
                         }
                         Dataset::OrderbooksRaw => match self.input_format {
                             DatasetInputFormat::Csv => {
@@ -152,7 +161,7 @@ impl Backtest {
                                     &self.input_format.to_string(),
                                 )
                                 .await?;
-                                live_events.extend(events_from_orderbooks(xch, pair.clone(), records))
+                                live_events.extend(events_from_orderbooks(xch, pair.clone(), records.as_slice()))
                             }
                         },
                         _ => panic!("order books channel requires an order books dataset"),
@@ -166,6 +175,13 @@ impl Backtest {
                 }
             }
         }
+        let elapsed = before_read.elapsed();
+        info!(
+            "read {} events in {}.{}s",
+            live_events.len(),
+            elapsed.as_secs(),
+            elapsed.subsec_millis()
+        );
         let mut all_models: Vec<Vec<(String, Option<serde_json::Value>)>> = vec![];
         let mut report = BacktestReport::default();
         for live_event in live_events {
