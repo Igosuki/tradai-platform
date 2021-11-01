@@ -134,7 +134,7 @@ impl Backtest {
             match chan {
                 Channel::Orderbooks { xch, pair } => {
                     let partitions = self.dataset_partitions(self.period.clone(), xch, &pair);
-                    match self.dataset {
+                    let events = match self.dataset {
                         Dataset::OrderbooksByMinute | Dataset::OrderbooksBySecond => {
                             let records = sampled_orderbooks_df(
                                 partitions,
@@ -142,16 +142,12 @@ impl Backtest {
                                 &self.input_format.to_string(),
                             )
                             .await?;
-                            live_events.extend(events_from_orderbooks(
-                                xch,
-                                pair.clone(),
-                                records.get(pair.as_ref()).unwrap(),
-                            ))
+                            events_from_orderbooks(xch, pair.clone(), records.get(pair.as_ref()).unwrap())
                         }
                         Dataset::OrderbooksRaw => match self.input_format {
                             DatasetInputFormat::Csv => {
                                 let records = csv_orderbooks_df(partitions).await?;
-                                live_events.extend(events_from_csv_orderbooks(xch, pair.clone(), records))
+                                events_from_csv_orderbooks(xch, pair.clone(), records.as_slice())
                             }
                             _ => {
                                 let records = raw_orderbooks_df(
@@ -161,11 +157,12 @@ impl Backtest {
                                     &self.input_format.to_string(),
                                 )
                                 .await?;
-                                live_events.extend(events_from_orderbooks(xch, pair.clone(), records.as_slice()))
+                                events_from_orderbooks(xch, pair.clone(), records.as_slice())
                             }
                         },
                         _ => panic!("order books channel requires an order books dataset"),
-                    }
+                    };
+                    live_events.extend(events);
                 }
                 Channel::Trades { .. } => {
                     panic!("cannot yet read from trades");
