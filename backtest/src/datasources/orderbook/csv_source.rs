@@ -6,7 +6,7 @@ use datafusion::execution::context::ExecutionContext;
 use strategies::coinnect_types::{LiveEventEnvelope, Pair};
 use strategies::Exchange;
 
-use crate::datafusion_util::get_col_as;
+use crate::datafusion_util::{get_col_as, to_struct_array};
 use crate::datasources::orderbook::live_order_book;
 use crate::error::*;
 
@@ -28,10 +28,10 @@ pub async fn csv_orderbooks_df(partitions: Vec<String>) -> Result<Vec<RecordBatc
     Ok(records)
 }
 
-pub fn events_from_csv_orderbooks(xchg: Exchange, pair: Pair, records: Vec<RecordBatch>) -> Vec<LiveEventEnvelope> {
+pub fn events_from_csv_orderbooks(xchg: Exchange, pair: Pair, records: &[RecordBatch]) -> Vec<LiveEventEnvelope> {
     let mut live_events = vec![];
     for record_batch in records {
-        let sa: StructArray = record_batch.into();
+        let sa: StructArray = to_struct_array(record_batch);
         let asks_col = get_col_as::<PrimitiveArray<Float64Type>>(&sa, "a1");
         let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ms");
         for i in 0..sa.len() {
