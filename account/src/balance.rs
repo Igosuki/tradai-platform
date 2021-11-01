@@ -10,7 +10,7 @@ use prometheus::GaugeVec;
 
 use coinnect_rt::bot::Ping;
 use coinnect_rt::prelude::*;
-use coinnect_rt::types::{BalanceInformation, BalanceUpdate, Balances};
+use coinnect_rt::types::{AccountPosition, Balance, BalanceUpdate, Balances};
 
 #[derive(Clone)]
 pub struct BalanceMetrics {
@@ -51,11 +51,12 @@ struct BalanceReport {
     balances: Balances,
     server_time: Option<DateTime<Utc>>,
     buffer: Vec<BalanceUpdate>,
+    pos_buffer: Vec<AccountPosition>,
 }
 
 impl BalanceReport {
-    fn init(&mut self, balances: &BalanceInformation) {
-        for (asset, amount) in &balances.assets {
+    fn init(&mut self, balances: &AccountPosition) {
+        for (asset, amount) in &balances.balances {
             self.balances.insert(asset.clone(), *amount);
         }
         self.server_time = Some(balances.update_time);
@@ -71,15 +72,31 @@ impl BalanceReport {
                     let asset: Asset = update.symbol.into();
                     match self.balances.entry(asset) {
                         Entry::Vacant(v) => {
-                            v.insert(update.delta);
+                            v.insert(Balance {
+                                free: update.delta,
+                                locked: 0.0,
+                            });
                         }
                         Entry::Occupied(mut o) => {
-                            o.insert(o.get() + update.delta);
+                            o.insert(o.get().add_free(update.delta));
                         }
                     }
                 }
             }
             None => self.buffer.push(update),
+        }
+    }
+
+    fn reset(&mut self, pos: AccountPosition) {
+        match self.server_time {
+            Some(server_time) => {
+                if server_time.lt(&pos.update_time) {
+                    for (asset, balance) in pos.balances {
+                        self.balances.insert(asset, balance);
+                    }
+                }
+            }
+            None => self.pos_buffer.push(pos),
         }
     }
 }
@@ -131,7 +148,7 @@ impl Actor for BalanceReporter {
             for xchg in act.apis.keys() {
                 act.with_reporter(*xchg, |balance_report| {
                     for (asset, amount) in balance_report.balances.clone() {
-                        act.metrics.free_amount(*xchg, asset, amount);
+                        act.metrics.free_amount(*xchg, asset, amount.free);
                     }
                 });
             }
@@ -151,11 +168,16 @@ impl Handler<AccountEventEnveloppe> for BalanceReporter {
                 self.with_reporter(msg.xchg, |balance_report| {
                     balance_report.push(update.clone());
                 });
-                Ok(())
+            }
+            AccountEvent::AccountPositionUpdate(position) => {
+                self.with_reporter(msg.xchg, |balance_report| {
+                    balance_report.reset(position.clone());
+                });
             }
             // Ignore anything besides order updates
-            _ => Ok(()),
+            _ => {}
         }
+        Ok(())
     }
 }
 
