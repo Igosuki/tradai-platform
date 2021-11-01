@@ -11,6 +11,7 @@ use db::{Storage, StorageExt};
 
 use crate::coinnect_types::AssetType;
 use crate::error::*;
+use crate::naive_pair_trading::covar_model::DataRow;
 use crate::naive_pair_trading::options::Options;
 use crate::order_manager::types::{OrderDetail, Transaction};
 use crate::order_manager::{OrderManager, OrderResolution, TransactionService};
@@ -177,8 +178,8 @@ impl MovingState {
         }
         let previous_state: Option<TransientState> = self.db.get(STATE_KEY, STATE_KEY).ok();
         if let Some(ps) = previous_state {
-            self.set_units_to_buy_long_spread(ps.units_to_buy_long_spread);
-            self.set_units_to_buy_short_spread(ps.units_to_buy_short_spread);
+            self.units_to_buy_long_spread = ps.units_to_buy_long_spread;
+            self.units_to_buy_short_spread = ps.units_to_buy_short_spread;
             self.value_strat = ps.value_strat;
             self.pnl = ps.pnl;
             self.traded_price_left = ps.traded_price_left;
@@ -253,14 +254,6 @@ impl MovingState {
     pub(super) fn beta_lr(&self) -> f64 { self.beta_lr }
 
     pub(super) fn nominal_position(&self) -> f64 { self.nominal_position }
-
-    pub(super) fn set_units_to_buy_long_spread(&mut self, units_to_buy_long_spread: f64) {
-        self.units_to_buy_long_spread = units_to_buy_long_spread;
-    }
-
-    pub(super) fn set_units_to_buy_short_spread(&mut self, units_to_buy_short_spread: f64) {
-        self.units_to_buy_short_spread = units_to_buy_short_spread;
-    }
 
     pub(super) fn set_long_position_return(
         &mut self,
@@ -479,6 +472,11 @@ impl MovingState {
             (None, _) | (_, None) => error!("Failed transaction"),
             _ => trace!("Transaction ok"),
         }
+    }
+
+    pub(super) fn update_spread(&mut self, row: &DataRow) {
+        self.units_to_buy_long_spread = self.value_strat / row.right.ask;
+        self.units_to_buy_short_spread = self.value_strat / (row.left.ask * self.beta());
     }
 
     fn save(&mut self) {

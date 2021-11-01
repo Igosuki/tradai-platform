@@ -138,8 +138,8 @@ pub(super) struct MeanRevertingState {
     last_open_order: Option<OrderDetail>,
     ongoing_op: Option<Operation>,
     state_key: String,
-    units_to_buy: f64,
-    units_to_sell: f64,
+    base_qty_to_buy: f64,
+    base_qty_to_sell: f64,
     pub vars: TransientState,
     // Conf
     dry_mode: bool,
@@ -189,8 +189,8 @@ impl MeanRevertingState {
             exchange: options.exchange,
             position: None,
             position_return: 0.0,
-            units_to_buy: 0.0,
-            units_to_sell: 0.0,
+            base_qty_to_buy: 0.0,
+            base_qty_to_sell: 0.0,
             db: db.clone(),
             state_key: format!("{}", options.pair),
             ts: TransactionService::new(om),
@@ -312,13 +312,9 @@ impl MeanRevertingState {
     pub(super) fn position_return(&self) -> f64 { self.position_return }
 
     pub(super) fn update_units(&mut self, bp: &BookPosition) {
-        self.set_units_to_buy(self.vars.value_strat / bp.ask * (1.0 + self.fees_rate));
-        self.set_units_to_sell(self.vars.value_strat / bp.bid * (1.0 - self.fees_rate));
+        self.base_qty_to_buy = self.vars.value_strat / bp.ask;
+        self.base_qty_to_sell = self.vars.value_strat / bp.bid;
     }
-
-    fn set_units_to_buy(&mut self, v: f64) { self.units_to_buy = v; }
-
-    fn set_units_to_sell(&mut self, v: f64) { self.units_to_sell = v; }
 
     pub fn set_threshold_short(&mut self, v: f64) { self.vars.threshold_short = v; }
 
@@ -424,10 +420,10 @@ impl MeanRevertingState {
     fn update_nominal_position(&mut self, position_kind: &PositionKind) {
         match position_kind {
             PositionKind::Short => {
-                self.vars.nominal_position = self.units_to_sell;
+                self.vars.nominal_position = self.base_qty_to_sell;
             }
             PositionKind::Long => {
-                self.vars.nominal_position = self.units_to_buy;
+                self.vars.nominal_position = self.base_qty_to_buy;
             }
         }
     }
