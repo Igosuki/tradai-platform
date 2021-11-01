@@ -177,22 +177,6 @@ impl NaiveTradingStrategy {
 
     fn predict(&self, bp: &BookPosition) -> f64 { covar_model::predict(self.state.alpha(), self.state.beta(), bp.mid) }
 
-    fn update_spread(&mut self, row: &DataRow) {
-        self.set_long_spread(row.right.ask);
-        self.set_short_spread(row.left.ask);
-    }
-
-    fn set_long_spread(&mut self, traded_price: f64) {
-        self.state
-            .set_units_to_buy_long_spread(self.state.value_strat() / (traded_price * (1.0 + self.fees_rate)));
-    }
-
-    fn set_short_spread(&mut self, traded_price: f64) {
-        self.state.set_units_to_buy_short_spread(
-            self.state.value_strat() / (traded_price * self.state.beta() * (1.0 + self.fees_rate)),
-        );
-    }
-
     fn short_position(&self, right_price: f64, left_price: f64, time: DateTime<Utc>) -> Position {
         Position {
             kind: PositionKind::Short,
@@ -236,7 +220,7 @@ impl NaiveTradingStrategy {
             if self.should_eval(lr.time) {
                 self.eval_linear_model();
             }
-            self.update_spread(lr);
+            self.state.update_spread(lr);
         }
 
         self.state.set_beta_lr();
@@ -322,7 +306,7 @@ impl NaiveTradingStrategy {
         // No model and there are enough samples
         if !can_eval && self.data_table.is_filled() {
             self.eval_linear_model();
-            self.update_spread(row);
+            self.state.update_spread(row);
             can_eval = self.can_eval();
         }
         if can_eval {
