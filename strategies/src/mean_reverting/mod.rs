@@ -358,8 +358,14 @@ impl StrategyDriver for MeanRevertingStrategy {
         // In case of error return immediately as no trades can be made until the position is resolved
         if let Some(operation) = self.state.ongoing_op().cloned() {
             match self.state.resolve_pending_operations(&operation).await {
-                Ok(resolution) => self.metrics.log_error(resolution.as_ref()),
-                Err(e) => self.metrics.log_error(e.short_name()),
+                Ok(resolution) => {
+                    self.metrics.log_error(resolution.as_ref());
+                    trace!("pending operation resolution {}", resolution.as_ref());
+                }
+                Err(e) => {
+                    self.metrics.log_error(e.short_name());
+                    trace!("pending operation resolution error {}", e.short_name());
+                }
             }
             if self.state.ongoing_op().is_none() && self.state.is_trading() {
                 if let Some(bp) = self.last_book_pos.clone() {

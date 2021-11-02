@@ -169,6 +169,7 @@ async fn complete_backtest() {
             order_mode: None,
             execution_instruction: None,
             order_asset_type: None,
+            start_trading: Some(true),
         },
         order_manager_addr,
         margin_interest_rate_provider_addr,
@@ -238,7 +239,7 @@ async fn complete_backtest() {
     let last_position = positions.last();
     assert!(last_position.is_some(), "No position found in operations");
     // Output SVG graphs
-    let _out_file = draw_line_plot(strategy_logs).expect("Should have drawn plots from strategy logs");
+    //let _out_file = draw_line_plot(strategy_logs).expect("Should have drawn plots from strategy logs");
     // let copied = std::fs::copy(&out_file, ".local_data/graphs/mean_reverting_plot_latest.svg");
     // assert!(copied.is_ok(), "{}", format!("{:?} : {}", copied, out_file));
 
