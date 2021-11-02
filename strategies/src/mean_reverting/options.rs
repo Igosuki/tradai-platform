@@ -21,7 +21,7 @@ pub struct Options {
     pub stop_loss: f64,
     pub stop_gain: f64,
     pub exchange: Exchange,
-    /// Default is `OrdereMode::Limit`
+    /// Default is `OrderMode::Limit`
     pub order_mode: Option<OrderMode>,
     /// Default is None
     pub execution_instruction: Option<ExecutionInstruction>,
