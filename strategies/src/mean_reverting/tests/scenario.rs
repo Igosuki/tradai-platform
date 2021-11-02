@@ -17,11 +17,11 @@ use crate::input;
 use crate::margin_interest_rates::test_util::mock_interest_rate_provider;
 use crate::mean_reverting::ema_model::ema_indicator_model;
 use crate::mean_reverting::options::Options;
-use crate::mean_reverting::state::MeanRevertingState;
+use crate::mean_reverting::state::{MeanRevertingState, Operation};
 use crate::mean_reverting::MeanRevertingStrategy;
 use crate::order_manager::test_util::mock_manager;
 use crate::test_util::{init, test_db};
-use crate::types::{BookPosition, OperationEvent, TradeEvent};
+use crate::types::{BookPosition, OperationEvent, OrderMode, TradeEvent};
 
 #[derive(Debug, Serialize, Clone)]
 struct StrategyLog {
@@ -140,37 +140,88 @@ async fn moving_average_model_backtest() {
 }
 
 #[actix::test]
-async fn complete_backtest() {
+async fn spot_backtest() {
+    let conf = Options {
+        pair: PAIR.into(),
+        threshold_long: -0.01,
+        threshold_short: 0.01,
+        threshold_eval_freq: Some(1),
+        dynamic_threshold: Some(true),
+        threshold_window_size: Some(10000),
+        stop_loss: -0.1,
+        stop_gain: 0.075,
+        initial_cap: 100.0,
+        dry_mode: Some(true),
+        short_window_size: 100,
+        long_window_size: 1000,
+        sample_freq: "1min".to_string(),
+        exchange: Exchange::Binance,
+        order_mode: None,
+        execution_instruction: None,
+        order_asset_type: None,
+        start_trading: Some(true),
+    };
+    let positions = complete_backtest("spot", &conf).await;
+    let last_position = positions.last();
+    assert!(last_position.is_some(), "No position found in operations");
+    assert_eq!(
+        Some("44015.99".to_string()),
+        last_position.map(|p| format!("{:.2}", p.pos.price))
+    );
+    assert_eq!(
+        Some("88.42".to_string()),
+        last_position.map(|p| format!("{:.2}", p.value()))
+    );
+}
+
+#[actix::test]
+async fn margin_backtest() {
+    let conf = Options {
+        pair: PAIR.into(),
+        threshold_long: -0.01,
+        threshold_short: 0.01,
+        threshold_eval_freq: Some(1),
+        dynamic_threshold: Some(true),
+        threshold_window_size: Some(1000),
+        stop_loss: -0.1,
+        stop_gain: 0.075,
+        initial_cap: 100.0,
+        dry_mode: Some(true),
+        short_window_size: 100,
+        long_window_size: 1000,
+        sample_freq: "1min".to_string(),
+        exchange: Exchange::Binance,
+        order_mode: Some(OrderMode::Market),
+        execution_instruction: None,
+        order_asset_type: Some(AssetType::Margin),
+        start_trading: Some(true),
+    };
+    let positions = complete_backtest("margin", &conf).await;
+    let last_position = positions.last();
+    assert!(last_position.is_some(), "No position found in operations");
+    assert_eq!(
+        Some("44015.99".to_string()),
+        last_position.map(|p| format!("{:.2}", p.pos.price))
+    );
+    assert_eq!(
+        Some("88.42".to_string()),
+        last_position.map(|p| format!("{:.2}", p.value()))
+    );
+}
+
+async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
     init();
     //setup_opentelemetry();
     let path = util::test::test_dir();
     let order_manager_addr = mock_manager(&path);
     let margin_interest_rate_provider_addr = mock_interest_rate_provider(Exchange::Binance);
-    let test_results_dir = test_results_dir(module_path!());
+    let full_test_name = format!("{}_{}", module_path!(), test_name);
+    let test_results_dir = test_results_dir(&full_test_name);
 
     let mut strat = MeanRevertingStrategy::new(
         &DbOptions::new(path),
         0.001,
-        &Options {
-            pair: PAIR.into(),
-            threshold_long: -0.01,
-            threshold_short: 0.01,
-            threshold_eval_freq: Some(1),
-            dynamic_threshold: Some(true),
-            threshold_window_size: Some(10000),
-            stop_loss: -0.1,
-            stop_gain: 0.075,
-            initial_cap: 100.0,
-            dry_mode: Some(true),
-            short_window_size: 100,
-            long_window_size: 1000,
-            sample_freq: "1min".to_string(),
-            exchange: Exchange::Binance,
-            order_mode: None,
-            execution_instruction: None,
-            order_asset_type: None,
-            start_trading: Some(true),
-        },
+        conf,
         order_manager_addr,
         margin_interest_rate_provider_addr,
     );
@@ -233,24 +284,15 @@ async fn complete_backtest() {
     crate::test_util::log::write_trade_events(&test_results_dir, &trade_events);
     write_thresholds(&test_results_dir, &strategy_logs);
 
-    // Find that latest operations are correct
-    let mut positions = strat.get_operations();
-    positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
-    let last_position = positions.last();
-    assert!(last_position.is_some(), "No position found in operations");
     // Output SVG graphs
-    //let _out_file = draw_line_plot(strategy_logs).expect("Should have drawn plots from strategy logs");
+    // let out_file = draw_line_plot(strategy_logs).expect("Should have drawn plots from strategy logs");
     // let copied = std::fs::copy(&out_file, ".local_data/graphs/mean_reverting_plot_latest.svg");
     // assert!(copied.is_ok(), "{}", format!("{:?} : {}", copied, out_file));
 
-    assert_eq!(
-        Some("44015.99".to_string()),
-        last_position.map(|p| format!("{:.2}", p.pos.price))
-    );
-    assert_eq!(
-        Some("88.42".to_string()),
-        last_position.map(|p| format!("{:.2}", p.value()))
-    );
+    // Find that latest operations are correct
+    let mut positions = strat.get_operations();
+    positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
+    positions
 }
 
 fn write_ema_values(test_results_dir: &str, model_values: &[(DateTime<Utc>, MACDApo, f64)]) {
