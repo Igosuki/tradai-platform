@@ -37,12 +37,18 @@ struct StrategyLog {
 }
 
 impl StrategyLog {
-    fn from_state(time: DateTime<Utc>, state: &MeanRevertingState, ob: &Orderbook, value: MACDApo) -> StrategyLog {
+    fn from_state(
+        time: DateTime<Utc>,
+        state: &MeanRevertingState,
+        ob: &Orderbook,
+        value: MACDApo,
+        thresholds: (f64, f64),
+    ) -> StrategyLog {
         StrategyLog {
             time,
             mid: ob.avg_price().unwrap(),
-            threshold_short: state.threshold_short(),
-            threshold_long: state.threshold_long(),
+            threshold_short: thresholds.0,
+            threshold_long: thresholds.1,
             apo: value.apo,
             pnl: state.pnl(),
             position_return: state.position_return(),
@@ -205,7 +211,13 @@ async fn complete_backtest() {
         let row_time = row.e.time();
         model_values.push((row_time, value.clone(), strat.state.value_strat()));
         if let LiveEvent::LiveOrderbook(ob) = row.e {
-            strategy_logs.push(StrategyLog::from_state(row_time, &strat.state, &ob, value));
+            strategy_logs.push(StrategyLog::from_state(
+                row_time,
+                &strat.state,
+                &ob,
+                value,
+                strat.thresholds(),
+            ));
         }
         elapsed += now.elapsed().as_nanos();
     }

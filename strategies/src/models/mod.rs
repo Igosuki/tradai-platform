@@ -53,6 +53,7 @@ impl Sampler {
 }
 
 /// Time obsolescence is defined by last_time + (sample_freq * eval_freq) > current_time
+#[allow(dead_code)]
 pub fn is_eval_time_reached(
     current_time: DateTime<Utc>,
     last_time: DateTime<Utc>,

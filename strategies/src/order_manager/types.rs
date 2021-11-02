@@ -5,13 +5,14 @@ use chrono::{DateTime, TimeZone, Utc};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 
-use crate::coinnect_types::OrderEnforcement;
-use crate::error::*;
-use crate::wal::WalCmp;
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::pair::symbol_to_pair;
 use coinnect_rt::types::{AddOrderRequest, AssetType, InterestRate, MarginSideEffect, OrderQuery,
                          OrderStatus as ExchangeOrderStatus, OrderSubmission, OrderType, OrderUpdate, Pair, TradeType};
+
+use crate::coinnect_types::OrderEnforcement;
+use crate::error::*;
+use crate::wal::WalCmp;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "reject_type", content = "__field0")]
@@ -346,7 +347,14 @@ impl OrderDetail {
     /// Calculate total interest owed
     pub fn total_interest(&self, interest_rate: InterestRate) -> f64 {
         let hours_elapsed = Utc::now().sub(self.closed_at.unwrap());
-        interest_rate.resolve(self.borrowed_amount.unwrap(), hours_elapsed.num_hours())
+        let borrowed_asset = self.borrowed_asset.as_ref().unwrap();
+        let borrowed_amount = self.borrowed_amount.unwrap();
+        let quote_borrowed_amount = if borrowed_asset == &self.base_asset {
+            borrowed_amount * self.weighted_price
+        } else {
+            borrowed_amount
+        };
+        interest_rate.resolve(quote_borrowed_amount, hours_elapsed.num_hours())
     }
 
     pub fn from_status(&mut self, status: TransactionStatus) {
@@ -359,6 +367,19 @@ impl OrderDetail {
             _ => {}
         }
     }
+
+    pub fn quote_fees(&self) -> f64 {
+        self.fills
+            .iter()
+            .map(|f| match f.fee_asset.as_ref() {
+                Some(a) if a == &self.base_asset => f.fee * f.price,
+                Some(a) if a == &self.quote_asset => f.fee,
+                _ => f.fee,
+            })
+            .sum()
+    }
+
+    pub fn quote_value(&self) -> f64 { self.total_executed_qty * self.weighted_price }
 }
 
 #[cfg(test)]

@@ -247,6 +247,7 @@ impl MovingState {
 
     pub(super) fn alpha(&self) -> f64 { self.alpha_val }
 
+    #[cfg(test)]
     pub(super) fn value_strat(&self) -> f64 { self.value_strat }
 
     pub(super) fn set_beta_lr(&mut self) { self.beta_lr = self.beta_val; }
@@ -497,9 +498,7 @@ impl MovingState {
     pub fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> {
         match field {
             MutableField::ValueStrat => self.value_strat = v,
-            MutableField::NominalPosition => self.nominal_position = v,
             MutableField::Pnl => self.pnl = v,
-            MutableField::PreviousValueStrat => self.value_strat = v,
         }
         self.save();
         Ok(())

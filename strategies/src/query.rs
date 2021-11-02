@@ -1,11 +1,12 @@
+use actix::Message;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
 use crate::error::*;
 use crate::mean_reverting::state::Operation as MeanRevertingOperation;
 use crate::naive_pair_trading::state::Operation as NaiveOperation;
 use crate::types::TradeOperation;
 use crate::StrategyStatus;
-use actix::Message;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 // TODO: Use GraphQLUnion to refactor this ugly bit of code
 #[derive(Debug, Deserialize, Serialize, PartialEq, actix_derive::MessageResponse)]
@@ -45,10 +46,6 @@ pub enum MutableField {
     ValueStrat,
     #[graphql(name = "pnl")]
     Pnl,
-    #[graphql(name = "nominal_position")]
-    NominalPosition,
-    #[graphql(name = "previous_value_strat")]
-    PreviousValueStrat,
 }
 
 #[derive(Deserialize, Serialize, Message, juniper::GraphQLInputObject)]
