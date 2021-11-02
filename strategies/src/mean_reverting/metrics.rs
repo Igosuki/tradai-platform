@@ -25,7 +25,6 @@ pub fn metric_store() -> &'static MetricStore<String, MeanRevertingStrategyMetri
 #[derive(Clone)]
 pub struct MeanRevertingStrategyMetrics {
     common_gauges: HashMap<String, GaugeVec>,
-    threshold_indicator_fns: Vec<StateIndicatorFn>,
     state_indicator_fns: Vec<StateIndicatorFn>,
     model_indicator_fns: Vec<ModelIndicatorFn>,
     error_counter: CounterVec,
@@ -62,19 +61,9 @@ impl MeanRevertingStrategyMetrics {
 
         let model_gauges: Vec<ModelIndicatorFn> = vec![("apo".to_string(), |x| x.apo)];
 
-        let threshold_gauges: Vec<StateIndicatorFn> = vec![
-            ("mr_threshold_short".to_string(), |x: &MeanRevertingState| {
-                x.threshold_short()
-            }),
-            ("mr_threshold_long".to_string(), |x: &MeanRevertingState| {
-                x.threshold_long()
-            }),
-        ];
+        let threshold_gauges: Vec<String> = vec!["mr_threshold_short".to_string(), "mr_threshold_long".to_string()];
         let state_gauges: Vec<StateIndicatorFn> = vec![
-            ("threshold_long".to_string(), |x| x.threshold_long()),
-            ("threshold_short".to_string(), |x| x.threshold_short()),
             ("value_strat".to_string(), |x| x.value_strat()),
-            ("previous_value_strat".to_string(), |x| x.previous_value_strat()),
             ("return".to_string(), |x| x.position_return()),
             ("traded_price".to_string(), |x| x.traded_price()),
             ("pnl".to_string(), |x| x.pnl()),
@@ -84,7 +73,7 @@ impl MeanRevertingStrategyMetrics {
             for gauge_name in state_gauges
                 .iter()
                 .map(|g| &g.0)
-                .chain(threshold_gauges.iter().map(|g| &g.0))
+                .chain(threshold_gauges.iter())
                 .chain(model_gauges.iter().map(|g| &g.0))
             {
                 let gauge_vec = register_gauge_vec!(
@@ -109,7 +98,6 @@ impl MeanRevertingStrategyMetrics {
 
         MeanRevertingStrategyMetrics {
             common_gauges: gauges,
-            threshold_indicator_fns: threshold_gauges.clone(),
             state_indicator_fns: state_gauges.clone(),
             model_indicator_fns: model_gauges.clone(),
             error_counter,
@@ -135,8 +123,13 @@ impl MeanRevertingStrategyMetrics {
         self.log_all_with_state(&self.state_indicator_fns, state);
     }
 
-    pub(super) fn log_thresholds(&self, state: &MeanRevertingState) {
-        self.log_all_with_state(&self.threshold_indicator_fns, state);
+    pub(super) fn log_thresholds(&self, threshold_short: f64, threshold_long: f64) {
+        if let Some(g) = self.common_gauges.get("mr_threshold_short") {
+            g.with_label_values(&[]).set(threshold_short)
+        }
+        if let Some(g) = self.common_gauges.get("mr_threshold_long") {
+            g.with_label_values(&[]).set(threshold_long)
+        }
     }
     pub(super) fn log_model(&self, model: MACDApo) {
         for (gauge_name, model_gauge_fn) in &self.model_indicator_fns {
