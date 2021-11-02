@@ -5,6 +5,7 @@ use std::sync::Arc;
 use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, WrapFuture};
 use actix_derive::{Message, MessageResponse};
 use futures::FutureExt;
+use itertools::Itertools;
 use strum_macros::AsRefStr;
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -12,6 +13,7 @@ use uuid::Uuid;
 use coinnect_rt::bot::Ping;
 use coinnect_rt::error::Error as CoinnectError;
 use coinnect_rt::prelude::*;
+use coinnect_rt::types::{Order, OrderStatus, OrderUpdate};
 use db::{get_or_create, DbOptions, Storage, StorageExt};
 use ext::ResultExt;
 
@@ -23,8 +25,6 @@ use crate::types::TradeOperation;
 use crate::wal::{Wal, WalCmp};
 
 use self::types::{OrderDetail, OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
-use coinnect_rt::types::{Order, OrderStatus, OrderUpdate};
-use itertools::Itertools;
 
 pub mod test_util;
 #[cfg(test)]
@@ -241,8 +241,8 @@ impl OrderManager {
     }
 
     /// Get the order from storage
-    pub(crate) fn get_order_from_storage(&self, order_id: String) -> Option<OrderDetail> {
-        self.repo.get(&order_id).ok()
+    pub(crate) fn get_order_from_storage(&self, order_id: &str) -> Result<OrderDetail> {
+        self.repo.get(order_id).err_into()
     }
 
     /// Get the latest remote status for this order id
@@ -261,7 +261,7 @@ impl OrderManager {
                 .map(|status| status.is_before(&tr))
                 .unwrap_or(true)
         };
-        let order = self.repo.get(&order_id);
+        let order = self.get_order_from_storage(&order_id);
         let result = match (tr.clone(), order) {
             (TransactionStatus::Staged(OrderQuery::AddOrder(add_order)), _) => {
                 self.repo.put(OrderDetail::from_query(self.xchg, None, add_order))
@@ -493,8 +493,7 @@ impl Handler<OrderId> for OrderManager {
             async move {
                 let order_id = order.0.clone();
                 (
-                    zis.get_order_from_storage(order_id.clone())
-                        .ok_or_else(|| Error::OrderNotFound(order_id.clone())),
+                    zis.get_order_from_storage(&order_id),
                     zis.get_order(order_id.clone())
                         .await
                         .ok_or_else(|| Error::OrderNotFound(order_id.clone()))

@@ -27,6 +27,8 @@ pub struct Options {
     pub execution_instruction: Option<ExecutionInstruction>,
     /// Default is `AssetType::Spot`
     pub order_asset_type: Option<AssetType>,
+    /// Start trading after first start
+    pub start_trading: Option<bool>,
 }
 
 impl Options {

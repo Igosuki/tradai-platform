@@ -340,8 +340,12 @@ impl OrderDetail {
     }
 
     pub fn update_weighted_price(&mut self) {
-        self.weighted_price = self.fills.iter().map(|fill| fill.price * fill.qty).sum::<f64>()
-            / self.fills.iter().map(|fill| fill.qty).sum::<f64>();
+        let total_qty = self.fills.iter().map(|fill| fill.qty).sum::<f64>();
+        if self.fills.is_empty() || total_qty == 0.0 {
+            self.weighted_price = 0.0;
+        } else {
+            self.weighted_price = self.fills.iter().map(|fill| fill.price * fill.qty).sum::<f64>() / total_qty;
+        }
     }
 
     /// Calculate total interest owed
@@ -380,6 +384,8 @@ impl OrderDetail {
     }
 
     pub fn quote_value(&self) -> f64 { self.total_executed_qty * self.weighted_price }
+
+    pub fn realized_quote_value(&self) -> f64 { self.quote_value() - self.quote_fees() }
 }
 
 #[cfg(test)]

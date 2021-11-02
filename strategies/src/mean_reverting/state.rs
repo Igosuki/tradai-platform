@@ -203,6 +203,7 @@ impl MeanRevertingState {
             vars: TransientState {
                 pnl: options.initial_cap,
                 value_strat: options.initial_cap,
+                is_trading: options.start_trading.unwrap_or(true),
                 ..TransientState::default()
             },
         };
@@ -302,8 +303,12 @@ impl MeanRevertingState {
     pub(super) fn position_return(&self) -> f64 { self.position_return }
 
     pub(super) fn update_units(&mut self, bp: &BookPosition) {
-        self.base_qty_to_buy = self.vars.value_strat / bp.ask;
-        self.base_qty_to_sell = self.vars.value_strat / bp.bid;
+        if bp.ask > 0.0 {
+            self.base_qty_to_buy = self.vars.value_strat / bp.ask;
+        }
+        if bp.bid > 0.0 {
+            self.base_qty_to_sell = self.vars.value_strat / bp.bid;
+        }
     }
 
     pub(super) fn traded_price(&self) -> f64 { self.last_open_order.as_ref().map(|o| o.weighted_price).unwrap_or(0.0) }
@@ -334,9 +339,7 @@ impl MeanRevertingState {
                 self.set_pnl();
                 self.clear_open_position();
             } else if o.is_open() {
-                if o.kind == OperationKind::Open {
-                    self.last_open_order = o.order_detail;
-                }
+                self.last_open_order = Some(order.clone());
                 self.update_open_value(&o.pos.kind, order);
             }
         }
@@ -409,10 +412,10 @@ impl MeanRevertingState {
     fn update_open_value(&mut self, kind: &PositionKind, open_order: &OrderDetail) {
         match kind {
             PositionKind::Short => {
-                self.vars.value_strat += open_order.quote_value();
+                self.vars.value_strat += open_order.realized_quote_value();
             }
             PositionKind::Long => {
-                self.vars.value_strat -= open_order.quote_value();
+                self.vars.value_strat -= open_order.realized_quote_value();
             }
         }
     }
@@ -422,7 +425,7 @@ impl MeanRevertingState {
         if let Some(mut operation) = self.ongoing_op.as_mut() {
             operation.total_interests = Some(interest_fees);
         }
-        let transacted = close_order.quote_value() - close_order.quote_fees() - interest_fees;
+        let transacted = close_order.realized_quote_value() - interest_fees;
         match kind {
             PositionKind::Short => {
                 self.vars.value_strat -= transacted;
@@ -459,10 +462,12 @@ impl MeanRevertingState {
             .last_open_order
             .as_ref()
             .ok_or_else(|| Error::OperationMissingOrder("open".to_string()))?;
+        trace!("closing last_open_order {:?}", self.last_open_order);
         let base_qty = match pos.kind {
             PositionKind::Short => last_open_order.total_executed_qty / (1.0 - self.fees_rate),
             PositionKind::Long => last_open_order.total_executed_qty * (1.0 - self.fees_rate),
         };
+
         let mut op = Operation::new(
             pos,
             OperationKind::Close,
