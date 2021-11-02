@@ -39,6 +39,7 @@ async fn complete_backtest_backtest() -> backtest::Result<()> {
             order_mode: None,
             execution_instruction: None,
             order_asset_type: None,
+            start_trading: None,
         }))
         .fees(0.001)
         .period(::backtest::Period::Interval {
