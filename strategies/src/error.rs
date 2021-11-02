@@ -22,6 +22,10 @@ pub enum Error {
     OperationRejected,
     #[error("operation was a bad request")]
     OperationBadRequest,
+    #[error("operation was cancelled")]
+    OperationCancelled,
+    #[error("missing order in operation : {0}")]
+    OperationMissingOrder(String),
     #[error("order manager mailbox was full")]
     OrderManagerMailboxError,
     #[error("interest rate provider mailbox was full")]
@@ -32,8 +36,6 @@ pub enum Error {
     StagedOrderRequired,
     #[error("invalid position")]
     InvalidPosition,
-    #[error("operation was cancelled")]
-    OperationCancelled,
     #[error("feature is not available yet for this")]
     FeatureNotImplemented,
     #[cfg(feature = "python")]
@@ -63,6 +65,7 @@ impl Error {
             Error::FeatureNotImplemented => "feature_not_implemented",
             Error::StagedOrderRequired => "staged_order_required",
             Error::Json(_) => "json",
+            Error::OperationMissingOrder(_) => "operation_missing_order",
         }
     }
 }
