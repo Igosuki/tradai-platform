@@ -22,7 +22,7 @@ pub trait IterativeModel {
     type ExportValue: Serialize;
 
     /// Generate the next model value from the input event
-    fn next(&mut self, e: InputEvent) -> Result<()>;
+    fn next_model(&mut self, e: &InputEvent) -> Result<()>;
 
     /// Serialize a short, readable version of the model
     fn export_values(&self) -> Result<Self::ExportValue>;
@@ -75,11 +75,11 @@ mod test {
         let pair_csv_records = csv_records[0].iter();
         let options = Options::new_test_default(PAIR, Exchange::Binance);
         let memory_store = Arc::new(MemoryKVStore::new());
-        let mut model = MeanRevertingModel::new(options, memory_store);
+        let mut model = MeanRevertingModel::new(&options, memory_store);
         let mut model_values = vec![];
 
         for csvr in pair_csv_records {
-            model.next(InputEvent::BookPosition(csvr.into())).unwrap();
+            model.next(&InputEvent::BookPosition(csvr.into())).unwrap();
             model_values.push(model.export_values().unwrap());
         }
         let results_dir = PathBuf::from(test_results_dir(module_path!()));
@@ -92,7 +92,7 @@ mod test {
         model.export(model_file, false).unwrap();
         let model_file = std::fs::OpenOptions::new().read(true).open(models_file_path).unwrap();
         model.import(model_file, false).unwrap();
-        model.load().unwrap();
+        model.try_load().unwrap();
         eprintln!("model = {:?}", model.values());
 
         let mut model_values_file_path = results_dir;

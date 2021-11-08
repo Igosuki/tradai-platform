@@ -9,18 +9,18 @@ use chrono::{DateTime, Duration, TimeZone, Utc};
 use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
 use coinnect_rt::prelude::*;
 use db::{get_or_create, DbOptions};
-use ext::ResultExt;
+#[cfg(test)]
 use math::indicators::macd_apo::MACDApo;
 
 use crate::driver::StrategyDriver;
 use crate::error::Result;
 use crate::generic::{InputEvent, Strategy, TradeSignal};
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
-use crate::mean_reverting::model::{ema_indicator_model, ApoThresholds};
+use crate::mean_reverting::model::MeanRevertingModel;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
-use crate::models::{IndicatorModel, Sampler};
-use crate::models::{Model, WindowedModel};
+use crate::models::io::IterativeModel;
+use crate::models::Sampler;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation};
 use crate::trading_util::Stopper;
@@ -49,8 +49,7 @@ pub struct MeanRevertingStrategy {
     sample_freq: Duration,
     last_sample_time: DateTime<Utc>,
     state: MeanRevertingState,
-    model: IndicatorModel<MACDApo, f64>,
-    threshold_table: Option<WindowedModel<f64, ApoThresholds>>,
+    model: MeanRevertingModel,
     #[derivative(Debug = "ignore")]
     metrics: Arc<MeanRevertingStrategyMetrics>,
     threshold_eval_freq: Option<i32>,
@@ -76,22 +75,7 @@ impl MeanRevertingStrategy {
         let strat_db_path = format!("{}_{}.{}", MEAN_REVERTING_DB_KEY, n.exchange, n.pair);
         let db = get_or_create(db_opts, strat_db_path, vec![]);
         let state = MeanRevertingState::new(n, fees_rate, db.clone(), om, mirp).unwrap();
-        let ema_model = ema_indicator_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
-        let threshold_table = if n.dynamic_threshold() {
-            n.threshold_window_size.map(|thresold_window_size| {
-                WindowedModel::new(
-                    &format!("thresholds_{}", n.pair.as_ref()),
-                    db.clone(),
-                    thresold_window_size,
-                    Some(thresold_window_size * 2),
-                    model::threshold,
-                    Some(ApoThresholds::new(n.threshold_short, n.threshold_long)),
-                )
-            })
-        } else {
-            None
-        };
-
+        let model = MeanRevertingModel::new(n, db.clone());
         let mut strat = Self {
             exchange: n.exchange,
             pair: n.pair.clone(),
@@ -99,8 +83,7 @@ impl MeanRevertingStrategy {
             sample_freq: n.sample_freq(),
             last_sample_time: Utc.timestamp_millis(0),
             state,
-            model: ema_model,
-            threshold_table,
+            model,
             threshold_eval_freq: n.threshold_eval_freq,
             threshold_short_0: n.threshold_short,
             threshold_long_0: n.threshold_long,
@@ -118,18 +101,8 @@ impl MeanRevertingStrategy {
     }
 
     fn load(&mut self) -> crate::error::Result<()> {
-        {
-            self.model.try_load()?;
-            if let Some(_model_time) = self.model.last_model_time() {
-                //self.sampler.set_last_time(model_time);
-            }
-        }
-        {
-            if let Some(threshold_table) = &mut self.threshold_table {
-                threshold_table.try_load()?;
-            }
-        }
-        if !self.models_loaded() {
+        self.model.try_load()?;
+        if !self.model.is_loaded() {
             Err(crate::error::Error::ModelLoadError(
                 "models not loaded for unknown reasons".to_string(),
             ))
@@ -138,18 +111,9 @@ impl MeanRevertingStrategy {
         }
     }
 
-    fn models_loaded(&self) -> bool {
-        self.model.is_loaded()
-            && self
-                .threshold_table
-                .as_ref()
-                .map(|t| t.is_loaded())
-                .unwrap_or_else(|| true)
-    }
-
     #[cfg(test)]
     #[allow(dead_code)]
-    fn model_value(&self) -> Option<MACDApo> { self.model.value() }
+    fn model_value(&self) -> Option<MACDApo> { self.model.apo_value() }
 
     fn log_state(&self) { self.metrics.log_state(&self.state); }
 
@@ -179,8 +143,6 @@ impl MeanRevertingStrategy {
         }
     }
 
-    fn apo(&self) -> Option<f64> { self.model.value().map(|m| m.apo) }
-
     #[tracing::instrument(skip(self), level = "trace")]
     async fn eval_latest(&mut self, lr: &BookPosition) -> Result<Option<&Operation>> {
         if self.state.ongoing_op().is_some() {
@@ -191,7 +153,7 @@ impl MeanRevertingStrategy {
             self.state.update_units(lr);
         }
 
-        let apo = self.apo().expect("model required");
+        let apo = self.model.apo().expect("model required");
 
         // Possibly open a short position
         let thresholds = self.thresholds();
@@ -227,7 +189,7 @@ impl MeanRevertingStrategy {
         Ok(self.state.ongoing_op())
     }
 
-    fn can_eval(&self) -> bool { self.models_loaded() }
+    fn can_eval(&self) -> bool { self.model.is_loaded() }
 
     async fn process_row(&mut self, row: &SinglePosRow) {
         // A model is available
@@ -270,36 +232,9 @@ impl MeanRevertingStrategy {
     }
 
     fn thresholds(&self) -> (f64, f64) {
-        self.threshold_table
-            .as_ref()
-            .and_then(|t| t.model())
-            .map(|m| (m.value.short, m.value.long))
-            .unwrap_or_else(|| (self.threshold_short_0, self.threshold_long_0))
-    }
-
-    fn get_models(&self) -> Vec<(String, Option<serde_json::Value>)> {
-        vec![
-            (
-                "apo".to_string(),
-                self.model.value().and_then(|v| serde_json::to_value(v.apo).ok()),
-            ),
-            (
-                "thresholds".to_string(),
-                self.threshold_table
-                    .as_ref()
-                    .and_then(|t| t.model().and_then(|m| serde_json::to_value(m.value).ok())),
-            ),
-        ]
-    }
-
-    fn reset_models(&mut self, name: Option<String>) -> Result<()> {
-        if name == Some("apo".to_string()) || name.is_none() {
-            self.model.wipe()?;
-        }
-        if name == Some("thresholds".to_string()) || name.is_none() {
-            self.threshold_table.as_mut().map(|t| t.wipe()).transpose()?;
-        }
-        Ok(())
+        self.model
+            .thresholds()
+            .unwrap_or((self.threshold_short_0, self.threshold_long_0))
     }
 }
 
@@ -332,14 +267,14 @@ impl StrategyDriver for MeanRevertingStrategy {
             DataQuery::CancelOngoingOp => Ok(DataResult::Success(self.cancel_ongoing_op()?)),
             DataQuery::State => Ok(DataResult::State(serde_json::to_string(&self.state.vars).unwrap())),
             DataQuery::Status => Ok(DataResult::Status(self.status())),
-            DataQuery::Models => Ok(DataResult::Models(self.get_models())),
+            DataQuery::Models => Ok(DataResult::Models(self.model.values())),
         }
     }
 
     fn mutate(&mut self, m: Mutation) -> Result<()> {
         match m {
             Mutation::State(m) => self.change_state(m.field, m.value),
-            Mutation::Model(ModelReset { name, .. }) => self.reset_models(name),
+            Mutation::Model(ModelReset { name, .. }) => self.model.reset(name),
         }
     }
 
@@ -418,41 +353,9 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
     }
 
     #[tracing::instrument(skip(self), level = "trace")]
-    async fn update_model(&mut self, e: &crate::generic::InputEvent) -> Result<()> {
-        let book_pos = match e {
-            InputEvent::BookPosition(bp) => bp,
-            _ => return Ok(()),
-        };
-        if !self.sampler.sample(book_pos.event_time) {
-            return Ok(());
-        }
-        self.model
-            .update(book_pos.mid)
-            .err_into()
-            .and_then(|_| {
-                self.model
-                    .value()
-                    .ok_or_else(|| crate::error::Error::ModelLoadError("no mean reverting model value".to_string()))
-                    .map(|m| self.metrics.log_model(m))
-            })
-            .map_err(|_| {
-                self.metrics.log_error("model_update");
-            })
-            .unwrap();
-        if let Some(apo) = self.model.value().map(|m| m.apo) {
-            if let Some(t) = self.threshold_table.as_mut() {
-                t.push(&apo);
-                if t.is_filled() {
-                    t.update_model().unwrap();
-                    let thresholds = self.thresholds();
-                    self.metrics.log_thresholds(thresholds.0, thresholds.1);
-                }
-            }
-        }
-        Ok(())
-    }
+    async fn update_model(&mut self, e: &crate::generic::InputEvent) -> Result<()> { self.model.next_model(e) }
 
-    fn models(&self) -> Vec<(String, Option<serde_json::Value>)> { self.get_models() }
+    fn models(&self) -> Vec<(String, Option<serde_json::Value>)> { self.model.values() }
 
     fn channels(&self) -> HashSet<Channel> {
         let mut hs = HashSet::new();
