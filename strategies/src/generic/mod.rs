@@ -43,7 +43,7 @@ struct StrategyContext<C> {
 }
 
 #[derive(Debug)]
-pub(crate) enum InputEvent {
+pub enum InputEvent {
     BookPosition(BookPosition),
     BookPositions(BookPositions),
 }

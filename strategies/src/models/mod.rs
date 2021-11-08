@@ -8,10 +8,10 @@ pub use windowed_model::WindowedModel;
 
 use crate::error::Result;
 
-pub mod indicator_model;
-mod loadable;
-mod persist;
-pub mod windowed_model;
+pub(crate) mod indicator_model;
+pub mod io;
+pub(crate) mod persist;
+pub(crate) mod windowed_model;
 
 pub trait Model {
     fn ser(&self) -> Option<serde_json::Value>;
