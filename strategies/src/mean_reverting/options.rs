@@ -39,4 +39,27 @@ impl Options {
     pub(crate) fn sample_freq(&self) -> Duration { Duration::from_std(parse(&self.sample_freq).unwrap()).unwrap() }
 
     pub(super) fn order_asset_type(&self) -> AssetType { self.order_asset_type.unwrap_or(AssetType::Spot) }
+
+    pub(crate) fn new_test_default(pair: &str, exchange: Exchange) -> Self {
+        Self {
+            pair: pair.into(),
+            threshold_long: -0.01,
+            threshold_short: 0.01,
+            threshold_eval_freq: Some(1),
+            dynamic_threshold: Some(true),
+            threshold_window_size: Some(10000),
+            stop_loss: -0.1,
+            stop_gain: 0.075,
+            initial_cap: 100.0,
+            dry_mode: Some(true),
+            short_window_size: 100,
+            long_window_size: 1000,
+            sample_freq: "1min".to_string(),
+            exchange,
+            order_mode: None,
+            execution_instruction: None,
+            order_asset_type: None,
+            start_trading: Some(true),
+        }
+    }
 }

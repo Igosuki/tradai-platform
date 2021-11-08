@@ -226,26 +226,7 @@ mod test {
         let _num_records = csv_records.len();
         // align data
         let pair_csv_records = csv_records[0].iter();
-        let options = Options {
-            pair: PAIR.into(),
-            threshold_long: -0.01,
-            threshold_short: 0.01,
-            threshold_eval_freq: Some(1),
-            dynamic_threshold: Some(true),
-            threshold_window_size: Some(10000),
-            stop_loss: -0.1,
-            stop_gain: 0.075,
-            initial_cap: 100.0,
-            dry_mode: Some(true),
-            short_window_size: 100,
-            long_window_size: 1000,
-            sample_freq: "1min".to_string(),
-            exchange: Exchange::Binance,
-            order_mode: None,
-            execution_instruction: None,
-            order_asset_type: None,
-            start_trading: None,
-        };
+        let options = Options::new_test_default(PAIR, Exchange::Binance);
         let memory_store = Arc::new(MemoryKVStore::new());
         let mut model = MeanRevertingModel::new(options, memory_store);
 
