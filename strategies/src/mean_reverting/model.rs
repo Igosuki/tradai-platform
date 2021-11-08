@@ -62,6 +62,7 @@ pub fn threshold(m: &ApoThresholds, wdw: Window<'_, f64>) -> ApoThresholds {
     }
 }
 
+#[derive(Debug)]
 pub struct MeanRevertingModel {
     sampler: Sampler,
     apo: IndicatorModel<MACDApo, f64>,
@@ -69,7 +70,7 @@ pub struct MeanRevertingModel {
 }
 
 impl MeanRevertingModel {
-    pub fn new(n: Options, db: Arc<dyn Storage>) -> Self {
+    pub fn new(n: &Options, db: Arc<dyn Storage>) -> Self {
         let ema_model = ema_indicator_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
         let threshold_table = if n.dynamic_threshold() {
             n.threshold_window_size.map(|thresold_window_size| {
@@ -91,7 +92,8 @@ impl MeanRevertingModel {
             thresholds: threshold_table,
         }
     }
-    pub fn next(&mut self, e: InputEvent) -> Result<()> {
+
+    pub fn next(&mut self, e: &InputEvent) -> Result<()> {
         let book_pos = match e {
             InputEvent::BookPosition(bp) => bp,
             _ => return Ok(()),
@@ -125,7 +127,7 @@ impl MeanRevertingModel {
         Ok(())
     }
 
-    pub fn load(&mut self) -> crate::error::Result<()> {
+    pub fn try_load(&mut self) -> crate::error::Result<()> {
         {
             self.apo.try_load()?;
             if let Some(_model_time) = self.apo.last_model_time() {
@@ -146,11 +148,11 @@ impl MeanRevertingModel {
         }
     }
 
-    fn is_loaded(&self) -> bool {
+    pub(crate) fn is_loaded(&self) -> bool {
         self.apo.is_loaded() && self.thresholds.as_ref().map(|t| t.is_loaded()).unwrap_or_else(|| false)
     }
 
-    fn reset(&mut self, name: Option<String>) -> Result<()> {
+    pub(crate) fn reset(&mut self, name: Option<String>) -> Result<()> {
         if name == Some("apo".to_string()) || name.is_none() {
             self.apo.wipe()?;
         }
@@ -173,6 +175,17 @@ impl MeanRevertingModel {
                     .and_then(|t| t.model().and_then(|m| serde_json::to_value(m.value).ok())),
             ),
         ]
+    }
+
+    pub(crate) fn apo(&self) -> Option<f64> { self.apo.value().map(|m| m.apo) }
+
+    pub(crate) fn apo_value(&self) -> Option<MACDApo> { self.apo.value() }
+
+    pub(crate) fn thresholds(&self) -> Option<(f64, f64)> {
+        self.thresholds
+            .as_ref()
+            .and_then(|t| t.model())
+            .map(|m| (m.value.short, m.value.long))
     }
 }
 
@@ -225,7 +238,7 @@ impl LoadableModel for MeanRevertingModel {
 impl IterativeModel for MeanRevertingModel {
     type ExportValue = BTreeMap<String, Option<serde_json::Value>>;
 
-    fn next(&mut self, e: InputEvent) -> Result<()> { self.next(e) }
+    fn next_model(&mut self, e: &InputEvent) -> Result<()> { self.next(e) }
 
     fn export_values(&self) -> Result<Self::ExportValue> { Ok(self.values().into_iter().collect()) }
 }
