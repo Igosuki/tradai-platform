@@ -244,7 +244,7 @@ async fn test_market_margin_order_workflow() -> Result<()> {
     pass_mock_order_and_expect_status(om, mocked_pass_order, request, OrderStatus::Filled).await
 }
 
-#[cfg(feature = "live_e2e_tests")]
+#[cfg(any(feature = "live_e2e_tests", feature = "manual_e2e_tests"))]
 async fn pass_live_order(om: Addr<OrderManager>, request: AddOrderRequest) -> Result<OrderDetail> {
     let order_detail = om
         .send(StagedOrder { request })
@@ -358,13 +358,14 @@ async fn test_live() -> Result<()> {
     // .await?;
     Coinnect::load_pair_registries(apis.clone()).await?;
     let pair: Pair = "ETC_USDT".into();
-    let qty = 1.00004168;
+    let qty = 0.2 + 0.00002084;
+    //let qty = 1.0;
     let base_margin_order = AddOrderRequest {
         pair: pair.clone(),
         dry_run: false,
         quantity: Some(qty),
         order_type: OrderType::Market,
-        asset_type: Some(AssetType::Margin),
+        asset_type: Some(AssetType::IsolatedMargin),
         ..AddOrderRequest::default()
     };
     let buy_long = AddOrderRequest {
