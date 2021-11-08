@@ -118,6 +118,7 @@ impl NaiveTradingStrategy {
             window_size,
             None,
             covar_model::linear_model,
+            None,
         )
     }
 
