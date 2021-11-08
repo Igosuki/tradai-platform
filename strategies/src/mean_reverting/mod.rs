@@ -53,8 +53,6 @@ pub struct MeanRevertingStrategy {
     #[derivative(Debug = "ignore")]
     metrics: Arc<MeanRevertingStrategyMetrics>,
     threshold_eval_freq: Option<i32>,
-    threshold_short_0: f64,
-    threshold_long_0: f64,
     last_threshold_time: DateTime<Utc>,
     stopper: Stopper<f64>,
     sampler: Sampler,
@@ -85,8 +83,6 @@ impl MeanRevertingStrategy {
             state,
             model,
             threshold_eval_freq: n.threshold_eval_freq,
-            threshold_short_0: n.threshold_short,
-            threshold_long_0: n.threshold_long,
             last_threshold_time: Utc.timestamp_millis(0),
             stopper: Stopper::new(n.stop_gain, n.stop_loss),
             metrics: Arc::new(metrics),
@@ -156,7 +152,7 @@ impl MeanRevertingStrategy {
         let apo = self.model.apo().expect("model required");
 
         // Possibly open a short position
-        let thresholds = self.thresholds();
+        let thresholds = self.model.thresholds();
         let threshold_short = thresholds.0;
         let threshold_long = thresholds.1;
         if (apo > threshold_short) && self.state.no_position_taken() {
@@ -229,12 +225,6 @@ impl MeanRevertingStrategy {
         } else {
             StrategyStatus::NotTrading
         }
-    }
-
-    fn thresholds(&self) -> (f64, f64) {
-        self.model
-            .thresholds()
-            .unwrap_or((self.threshold_short_0, self.threshold_long_0))
     }
 }
 
