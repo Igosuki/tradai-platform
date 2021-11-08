@@ -141,26 +141,7 @@ async fn moving_average_model_backtest() {
 
 #[actix::test]
 async fn spot_backtest() {
-    let conf = Options {
-        pair: PAIR.into(),
-        threshold_long: -0.01,
-        threshold_short: 0.01,
-        threshold_eval_freq: Some(1),
-        dynamic_threshold: Some(true),
-        threshold_window_size: Some(10000),
-        stop_loss: -0.1,
-        stop_gain: 0.075,
-        initial_cap: 100.0,
-        dry_mode: Some(true),
-        short_window_size: 100,
-        long_window_size: 1000,
-        sample_freq: "1min".to_string(),
-        exchange: Exchange::Binance,
-        order_mode: None,
-        execution_instruction: None,
-        order_asset_type: None,
-        start_trading: Some(true),
-    };
+    let conf = Options::new_test_default(PAIR, Exchange::Binance);
     let positions = complete_backtest("spot", &conf).await;
     let last_position = positions.last();
     assert!(last_position.is_some(), "No position found in operations");
@@ -177,24 +158,10 @@ async fn spot_backtest() {
 #[actix::test]
 async fn margin_backtest() {
     let conf = Options {
-        pair: PAIR.into(),
-        threshold_long: -0.01,
-        threshold_short: 0.01,
-        threshold_eval_freq: Some(1),
-        dynamic_threshold: Some(true),
-        threshold_window_size: Some(1000),
-        stop_loss: -0.1,
-        stop_gain: 0.075,
-        initial_cap: 100.0,
-        dry_mode: Some(true),
-        short_window_size: 100,
-        long_window_size: 1000,
-        sample_freq: "1min".to_string(),
-        exchange: Exchange::Binance,
         order_mode: Some(OrderMode::Market),
         execution_instruction: None,
         order_asset_type: Some(AssetType::Margin),
-        start_trading: Some(true),
+        ..Options::new_test_default(PAIR, Exchange::Binance)
     };
     let positions = complete_backtest("margin", &conf).await;
     let last_position = positions.last();
