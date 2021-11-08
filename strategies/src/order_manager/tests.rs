@@ -340,7 +340,7 @@ async fn test_live_market_margin_order_workflow() -> Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "live_e2e_tests")]
+#[cfg(feature = "manual_e2e_tests")]
 #[actix::test]
 async fn test_live() -> Result<()> {
     init();
@@ -357,8 +357,8 @@ async fn test_live() -> Result<()> {
     // )
     // .await?;
     Coinnect::load_pair_registries(apis.clone()).await?;
-    let pair: Pair = "ARPA_USDT".into();
-    let qty = 1421.06;
+    let pair: Pair = "ETC_USDT".into();
+    let qty = 1.00004168;
     let base_margin_order = AddOrderRequest {
         pair: pair.clone(),
         dry_run: false,
@@ -369,11 +369,11 @@ async fn test_live() -> Result<()> {
     };
     let buy_long = AddOrderRequest {
         side: TradeType::Buy,
-        side_effect_type: None,
+        side_effect_type: Some(MarginSideEffect::AutoRepay),
         order_id: Some(Uuid::new_v4().to_string()),
         ..base_margin_order.clone()
     };
-    let buy_long_order_detail = pass_live_order(om.clone(), buy_long).await?;
-    eprintln!("buy_long_order_detail = {:?}", buy_long_order_detail);
+    let order_detail = pass_live_order(om.clone(), buy_long).await?;
+    eprintln!("order_detail = {:?}", order_detail);
     Ok(())
 }
