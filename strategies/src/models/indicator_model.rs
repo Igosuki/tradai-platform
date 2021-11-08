@@ -26,14 +26,7 @@ pub struct IndicatorModel<T, R> {
 impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> IndicatorModel<T, R> {
     pub fn new(id: &str, db: Arc<dyn Storage>, initial_value: T) -> Self {
         Self {
-            model: PersistentModel::new(
-                db,
-                id,
-                Some(ModelValue {
-                    value: initial_value,
-                    at: Utc::now(),
-                }),
-            ),
+            model: PersistentModel::new(db, id, Some(ModelValue::new(initial_value))),
             update_fn: |m, args| {
                 let mut new_m = m.clone();
                 new_m.next(args);

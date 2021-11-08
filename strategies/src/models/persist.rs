@@ -20,6 +20,10 @@ pub struct ModelValue<T> {
     pub at: DateTime<Utc>,
 }
 
+impl<T> ModelValue<T> {
+    pub fn new(value: T) -> Self { Self { value, at: Utc::now() } }
+}
+
 #[derive(Debug)]
 pub struct PersistentModel<T> {
     last_model: Option<ModelValue<T>>,
@@ -56,12 +60,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
         Ok(())
     }
 
-    pub fn set_last_model(&mut self, new_model: T) {
-        self.last_model = Some(ModelValue {
-            value: new_model,
-            at: Utc::now(),
-        });
-    }
+    pub fn set_last_model(&mut self, new_model: T) { self.last_model = Some(ModelValue::new(new_model)); }
 
     pub fn update<A>(&mut self, update_fn: ModelUpdateFn<T, A>, args: A) -> Result<()> {
         if let Some(model) = &self.last_model {
@@ -143,14 +142,29 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
         if let Err(e) = self.db.put(&self.key, x, row) {
             error!("Failed writing row : {:?}", e);
         }
+        if let Err(e) = self.maybe_drain() {
+            error!("Failed to delete range of rows : {:?}", e);
+        }
+    }
+
+    pub fn push_all(&mut self, row: Vec<TimedValue<T>>) -> Result<()> {
+        self.rows.extend(row.into_iter());
+        self.rows.sort_by_key(|t| t.0);
+        for row in self.rows.iter() {
+            let x: &str = &row.0.to_string();
+            self.db.put(&self.key, x, &row.1)?;
+        }
+        self.maybe_drain()
+    }
+
+    fn maybe_drain(&mut self) -> Result<()> {
         if self.rows.len() > self.max_size {
             let mut drained = self.rows.drain(0..(self.max_size - self.window_size));
             let from = drained.next().unwrap();
             let to = drained.last().unwrap();
-            if let Err(e) = self.db.delete_range(&self.key, from.0.to_string(), to.0.to_string()) {
-                error!("Failed to delete range of rows : {:?}", e);
-            }
+            self.db.delete_range(&self.key, from.0.to_string(), to.0.to_string())?;
         }
+        Ok(())
     }
 
     pub fn window(&self) -> Window<'_, T> { self.timed_window().map(|r| &r.1) }
@@ -241,14 +255,8 @@ mod test {
     #[bench]
     fn test_save_load_model(b: &mut Bencher) {
         let db = test_db();
-        let mut table: PersistentModel<MockLinearModel> = PersistentModel::new(
-            db,
-            "default",
-            Some(ModelValue {
-                value: MockLinearModel {},
-                at: Utc::now(),
-            }),
-        );
+        let mut table: PersistentModel<MockLinearModel> =
+            PersistentModel::new(db, "default", Some(ModelValue::new(MockLinearModel {})));
         let _gen = Gen::new(500);
         b.iter(|| table.update(|m, _a| m.clone(), ()).unwrap());
         table.try_loading().unwrap();

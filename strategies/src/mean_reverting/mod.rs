@@ -85,6 +85,7 @@ impl MeanRevertingStrategy {
                     thresold_window_size,
                     Some(thresold_window_size * 2),
                     model::threshold,
+                    Some(ApoThresholds::new(n.threshold_short, n.threshold_long)),
                 )
             })
         } else {

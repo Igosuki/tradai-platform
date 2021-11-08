@@ -41,7 +41,16 @@ impl Storage for MemoryKVStore {
 
     fn _get_range(&self, _table: &str, _from: &[u8], _to: &[u8]) -> Result<Vec<(String, Box<[u8]>)>> { todo!() }
 
-    fn _get_all(&self, _table: &str) -> Result<Vec<(String, Box<[u8]>)>> { todo!() }
+    fn _get_all(&self, _table: &str) -> Result<Vec<(String, Box<[u8]>)>> {
+        let vec = self
+            .inner
+            .read()
+            .unwrap()
+            .iter()
+            .map(|(k, v)| (String::from_utf8(k.clone()).unwrap(), v.clone().into_boxed_slice()))
+            .collect();
+        Ok(vec)
+    }
 
     fn _delete(&self, _table: &str, key: &[u8]) -> Result<()> {
         self.inner.write().unwrap().remove(key);

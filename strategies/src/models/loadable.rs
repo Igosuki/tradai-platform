@@ -2,16 +2,18 @@
 mod test {
     use std::collections::HashMap;
     use std::io::{BufReader, BufWriter, Read, Write};
+    use std::path::PathBuf;
     use std::sync::Arc;
 
     use chrono::{TimeZone, Utc};
-    use serde::ser::SerializeStruct;
+    use serde::ser::{SerializeSeq, SerializeStruct};
     use serde::Serializer;
 
     use coinnect_rt::exchange::Exchange;
     use db::{MemoryKVStore, Storage};
     use ext::ResultExt;
     use math::indicators::macd_apo::MACDApo;
+    use util::test::test_results_dir;
 
     use crate::error::Result;
     use crate::generic::InputEvent;
@@ -40,6 +42,7 @@ mod test {
                         thresold_window_size,
                         Some(thresold_window_size * 2),
                         model::threshold,
+                        Some(ApoThresholds::new(n.threshold_short, n.threshold_long)),
                     )
                 })
             } else {
@@ -147,6 +150,13 @@ mod test {
             if let Some(model) = models.get("apo") {
                 self.apo.import(model.to_owned())?;
             }
+            if let (Some(thresholds_model), Some(thresholds_table)) =
+                (models.get("thresholds"), models.get("thresholds_table"))
+            {
+                if let Some(thresholds) = self.thresholds.as_mut() {
+                    thresholds.import(thresholds_model.to_owned(), thresholds_table.to_owned())?;
+                }
+            }
             Ok(())
         }
 
@@ -170,15 +180,34 @@ mod test {
                     &windowed_model.timed_window().collect::<Vec<&TimedValue<f64>>>(),
                 )?;
             }
-            ser_struct.end()?;
+            SerializeStruct::end(ser_struct)?;
             Ok(())
         }
     }
 
+    impl IterativeModel for MeanRevertingModel {
+        fn next(&mut self, e: InputEvent) -> Result<()> { self.next(e) }
+
+        fn export_short<S: SerializeSeq>(&self, _out: S) -> Result<()> { Ok(()) }
+    }
+
     trait LoadableModel {
+        /// Overwrite the current model using the reader
+        /// If true, will read the model as snappy compressed
+        /// Warning : in case of failure, this may lead to loss of data
         fn import<R: Read>(&mut self, read: R, compressed: bool) -> Result<()>;
 
+        /// Write the current model value,
+        /// If true, will write the model as snappy compressed
         fn export<W: Write>(&self, out: W, compressed: bool) -> Result<()>;
+    }
+
+    trait IterativeModel {
+        /// Generate the next model value from the input event
+        fn next(&mut self, e: InputEvent) -> Result<()>;
+
+        /// Serialize a short, readable version of the model
+        fn export_short<S: SerializeSeq>(&self, out: S) -> Result<()>;
     }
 
     const PAIR: &str = "BTC_USDT";
@@ -194,7 +223,7 @@ mod test {
             "order_books",
         )
         .await;
-        let num_records = csv_records.len();
+        let _num_records = csv_records.len();
         // align data
         let pair_csv_records = csv_records[0].iter();
         let options = Options {
@@ -219,14 +248,26 @@ mod test {
         };
         let memory_store = Arc::new(MemoryKVStore::new());
         let mut model = MeanRevertingModel::new(options, memory_store);
+
+        //serde_json::Serializer
         for csvr in pair_csv_records {
             model.next(InputEvent::BookPosition(csvr.into())).unwrap();
+            //model.export_short()
         }
-        let writer = std::fs::OpenOptions::new()
+        let results_dir = PathBuf::from(test_results_dir(module_path!()));
+        let mut models_file_path = results_dir;
+        models_file_path.push("models.json");
+        let model_file = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open("models.json")?;
-        model.export(writer, false).unwrap();
+            .open(models_file_path.clone())?;
+        model.export(model_file, false).unwrap();
+        let model_file = std::fs::OpenOptions::new().read(true).open(models_file_path).unwrap();
+        model.import(model_file, false).unwrap();
+
+        model.load().unwrap();
+
+        eprintln!("model = {:?}", model.values());
         Ok(())
     }
 }

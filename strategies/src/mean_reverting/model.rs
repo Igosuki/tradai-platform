@@ -28,6 +28,17 @@ pub struct ApoThresholds {
     pub short: f64,
 }
 
+impl ApoThresholds {
+    pub fn new(short_0: f64, long_0: f64) -> Self {
+        Self {
+            short_0,
+            long_0,
+            long: 0.0,
+            short: 0.0,
+        }
+    }
+}
+
 pub fn threshold(m: &ApoThresholds, wdw: Window<'_, f64>) -> ApoThresholds {
     let (threshold_short_iter, threshold_long_iter) = wdw.tee();
     let threshold_short = max(m.short_0.into(), OrderedFloat(threshold_short_iter.quantile(0.99))).into();
