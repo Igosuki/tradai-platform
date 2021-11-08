@@ -156,6 +156,7 @@ async fn spot_backtest() {
 }
 
 #[actix::test]
+#[ignore]
 async fn margin_backtest() {
     let conf = Options {
         order_mode: Some(OrderMode::Market),
@@ -235,7 +236,7 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
                 &strat.state,
                 &ob,
                 value,
-                strat.thresholds(),
+                strat.model.thresholds(),
             ));
         }
         elapsed += now.elapsed().as_nanos();

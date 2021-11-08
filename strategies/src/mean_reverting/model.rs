@@ -67,6 +67,7 @@ pub struct MeanRevertingModel {
     sampler: Sampler,
     apo: IndicatorModel<MACDApo, f64>,
     thresholds: Option<WindowedModel<f64, ApoThresholds>>,
+    thresholds_0: (f64, f64),
 }
 
 impl MeanRevertingModel {
@@ -90,6 +91,7 @@ impl MeanRevertingModel {
             sampler: Sampler::new(n.sample_freq(), Utc.timestamp_millis(0)),
             apo: ema_model,
             thresholds: threshold_table,
+            thresholds_0: (n.threshold_short, n.threshold_long),
         }
     }
 
@@ -149,7 +151,7 @@ impl MeanRevertingModel {
     }
 
     pub(crate) fn is_loaded(&self) -> bool {
-        self.apo.is_loaded() && self.thresholds.as_ref().map(|t| t.is_loaded()).unwrap_or_else(|| false)
+        self.apo.is_loaded() && self.thresholds.as_ref().map(|t| t.is_loaded()).unwrap_or(true)
     }
 
     pub(crate) fn reset(&mut self, name: Option<String>) -> Result<()> {
@@ -181,11 +183,12 @@ impl MeanRevertingModel {
 
     pub(crate) fn apo_value(&self) -> Option<MACDApo> { self.apo.value() }
 
-    pub(crate) fn thresholds(&self) -> Option<(f64, f64)> {
-        self.thresholds
-            .as_ref()
-            .and_then(|t| t.model())
-            .map(|m| (m.value.short, m.value.long))
+    pub(crate) fn thresholds(&self) -> (f64, f64) {
+        match self.thresholds.as_ref() {
+            Some(t) if t.is_filled() => t.model().map(|m| (m.value.short, m.value.long)),
+            _ => None,
+        }
+        .unwrap_or(self.thresholds_0)
     }
 }
 
