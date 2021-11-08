@@ -1,13 +1,13 @@
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
     use std::io::{BufReader, BufWriter, Read, Write};
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::sync::Arc;
 
     use chrono::{TimeZone, Utc};
     use serde::ser::{SerializeSeq, SerializeStruct};
-    use serde::Serializer;
+    use serde::{Serialize, Serializer};
 
     use coinnect_rt::exchange::Exchange;
     use db::{MemoryKVStore, Storage};
@@ -186,9 +186,11 @@ mod test {
     }
 
     impl IterativeModel for MeanRevertingModel {
+        type ExportValue = BTreeMap<String, Option<serde_json::Value>>;
+
         fn next(&mut self, e: InputEvent) -> Result<()> { self.next(e) }
 
-        fn export_short<S: SerializeSeq>(&self, _out: S) -> Result<()> { Ok(()) }
+        fn export_values(&self) -> Result<Self::ExportValue> { Ok(self.values().into_iter().collect()) }
     }
 
     trait LoadableModel {
@@ -203,11 +205,23 @@ mod test {
     }
 
     trait IterativeModel {
+        type ExportValue: Serialize;
+
         /// Generate the next model value from the input event
         fn next(&mut self, e: InputEvent) -> Result<()>;
 
         /// Serialize a short, readable version of the model
-        fn export_short<S: SerializeSeq>(&self, out: S) -> Result<()>;
+        fn export_values(&self) -> Result<Self::ExportValue>;
+    }
+
+    fn write_as_seq<P: AsRef<Path>, T: Serialize>(out_file: P, all_models: Vec<T>) {
+        let logs_f = std::fs::File::create(out_file).unwrap();
+        let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
+        let mut seq = ser.serialize_seq(None).unwrap();
+        for models in all_models {
+            seq.serialize_element(&models).unwrap();
+        }
+        SerializeSeq::end(seq).unwrap();
     }
 
     const PAIR: &str = "BTC_USDT";
@@ -229,15 +243,15 @@ mod test {
         let options = Options::new_test_default(PAIR, Exchange::Binance);
         let memory_store = Arc::new(MemoryKVStore::new());
         let mut model = MeanRevertingModel::new(options, memory_store);
+        let mut model_values = vec![];
 
-        //serde_json::Serializer
         for csvr in pair_csv_records {
             model.next(InputEvent::BookPosition(csvr.into())).unwrap();
-            //model.export_short()
+            model_values.push(model.export_values().unwrap());
         }
         let results_dir = PathBuf::from(test_results_dir(module_path!()));
-        let mut models_file_path = results_dir;
-        models_file_path.push("models.json");
+        let mut models_file_path = results_dir.clone();
+        models_file_path.push("exported_model.json");
         let model_file = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
@@ -245,10 +259,12 @@ mod test {
         model.export(model_file, false).unwrap();
         let model_file = std::fs::OpenOptions::new().read(true).open(models_file_path).unwrap();
         model.import(model_file, false).unwrap();
-
         model.load().unwrap();
-
         eprintln!("model = {:?}", model.values());
+
+        let mut model_values_file_path = results_dir;
+        model_values_file_path.push("model_values.json");
+        write_as_seq(model_values_file_path, model_values.clone());
         Ok(())
     }
 }
