@@ -8,7 +8,7 @@ use db::Storage;
 use ext::ResultExt;
 
 use crate::error::Result;
-use crate::models::persist::{ModelValue, TimedWindow};
+use crate::models::persist::{ModelValue, TimedValue, TimedWindow};
 use crate::models::Model;
 
 use super::persist::{PersistentModel, PersistentVec, Window};
@@ -31,11 +31,12 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
         window_size: usize,
         max_size_o: Option<usize>,
         window_fn: WindowFn<T, M>,
+        init: Option<M>,
     ) -> Self {
         let max_size = max_size_o.unwrap_or_else(|| (1.2 * window_size as f64) as usize);
         Self {
             rows: PersistentVec::new(db.clone(), &format!("{}_rows", id), max_size, window_size),
-            model: PersistentModel::new(db, id, None),
+            model: PersistentModel::new(db, id, init.map(|i| ModelValue::new(i))),
             window_fn,
         }
     }
@@ -68,6 +69,15 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
     pub fn wipe(&mut self) -> Result<()> {
         self.model.wipe()?;
         self.rows.wipe()?;
+        Ok(())
+    }
+
+    pub fn import(&mut self, model_value: serde_json::Value, table: serde_json::Value) -> Result<()> {
+        let model: M = serde_json::from_value(model_value)?;
+        self.wipe()?;
+        self.model.set_last_model(model);
+        let rows: Vec<TimedValue<T>> = serde_json::from_value(table)?;
+        self.rows.push_all(rows)?;
         Ok(())
     }
 }
@@ -121,7 +131,7 @@ mod test {
         let id = "default";
         let max_size = 2000;
         let db = test_db();
-        let mut table = WindowedModel::new(id, db, 1000, Some(max_size), sum_window);
+        let mut table = WindowedModel::new(id, db, 1000, Some(max_size), sum_window, None);
         let mut gen = Gen::new(500);
         for _ in 0..max_size {
             table.push(&TestRow::arbitrary(&mut gen))
