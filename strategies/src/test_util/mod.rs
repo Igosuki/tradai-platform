@@ -7,7 +7,7 @@ pub use self::http::ws_it_server;
 
 #[cfg(test)]
 pub mod binance;
-#[cfg(feature = "live_e2e_tests")]
+#[cfg(any(feature = "live_e2e_tests", feature = "manual_e2e_tests"))]
 #[cfg(test)]
 pub mod e2e;
 #[cfg(test)]
