@@ -411,28 +411,18 @@ impl MeanRevertingState {
 
     fn update_open_value(&mut self, kind: &PositionKind, open_order: &OrderDetail) {
         match kind {
-            PositionKind::Short => {
-                self.vars.value_strat += open_order.realized_quote_value();
-            }
+            PositionKind::Short => self.vars.value_strat += open_order.realized_quote_value(),
+
             PositionKind::Long => {
-                self.vars.value_strat -= open_order.realized_quote_value();
+                self.vars.value_strat -= open_order.quote_value();
             }
         }
     }
 
     async fn update_close_value(&mut self, kind: &PositionKind, close_order: &OrderDetail) -> Result<()> {
-        let interest_fees = self.interest_fees_since_open().await?;
-        if let Some(mut operation) = self.ongoing_op.as_mut() {
-            operation.total_interests = Some(interest_fees);
-        }
-        let transacted = close_order.realized_quote_value() - interest_fees;
         match kind {
-            PositionKind::Short => {
-                self.vars.value_strat -= transacted;
-            }
-            PositionKind::Long => {
-                self.vars.value_strat += transacted;
-            }
+            PositionKind::Short => self.vars.value_strat -= close_order.quote_value(),
+            PositionKind::Long => self.vars.value_strat += close_order.realized_quote_value(),
         }
         Ok(())
     }
@@ -463,9 +453,10 @@ impl MeanRevertingState {
             .as_ref()
             .ok_or_else(|| Error::OperationMissingOrder("open".to_string()))?;
         trace!("closing last_open_order {:?}", self.last_open_order);
+        let interest_fees = self.interest_fees_since_open().await?;
         let base_qty = match pos.kind {
-            PositionKind::Short => last_open_order.total_executed_qty / (1.0 - self.fees_rate),
-            PositionKind::Long => last_open_order.total_executed_qty * (1.0 - self.fees_rate),
+            PositionKind::Short => (last_open_order.total_executed_qty / (1.0 - self.fees_rate)) + interest_fees,
+            PositionKind::Long => last_open_order.total_executed_qty, // TODO: - last_open_order.base_fees(),
         };
 
         let mut op = Operation::new(
@@ -476,6 +467,7 @@ impl MeanRevertingState {
             self.order_mode,
             self.order_asset_type,
         );
+        op.total_interests = Some(interest_fees);
         self.stage_operation(&mut op).await
     }
 
