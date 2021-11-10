@@ -18,7 +18,7 @@ use crate::models::{Model, WindowedModel};
 use crate::naive_pair_trading::covar_model::{DataRow, LinearModelValue};
 use crate::naive_pair_trading::state::Operation;
 use crate::order_manager::OrderManager;
-use crate::query::{ModelReset, MutableField, Mutation};
+use crate::query::{ModelReset, MutableField, Mutation, StrategyIndicators};
 use crate::types::{BookPosition, PositionKind};
 use crate::{Channel, DataQuery, DataResult, StrategyStatus};
 
@@ -372,6 +372,7 @@ impl StrategyDriver for NaiveTradingStrategy {
             DataQuery::State => Ok(DataResult::State(serde_json::to_string(&self.state).unwrap())),
             DataQuery::Status => Ok(DataResult::Status(StrategyStatus::Running)),
             DataQuery::Models => Err(Error::FeatureNotImplemented),
+            DataQuery::Indicators => Ok(DataResult::Indicators(StrategyIndicators::default())),
         }
     }
 
