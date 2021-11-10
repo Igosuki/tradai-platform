@@ -39,6 +39,7 @@ mod test {
 
     use coinnect_rt::exchange::Exchange;
     use db::MemoryKVStore;
+    use util::serde::write_as_seq;
     use util::test::test_results_dir;
 
     use crate::error::Result;

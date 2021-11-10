@@ -14,7 +14,7 @@ use tokio::sync::Mutex;
 use strategies::driver::StrategyDriver;
 use strategies::margin_interest_rates::test_util::mock_interest_rate_provider;
 use strategies::order_manager::test_util::mock_manager;
-use strategies::query::{DataQuery, DataResult};
+use strategies::query::{DataQuery, DataResult, StrategyIndicators};
 use strategies::settings::StrategySettings;
 use strategies::{Channel, DbOptions, Exchange, ExchangeSettings, LiveEventEnvelope, Pair};
 use util::serde::write_as_seq;
@@ -64,6 +64,8 @@ impl ToString for DatasetInputFormat {
 struct BacktestReport {
     model_failures: u32,
     models: Vec<Vec<(String, Option<serde_json::Value>)>>,
+    indicator_failures: u32,
+    indicators: Vec<StrategyIndicators>,
 }
 
 impl BacktestReport {
@@ -74,9 +76,13 @@ impl BacktestReport {
         let mut file = report_dir.clone();
         file.push("models.json");
         write_as_seq(file, self.models.as_slice());
-        let mut file = report_dir;
+        let mut file = report_dir.clone();
         file.push("report.json");
         write_as_seq(file, vec![self].as_slice());
+        let mut file = report_dir;
+        file.push("indicators.json");
+        write_as_seq(file, self.indicators.as_slice());
+
         Ok(())
     }
 }
@@ -237,6 +243,12 @@ impl Backtest {
                 Ok(DataResult::Models(models)) => report.models.push(models),
                 _ => {
                     report.model_failures += 1;
+                }
+            }
+            match strategy.data(DataQuery::Indicators) {
+                Ok(DataResult::Indicators(i)) => report.indicators.push(i),
+                _ => {
+                    report.indicator_failures += 1;
                 }
             }
         }

@@ -9,6 +9,7 @@ use coinnect_rt::exchange::Exchange;
 use ext::ResultExt;
 
 use crate::generic::{InputEvent, Strategy, TradeSignal};
+use crate::query::StrategyIndicators;
 use crate::Channel;
 
 #[pyclass(subclass)]
@@ -141,6 +142,8 @@ impl Strategy for PythonStratWrapper {
     fn models(&self) -> Vec<(String, Option<Value>)> { vec![] }
 
     fn channels(&self) -> HashSet<Channel> { Default::default() }
+
+    fn indicators(&self) -> StrategyIndicators { StrategyIndicators::default() }
 }
 
 #[cfg(test)]

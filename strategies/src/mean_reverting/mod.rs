@@ -22,7 +22,7 @@ use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
 use crate::models::io::IterativeModel;
 use crate::models::Sampler;
 use crate::order_manager::OrderManager;
-use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation};
+use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, StrategyIndicators};
 use crate::trading_util::Stopper;
 use crate::types::{BookPosition, PositionKind};
 use crate::{Channel, StrategyStatus};
@@ -257,6 +257,7 @@ impl StrategyDriver for MeanRevertingStrategy {
             DataQuery::State => Ok(DataResult::State(serde_json::to_string(&self.state.vars).unwrap())),
             DataQuery::Status => Ok(DataResult::Status(self.status())),
             DataQuery::Models => Ok(DataResult::Models(self.model.values())),
+            DataQuery::Indicators => Ok(DataResult::Indicators(self.indicators())),
         }
     }
 
@@ -358,5 +359,12 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
         let mut hs = HashSet::new();
         hs.extend((self as &dyn StrategyDriver).channels());
         hs
+    }
+
+    fn indicators(&self) -> StrategyIndicators {
+        StrategyIndicators {
+            current_return: self.state.position_return(),
+            pnl: self.state.pnl(),
+        }
     }
 }

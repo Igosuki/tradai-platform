@@ -10,7 +10,7 @@ use coinnect_rt::prelude::*;
 
 use crate::driver::StrategyDriver;
 use crate::error::Result;
-use crate::query::{DataQuery, DataResult, Mutation};
+use crate::query::{DataQuery, DataResult, Mutation, StrategyIndicators};
 use crate::types::{BookPosition, ExecutionInstruction, OperationKind, PositionKind, TradeKind};
 use crate::{Channel, StrategyStatus};
 
@@ -32,6 +32,8 @@ pub(crate) trait Strategy: Sync + Send {
     fn models(&self) -> Vec<(String, Option<serde_json::Value>)>;
 
     fn channels(&self) -> HashSet<Channel>;
+
+    fn indicators(&self) -> StrategyIndicators;
 }
 
 type BookPositions = BTreeMap<Pair, BookPosition>;
@@ -70,6 +72,7 @@ pub struct GenericStrategy {
     initialized: bool,
     signals: Vec<TradeSignal>,
     last_models: Vec<(String, Option<serde_json::Value>)>,
+    last_indicators: StrategyIndicators,
     is_trading: bool,
 }
 
@@ -83,6 +86,7 @@ impl GenericStrategy {
             initialized: false,
             signals: Default::default(),
             last_models: vec![],
+            last_indicators: StrategyIndicators::default(),
             is_trading: true,
         })
     }
@@ -145,6 +149,7 @@ impl StrategyDriver for GenericStrategy {
                     }
                     let signals = inner.eval(&event).await.unwrap();
                     self.signals.extend(signals);
+                    self.last_indicators = inner.indicators();
                 }
             }
         }
@@ -159,6 +164,7 @@ impl StrategyDriver for GenericStrategy {
             DataQuery::State => Ok(DataResult::State("".to_string())),
             DataQuery::Models => Ok(DataResult::Models(self.last_models.to_owned())),
             DataQuery::Status => Ok(DataResult::Status(StrategyStatus::NotTrading)),
+            DataQuery::Indicators => Ok(DataResult::Indicators(self.last_indicators.clone())),
         }
     }
 
