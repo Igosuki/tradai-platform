@@ -147,7 +147,6 @@ pub struct OrderManager {
     pub repo: OrderRepository,
 }
 
-// TODO: notify listeners every time a transaction is updated
 impl OrderManager {
     pub fn new<S: AsRef<Path>, S2: AsRef<Path>>(
         api: Arc<dyn ExchangeApi>,

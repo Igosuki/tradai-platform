@@ -383,6 +383,17 @@ impl OrderDetail {
             .sum()
     }
 
+    pub fn base_fees(&self) -> f64 {
+        self.fills
+            .iter()
+            .map(|f| match f.fee_asset.as_ref() {
+                Some(a) if a == &self.base_asset => f.fee,
+                Some(a) if a == &self.quote_asset => f.fee / f.price,
+                _ => f.fee,
+            })
+            .sum()
+    }
+
     pub fn quote_value(&self) -> f64 { self.total_executed_qty * self.weighted_price }
 
     pub fn realized_quote_value(&self) -> f64 { self.quote_value() - self.quote_fees() }

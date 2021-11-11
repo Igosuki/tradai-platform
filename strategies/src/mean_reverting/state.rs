@@ -456,7 +456,7 @@ impl MeanRevertingState {
         let interest_fees = self.interest_fees_since_open().await?;
         let base_qty = match pos.kind {
             PositionKind::Short => (last_open_order.total_executed_qty / (1.0 - self.fees_rate)) + interest_fees,
-            PositionKind::Long => last_open_order.total_executed_qty, // TODO: - last_open_order.base_fees(),
+            PositionKind::Long => last_open_order.total_executed_qty - last_open_order.base_fees(),
         };
 
         let mut op = Operation::new(
