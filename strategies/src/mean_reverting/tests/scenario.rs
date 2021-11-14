@@ -9,8 +9,8 @@ use tokio::time::Duration;
 use coinnect_rt::prelude::*;
 use db::DbOptions;
 use math::indicators::macd_apo::MACDApo;
-use util::date::now_str;
 use util::test::test_results_dir;
+use util::time::now_str;
 
 use crate::driver::StrategyDriver;
 use crate::input;
@@ -130,7 +130,7 @@ async fn moving_average_model_backtest() {
     let db = test_db();
     let mut model = ema_indicator_model(PAIR, db, 100, 1000);
     let csv_records =
-        input::load_csv_records(Utc.ymd(2020, 8, 1), Utc.ymd(2020, 8, 9), vec![PAIR], EXCHANGE, CHANNEL).await;
+        input::load_csv_records(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 9), vec![PAIR], EXCHANGE, CHANNEL).await;
     csv_records[0].iter().take(500).for_each(|l| {
         let pos: BookPosition = l.into();
         model.update(pos.mid).unwrap();
@@ -150,13 +150,12 @@ async fn spot_backtest() {
         last_position.map(|p| format!("{:.2}", p.pos.price))
     );
     assert_eq!(
-        Some("88.42".to_string()),
+        Some("87.87".to_string()),
         last_position.map(|p| format!("{:.2}", p.value()))
     );
 }
 
 #[actix::test]
-#[ignore]
 async fn margin_backtest() {
     let conf = Options {
         order_mode: Some(OrderMode::Market),
@@ -172,7 +171,7 @@ async fn margin_backtest() {
         last_position.map(|p| format!("{:.2}", p.pos.price))
     );
     assert_eq!(
-        Some("88.42".to_string()),
+        Some("83.27".to_string()),
         last_position.map(|p| format!("{:.2}", p.value()))
     );
 }
@@ -209,7 +208,7 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
         e: LiveEvent::LiveOrderbook(csvr.to_orderbook(PAIR)),
     }) {
         let now = Instant::now();
-
+        util::time::set_current_time(row.e.time());
         strat.add_event(&row).await.unwrap();
         let mut tries = 0;
         loop {
@@ -253,9 +252,9 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
     write_thresholds(&test_results_dir, &strategy_logs);
 
     // Output SVG graphs
-    // let out_file = draw_line_plot(strategy_logs).expect("Should have drawn plots from strategy logs");
-    // let copied = std::fs::copy(&out_file, ".local_data/graphs/mean_reverting_plot_latest.svg");
-    // assert!(copied.is_ok(), "{}", format!("{:?} : {}", copied, out_file));
+    let out_file = draw_line_plot(strategy_logs).expect("Should have drawn plots from strategy logs");
+    let copied = std::fs::copy(&out_file, ".local_data/graphs/mean_reverting_plot_latest.svg");
+    assert!(copied.is_ok(), "{}", format!("{:?} : {}", copied, out_file));
 
     // Find that latest operations are correct
     let mut positions = strat.get_operations();
@@ -269,7 +268,7 @@ fn write_ema_values(test_results_dir: &str, model_values: &[(DateTime<Utc>, MACD
         &["ts", "short_ema", "long_ema", "apo", "value_strat"],
         model_values.iter().map(|r| {
             vec![
-                r.0.format(util::date::TIMESTAMP_FORMAT).to_string(),
+                r.0.format(util::time::TIMESTAMP_FORMAT).to_string(),
                 r.1.short_ema.current.to_string(),
                 r.1.long_ema.current.to_string(),
                 r.1.apo.to_string(),
@@ -285,7 +284,7 @@ fn write_thresholds(test_results_dir: &str, strategy_logs: &[StrategyLog]) {
         &["ts", "threshold_short", "threshold_long"],
         strategy_logs.iter().map(|l| {
             vec![
-                l.time.format(util::date::TIMESTAMP_FORMAT).to_string(),
+                l.time.format(util::time::TIMESTAMP_FORMAT).to_string(),
                 l.threshold_short.to_string(),
                 l.threshold_long.to_string(),
             ]

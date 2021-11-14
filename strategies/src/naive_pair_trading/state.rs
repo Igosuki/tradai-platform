@@ -73,6 +73,8 @@ impl Operation {
                 price: self.pos.right_price,
                 strat_value: self.right_value(),
                 at: self.pos.time,
+                borrowed: None,
+                interest: None,
             },
             TradeEvent {
                 op: self.left_trade.kind.clone(),
@@ -81,6 +83,8 @@ impl Operation {
                 price: self.pos.left_price,
                 strat_value: self.left_value(),
                 at: self.pos.time,
+                borrowed: None,
+                interest: None,
             },
         ]
     }

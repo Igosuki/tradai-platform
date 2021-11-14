@@ -121,6 +121,8 @@ impl Operation {
             price: self.pos.price,
             strat_value: self.value(),
             at: self.pos.time,
+            borrowed: self.order_detail.as_ref().and_then(|o| o.borrowed_amount),
+            interest: self.total_interests,
         }
     }
 

@@ -1,8 +1,6 @@
-use std::io::{BufWriter, Read, Write};
-use std::path::Path;
+use std::io::{Read, Write};
 
-use serde::ser::SerializeSeq;
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 
 use crate::error::Result;
 use crate::generic::InputEvent;
@@ -28,22 +26,16 @@ pub trait IterativeModel {
     fn export_values(&self) -> Result<Self::ExportValue>;
 }
 
-pub fn write_as_seq<P: AsRef<Path>, T: Serialize>(out_file: P, all_models: Vec<T>) {
-    let logs_f = std::fs::File::create(out_file).unwrap();
-    let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
-    let mut seq = ser.serialize_seq(None).unwrap();
-    for models in all_models {
-        seq.serialize_element(&models).unwrap();
-    }
-    SerializeSeq::end(seq).unwrap();
-}
-
 #[cfg(test)]
 mod test {
-    use std::path::PathBuf;
+    use std::io::BufWriter;
+    use std::path::{Path, PathBuf};
     use std::sync::Arc;
 
     use chrono::{TimeZone, Utc};
+    use serde::ser::SerializeSeq;
+    use serde::Serialize;
+    use serde::Serializer;
 
     use coinnect_rt::exchange::Exchange;
     use db::MemoryKVStore;
@@ -54,8 +46,18 @@ mod test {
     use crate::input;
     use crate::mean_reverting::model::MeanRevertingModel;
     use crate::mean_reverting::options::Options;
-    use crate::models::io::{write_as_seq, IterativeModel, LoadableModel};
+    use crate::models::io::{IterativeModel, LoadableModel};
     use crate::test_util::init;
+
+    pub fn write_as_seq<P: AsRef<Path>, T: Serialize>(out_file: P, all_models: Vec<T>) {
+        let logs_f = std::fs::File::create(out_file).unwrap();
+        let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
+        let mut seq = ser.serialize_seq(None).unwrap();
+        for models in all_models {
+            seq.serialize_element(&models).unwrap();
+        }
+        SerializeSeq::end(seq).unwrap();
+    }
 
     const PAIR: &str = "BTC_USDT";
 

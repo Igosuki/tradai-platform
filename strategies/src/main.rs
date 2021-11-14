@@ -14,7 +14,7 @@ use strategies::input::CsvRecord;
 use strategies::naive_pair_trading::covar_model::DataRow;
 use strategies::naive_pair_trading::NaiveTradingStrategy;
 use strategies::Model;
-use util::date::{DateRange, DurationRangeType};
+use util::time::{DateRange, DurationRangeType};
 
 fn main() -> anyhow::Result<()> {
     env_logger::init();

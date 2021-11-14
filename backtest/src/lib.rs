@@ -20,8 +20,8 @@ use strategies::order_manager::test_util::mock_manager;
 use strategies::query::{DataQuery, DataResult};
 use strategies::settings::StrategySettings;
 use strategies::{Channel, DbOptions, Exchange, ExchangeSettings, Pair};
-use util::date::DateRange;
 use util::test::test_dir;
+use util::time::DateRange;
 
 use crate::datasources::orderbook::convert::events_from_orderbooks;
 use crate::datasources::orderbook::csv_source::{csv_orderbooks_df, events_from_csv_orderbooks};

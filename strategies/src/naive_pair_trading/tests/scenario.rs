@@ -8,6 +8,8 @@ use plotters::prelude::*;
 use serde::Serialize;
 
 use coinnect_rt::exchange::Exchange;
+use db::DbOptions;
+use util::test::test_results_dir;
 
 use crate::input;
 use crate::naive_pair_trading::covar_model::LinearModelValue;
@@ -17,8 +19,6 @@ use crate::naive_pair_trading::{covar_model, DataRow, NaiveTradingStrategy};
 use crate::order_manager::test_util::mock_manager;
 use crate::test_util::test_db;
 use crate::types::{OperationEvent, OrderMode, TradeEvent};
-use db::DbOptions;
-use util::test::test_results_dir;
 
 static LEFT_PAIR: &str = "LTC_USDT";
 static RIGHT_PAIR: &str = "BTC_USDT";
@@ -274,7 +274,7 @@ fn write_model_values(test_results_dir: &str, model_values: &[(DateTime<Utc>, Li
         &["ts", "beta", "alpha", "predicted_right", "res", "value_strat"],
         model_values.iter().map(|r| {
             vec![
-                r.0.format(util::date::TIMESTAMP_FORMAT).to_string(),
+                r.0.format(util::time::TIMESTAMP_FORMAT).to_string(),
                 r.1.beta.to_string(),
                 r.1.alpha.to_string(),
                 r.2.to_string(),

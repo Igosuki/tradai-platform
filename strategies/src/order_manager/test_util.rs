@@ -1,9 +1,11 @@
-use actix::{Actor, Addr};
-use coinnect_rt::exchange::MockApi;
-use coinnect_rt::prelude::*;
-use db::DbOptions;
 use std::path::Path;
 use std::sync::Arc;
+
+use actix::{Actor, Addr};
+
+use coinnect_rt::exchange::MockExchangeApi;
+use coinnect_rt::prelude::*;
+use db::DbOptions;
 
 use crate::order_manager::OrderManager;
 
@@ -21,7 +23,7 @@ pub async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
 }
 
 pub fn new_mock_manager<S: AsRef<Path>>(path: S) -> OrderManager {
-    let api: Arc<dyn ExchangeApi> = Arc::new(MockApi);
+    let api: Arc<dyn ExchangeApi> = Arc::new(MockExchangeApi::default());
     OrderManager::new(api, &DbOptions::new(path), "")
 }
 

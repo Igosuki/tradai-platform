@@ -6,11 +6,12 @@ use log::Level::Debug;
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
 use strum_macros::{AsRefStr, EnumString};
+use uuid::Uuid;
 
-use crate::error::DataTableError;
 use coinnect_rt::prelude::*;
 use coinnect_rt::types::MarginSideEffect;
-use uuid::Uuid;
+
+use crate::error::DataTableError;
 
 // ------------ Behavioral Types ---------
 
@@ -93,7 +94,6 @@ impl From<TradeOperation> for AddOrderRequest {
             }
             OrderMode::Market => {
                 request.order_type = OrderType::Market;
-                request.price = None;
             }
         }
 
@@ -117,6 +117,8 @@ pub struct TradeEvent {
     pub(crate) price: f64,
     pub(crate) strat_value: f64,
     pub(crate) at: DateTime<Utc>,
+    pub(crate) borrowed: Option<f64>,
+    pub(crate) interest: Option<f64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
