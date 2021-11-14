@@ -44,8 +44,6 @@ pub struct StrategyActor {
     is_checking_orders: bool,
 }
 
-unsafe impl Send for StrategyActor {}
-
 impl StrategyActor {
     pub fn new(spawner: Box<StrategySpawner>, options: &StrategyActorOptions) -> Self {
         Self::new_with_uuid(spawner, options, Uuid::new_v4())

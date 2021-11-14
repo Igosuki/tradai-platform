@@ -40,6 +40,7 @@ impl Options {
 
     pub(super) fn order_asset_type(&self) -> AssetType { self.order_asset_type.unwrap_or(AssetType::Spot) }
 
+    #[cfg(test)]
     pub(crate) fn new_test_default(pair: &str, exchange: Exchange) -> Self {
         Self {
             pair: pair.into(),

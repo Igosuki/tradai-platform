@@ -7,7 +7,7 @@ use parse_duration::parse;
 use typed_builder::TypedBuilder;
 
 use strategies::settings::StrategySettings;
-use util::date::{DateRange, DurationRangeType};
+use util::time::{DateRange, DurationRangeType};
 
 use crate::error::*;
 use crate::{Dataset, DatasetInputFormat};

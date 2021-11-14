@@ -1,6 +1,7 @@
 use std::mem;
 
-use chrono::{Date, Duration, Utc};
+use chrono::{Date, DateTime, Duration, TimeZone, Utc};
+use mock_instant::MockClock;
 
 #[derive(Clone)]
 pub enum DurationRangeType {
@@ -35,3 +36,14 @@ pub fn now_str() -> String {
     let now = Utc::now();
     now.format(TIMESTAMP_FORMAT).to_string()
 }
+
+#[cfg(feature = "mock_time")]
+pub fn now() -> DateTime<Utc> { Utc.timestamp_millis(MockClock::time().as_millis() as i64) }
+
+pub fn set_current_time(t: DateTime<Utc>) {
+    let d = std::time::Duration::from_millis(t.timestamp_millis() as u64);
+    mock_instant::MockClock::set_time(d);
+}
+
+#[cfg(not(feature = "mock_time"))]
+pub fn now() -> DateTime<Utc> { Utc::now() }
