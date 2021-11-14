@@ -9,6 +9,7 @@ use coinnect_rt::exchange::Exchange;
 use coinnect_rt::pair::symbol_to_pair;
 use coinnect_rt::types::{AddOrderRequest, AssetType, InterestRate, MarginSideEffect, OrderQuery,
                          OrderStatus as ExchangeOrderStatus, OrderSubmission, OrderType, OrderUpdate, Pair, TradeType};
+use util::time::now;
 
 use crate::coinnect_types::OrderEnforcement;
 use crate::error::*;
@@ -237,7 +238,6 @@ impl OrderDetail {
         self.is_rejected() && matches!(self.rejection_reason, Some(Rejection::Cancelled(_)))
     }
 
-    #[allow(dead_code)]
     pub fn from_query(exchange: Exchange, transaction_id: Option<String>, add_order: AddOrderRequest) -> Self {
         let pair_string = add_order.pair.to_string();
         let (base_asset, quote_asset) = pair_string.split_once('_').expect("pair string should be BASE_QUOTE");
@@ -278,7 +278,6 @@ impl OrderDetail {
         }
     }
 
-    #[allow(dead_code)]
     pub fn from_submission(&mut self, submission: OrderSubmission) {
         self.executed_qty = Some(submission.executed_qty);
         self.cummulative_quote_qty = Some(submission.cummulative_quote_qty);
@@ -304,11 +303,10 @@ impl OrderDetail {
         self.total_executed_qty = self.fills.iter().map(|f| f.qty).sum();
         self.open_at = Some(Utc.timestamp_millis(submission.timestamp));
         if self.status == OrderStatus::Filled {
-            self.closed_at = self.open_at;
+            self.closed_at = Some(now());
         }
     }
 
-    #[allow(dead_code)]
     pub fn from_fill_update(&mut self, update: OrderUpdate) {
         if self.status == OrderStatus::Filled {
             return;
@@ -332,7 +330,6 @@ impl OrderDetail {
         self.update_weighted_price();
     }
 
-    #[allow(dead_code)]
     pub fn from_rejected(&mut self, rejection: Rejection) {
         self.rejection_reason = Some(rejection);
         self.status = OrderStatus::Rejected;
@@ -348,17 +345,18 @@ impl OrderDetail {
         }
     }
 
-    /// Calculate total interest owed
+    /// Calculate total interest owed, calculated in borrowed asset
     pub fn total_interest(&self, interest_rate: InterestRate) -> f64 {
-        let hours_elapsed = Utc::now().sub(self.closed_at.unwrap());
+        let hours_elapsed = now().sub(self.closed_at.unwrap());
         let borrowed_asset = self.borrowed_asset.as_ref().unwrap();
         let borrowed_amount = self.borrowed_amount.unwrap();
         let quote_borrowed_amount = if borrowed_asset == &self.base_asset {
-            borrowed_amount * self.weighted_price
-        } else {
             borrowed_amount
+        } else {
+            borrowed_amount * self.weighted_price
         };
-        interest_rate.resolve(quote_borrowed_amount, hours_elapsed.num_hours())
+        // The first hour is owed at t0
+        interest_rate.resolve(quote_borrowed_amount, hours_elapsed.num_hours() + 1)
     }
 
     pub fn from_status(&mut self, status: TransactionStatus) {

@@ -1,11 +1,13 @@
-use coinnect_rt::exchange::MockApi;
-use db::DbOptions;
 use std::path::PathBuf;
 use std::sync::Arc;
-use strategies::order_manager::types::TransactionStatus;
-use strategies::order_manager::OrderManager;
+
 use structopt::StructOpt;
 use strum_macros::EnumString;
+
+use coinnect_rt::exchange::MockExchangeApi;
+use db::DbOptions;
+use strategies::order_manager::types::TransactionStatus;
+use strategies::order_manager::OrderManager;
 
 #[derive(StructOpt, Debug, EnumString)]
 enum Cmd {
@@ -28,7 +30,7 @@ struct RepairOrderDetailsOptions {
 async fn main() {
     let options: RepairOrderDetailsOptions = RepairOrderDetailsOptions::from_args();
     let db_options = DbOptions::new(options.db_path);
-    let manager = OrderManager::new(Arc::new(MockApi), &db_options, "");
+    let manager = OrderManager::new(Arc::new(MockExchangeApi::default()), &db_options, "");
     match options.cmd {
         Cmd::FixTransactionLogs => {
             let wal = manager.transactions_wal();

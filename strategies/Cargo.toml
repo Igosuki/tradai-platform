@@ -23,7 +23,7 @@ required-features = ["binary"]
 binary = ["clap", "structopt"]
 zstd = ["awc/compress-zstd"]
 python = ["pyo3", "pyo3-log"]
-backtests = []
+backtests = ["util/mock_time"]
 live_e2e_tests = []
 manual_e2e_tests = []
 

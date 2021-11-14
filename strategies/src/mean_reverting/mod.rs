@@ -108,7 +108,6 @@ impl MeanRevertingStrategy {
     }
 
     #[cfg(test)]
-    #[allow(dead_code)]
     fn model_value(&self) -> Option<MACDApo> { self.model.apo_value() }
 
     fn log_state(&self) { self.metrics.log_state(&self.state); }
@@ -343,7 +342,15 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
     }
 
     #[tracing::instrument(skip(self), level = "trace")]
-    async fn update_model(&mut self, e: &crate::generic::InputEvent) -> Result<()> { self.model.next_model(e) }
+    async fn update_model(&mut self, e: &crate::generic::InputEvent) -> Result<()> {
+        self.model.next_model(e)?;
+        let t = self.model.thresholds();
+        self.metrics.log_thresholds(t.0, t.1);
+        if let Some(apo) = self.model.apo_value() {
+            self.metrics.log_model(apo);
+        }
+        Ok(())
+    }
 
     fn models(&self) -> Vec<(String, Option<serde_json::Value>)> { self.model.values() }
 
