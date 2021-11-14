@@ -1,16 +1,12 @@
-use std::error::Error;
 use std::time::Instant;
 
 use chrono::{DateTime, TimeZone, Utc};
-use ordered_float::OrderedFloat;
-use plotters::prelude::*;
 use tokio::time::Duration;
 
 use coinnect_rt::prelude::*;
 use db::DbOptions;
 use math::indicators::macd_apo::MACDApo;
 use util::test::test_results_dir;
-use util::time::now_str;
 
 use crate::driver::StrategyDriver;
 use crate::input;
@@ -20,6 +16,8 @@ use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation};
 use crate::mean_reverting::MeanRevertingStrategy;
 use crate::order_manager::test_util::mock_manager;
+use crate::test_util::draw::{draw_line_plot, StrategyEntry, TimedEntry};
+use crate::test_util::fs::copy_file;
 use crate::test_util::{init, test_db};
 use crate::types::{BookPosition, OperationEvent, OrderMode, TradeEvent};
 
@@ -58,67 +56,9 @@ impl StrategyLog {
     }
 }
 
-fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn Error>> {
-    let graph_dir = format!("{}/graphs", util::test::test_results_dir(module_path!()),);
-    std::fs::create_dir_all(&graph_dir).unwrap();
-    let out_file = format!("{}/mean_reverting_plot_{}.svg", graph_dir, now_str());
-    let color_wheel = vec![&BLACK, &BLUE, &RED];
-    let more_lines: Vec<StrategyEntry<'_>> = vec![
-        ("Prices and EMA", vec![|x| x.mid, |x| x.value.short_ema.current, |x| {
-            x.value.long_ema.current
-        }]),
-        ("Open Position Return", vec![|x| x.position_return]),
-        ("APO", vec![|x| x.apo]),
-        ("PnL", vec![|x| x.pnl]),
-        ("Nominal (units)", vec![|x| x.nominal_position]),
-    ];
-    let height: u32 = 342 * more_lines.len() as u32;
-    let root = SVGBackend::new(&out_file, (1724, height)).into_drawing_area();
-    root.fill(&WHITE)?;
-
-    let lower = data.first().unwrap().time;
-    let upper = data.last().unwrap().time;
-    let x_range = lower..upper;
-
-    let area_rows = root.split_evenly((more_lines.len(), 1));
-
-    let skipped_data = data.iter();
-    for (i, line_specs) in more_lines.iter().enumerate() {
-        let mins = skipped_data.clone().map(|sl| {
-            line_specs
-                .1
-                .iter()
-                .map(|line_spec| OrderedFloat(line_spec(sl)))
-                .min()
-                .unwrap()
-        });
-        let maxs = skipped_data.clone().map(|sl| {
-            line_specs
-                .1
-                .iter()
-                .map(|line_spec| OrderedFloat(line_spec(sl)))
-                .max()
-                .unwrap()
-        });
-        let y_range = mins.min().unwrap().0..maxs.max().unwrap().0;
-
-        let mut chart = ChartBuilder::on(&area_rows[i])
-            .x_label_area_size(60)
-            .y_label_area_size(60)
-            .caption(line_specs.0, ("sans-serif", 50.0).into_font())
-            .build_cartesian_2d(x_range.clone(), y_range)?;
-        chart.configure_mesh().bold_line_style(&WHITE).draw()?;
-        for (j, line_spec) in line_specs.1.iter().enumerate() {
-            chart.draw_series(LineSeries::new(
-                skipped_data.clone().map(|x| (x.time, line_spec(x))),
-                color_wheel[j],
-            ))?;
-        }
-    }
-    Ok(out_file.clone())
+impl TimedEntry for StrategyLog {
+    fn time(&self) -> DateTime<Utc> { self.time }
 }
-
-type StrategyEntry<'a> = (&'a str, Vec<fn(&StrategyLog) -> f64>);
 
 static EXCHANGE: &str = "Binance";
 static CHANNEL: &str = "order_books";
@@ -252,9 +192,20 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
     write_thresholds(&test_results_dir, &strategy_logs);
 
     // Output SVG graphs
-    let out_file = draw_line_plot(strategy_logs).expect("Should have drawn plots from strategy logs");
-    let copied = std::fs::copy(&out_file, ".local_data/graphs/mean_reverting_plot_latest.svg");
-    assert!(copied.is_ok(), "{}", format!("{:?} : {}", copied, out_file));
+    let draw_entries: Vec<StrategyEntry<'_, StrategyLog>> = vec![
+        ("Prices and EMA", vec![|x| x.mid, |x| x.value.short_ema.current, |x| {
+            x.value.long_ema.current
+        }]),
+        ("Open Position Return", vec![|x| x.position_return]),
+        ("APO", vec![|x| x.apo]),
+        ("PnL", vec![|x| x.pnl]),
+        ("Nominal (units)", vec![|x| x.nominal_position]),
+    ];
+    let out_file = draw_line_plot(strategy_logs, draw_entries).expect("Should have drawn plots from strategy logs");
+    copy_file(
+        &out_file,
+        &format!("{}/mean_reverting_plot_{}_latest.html", &test_results_dir, test_name),
+    );
 
     // Find that latest operations are correct
     let mut positions = strat.get_operations();

@@ -121,8 +121,7 @@ awc = { version = "3.0.0-beta.7", features = ["openssl", "compress-brotli", "com
 
 # plots
 hdrhistogram = "7"
-plotlib = "0.5"
-plotters = "0.3"
+plotly = { version = "0.6.0", features = ["kaleido"] }
 
 # test
 fake = { version = "2.4", features = ['chrono'] }

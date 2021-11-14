@@ -1,10 +1,7 @@
-use std::error::Error;
 use std::time::Instant;
 
 use chrono::{DateTime, TimeZone, Utc};
 use itertools::Itertools;
-use ordered_float::OrderedFloat;
-use plotters::prelude::*;
 use serde::Serialize;
 
 use coinnect_rt::exchange::Exchange;
@@ -17,6 +14,8 @@ use crate::naive_pair_trading::options::Options;
 use crate::naive_pair_trading::state::MovingState;
 use crate::naive_pair_trading::{covar_model, DataRow, NaiveTradingStrategy};
 use crate::order_manager::test_util::mock_manager;
+use crate::test_util::draw::{draw_line_plot, StrategyEntry, TimedEntry};
+use crate::test_util::fs::copy_file;
 use crate::test_util::test_db;
 use crate::types::{OperationEvent, OrderMode, TradeEvent};
 
@@ -67,70 +66,8 @@ impl StrategyLog {
     }
 }
 
-type StrategyEntry<'a> = (&'a str, Vec<fn(&StrategyLog) -> f64>);
-
-fn draw_line_plot(data: Vec<StrategyLog>) -> std::result::Result<String, Box<dyn Error>> {
-    std::fs::create_dir_all("graphs").unwrap();
-    let now = Utc::now();
-    let out_file = format!("graphs/naive_pair_trading_plot_{}.svg", now.format("%Y%m%d%H:%M:%S"));
-    let color_wheel = vec![&BLACK, &BLUE, &RED];
-    let more_lines: Vec<StrategyEntry<'_>> = vec![
-        ("value", vec![|x| x.right_mid, |x| x.predicted_right]),
-        ("return", vec![|x| x.short_position_return + x.long_position_return]),
-        ("PnL", vec![|x| x.pnl]),
-        ("Nominal Position", vec![|x| x.nominal_position]),
-        ("Beta", vec![|x| x.beta_lr]),
-        ("res", vec![|x| x.res]),
-        ("traded_price_left", vec![|x| x.traded_price_left]),
-        ("traded_price_right", vec![|x| x.traded_price_right]),
-        ("alpha_val", vec![|x| x.alpha]),
-        ("value_strat", vec![|x| x.value_strat]),
-    ];
-    let height: u32 = 342 * more_lines.len() as u32;
-    let root = SVGBackend::new(&out_file, (1724, height)).into_drawing_area();
-    root.fill(&WHITE)?;
-
-    let lower = data.first().unwrap().time;
-    let upper = data.last().unwrap().time;
-    let x_range = lower..upper;
-
-    let area_rows = root.split_evenly((more_lines.len(), 1));
-
-    let skipped_data = data.iter().skip(501);
-    for (i, line_specs) in more_lines.iter().enumerate() {
-        let mins = skipped_data.clone().map(|sl| {
-            line_specs
-                .1
-                .iter()
-                .map(|line_spec| OrderedFloat(line_spec(sl)))
-                .min()
-                .unwrap()
-        });
-        let maxs = skipped_data.clone().map(|sl| {
-            line_specs
-                .1
-                .iter()
-                .map(|line_spec| OrderedFloat(line_spec(sl)))
-                .max()
-                .unwrap()
-        });
-        let y_range = mins.min().unwrap().0..maxs.max().unwrap().0;
-
-        let mut chart = ChartBuilder::on(&area_rows[i])
-            .x_label_area_size(60)
-            .y_label_area_size(60)
-            .caption(line_specs.0, ("sans-serif", 50.0).into_font())
-            .build_cartesian_2d(x_range.clone(), y_range)?;
-        chart.configure_mesh().bold_line_style(&WHITE).draw()?;
-        for (j, line_spec) in line_specs.1.iter().enumerate() {
-            chart.draw_series(LineSeries::new(
-                skipped_data.clone().map(|x| (x.time, line_spec(x))),
-                color_wheel[j],
-            ))?;
-        }
-    }
-
-    Ok(out_file.clone())
+impl TimedEntry for StrategyLog {
+    fn time(&self) -> DateTime<Utc> { self.time }
 }
 
 fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
@@ -263,9 +200,23 @@ async fn complete_backtest() {
     assert_eq!(Some(162.130004882813), last_position.map(|p| p.pos.left_price));
     assert_eq!(Some(33.33032942489664), last_position.map(|p| p.left_value()));
 
-    let out_file = draw_line_plot(logs).expect("Should have drawn plots from strategy logs");
-    let copied = std::fs::copy(&out_file, "graphs/mean_reverting_plot_latest.svg");
-    assert!(copied.is_ok(), "{}", format!("{:?} : {}", copied, out_file));
+    let draw_entries: Vec<StrategyEntry<'_, StrategyLog>> = vec![
+        ("value", vec![|x| x.right_mid, |x| x.predicted_right]),
+        ("return", vec![|x| x.short_position_return + x.long_position_return]),
+        ("PnL", vec![|x| x.pnl]),
+        ("Nominal Position", vec![|x| x.nominal_position]),
+        ("Beta", vec![|x| x.beta_lr]),
+        ("res", vec![|x| x.res]),
+        ("traded_price_left", vec![|x| x.traded_price_left]),
+        ("traded_price_right", vec![|x| x.traded_price_right]),
+        ("alpha_val", vec![|x| x.alpha]),
+        ("value_strat", vec![|x| x.value_strat]),
+    ];
+    let out_file = draw_line_plot(logs, draw_entries).expect("Should have drawn plots from strategy logs");
+    copy_file(
+        &out_file,
+        &format!("{}/naive_pair_trading_plot_{}_latest.html", &test_results_dir, "spot"),
+    );
 }
 
 fn write_model_values(test_results_dir: &str, model_values: &[(DateTime<Utc>, LinearModelValue, f64, f64, f64)]) {
