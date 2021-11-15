@@ -1,11 +1,14 @@
-use crate::error::*;
-use chrono::Utc;
-use db::{Storage, StorageExt};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
+
+use chrono::Utc;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+
+use db::{Storage, StorageExt};
+
+use crate::error::*;
 
 static WAL_KEY_SEP: &str = "|";
 
@@ -93,28 +96,5 @@ impl Wal {
     pub fn append_raw<T: Serialize>(&self, k: String, ts: i64, t: T) -> Result<()> {
         let key = format!("{}{}{}", k, WAL_KEY_SEP, ts);
         Ok(self.backend.put(&self.table, &key, t)?)
-    }
-
-    /// deprecated, wal key changed from t:k to k:t
-    pub fn delete_v1(&self, k: String, ts: i64) -> Result<()> {
-        let key = format!("{}{}{}", ts, WAL_KEY_SEP, k);
-        Ok(self.backend.delete(&self.table, &key)?)
-    }
-
-    /// deprecated, wal key changed from t:k to k:t
-    pub fn get_all_v1<T: DeserializeOwned>(&self) -> Result<Vec<(i64, (String, T))>> {
-        let v = self.backend.get_all::<serde_json::Value>(&self.table)?;
-        let res = v
-            .into_iter()
-            .filter_map(|(k, v)| {
-                match k.split_once(WAL_KEY_SEP) {
-                    Some((ts_str, key)) => ts_str.parse::<i64>().map(|t| (t, key.to_string())),
-                    None => Ok((0i64, k)),
-                }
-                .ok()
-                .and_then(|(t, k)| serde_json::from_value::<T>(v).map(|vt| (t, (k, vt))).ok())
-            })
-            .collect();
-        Ok(res)
     }
 }

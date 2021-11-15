@@ -11,8 +11,6 @@ use strategies::order_manager::OrderManager;
 
 #[derive(StructOpt, Debug, EnumString)]
 enum Cmd {
-    #[strum(serialize = "fix_transaction_logs")]
-    FixTransactionLogs,
     #[strum(serialize = "repair_orders")]
     RepairOrders,
 }
@@ -32,14 +30,6 @@ async fn main() {
     let db_options = DbOptions::new(options.db_path);
     let manager = OrderManager::new(Arc::new(MockExchangeApi::default()), &db_options, "");
     match options.cmd {
-        Cmd::FixTransactionLogs => {
-            let wal = manager.transactions_wal();
-            let transactions_old: Vec<(i64, (String, TransactionStatus))> = wal.get_all_v1().unwrap();
-            for (t, (k, v)) in transactions_old.into_iter() {
-                wal.append_raw(k.clone(), t, v).unwrap();
-                wal.delete_v1(k, t).unwrap();
-            }
-        }
         Cmd::RepairOrders => {
             manager.repair_orders().await;
         }

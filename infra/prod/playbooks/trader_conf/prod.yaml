@@ -1,9 +1,4 @@
 exchanges:
-  #  Bitstamp:
-  #    orderbook:
-  #      symbols: ['BTC_USD']
-  #      trades:
-  #        symbols: ['BTC_USD']
   binance:
     fees: 0.001
     use_account: true
@@ -11,9 +6,12 @@ exchanges:
     use_test: false
     orderbook_depth: 5
     orderbook:
-      symbols: [ 'BTC_USDT', 'LTC_USDT', 'ETC_USDT', 'FIS_USDT', 'VITE_USDT', 'BURGER_USDT', 'BAKE_USDT', 'ARPA_USDT' ]
+      symbols: [ 'LTC_USDT', 'ETC_USDT', 'FIS_USDT', 'VITE_USDT', 'BURGER_USDT', 'BAKE_USDT' ]
 
 balance_reporter:
+  refresh_rate: 10s
+
+margin_account_reporter:
   refresh_rate: 10s
 
 streams:
@@ -39,7 +37,8 @@ strategies:
     stop_loss: -0.1
     stop_gain: 0.075
     exchange: Binance
-    order_mode: limit
+    order_mode: market
+    order_asset_type: isolated_margin
   - type: mean_reverting
     pair: 'ETC_USDT'
     short_window_size: 100
@@ -55,7 +54,8 @@ strategies:
     stop_loss: -0.1
     stop_gain: 0.075
     exchange: Binance
-    order_mode: limit
+    order_mode: market
+    order_asset_type: isolated_margin
   - type: mean_reverting
     pair: 'FIS_USDT'
     short_window_size: 100
@@ -71,7 +71,8 @@ strategies:
     stop_loss: -0.1
     stop_gain: 0.075
     exchange: Binance
-    order_mode: limit
+    order_mode: market
+    order_asset_type: isolated_margin
   - type: mean_reverting
     pair: 'BURGER_USDT'
     short_window_size: 100
@@ -87,7 +88,8 @@ strategies:
     stop_loss: -0.1
     stop_gain: 0.075
     exchange: Binance
-    order_mode: limit
+    order_mode: market
+    order_asset_type: isolated_margin
   - type: mean_reverting
     pair: 'BAKE_USDT'
     short_window_size: 100
@@ -103,7 +105,8 @@ strategies:
     stop_loss: -0.1
     stop_gain: 0.075
     exchange: Binance
-    order_mode: limit
+    order_mode: market
+    order_asset_type: isolated_margin
 
 keys: /root/config/keys_real.json
 
