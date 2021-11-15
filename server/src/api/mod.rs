@@ -156,6 +156,7 @@ mod tests {
             use_account: true,
             use_margin_account: true,
             use_isolated_margin_account: true,
+            isolated_margin_account_pairs: vec![],
             use_test: false,
         })]
         .iter()
