@@ -4,6 +4,7 @@ exchanges:
     use_account: true
     use_margin_account: true
     use_isolated_margin_account: true
+    isolated_margin_account_pairs: [ 'LTC_USDT', 'ETC_USDT', 'FIS_USDT', 'VITE_USDT', 'BURGER_USDT', 'BAKE_USDT' ]
     use_test: false
     orderbook_depth: 5
     orderbook:

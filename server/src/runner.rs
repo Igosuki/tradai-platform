@@ -1,17 +1,19 @@
-use crate::settings;
-use crate::settings::{Settings, Version};
-use actix::System;
-#[cfg(feature = "gprof")]
-use gperftools::heap_profiler::HEAP_PROFILER;
-use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 #[cfg(feature = "flame_it")]
 use std::fs::File;
 use std::future::Future;
 use std::process;
 use std::sync::mpsc::channel;
 use std::sync::Arc;
+
+use actix::System;
+#[cfg(feature = "gprof")]
+use gperftools::heap_profiler::HEAP_PROFILER;
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use structopt::StructOpt;
 use tokio::sync::RwLock;
+
+use crate::settings;
+use crate::settings::{Settings, Version};
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
@@ -41,7 +43,6 @@ where
         process::exit(0x0100);
     }
     let config_file = get_config_file(&opts).await;
-
     let settings = Arc::new(RwLock::new(
         settings::Settings::new(config_file).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?,
     ));
