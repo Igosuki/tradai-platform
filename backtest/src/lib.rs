@@ -106,6 +106,7 @@ impl Backtest {
             use_margin_account: false,
             use_account: true,
             use_test: true,
+            use_isolated_margin_account: false,
         };
         let strategy_driver = strategies::settings::from_settings(
             &db_conf,

@@ -156,6 +156,13 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 )
                 .await?;
                 bots.extend(margin_bots);
+                let isolated_margin_bots = bots::isolated_margin_account_bots(
+                    exchanges_conf.clone(),
+                    keys_path.clone(),
+                    margin_account_recipients.clone(),
+                )
+                .await?;
+                bots.extend(isolated_margin_bots);
                 if !bots.is_empty() {
                     termination_handles.push(Box::pin(bots::poll_bots_vec(bots)));
                 }
