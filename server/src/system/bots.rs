@@ -30,22 +30,14 @@ pub async fn spot_account_bots(
     keys_path: PathBuf,
     recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>>,
 ) -> anyhow::Result<Vec<Box<dyn ExchangeBot>>> {
-    let mut bots: Vec<Box<dyn ExchangeBot>> = vec![];
-    for (xch, conf) in exchanges_settings.clone().iter() {
-        let creds = Coinnect::credentials_for(*xch, keys_path.clone())?;
-        if conf.use_account {
-            let bot = Coinnect::new_account_stream(
-                *xch,
-                creds.clone(),
-                recipients.get(xch).cloned().unwrap_or_default(),
-                conf.use_test,
-                AccountType::Spot,
-            )
-            .await?;
-            bots.push(bot);
-        }
-    }
-    Ok(bots)
+    make_bots(
+        exchanges_settings,
+        keys_path,
+        AccountType::Spot,
+        recipients,
+        |(_, conf)| conf.use_account,
+    )
+    .await
 }
 
 pub async fn margin_account_bots(
@@ -53,20 +45,50 @@ pub async fn margin_account_bots(
     keys_path: PathBuf,
     recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>>,
 ) -> anyhow::Result<Vec<Box<dyn ExchangeBot>>> {
-    let mut bots: Vec<Box<dyn ExchangeBot>> = vec![];
-    for (xch, conf) in exchanges_settings.clone().iter() {
+    make_bots(
+        exchanges_settings,
+        keys_path,
+        AccountType::Margin,
+        recipients,
+        |(_, conf)| conf.use_margin_account,
+    )
+    .await
+}
+
+pub async fn isolated_margin_account_bots(
+    exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
+    keys_path: PathBuf,
+    recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>>,
+) -> anyhow::Result<Vec<Box<dyn ExchangeBot>>> {
+    make_bots(
+        exchanges_settings,
+        keys_path,
+        AccountType::IsolatedMargin,
+        recipients,
+        |(_, conf)| conf.use_isolated_margin_account,
+    )
+    .await
+}
+
+pub async fn make_bots(
+    exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
+    keys_path: PathBuf,
+    account_type: AccountType,
+    recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>>,
+    pred: fn(&(&Exchange, &ExchangeSettings)) -> bool,
+) -> anyhow::Result<Vec<Box<dyn ExchangeBot>>> {
+    let mut bots = vec![];
+    for (xch, conf) in exchanges_settings.iter().filter(pred) {
         let creds = Coinnect::credentials_for(*xch, keys_path.clone())?;
-        if conf.use_margin_account {
-            let bot = Coinnect::new_account_stream(
-                *xch,
-                creds,
-                recipients.get(xch).cloned().unwrap_or_default(),
-                conf.use_test,
-                AccountType::Margin,
-            )
-            .await?;
-            bots.push(bot);
-        }
+        let bot = Coinnect::new_account_stream(
+            *xch,
+            creds.clone(),
+            recipients.get(xch).cloned().unwrap_or_default(),
+            conf.use_test,
+            account_type,
+        )
+        .await?;
+        bots.push(bot);
     }
     Ok(bots)
 }
