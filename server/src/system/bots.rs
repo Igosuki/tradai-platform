@@ -7,6 +7,7 @@ use actix::Recipient;
 use tracing::Instrument;
 
 use coinnect_rt::bot::{ExchangeBot, Ping};
+use coinnect_rt::pair::pair_to_symbol;
 use coinnect_rt::prelude::*;
 
 pub async fn exchange_bots(
@@ -60,14 +61,26 @@ pub async fn isolated_margin_account_bots(
     keys_path: PathBuf,
     recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>>,
 ) -> anyhow::Result<Vec<Box<dyn ExchangeBot>>> {
-    make_bots(
-        exchanges_settings,
-        keys_path,
-        AccountType::IsolatedMargin,
-        recipients,
-        |(_, conf)| conf.use_isolated_margin_account,
-    )
-    .await
+    let mut bots = vec![];
+    for (xch, conf) in exchanges_settings
+        .iter()
+        .filter(|(_, conf)| conf.use_isolated_margin_account)
+    {
+        for pair in &conf.isolated_margin_account_pairs {
+            let symbol = pair_to_symbol(xch, &Pair::from(pair.as_str()))?;
+            let creds = Coinnect::credentials_for(*xch, keys_path.clone())?;
+            let bot = Coinnect::new_account_stream(
+                *xch,
+                creds.clone(),
+                recipients.get(xch).cloned().unwrap_or_default(),
+                conf.use_test,
+                AccountType::IsolatedMargin(symbol.to_string()),
+            )
+            .await?;
+            bots.push(bot);
+        }
+    }
+    Ok(bots)
 }
 
 pub async fn make_bots(
@@ -85,7 +98,7 @@ pub async fn make_bots(
             creds.clone(),
             recipients.get(xch).cloned().unwrap_or_default(),
             conf.use_test,
-            account_type,
+            account_type.clone(),
         )
         .await?;
         bots.push(bot);
