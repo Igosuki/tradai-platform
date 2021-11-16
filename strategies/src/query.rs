@@ -82,4 +82,5 @@ pub struct ModelReset {
 pub struct StrategyIndicators {
     pub pnl: f64,
     pub current_return: f64,
+    pub value: f64,
 }

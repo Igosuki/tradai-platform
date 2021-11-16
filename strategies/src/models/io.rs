@@ -28,14 +28,10 @@ pub trait IterativeModel {
 
 #[cfg(test)]
 mod test {
-    use std::io::BufWriter;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
     use std::sync::Arc;
 
     use chrono::{TimeZone, Utc};
-    use serde::ser::SerializeSeq;
-    use serde::Serialize;
-    use serde::Serializer;
 
     use coinnect_rt::exchange::Exchange;
     use db::MemoryKVStore;
@@ -49,16 +45,6 @@ mod test {
     use crate::mean_reverting::options::Options;
     use crate::models::io::{IterativeModel, LoadableModel};
     use crate::test_util::init;
-
-    pub fn write_as_seq<P: AsRef<Path>, T: Serialize>(out_file: P, all_models: Vec<T>) {
-        let logs_f = std::fs::File::create(out_file).unwrap();
-        let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
-        let mut seq = ser.serialize_seq(None).unwrap();
-        for models in all_models {
-            seq.serialize_element(&models).unwrap();
-        }
-        SerializeSeq::end(seq).unwrap();
-    }
 
     const PAIR: &str = "BTC_USDT";
 
@@ -99,7 +85,7 @@ mod test {
 
         let mut model_values_file_path = results_dir;
         model_values_file_path.push("model_values.json");
-        write_as_seq(model_values_file_path, model_values.clone());
+        write_as_seq(model_values_file_path, model_values.as_slice());
         Ok(())
     }
 }
