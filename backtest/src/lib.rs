@@ -7,36 +7,37 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use chrono::{DateTime, Duration, TimeZone, Utc};
+use chrono::{Duration, TimeZone, Utc};
+use itertools::Itertools;
 use tokio::sync::Mutex;
 
 use ext::ResultExt;
 use strategies::driver::StrategyDriver;
 use strategies::margin_interest_rates::test_util::mock_interest_rate_provider;
 use strategies::order_manager::test_util::mock_manager;
-use strategies::query::{DataQuery, DataResult, StrategyIndicators};
+use strategies::query::{DataQuery, DataResult};
 use strategies::settings::StrategySettings;
 use strategies::types::{BookPosition, StratEvent};
 use strategies::{Channel, DbOptions, Exchange, ExchangeSettings, LiveEvent, LiveEventEnvelope, Pair, StratEventLogger};
-use util::serde::write_as_seq;
 use util::test::test_dir;
-use util::time::{now, now_str, DateRange};
+use util::time::{now, DateRange};
 
 use crate::datasources::orderbook::convert::events_from_orderbooks;
 use crate::datasources::orderbook::csv_source::{csv_orderbooks_df, events_from_csv_orderbooks};
 use crate::datasources::orderbook::raw_source::raw_orderbooks_df;
 use crate::datasources::orderbook::sampled_source::sampled_orderbooks_df;
+use crate::report::{BacktestReport, TimedData, TimedVec};
 pub use crate::{config::*, error::*};
 
 mod config;
 mod datafusion_util;
 mod datasources;
 mod error;
+mod report;
 
 #[derive(Deserialize, Copy, Clone)]
 #[serde(rename_all = "snake_case")]
@@ -66,50 +67,6 @@ impl ToString for DatasetInputFormat {
     }
 }
 
-pub type TimedVec<T> = Vec<TimedData<T>>;
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TimedData<T> {
-    ts: DateTime<Utc>,
-    #[serde(flatten)]
-    value: T,
-}
-
-impl<T> TimedData<T> {
-    fn new(ts: DateTime<Utc>, value: T) -> Self { Self { ts, value } }
-}
-
-#[derive(Serialize, Deserialize, Default)]
-struct BacktestReport {
-    model_failures: u32,
-    models: TimedVec<BTreeMap<String, Option<serde_json::Value>>>,
-    indicator_failures: u32,
-    indicators: TimedVec<StrategyIndicators>,
-    book_positions: TimedVec<BookPosition>,
-    events: TimedVec<StratEvent>,
-}
-
-impl BacktestReport {
-    fn write_to<P: AsRef<Path>>(&self, output_dir: P) -> Result<()> {
-        let mut report_dir = output_dir.as_ref().to_path_buf();
-        report_dir.push(now_str());
-        std::fs::create_dir_all(report_dir.clone())?;
-        let mut file = report_dir.clone();
-        file.push("models.json");
-        write_as_seq(file, self.models.as_slice());
-        let mut file = report_dir.clone();
-        file.push("report.json");
-        write_as_seq(file, vec![self].as_slice());
-        let mut file = report_dir.clone();
-        file.push("indicators.json");
-        write_as_seq(file, self.indicators.as_slice());
-        let mut file = report_dir;
-        file.push("strat_events.json");
-        write_as_seq(file, self.events.as_slice());
-        Ok(())
-    }
-}
-
 pub struct Backtest {
     period: DateRange,
     strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
@@ -131,6 +88,7 @@ impl Backtest {
             .into_string()
             .unwrap();
         info!("db_path = {:?}", db_path);
+        std::fs::remove_dir_all(db_path.clone()).unwrap();
         let output_path = conf.output_dir.clone().unwrap_or_else(|| {
             let mut p = test_dir().into_path();
             p.push("results");
@@ -251,7 +209,8 @@ impl Backtest {
     ) -> BacktestReport {
         let mut strategy = strategy.lock().await;
         let mut report = BacktestReport::default();
-        for live_event in live_events {
+        for live_event in live_events.iter().sorted_by_key(|le| le.e.time().timestamp_millis()) {
+            util::time::set_current_time(live_event.e.time());
             strategy.add_event(live_event).await.unwrap();
             // If there is an ongoing operation, resolve orders
             let mut tries = 0;
