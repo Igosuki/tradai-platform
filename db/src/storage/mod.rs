@@ -5,12 +5,11 @@ use std::sync::Arc;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use ext::ResultExt;
+use ext::{ResultExt, ToAny};
 
 use crate::error::*;
 use crate::storage::rocksdb::RocksDbOptions;
 use crate::RocksDbStorage;
-use std::any::Any;
 
 pub mod mem;
 #[cfg(feature = "rkv-lmdb")]
@@ -135,21 +134,6 @@ impl<T: Storage + ?Sized> StorageExt for T {
         K: AsRef<[u8]>,
     {
         self._delete_range(table, from.as_ref(), to.as_ref())
-    }
-}
-
-pub trait ToAny {
-    fn to_any<'a>(self: Arc<Self>) -> Arc<dyn Any + 'a>
-    where
-        Self: 'a;
-}
-
-impl<T: Any> ToAny for T {
-    fn to_any<'a>(self: Arc<Self>) -> Arc<dyn Any + 'a>
-    where
-        Self: 'a,
-    {
-        self
     }
 }
 

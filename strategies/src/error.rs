@@ -36,6 +36,8 @@ pub enum Error {
     StagedOrderRequired,
     #[error("invalid position")]
     InvalidPosition,
+    #[error("invalid book position")]
+    BookError(#[from] BookError),
     #[error("feature is not available yet for this")]
     FeatureNotImplemented,
     #[cfg(feature = "python")]
@@ -66,6 +68,7 @@ impl Error {
             Error::StagedOrderRequired => "staged_order_required",
             Error::Json(_) => "json",
             Error::OperationMissingOrder(_) => "operation_missing_order",
+            Error::BookError(_) => "book_error",
         }
     }
 }
@@ -73,7 +76,7 @@ impl Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Error, Debug)]
-pub enum DataTableError {
+pub enum BookError {
     #[error("at least one bid expected")]
     MissingBids,
     #[error("at least one ask expected")]
