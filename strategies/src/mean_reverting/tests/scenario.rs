@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use chrono::{DateTime, TimeZone, Utc};
+use itertools::Itertools;
 use tokio::time::Duration;
 
 use coinnect_rt::prelude::*;
@@ -155,11 +156,8 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
             if tries > 5 {
                 break;
             }
-            if let Some(op) = strat.state.ongoing_op().cloned() {
+            if strat.state.ongoing_op().is_some() {
                 strat.resolve_orders().await;
-                if strat.state.ongoing_op().is_none() {
-                    trade_events.push((op.operation_event().clone(), op.trade_event()))
-                }
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 tries += 1;
             } else {
@@ -186,7 +184,9 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
         before_evals.elapsed().as_millis(),
         elapsed / num_records as u128
     );
-
+    for op in strat.get_operations().iter().sorted_by_key(|o| o.pos.time) {
+        trade_events.push((op.operation_event().clone(), op.trade_event()))
+    }
     write_ema_values(&test_results_dir, &model_values);
     crate::test_util::log::write_trade_events(&test_results_dir, &trade_events);
     write_thresholds(&test_results_dir, &strategy_logs);
