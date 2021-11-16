@@ -40,6 +40,8 @@ parse_duration = "2.1"
 env_logger = { version = "0.9", optional = true }
 typed-builder = "0.9"
 async-trait = "0.1"
+itertools = "0.10"
 # data
 datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "map_access_i_optional_features", version = "5.1", default-features = false, features = ["avro"] }
 #datafusion = { path = "/home/geps/dev/oss/arrow-datafusion/datafusion", version = "5.1", default-features = false, features = ["avro"] }
+plotly = { version = "0.6.0", features = ["kaleido"] }
