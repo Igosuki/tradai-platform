@@ -11,7 +11,7 @@ use uuid::Uuid;
 use coinnect_rt::prelude::*;
 use coinnect_rt::types::MarginSideEffect;
 
-use crate::error::DataTableError;
+use crate::error::BookError;
 
 // ------------ Behavioral Types ---------
 
@@ -228,14 +228,14 @@ impl BookPosition {
 }
 
 impl TryFrom<Orderbook> for BookPosition {
-    type Error = DataTableError;
+    type Error = BookError;
 
     fn try_from(t: Orderbook) -> Result<Self, Self::Error> {
         if t.asks.is_empty() {
-            return Err(DataTableError::MissingAsks);
+            return Err(BookError::MissingAsks);
         }
         if t.bids.is_empty() {
-            return Err(DataTableError::MissingBids);
+            return Err(BookError::MissingBids);
         }
         let event_time = Utc.timestamp_millis(t.timestamp);
         Ok(BookPosition::new(event_time, &t.asks, &t.bids))
@@ -243,14 +243,14 @@ impl TryFrom<Orderbook> for BookPosition {
 }
 
 impl<'a> TryFrom<&'a Orderbook> for BookPosition {
-    type Error = DataTableError;
+    type Error = BookError;
 
     fn try_from(t: &'a Orderbook) -> Result<Self, Self::Error> {
         if t.asks.is_empty() {
-            return Err(DataTableError::MissingAsks);
+            return Err(BookError::MissingAsks);
         }
         if t.bids.is_empty() {
-            return Err(DataTableError::MissingBids);
+            return Err(BookError::MissingBids);
         }
         let event_time = Utc.timestamp_millis(t.timestamp);
         Ok(BookPosition::new(event_time, &t.asks, &t.bids))

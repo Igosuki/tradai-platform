@@ -804,10 +804,12 @@ name = "backtest"
 version = "0.1.0"
 dependencies = [
  "actix",
+ "async-trait",
  "chrono",
  "config 0.11.0",
  "datafusion",
  "env_logger 0.9.0",
+ "ext",
  "futures",
  "log",
  "parse_duration",

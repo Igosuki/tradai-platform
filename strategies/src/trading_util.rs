@@ -18,22 +18,24 @@ pub(crate) struct Stopper<T> {
 impl<T: std::cmp::PartialOrd + Copy> Stopper<T> {
     pub(crate) fn new(stop_gain: T, stop_loss: T) -> Self { Self { stop_gain, stop_loss } }
 
-    pub(crate) fn should_stop(&self, ret: T) -> bool {
-        let stop_type = if ret > self.stop_gain {
+    /// Returns `Some(StopEvent)` if the stop conditions are matched, `None` otherwise
+    pub(crate) fn should_stop(&self, ret: T) -> Option<StopEvent> {
+        if ret > self.stop_gain {
             Some(StopEvent::Gain)
         } else if ret < self.stop_loss {
             Some(StopEvent::Loss)
         } else {
             None
-        };
-        stop_type
-            .map(|stop| {
-                let strat_event = StratEvent::Stop { stop };
-                strat_event.log();
-                strat_event
-            })
-            .is_some()
+        }
     }
+}
+
+pub fn maybe_log_stop(stop_event: Option<StopEvent>) {
+    stop_event.map(|stop| {
+        let strat_event = StratEvent::Stop { stop };
+        strat_event.log();
+        strat_event
+    });
 }
 
 pub async fn get_interest_rate(

@@ -131,6 +131,7 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
         conf,
         order_manager_addr,
         margin_interest_rate_provider_addr,
+        None,
     );
     let mut elapsed = 0_u128;
     let csv_records =

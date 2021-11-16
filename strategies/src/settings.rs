@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use actix::Addr;
 
 use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
@@ -9,7 +11,7 @@ use crate::generic::Strategy;
 use crate::mean_reverting::options::Options as MeanRevertingStrategyOptions;
 use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::order_manager::OrderManager;
-use crate::{error, generic, DbOptions, StrategyKey, StrategyType};
+use crate::{error, generic, DbOptions, StratEventLogger, StrategyKey, StrategyType};
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type")]
@@ -74,6 +76,7 @@ pub fn from_settings(
     s: &StrategySettings,
     om: Option<Addr<OrderManager>>,
     mirp: Addr<MarginInterestRateProvider>,
+    logger: Option<Arc<dyn StratEventLogger>>,
 ) -> Box<dyn StrategyDriver> {
     match s {
         StrategySettings::Naive(n) => {
@@ -99,6 +102,7 @@ pub fn from_settings(
                     n,
                     o,
                     mirp,
+                    logger,
                 ))
             } else {
                 log::error!(
@@ -108,7 +112,7 @@ pub fn from_settings(
             }
         }
         StrategySettings::Generic(s) => {
-            let inner: Box<dyn generic::Strategy> = from_settings_s(db, exchange_conf, s, om, mirp);
+            let inner: Box<dyn generic::Strategy> = from_settings_s(db, exchange_conf, s, om, mirp, logger);
             Box::new(crate::generic::GenericStrategy::try_new(inner.channels().into_iter().collect(), inner).unwrap())
         }
     }
@@ -120,6 +124,7 @@ pub(crate) fn from_settings_s(
     s: &StrategySettings,
     om: Option<Addr<OrderManager>>,
     mirp: Addr<MarginInterestRateProvider>,
+    logger: Option<Arc<dyn StratEventLogger>>,
 ) -> Box<dyn Strategy> {
     match s {
         StrategySettings::MeanReverting(n) => {
@@ -130,6 +135,7 @@ pub(crate) fn from_settings_s(
                     n,
                     o,
                     mirp,
+                    logger,
                 ))
             } else {
                 log::error!(
