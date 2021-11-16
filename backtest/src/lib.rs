@@ -1,25 +1,31 @@
 #![feature(box_patterns)]
+
+#[macro_use]
+extern crate async_trait;
 #[macro_use]
 extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
-use chrono::{Duration, TimeZone, Utc};
+use chrono::{DateTime, Duration, TimeZone, Utc};
 use tokio::sync::Mutex;
 
+use ext::ResultExt;
 use strategies::driver::StrategyDriver;
 use strategies::margin_interest_rates::test_util::mock_interest_rate_provider;
 use strategies::order_manager::test_util::mock_manager;
 use strategies::query::{DataQuery, DataResult, StrategyIndicators};
 use strategies::settings::StrategySettings;
-use strategies::{Channel, DbOptions, Exchange, ExchangeSettings, LiveEventEnvelope, Pair};
+use strategies::types::{BookPosition, StratEvent};
+use strategies::{Channel, DbOptions, Exchange, ExchangeSettings, LiveEvent, LiveEventEnvelope, Pair, StratEventLogger};
 use util::serde::write_as_seq;
 use util::test::test_dir;
-use util::time::{now_str, DateRange};
+use util::time::{now, now_str, DateRange};
 
 use crate::datasources::orderbook::convert::events_from_orderbooks;
 use crate::datasources::orderbook::csv_source::{csv_orderbooks_df, events_from_csv_orderbooks};
@@ -60,12 +66,27 @@ impl ToString for DatasetInputFormat {
     }
 }
 
+pub type TimedVec<T> = Vec<TimedData<T>>;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TimedData<T> {
+    ts: DateTime<Utc>,
+    #[serde(flatten)]
+    value: T,
+}
+
+impl<T> TimedData<T> {
+    fn new(ts: DateTime<Utc>, value: T) -> Self { Self { ts, value } }
+}
+
 #[derive(Serialize, Deserialize, Default)]
 struct BacktestReport {
     model_failures: u32,
-    models: Vec<Vec<(String, Option<serde_json::Value>)>>,
+    models: TimedVec<BTreeMap<String, Option<serde_json::Value>>>,
     indicator_failures: u32,
-    indicators: Vec<StrategyIndicators>,
+    indicators: TimedVec<StrategyIndicators>,
+    book_positions: TimedVec<BookPosition>,
+    events: TimedVec<StratEvent>,
 }
 
 impl BacktestReport {
@@ -79,10 +100,12 @@ impl BacktestReport {
         let mut file = report_dir.clone();
         file.push("report.json");
         write_as_seq(file, vec![self].as_slice());
-        let mut file = report_dir;
+        let mut file = report_dir.clone();
         file.push("indicators.json");
         write_as_seq(file, self.indicators.as_slice());
-
+        let mut file = report_dir;
+        file.push("strat_events.json");
+        write_as_seq(file, self.events.as_slice());
         Ok(())
     }
 }
@@ -90,6 +113,7 @@ impl BacktestReport {
 pub struct Backtest {
     period: DateRange,
     strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
+    strategy_events_logger: Arc<VecEventLogger>,
     data_dir: PathBuf,
     output_dir: PathBuf,
     input_format: DatasetInputFormat,
@@ -129,16 +153,20 @@ impl Backtest {
             use_isolated_margin_account: false,
             isolated_margin_account_pairs: vec![],
         };
+
+        let logger: Arc<VecEventLogger> = Arc::new(VecEventLogger::default());
         let strategy_driver = strategies::settings::from_settings(
             &db_conf,
             &exchange_conf,
             strategy_settings,
             Some(order_manager_addr),
             margin_interest_rate_provider_addr,
+            Some(logger.clone()),
         );
         Ok(Self {
             period: conf.period.as_range(),
             strategy: Arc::new(Mutex::new(strategy_driver)),
+            strategy_events_logger: logger,
             data_dir: conf.data_dir.clone(),
             input_format: conf.input_format.clone(),
             input_sample_rate: conf.input_sample_rate,
@@ -148,8 +176,11 @@ impl Backtest {
     }
 
     pub async fn run(&self) -> Result<()> {
-        let strategy = self.strategy.lock().await;
-        let chans = strategy.channels();
+        let chans = {
+            let strategy = self.strategy.lock().await;
+            strategy.channels()
+        };
+
         let before_read = Instant::now();
         let live_events = self.read_channels(chans).await?;
         let elapsed = before_read.elapsed();
@@ -159,7 +190,7 @@ impl Backtest {
             elapsed.as_secs(),
             elapsed.subsec_millis()
         );
-        let report = Self::run_strategy(self.strategy.clone(), live_events.as_slice()).await;
+        let report = self.run_strategy(self.strategy.clone(), live_events.as_slice()).await;
         report.write_to(self.output_dir.clone())?;
 
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -214,6 +245,7 @@ impl Backtest {
     }
 
     async fn run_strategy(
+        &self,
         strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
         live_events: &[LiveEventEnvelope],
     ) -> BacktestReport {
@@ -239,19 +271,29 @@ impl Backtest {
                     break;
                 }
             }
+            if let LiveEvent::LiveOrderbook(ob) = &live_event.e {
+                let bp_try: Result<BookPosition> = ob.try_into().err_into();
+                if let Ok(bp) = bp_try {
+                    report.book_positions.push(TimedData::new(live_event.e.time(), bp));
+                }
+            }
             match strategy.data(DataQuery::Models) {
-                Ok(DataResult::Models(models)) => report.models.push(models),
+                Ok(DataResult::Models(models)) => report
+                    .models
+                    .push(TimedData::new(live_event.e.time(), models.into_iter().collect())),
                 _ => {
                     report.model_failures += 1;
                 }
             }
             match strategy.data(DataQuery::Indicators) {
-                Ok(DataResult::Indicators(i)) => report.indicators.push(i),
+                Ok(DataResult::Indicators(i)) => report.indicators.push(TimedData::new(live_event.e.time(), i)),
                 _ => {
                     report.indicator_failures += 1;
                 }
             }
         }
+        let read = self.strategy_events_logger.get_events().await;
+        report.events = read;
         report
     }
 
@@ -291,5 +333,34 @@ impl Backtest {
             partitions.push(partition_file.as_path().to_string_lossy().to_string());
         }
         partitions
+    }
+}
+
+#[derive(Clone)]
+pub struct VecEventLogger {
+    events: Arc<Mutex<TimedVec<StratEvent>>>,
+}
+
+impl Default for VecEventLogger {
+    fn default() -> Self {
+        Self {
+            events: Arc::new(Mutex::new(vec![])),
+        }
+    }
+}
+impl VecEventLogger {
+    pub async fn get_events(&self) -> TimedVec<StratEvent> {
+        let read = self.events.lock().await;
+        read.clone()
+    }
+}
+
+#[async_trait]
+impl StratEventLogger for VecEventLogger {
+    async fn maybe_log(&self, event: Option<StratEvent>) {
+        if let Some(e) = event {
+            let mut write = self.events.lock().await;
+            write.push(TimedData::new(now(), e));
+        }
     }
 }

@@ -12,10 +12,14 @@ name = "backtest"
 path = "src/main.rs"
 required-features = ["env_logger"]
 
+[features]
+mock_time = ["util/mock_time"]
+
 [dependencies]
 # trader
 strategies = { path = "../strategies" }
 util = { path = "../util" }
+ext = { path = "../ext" }
 
 # async
 futures = "0.3"
@@ -35,6 +39,7 @@ chrono = { version = "0.4", features = ["serde"] }
 parse_duration = "2.1"
 env_logger = { version = "0.9", optional = true }
 typed-builder = "0.9"
+async-trait = "0.1"
 # data
 datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "map_access_i_optional_features", version = "5.1", default-features = false, features = ["avro"] }
 #datafusion = { path = "/home/geps/dev/oss/arrow-datafusion/datafusion", version = "5.1", default-features = false, features = ["avro"] }

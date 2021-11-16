@@ -169,15 +169,16 @@ release_om_tool:
 	make target=om_tool features=rocksdb-vendor,zstd,structopt,binary release
 
 release_backtest:
-	make target=backtest release
+	make target=backtest features=env_logger,mock_time,rocksdb-vendor,zstd release
+
+release_local_backtest:
+	@$(CARGO_BIN) build --release --bin backtest --features=env_logger,mock_time
 
 bin_tag=latest
 download_binary:
 	mkdir -p build/binaries
 	aws --profile btcfeed s3 cp --endpoint=https://nyc3.digitaloceanspaces.com s3://btcfeed/binaries/$(target)/$(target)-$(bin_tag) build/binaries/$(target)
 
-release_local_backtest:
-	@$(CARGO_BIN) build --release --bin backtest --features=env_logger
 
 python_target=python3.9
 build_python_lib:

@@ -1,3 +1,6 @@
+use std::any::Any;
+use std::sync::Arc;
+
 use itertools::Itertools;
 
 pub trait MapInto<T> {
@@ -53,5 +56,20 @@ impl<T, E> ResultExt<T, E> for Result<T, E> {
         E: Into<U>,
     {
         self.map_err(Into::into)
+    }
+}
+
+pub trait ToAny {
+    fn to_any<'a>(self: Arc<Self>) -> Arc<dyn Any + 'a>
+    where
+        Self: 'a;
+}
+
+impl<T: Any> ToAny for T {
+    fn to_any<'a>(self: Arc<Self>) -> Arc<dyn Any + 'a>
+    where
+        Self: 'a,
+    {
+        self
     }
 }

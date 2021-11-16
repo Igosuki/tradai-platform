@@ -31,6 +31,7 @@ extern crate serde;
 extern crate tracing;
 
 use std::str::FromStr;
+use std::sync::Arc;
 
 use actix::Addr;
 use derive_more::Display;
@@ -54,6 +55,7 @@ pub use settings::{StrategyCopySettings, StrategySettings};
 use crate::actor::StrategyActorOptions;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult};
+use crate::types::StratEvent;
 
 pub mod actor;
 pub mod driver;
@@ -129,6 +131,7 @@ impl Strategy {
         settings: &StrategySettings,
         om: Option<Addr<OrderManager>>,
         mirp: Addr<MarginInterestRateProvider>,
+        logger: Option<Arc<dyn StratEventLogger>>,
     ) -> Self {
         let uuid = Uuid::new_v4();
         let key = settings.key();
@@ -136,7 +139,9 @@ impl Strategy {
         let settings = settings.clone();
         let exchange_conf = exchange_conf.clone();
         let actor = StrategyActor::new_with_uuid(
-            Box::new(move || settings::from_settings(&db, &exchange_conf, &settings, om.clone(), mirp.clone())),
+            Box::new(move || {
+                settings::from_settings(&db, &exchange_conf, &settings, om.clone(), mirp.clone(), logger.clone())
+            }),
             actor_settings,
             uuid,
         );
@@ -144,6 +149,11 @@ impl Strategy {
         info!(uuid = %uuid, channels = ?channels, "starting strategy");
         Self(key, actix::Supervisor::start(|_| actor), channels)
     }
+}
+
+#[async_trait]
+pub trait StratEventLogger: Sync + Send {
+    async fn maybe_log(&self, event: Option<StratEvent>);
 }
 
 #[cfg(test)]

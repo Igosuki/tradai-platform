@@ -301,6 +301,7 @@ async fn strategies(
                 &strategy_settings,
                 oms.get(&exchange).cloned(),
                 mirp,
+                None,
             )
         }
     }))

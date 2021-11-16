@@ -2,6 +2,8 @@ use config::ConfigError;
 use datafusion::arrow::error::ArrowError;
 use datafusion::error::DataFusionError;
 
+use strategies::error::BookError;
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("configuration error")]
@@ -12,6 +14,8 @@ pub enum Error {
     ArrowError(#[from] ArrowError),
     #[error("io error")]
     IoError(#[from] std::io::Error),
+    #[error("invalid book position")]
+    BookError(#[from] BookError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
