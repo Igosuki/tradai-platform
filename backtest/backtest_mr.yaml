@@ -21,7 +21,7 @@ fees: 0.001
 period:
   type: interval
   from: 2021-10-21
-  to: 2021-10-21
+  to: 2021-10-28
 
 input_format: avro
 input_dataset: orderbooks_by_minute
