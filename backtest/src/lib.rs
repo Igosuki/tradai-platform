@@ -4,14 +4,11 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
-use std::collections::BTreeMap;
-use std::io::BufWriter;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
 use chrono::{Duration, TimeZone, Utc};
-use serde::{ser::SerializeSeq, Serializer};
 use tokio::sync::Mutex;
 
 use strategies::driver::StrategyDriver;
@@ -19,9 +16,10 @@ use strategies::margin_interest_rates::test_util::mock_interest_rate_provider;
 use strategies::order_manager::test_util::mock_manager;
 use strategies::query::{DataQuery, DataResult};
 use strategies::settings::StrategySettings;
-use strategies::{Channel, DbOptions, Exchange, ExchangeSettings, Pair};
+use strategies::{Channel, DbOptions, Exchange, ExchangeSettings, LiveEventEnvelope, Pair};
+use util::serde::write_as_seq;
 use util::test::test_dir;
-use util::time::DateRange;
+use util::time::{now_str, DateRange};
 
 use crate::datasources::orderbook::convert::events_from_orderbooks;
 use crate::datasources::orderbook::csv_source::{csv_orderbooks_df, events_from_csv_orderbooks};
@@ -65,6 +63,22 @@ impl ToString for DatasetInputFormat {
 #[derive(Serialize, Deserialize, Default)]
 struct BacktestReport {
     model_failures: u32,
+    models: Vec<Vec<(String, Option<serde_json::Value>)>>,
+}
+
+impl BacktestReport {
+    fn write_to<P: AsRef<Path>>(&self, output_dir: P) -> Result<()> {
+        let mut report_dir = output_dir.as_ref().to_path_buf();
+        report_dir.push(now_str());
+        std::fs::create_dir_all(report_dir.clone())?;
+        let mut file = report_dir.clone();
+        file.push("models.json");
+        write_as_seq(file, self.models.as_slice());
+        let mut file = report_dir;
+        file.push("report.json");
+        write_as_seq(file, vec![self].as_slice());
+        Ok(())
+    }
 }
 
 pub struct Backtest {
@@ -128,10 +142,26 @@ impl Backtest {
     }
 
     pub async fn run(&self) -> Result<()> {
-        let mut strategy = self.strategy.lock().await;
+        let strategy = self.strategy.lock().await;
         let chans = strategy.channels();
-        let mut live_events = vec![];
         let before_read = Instant::now();
+        let live_events = self.read_channels(chans).await?;
+        let elapsed = before_read.elapsed();
+        info!(
+            "read {} events in {}.{}s",
+            live_events.len(),
+            elapsed.as_secs(),
+            elapsed.subsec_millis()
+        );
+        let report = Self::run_strategy(self.strategy.clone(), live_events.as_slice()).await;
+        report.write_to(self.output_dir.clone())?;
+
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        Ok(())
+    }
+
+    async fn read_channels(&self, chans: Vec<Channel>) -> Result<Vec<LiveEventEnvelope>> {
+        let mut live_events = vec![];
         for chan in chans {
             match chan {
                 Channel::Orderbooks { xch, pair } => {
@@ -174,17 +204,17 @@ impl Backtest {
                 }
             }
         }
-        let elapsed = before_read.elapsed();
-        info!(
-            "read {} events in {}.{}s",
-            live_events.len(),
-            elapsed.as_secs(),
-            elapsed.subsec_millis()
-        );
-        let mut all_models: Vec<Vec<(String, Option<serde_json::Value>)>> = vec![];
+        Ok(live_events)
+    }
+
+    async fn run_strategy(
+        strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
+        live_events: &[LiveEventEnvelope],
+    ) -> BacktestReport {
+        let mut strategy = strategy.lock().await;
         let mut report = BacktestReport::default();
         for live_event in live_events {
-            strategy.add_event(&live_event).await.unwrap();
+            strategy.add_event(live_event).await.unwrap();
             // If there is an ongoing operation, resolve orders
             let mut tries = 0;
             loop {
@@ -204,18 +234,13 @@ impl Backtest {
                 }
             }
             match strategy.data(DataQuery::Models) {
-                Ok(DataResult::Models(models)) => all_models.push(models),
+                Ok(DataResult::Models(models)) => report.models.push(models),
                 _ => {
                     report.model_failures += 1;
                 }
             }
         }
-        std::fs::create_dir_all(self.output_dir.clone())?;
-        write_models(self.output_dir.clone(), all_models);
-        write_report(self.output_dir.clone(), report);
-
-        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-        Ok(())
+        report
     }
 
     fn dataset_partitions(&self, period: DateRange, xch: Exchange, pair: &Pair) -> Vec<String> {
@@ -255,27 +280,4 @@ impl Backtest {
         }
         partitions
     }
-}
-
-fn write_report(output_dir: PathBuf, report: BacktestReport) {
-    let mut file = output_dir;
-    file.push("report.json");
-    let logs_f = std::fs::File::create(file).unwrap();
-    let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
-    let mut seq = ser.serialize_seq(None).unwrap();
-    seq.serialize_element(&report).unwrap();
-    seq.end().unwrap();
-}
-
-fn write_models(output_dir: PathBuf, all_models: Vec<Vec<(String, Option<serde_json::Value>)>>) {
-    let mut file = output_dir;
-    file.push("models.json");
-    let logs_f = std::fs::File::create(file).unwrap();
-    let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
-    let mut seq = ser.serialize_seq(None).unwrap();
-    for models in all_models {
-        let obj: BTreeMap<String, Option<serde_json::Value>> = models.into_iter().collect();
-        seq.serialize_element(&obj).unwrap();
-    }
-    seq.end().unwrap();
 }
