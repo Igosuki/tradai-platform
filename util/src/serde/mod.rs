@@ -1,7 +1,11 @@
+use std::io::BufWriter;
+use std::path::Path;
+
 use byte_unit::Byte;
 use chrono::Duration;
 use serde::de::Error;
-use serde::{de, Deserialize, Deserializer, Serializer};
+use serde::ser::SerializeSeq;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 #[allow(dead_code)]
 fn round_serialize<S>(x: &f64, s: S) -> std::result::Result<S::Ok, S::Error>
@@ -75,4 +79,14 @@ where
 {
     let val: String = Deserialize::deserialize(deserializer)?;
     Duration::from_std(parse_duration::parse(&val).map_err(serde::de::Error::custom)?).map_err(serde::de::Error::custom)
+}
+
+pub fn write_as_seq<P: AsRef<Path>, T: Serialize>(out_file: P, data: &[T]) {
+    let logs_f = std::fs::File::create(out_file).unwrap();
+    let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
+    let mut seq = ser.serialize_seq(None).unwrap();
+    for models in data {
+        seq.serialize_element(&models).unwrap();
+    }
+    SerializeSeq::end(seq).unwrap();
 }
