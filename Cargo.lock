@@ -6469,6 +6469,7 @@ dependencies = [
  "parse_duration",
  "rust_decimal",
  "serde",
+ "serde_json",
  "tempdir",
  "tokio",
  "tracing",
