@@ -95,7 +95,6 @@ mod test {
         let model_file = std::fs::OpenOptions::new().read(true).open(models_file_path).unwrap();
         model.import(model_file, false).unwrap();
         model.try_load().unwrap();
-        eprintln!("model = {:?}", model.values());
 
         let mut model_values_file_path = results_dir;
         model_values_file_path.push("model_values.json");
