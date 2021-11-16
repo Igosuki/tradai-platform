@@ -365,6 +365,7 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
         StrategyIndicators {
             current_return: self.state.position_return(),
             pnl: self.state.pnl(),
+            value: self.state.value_strat(),
         }
     }
 }
