@@ -138,11 +138,11 @@ impl Backtest {
             init_coinnect(copy.exchange()).await;
             all_strategy_settings.extend_from_slice(copy.all().unwrap().as_slice());
         }
+        let order_manager_addr = mock_manager(&db_path.clone());
         let runners: Vec<BacktestRunner> = all_strategy_settings
             .into_iter()
             .map(|settings| {
                 let local_db_path = db_path.clone();
-                let order_manager_addr = mock_manager(&local_db_path);
                 let exchange_conf = ExchangeSettings::default_test(conf.fees);
                 let margin_interest_rate_provider_addr = mock_interest_rate_provider(settings.exchange());
 
@@ -153,7 +153,7 @@ impl Backtest {
                     &db_conf,
                     &exchange_conf,
                     &settings,
-                    Some(order_manager_addr),
+                    Some(order_manager_addr.clone()),
                     margin_interest_rate_provider_addr,
                     Some(logger.clone()),
                 );
