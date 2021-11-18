@@ -5,6 +5,9 @@ use crate::{error, Channel};
 
 #[async_trait]
 pub trait StrategyDriver {
+    /// A unique key or id for the strategy
+    async fn key(&self) -> String;
+
     /// Receive a data event from live streams
     async fn add_event(&mut self, le: &LiveEventEnvelope) -> error::Result<()>;
 

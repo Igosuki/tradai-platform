@@ -20,7 +20,7 @@ async fn complete_backtest_backtest() -> backtest::Result<()> {
     init();
     let conf = BacktestConfig::builder()
         .db_path(util::test::test_dir().into_path())
-        .strat(StrategySettings::MeanReverting(Options {
+        .strats(vec![StrategySettings::MeanReverting(Options {
             pair: PAIR.into(),
             threshold_long: -0.01,
             threshold_short: 0.01,
@@ -39,7 +39,7 @@ async fn complete_backtest_backtest() -> backtest::Result<()> {
             execution_instruction: None,
             order_asset_type: None,
             start_trading: None,
-        }))
+        })])
         .fees(0.001)
         .period(::backtest::Period::Interval {
             from: Utc.ymd(2021, 8, 1).naive_utc(),
@@ -49,9 +49,9 @@ async fn complete_backtest_backtest() -> backtest::Result<()> {
         .input_dataset(Dataset::OrderbooksRaw)
         .input_sample_rate(Duration::minutes(1))
         .data_dir(data_cache_dir())
-        .use_generic(false)
+        .strat_copy(None)
         .build();
-    let bt = ::backtest::Backtest::try_new(&conf)?;
+    let bt = ::backtest::Backtest::try_new(&conf).await?;
     bt.run().await?;
     let _test_results_dir = test_results_dir(module_path!());
 
