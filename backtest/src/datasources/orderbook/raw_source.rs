@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use chrono::Duration;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::ExecutionContext;
@@ -5,7 +7,7 @@ use datafusion::execution::context::ExecutionContext;
 use crate::error::*;
 
 pub async fn raw_orderbooks_df(
-    partitions: Vec<String>,
+    partitions: HashSet<String>,
     sample_rate: Duration,
     order_book_split_cols: bool,
     format: &str,

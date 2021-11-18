@@ -30,6 +30,7 @@ impl<T: std::cmp::PartialOrd + Copy> Stopper<T> {
     }
 }
 
+#[allow(dead_code)]
 pub fn maybe_log_stop(stop_event: Option<StopEvent>) {
     stop_event.map(|stop| {
         let strat_event = StratEvent::Stop { stop };

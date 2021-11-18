@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Utc};
 use plotly::layout::{GridPattern, LayoutGrid};
@@ -25,8 +25,52 @@ impl<T> TimedData<T> {
     pub fn new(ts: DateTime<Utc>, value: T) -> Self { Self { ts, value } }
 }
 
+pub(crate) struct GlobalReport {
+    reports: Vec<BacktestReport>,
+    output_dir: PathBuf,
+}
+
+impl GlobalReport {
+    pub(crate) fn new(output_dir: PathBuf) -> Self {
+        Self {
+            reports: vec![],
+            output_dir,
+        }
+    }
+
+    pub(crate) fn add_report(&mut self, report: BacktestReport) { self.reports.push(report); }
+
+    pub(crate) fn write(&mut self) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let mut report_dir = self.output_dir.clone();
+        report_dir.push(now_str());
+        for report in self.reports.as_slice() {
+            report.write_to(report_dir.clone())?;
+        }
+        self.write_html_report(&report_dir)?;
+        Ok(())
+    }
+
+    fn write_html_report<P: AsRef<Path>>(
+        &self,
+        output_dir: P,
+    ) -> std::result::Result<String, Box<dyn std::error::Error>> {
+        let out_file = format!("{}/report.html", output_dir.as_ref().to_str().unwrap());
+        let mut plot = Plot::new();
+        for (i, report) in self.reports.iter().enumerate() {
+            draw_entries(&mut plot, i + 1, report.indicators.as_slice(), vec![("pnl", vec![
+                |i| i.pnl,
+            ])]);
+        }
+        let layout = Layout::new().grid(LayoutGrid::new().rows(4).columns(1).pattern(GridPattern::Independent));
+        plot.set_layout(layout);
+        plot.to_html(&out_file);
+        Ok(out_file)
+    }
+}
+
 #[derive(Serialize, Deserialize, Default)]
 pub(crate) struct BacktestReport {
+    pub(crate) key: String,
     pub(crate) model_failures: u32,
     pub(crate) models: TimedVec<BTreeMap<String, Option<serde_json::Value>>>,
     pub(crate) indicator_failures: u32,
@@ -36,9 +80,11 @@ pub(crate) struct BacktestReport {
 }
 
 impl BacktestReport {
+    pub fn new(key: String) -> Self { Self { key, ..Self::default() } }
+
     pub fn write_to<P: AsRef<Path>>(&self, output_dir: P) -> Result<()> {
         let mut report_dir = output_dir.as_ref().to_path_buf();
-        report_dir.push(now_str());
+        report_dir.push(self.key.clone());
         std::fs::create_dir_all(report_dir.clone())?;
         let mut file = report_dir.clone();
         file.push("models.json");

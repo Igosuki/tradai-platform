@@ -1,4 +1,6 @@
 #![feature(box_patterns)]
+#![feature(map_try_insert)]
+#![feature(path_try_exists)]
 
 #[macro_use]
 extern crate async_trait;
@@ -7,6 +9,8 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -20,9 +24,9 @@ use strategies::driver::StrategyDriver;
 use strategies::margin_interest_rates::test_util::mock_interest_rate_provider;
 use strategies::order_manager::test_util::mock_manager;
 use strategies::query::{DataQuery, DataResult};
-use strategies::settings::StrategySettings;
 use strategies::types::{BookPosition, StratEvent};
-use strategies::{Channel, DbOptions, Exchange, ExchangeSettings, LiveEvent, LiveEventEnvelope, Pair, StratEventLogger};
+use strategies::{Channel, Coinnect, DbOptions, Exchange, ExchangeApi, ExchangeSettings, LiveEvent, LiveEventEnvelope,
+                 Pair, StratEventLogger};
 use util::test::test_dir;
 use util::time::{now, DateRange};
 
@@ -30,7 +34,7 @@ use crate::datasources::orderbook::convert::events_from_orderbooks;
 use crate::datasources::orderbook::csv_source::{csv_orderbooks_df, events_from_csv_orderbooks};
 use crate::datasources::orderbook::raw_source::raw_orderbooks_df;
 use crate::datasources::orderbook::sampled_source::sampled_orderbooks_df;
-use crate::report::{BacktestReport, TimedData, TimedVec};
+use crate::report::{BacktestReport, GlobalReport, TimedData, TimedVec};
 pub use crate::{config::*, error::*};
 
 mod config;
@@ -46,6 +50,46 @@ pub enum Dataset {
     OrderbooksBySecond,
     OrderbooksRaw,
     Trades,
+}
+
+impl Dataset {
+    fn partitions(&self, data_dir: PathBuf, period: DateRange, xch: Exchange, pair: &Pair) -> HashSet<String> {
+        let mut partitions = HashSet::new();
+        for date in period {
+            let ts = date.and_hms_milli(0, 0, 0, 0).timestamp_millis();
+            let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d");
+            let sub_partition = match self {
+                Dataset::OrderbooksByMinute => vec![
+                    format!("xch={}", xch),
+                    format!("chan={}", "1mn_order_books"),
+                    format!("dt={}", dt_par),
+                ],
+                Dataset::OrderbooksBySecond => vec![
+                    format!("xch={}", xch),
+                    format!("chan={}", "1s_order_books"),
+                    format!("dt={}", dt_par),
+                ],
+                Dataset::OrderbooksRaw => vec![
+                    xch.to_string(),
+                    "order_books".to_string(),
+                    format!("pr={}", pair),
+                    format!("dt={}", dt_par),
+                ],
+                Dataset::Trades => vec![
+                    xch.to_string(),
+                    "trades".to_string(),
+                    format!("pr={}", pair),
+                    format!("dt={}", dt_par),
+                ],
+            };
+            let mut partition_file = data_dir.clone();
+            for part in sub_partition {
+                partition_file.push(part);
+            }
+            partitions.insert(partition_file.as_path().to_string_lossy().to_string());
+        }
+        partitions
+    }
 }
 
 #[derive(Deserialize, Clone)]
@@ -69,8 +113,7 @@ impl ToString for DatasetInputFormat {
 
 pub struct Backtest {
     period: DateRange,
-    strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
-    strategy_events_logger: Arc<VecEventLogger>,
+    runners: Vec<BacktestRunner>,
     data_dir: PathBuf,
     output_dir: PathBuf,
     input_format: DatasetInputFormat,
@@ -79,52 +122,51 @@ pub struct Backtest {
 }
 
 impl Backtest {
-    pub fn try_new(conf: &BacktestConfig) -> Result<Self> {
-        let db_path = conf
-            .db_path
-            .clone()
-            .unwrap_or_else(|| test_dir().into_path())
-            .into_os_string()
-            .into_string()
-            .unwrap();
-        info!("db_path = {:?}", db_path);
-        std::fs::remove_dir_all(db_path.clone()).unwrap();
+    pub async fn try_new(conf: &BacktestConfig) -> Result<Self> {
+        let db_path = conf.db_path.clone().unwrap_or_else(|| test_dir().into_path());
+        if let Ok(true) = std::fs::try_exists(db_path.clone()) {
+            std::fs::remove_dir_all(db_path.clone()).unwrap();
+        }
         let output_path = conf.output_dir.clone().unwrap_or_else(|| {
             let mut p = test_dir().into_path();
             p.push("results");
             p
         });
-        info!("output_path = {:?}", db_path);
-        let order_manager_addr = mock_manager(&db_path);
-        let margin_interest_rate_provider_addr = mock_interest_rate_provider(conf.strat.exchange());
-        let generic_strat = StrategySettings::Generic(Box::new(conf.strat.clone()));
-        let strategy_settings = if conf.use_generic { &generic_strat } else { &conf.strat };
-        let db_conf = DbOptions::new(db_path);
-        let exchange_conf = ExchangeSettings {
-            fees: conf.fees,
-            trades: None,
-            orderbook: None,
-            orderbook_depth: None,
-            use_margin_account: false,
-            use_account: true,
-            use_test: true,
-            use_isolated_margin_account: false,
-            isolated_margin_account_pairs: vec![],
-        };
+        let mut all_strategy_settings = vec![];
+        all_strategy_settings.extend_from_slice(conf.strats.as_slice());
+        if let Some(copy) = conf.strat_copy.as_ref() {
+            init_coinnect(copy.exchange()).await;
+            all_strategy_settings.extend_from_slice(copy.all().unwrap().as_slice());
+        }
+        let runners: Vec<BacktestRunner> = all_strategy_settings
+            .into_iter()
+            .map(|settings| {
+                let local_db_path = db_path.clone();
+                let order_manager_addr = mock_manager(&local_db_path);
+                let exchange_conf = ExchangeSettings::default_test(conf.fees);
+                let margin_interest_rate_provider_addr = mock_interest_rate_provider(settings.exchange());
 
-        let logger: Arc<VecEventLogger> = Arc::new(VecEventLogger::default());
-        let strategy_driver = strategies::settings::from_settings(
-            &db_conf,
-            &exchange_conf,
-            strategy_settings,
-            Some(order_manager_addr),
-            margin_interest_rate_provider_addr,
-            Some(logger.clone()),
-        );
+                let db_conf = DbOptions::new(local_db_path);
+
+                let logger: Arc<VecEventLogger> = Arc::new(VecEventLogger::default());
+                let strategy_driver = strategies::settings::from_settings(
+                    &db_conf,
+                    &exchange_conf,
+                    &settings,
+                    Some(order_manager_addr),
+                    margin_interest_rate_provider_addr,
+                    Some(logger.clone()),
+                );
+                BacktestRunner {
+                    strategy_events_logger: logger,
+                    strategy: Arc::new(Mutex::new(strategy_driver)),
+                }
+            })
+            .collect();
+
         Ok(Self {
             period: conf.period.as_range(),
-            strategy: Arc::new(Mutex::new(strategy_driver)),
-            strategy_events_logger: logger,
+            runners,
             data_dir: conf.data_dir.clone(),
             input_format: conf.input_format.clone(),
             input_sample_rate: conf.input_sample_rate,
@@ -135,32 +177,61 @@ impl Backtest {
 
     pub async fn run(&self) -> Result<()> {
         let chans = {
-            let strategy = self.strategy.lock().await;
-            strategy.channels()
-        };
+            futures::future::join_all(self.runners.iter().map(|r| async {
+                let reader = r.strategy.lock().await;
+                reader.channels()
+            }))
+            .await
+        }
+        .into_iter()
+        .flatten()
+        .collect();
 
         let before_read = Instant::now();
         let live_events = self.read_channels(chans).await?;
         let elapsed = before_read.elapsed();
         info!(
             "read {} events in {}.{}s",
-            live_events.len(),
+            live_events.iter().map(|(_, v)| v.len()).sum::<usize>(),
             elapsed.as_secs(),
             elapsed.subsec_millis()
         );
-        let report = self.run_strategy(self.strategy.clone(), live_events.as_slice()).await;
-        report.write_to(self.output_dir.clone())?;
+        let futs = self.runners.iter().map(|r| async {
+            let strat_chans = {
+                let strat = r.strategy.lock().await;
+                strat.channels()
+            };
+            let events: Vec<LiveEventEnvelope> = strat_chans
+                .into_iter()
+                .map(|c| live_events.get(&(c.exchange(), c.pair())))
+                .flatten()
+                .cloned()
+                .flatten()
+                .collect();
+            r.run(events.as_slice()).await
+        });
+        let mut global_report = GlobalReport::new(self.output_dir.clone());
+        let reports: Vec<BacktestReport> = futures::future::join_all(futs).await;
+        for report in reports {
+            global_report.add_report(report)
+        }
+        global_report.write().unwrap();
 
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         Ok(())
     }
 
-    async fn read_channels(&self, chans: Vec<Channel>) -> Result<Vec<LiveEventEnvelope>> {
-        let mut live_events = vec![];
+    async fn read_channels(
+        &self,
+        chans: HashSet<Channel>,
+    ) -> Result<HashMap<(Exchange, Pair), Vec<LiveEventEnvelope>>> {
+        let mut live_events = HashMap::new();
         for chan in chans {
             match chan {
                 Channel::Orderbooks { xch, pair } => {
-                    let partitions = self.dataset_partitions(self.period.clone(), xch, &pair);
+                    let partitions = self
+                        .dataset
+                        .partitions(self.data_dir.clone(), self.period.clone(), xch, &pair);
                     let events = match self.dataset {
                         Dataset::OrderbooksByMinute | Dataset::OrderbooksBySecond => {
                             let records = sampled_orderbooks_df(
@@ -189,7 +260,16 @@ impl Backtest {
                         },
                         _ => panic!("order books channel requires an order books dataset"),
                     };
-                    live_events.extend(events);
+
+                    match live_events.entry((xch, pair)) {
+                        Entry::Occupied(mut o) => {
+                            let v: &mut Vec<LiveEventEnvelope> = o.get_mut();
+                            v.extend_from_slice(events.as_slice());
+                        }
+                        Entry::Vacant(v) => {
+                            v.insert(events);
+                        }
+                    }
                 }
                 Channel::Trades { .. } => {
                     panic!("cannot yet read from trades");
@@ -201,14 +281,46 @@ impl Backtest {
         }
         Ok(live_events)
     }
+}
 
-    async fn run_strategy(
-        &self,
-        strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
-        live_events: &[LiveEventEnvelope],
-    ) -> BacktestReport {
-        let mut strategy = strategy.lock().await;
-        let mut report = BacktestReport::default();
+#[derive(Clone)]
+pub struct VecEventLogger {
+    events: Arc<Mutex<TimedVec<StratEvent>>>,
+}
+
+impl Default for VecEventLogger {
+    fn default() -> Self {
+        Self {
+            events: Arc::new(Mutex::new(vec![])),
+        }
+    }
+}
+impl VecEventLogger {
+    pub async fn get_events(&self) -> TimedVec<StratEvent> {
+        let read = self.events.lock().await;
+        read.clone()
+    }
+}
+
+#[async_trait]
+impl StratEventLogger for VecEventLogger {
+    async fn maybe_log(&self, event: Option<StratEvent>) {
+        if let Some(e) = event {
+            let mut write = self.events.lock().await;
+            write.push(TimedData::new(now(), e));
+        }
+    }
+}
+
+struct BacktestRunner {
+    strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
+    strategy_events_logger: Arc<VecEventLogger>,
+}
+
+impl BacktestRunner {
+    async fn run(&self, live_events: &[LiveEventEnvelope]) -> BacktestReport {
+        let mut strategy = self.strategy.lock().await;
+        let mut report = BacktestReport::new(strategy.key().await);
         for live_event in live_events.iter().sorted_by_key(|le| le.e.time().timestamp_millis()) {
             util::time::set_current_time(live_event.e.time());
             strategy.add_event(live_event).await.unwrap();
@@ -255,71 +367,13 @@ impl Backtest {
         report.events = read;
         report
     }
-
-    fn dataset_partitions(&self, period: DateRange, xch: Exchange, pair: &Pair) -> Vec<String> {
-        let mut partitions = vec![];
-        for date in period {
-            let ts = date.and_hms_milli(0, 0, 0, 0).timestamp_millis();
-            let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d");
-            let sub_partition = match self.dataset {
-                Dataset::OrderbooksByMinute => vec![
-                    format!("xch={}", xch),
-                    format!("chan={}", "1mn_order_books"),
-                    format!("dt={}", dt_par),
-                ],
-                Dataset::OrderbooksBySecond => vec![
-                    format!("xch={}", xch),
-                    format!("chan={}", "1s_order_books"),
-                    format!("dt={}", dt_par),
-                ],
-                Dataset::OrderbooksRaw => vec![
-                    xch.to_string(),
-                    "order_books".to_string(),
-                    format!("pr={}", pair),
-                    format!("dt={}", dt_par),
-                ],
-                Dataset::Trades => vec![
-                    xch.to_string(),
-                    "trades".to_string(),
-                    format!("pr={}", pair),
-                    format!("dt={}", dt_par),
-                ],
-            };
-            let mut partition_file = self.data_dir.clone();
-            for part in sub_partition {
-                partition_file.push(part);
-            }
-            partitions.push(partition_file.as_path().to_string_lossy().to_string());
-        }
-        partitions
-    }
 }
 
-#[derive(Clone)]
-pub struct VecEventLogger {
-    events: Arc<Mutex<TimedVec<StratEvent>>>,
-}
-
-impl Default for VecEventLogger {
-    fn default() -> Self {
-        Self {
-            events: Arc::new(Mutex::new(vec![])),
-        }
-    }
-}
-impl VecEventLogger {
-    pub async fn get_events(&self) -> TimedVec<StratEvent> {
-        let read = self.events.lock().await;
-        read.clone()
-    }
-}
-
-#[async_trait]
-impl StratEventLogger for VecEventLogger {
-    async fn maybe_log(&self, event: Option<StratEvent>) {
-        if let Some(e) = event {
-            let mut write = self.events.lock().await;
-            write.push(TimedData::new(now(), e));
-        }
-    }
+async fn init_coinnect(xch: Exchange) {
+    eprintln!("init_coinnect");
+    let mut exchange_apis: HashMap<Exchange, Arc<dyn ExchangeApi>> = HashMap::new();
+    let manager = Coinnect::new_manager();
+    let api = manager.build_public_exchange_api(&xch, false).await.unwrap();
+    exchange_apis.insert(xch, api);
+    Coinnect::load_pair_registries(Arc::new(exchange_apis)).await.unwrap();
 }

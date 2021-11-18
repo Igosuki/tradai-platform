@@ -35,6 +35,7 @@ mod tests;
 const LM_AGE_CUTOFF_RATIO: f64 = 0.0013;
 
 pub struct NaiveTradingStrategy {
+    key: String,
     exchange: Exchange,
     fees_rate: f64,
     res_threshold_long: f64,
@@ -58,9 +59,10 @@ pub struct NaiveTradingStrategy {
 impl NaiveTradingStrategy {
     pub fn new<S: AsRef<Path>>(db_opts: &DbOptions<S>, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
         let metrics = NaiveStrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
-        let strat_db_path = format!("naive_pair_trading_{}_{}", n.left, n.right);
-        let db = get_or_create(db_opts, strat_db_path, vec![]);
+        let strat_key = format!("naive_pair_trading_{}_{}", n.left, n.right);
+        let db = get_or_create(db_opts, strat_key.clone(), vec![]);
         let mut strat = Self {
+            key: strat_key,
             exchange: n.exchange,
             fees_rate,
             res_threshold_long: n.threshold_long,
@@ -338,6 +340,8 @@ impl NaiveTradingStrategy {
 
 #[async_trait]
 impl StrategyDriver for NaiveTradingStrategy {
+    async fn key(&self) -> String { self.key.to_owned() }
+
     async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()> {
         if let LiveEvent::LiveOrderbook(ob) = &le.e {
             let string = ob.pair.clone();

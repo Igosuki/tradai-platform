@@ -1,6 +1,9 @@
+use std::collections::HashSet;
+use std::path::Path;
 use std::sync::Arc;
 
 use actix::Addr;
+use itertools::Itertools;
 
 use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
 use coinnect_rt::pair::filter_pairs;
@@ -38,40 +41,64 @@ impl StrategySettings {
             StrategySettings::Generic(s) => s.key(),
         }
     }
+
+    pub fn replicate_for_pairs(&self, pairs: HashSet<Pair>) -> Vec<Self> {
+        match self {
+            StrategySettings::Naive(o) => {
+                let pair_pairs = pairs.into_iter().permutations(2);
+                pair_pairs
+                    .into_iter()
+                    .map(|pair_pair| {
+                        let mut new = o.clone();
+                        new.left = pair_pair[0].clone();
+                        new.right = pair_pair[1].clone();
+                        Self::Naive(new)
+                    })
+                    .collect()
+            }
+            StrategySettings::MeanReverting(o) => pairs
+                .into_iter()
+                .map(|pair| {
+                    let mut new = o.clone();
+                    new.pair = pair;
+                    Self::MeanReverting(new)
+                })
+                .collect(),
+            StrategySettings::Generic(s) => s
+                .replicate_for_pairs(pairs)
+                .into_iter()
+                .map(|s| Self::Generic(Box::new(s)))
+                .collect(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
 pub enum StrategyCopySettings {
-    MeanReverting {
-        pairs: Vec<String>,
-        base: MeanRevertingStrategyOptions,
-    },
+    /// Replicates the strategy for all available markets on the target exchange
+    MarketReplica { pairs: Vec<String>, base: StrategySettings },
 }
 
 impl StrategyCopySettings {
     pub fn exchange(&self) -> Exchange {
         match self {
-            Self::MeanReverting { base, .. } => base.exchange,
+            StrategyCopySettings::MarketReplica { base, .. } => base.exchange(),
         }
     }
-
     pub fn all(&self) -> error::Result<Vec<StrategySettings>> {
         match self {
-            StrategyCopySettings::MeanReverting { pairs, base } => {
-                let pairs = filter_pairs(&self.exchange(), pairs)?;
-                Ok(pairs
-                    .into_iter()
-                    .map(|pair| StrategySettings::MeanReverting(MeanRevertingStrategyOptions { pair, ..base.clone() }))
-                    .collect())
+            StrategyCopySettings::MarketReplica { pairs, base } => {
+                let pairs = filter_pairs(&base.exchange(), pairs)?;
+                Ok(base.replicate_for_pairs(pairs))
             }
         }
     }
 }
 
-pub fn from_settings(
-    db: &DbOptions<String>,
+pub fn from_settings<S: AsRef<Path>>(
+    db: &DbOptions<S>,
     exchange_conf: &ExchangeSettings,
     s: &StrategySettings,
     om: Option<Addr<OrderManager>>,
@@ -118,8 +145,8 @@ pub fn from_settings(
     }
 }
 
-pub(crate) fn from_settings_s(
-    db: &DbOptions<String>,
+pub(crate) fn from_settings_s<S: AsRef<Path>>(
+    db: &DbOptions<S>,
     exchange_conf: &ExchangeSettings,
     s: &StrategySettings,
     om: Option<Addr<OrderManager>>,

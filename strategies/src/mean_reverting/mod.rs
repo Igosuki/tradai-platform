@@ -43,6 +43,7 @@ pub struct SinglePosRow {
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct MeanRevertingStrategy {
+    key: String,
     exchange: Exchange,
     pair: Pair,
     fees_rate: f64,
@@ -61,8 +62,6 @@ pub struct MeanRevertingStrategy {
     logger: Option<Arc<dyn StratEventLogger>>,
 }
 
-static MEAN_REVERTING_DB_KEY: &str = "mean_reverting";
-
 impl MeanRevertingStrategy {
     pub fn new<S: AsRef<Path>>(
         db_opts: &DbOptions<S>,
@@ -73,11 +72,12 @@ impl MeanRevertingStrategy {
         logger: Option<Arc<dyn StratEventLogger>>,
     ) -> Self {
         let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
-        let strat_db_path = format!("{}_{}.{}", MEAN_REVERTING_DB_KEY, n.exchange, n.pair);
-        let db = get_or_create(db_opts, strat_db_path, vec![]);
+        let strat_key = format!("{}_{}.{}", "mean_reverting", n.exchange, n.pair);
+        let db = get_or_create(db_opts, strat_key.clone(), vec![]);
         let state = MeanRevertingState::new(n, fees_rate, db.clone(), om, mirp).unwrap();
         let model = MeanRevertingModel::new(n, db.clone());
         let mut strat = Self {
+            key: strat_key,
             exchange: n.exchange,
             pair: n.pair.clone(),
             fees_rate,
@@ -241,6 +241,8 @@ impl MeanRevertingStrategy {
 
 #[async_trait]
 impl StrategyDriver for MeanRevertingStrategy {
+    async fn key(&self) -> String { self.key.to_owned() }
+
     #[tracing::instrument(skip(self, le), level = "trace")]
     async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()> {
         if !self.handles(le) {
@@ -318,6 +320,8 @@ impl StrategyDriver for MeanRevertingStrategy {
 
 #[async_trait]
 impl crate::generic::Strategy for MeanRevertingStrategy {
+    fn key(&self) -> String { self.key.to_owned() }
+
     fn init(&mut self) -> Result<()> { self.load() }
 
     async fn eval(&mut self, e: &crate::generic::InputEvent) -> Result<Vec<crate::generic::TradeSignal>> {

@@ -82,6 +82,24 @@ pub enum Channel {
     Orderbooks { xch: Exchange, pair: Pair },
 }
 
+impl Channel {
+    pub fn exchange(&self) -> Exchange {
+        match self {
+            Channel::Orders { xch, .. } => *xch,
+            Channel::Trades { xch, .. } => *xch,
+            Channel::Orderbooks { xch, .. } => *xch,
+        }
+    }
+
+    pub fn pair(&self) -> Pair {
+        match self {
+            Channel::Orders { pair, .. } => pair.clone(),
+            Channel::Trades { pair, .. } => pair.clone(),
+            Channel::Orderbooks { pair, .. } => pair.clone(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum StrategyStatus {
@@ -117,6 +135,10 @@ impl StrategyKey {
         let st = StrategyType::from_str(t).ok()?;
         Some(Self(st, k.to_string()))
     }
+}
+
+impl ToString for StrategyKey {
+    fn to_string(&self) -> String { format!("{}_{}", self.0, self.1) }
 }
 
 #[derive(Clone)]
@@ -186,6 +208,8 @@ mod test {
 
     #[async_trait]
     impl StrategyDriver for LoggingStrat {
+        async fn key(&self) -> String { "logging".to_string() }
+
         async fn add_event(&mut self, e: &LiveEventEnvelope) -> Result<()> {
             let mut g = self.log.lock().unwrap();
             g.push(e.clone());

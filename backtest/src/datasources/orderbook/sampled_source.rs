@@ -1,5 +1,5 @@
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use datafusion::arrow::array::StringArray;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -8,7 +8,7 @@ use datafusion::execution::context::ExecutionContext;
 use crate::error::*;
 
 pub async fn sampled_orderbooks_df(
-    partitions: Vec<String>,
+    partitions: HashSet<String>,
     pair: Option<String>,
     format: &str,
 ) -> Result<HashMap<String, Vec<RecordBatch>>> {
@@ -49,9 +49,6 @@ pub async fn sampled_orderbooks_df(
                 let collected = df.collect().await?;
                 results.insert(pair.clone(), collected);
             }
-            // let df2 = ctx.sql("select distinct pr from order_books").await?;
-            // let pairs = df2.collect().await?;
-            // eprintln!("pairs = {:?}", pairs);
             Result::Ok(results)
         }
     }))
