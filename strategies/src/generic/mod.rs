@@ -23,6 +23,8 @@ mod python_types_impl;
 pub(crate) trait Strategy: Sync + Send {
     //async fn try_new(&self, conf: serde_json::Value) -> Self;
 
+    fn key(&self) -> String;
+
     fn init(&mut self) -> Result<()>;
 
     async fn eval(&mut self, e: &InputEvent) -> Result<Vec<TradeSignal>>;
@@ -120,6 +122,11 @@ impl GenericStrategy {
 
 #[async_trait]
 impl StrategyDriver for GenericStrategy {
+    async fn key(&self) -> String {
+        let r = self.inner.read().await;
+        r.key()
+    }
+
     async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()> {
         if !self.initialized {
             self.init().await.unwrap();

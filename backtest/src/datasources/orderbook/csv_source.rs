@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use datafusion::arrow::array::{Array, PrimitiveArray, StructArray, TimestampMillisecondArray};
 use datafusion::arrow::datatypes::Float64Type;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -10,7 +12,7 @@ use crate::datafusion_util::{get_col_as, to_struct_array};
 use crate::datasources::orderbook::live_order_book;
 use crate::error::*;
 
-pub async fn csv_orderbooks_df(partitions: Vec<String>) -> Result<Vec<RecordBatch>> {
+pub async fn csv_orderbooks_df(partitions: HashSet<String>) -> Result<Vec<RecordBatch>> {
     let mut ctx = ExecutionContext::new();
     dbg!(&partitions);
     let mut records = vec![];

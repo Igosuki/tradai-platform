@@ -112,6 +112,13 @@ impl PythonStratWrapper {
 
 #[async_trait]
 impl Strategy for PythonStratWrapper {
+    fn key(&self) -> String {
+        let inner = self.strat();
+        Python::with_gil(|py| inner.call_method0(py, "key"))
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "python".to_string())
+    }
+
     fn init(&mut self) -> crate::error::Result<()> {
         let inner = self.strat();
         Python::with_gil(|py| inner.call_method0(py, "init"))
