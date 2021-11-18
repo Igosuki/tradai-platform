@@ -47,6 +47,15 @@ impl GlobalReport {
             report.write_to(report_dir.clone())?;
         }
         self.write_html_report(&report_dir)?;
+        if cfg!(unix) {
+            let mut ln_dir = self.output_dir.clone();
+            ln_dir.push("latest");
+            let path = std::env::current_dir()?.join(report_dir);
+            if let Ok(true) = std::fs::try_exists(ln_dir.clone()) {
+                std::fs::remove_file(ln_dir.clone()).unwrap();
+            }
+            std::os::unix::fs::symlink(path, ln_dir).unwrap();
+        }
         Ok(())
     }
 
@@ -57,11 +66,17 @@ impl GlobalReport {
         let out_file = format!("{}/report.html", output_dir.as_ref().to_str().unwrap());
         let mut plot = Plot::new();
         for (i, report) in self.reports.iter().enumerate() {
-            draw_entries(&mut plot, i + 1, report.indicators.as_slice(), vec![("pnl", vec![
-                |i| i.pnl,
-            ])]);
+            draw_entries(&mut plot, i + 1, report.indicators.as_slice(), vec![(
+                &format!("{}.pnl", report.key),
+                vec![|i| i.pnl],
+            )]);
         }
-        let layout = Layout::new().grid(LayoutGrid::new().rows(4).columns(1).pattern(GridPattern::Independent));
+        let layout = Layout::new().grid(
+            LayoutGrid::new()
+                .rows(self.reports.len())
+                .columns(2)
+                .pattern(GridPattern::Independent),
+        );
         plot.set_layout(layout);
         plot.to_html(&out_file);
         Ok(out_file)
