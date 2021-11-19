@@ -12,10 +12,10 @@ dependencies = [
  "chrono",
  "coinnect_rt",
  "futures",
- "log",
  "prometheus",
  "serde",
  "thiserror",
+ "tracing",
  "util",
 ]
 
@@ -826,7 +826,6 @@ dependencies = [
  "ext",
  "futures",
  "itertools",
- "log",
  "math",
  "parse_duration",
  "plotly",
@@ -838,6 +837,7 @@ dependencies = [
  "structopt",
  "thiserror",
  "tokio",
+ "tracing",
  "typed-builder 0.9.1",
  "util",
 ]
@@ -909,7 +909,6 @@ dependencies = [
  "futures",
  "hex",
  "lazy_static 1.4.0",
- "log",
  "reqwest",
  "ring",
  "serde",
@@ -919,6 +918,7 @@ dependencies = [
  "tokio",
  "tokio-test",
  "tokio-tungstenite",
+ "tracing",
  "tungstenite 0.15.0",
  "url",
 ]
@@ -1365,7 +1365,6 @@ dependencies = [
  "lazy_static 1.4.0",
  "libc",
  "libflate",
- "log",
  "openssl",
  "ordered-float 2.8.0",
  "pin-project",
@@ -1837,7 +1836,6 @@ dependencies = [
  "ext",
  "itertools",
  "lmdb-rkv",
- "log",
  "measure_time",
  "pretty_assertions",
  "rand 0.8.4",
@@ -1848,6 +1846,7 @@ dependencies = [
  "structopt",
  "tempdir",
  "thiserror",
+ "tracing",
  "util",
 ]
 
@@ -3367,7 +3366,6 @@ dependencies = [
  "anyhow",
  "float-cmp",
  "itertools",
- "log",
  "num-traits",
  "peroxide",
  "rand 0.8.4",
@@ -3449,12 +3447,12 @@ dependencies = [
  "awc",
  "lazy_static 1.4.0",
  "libc",
- "log",
  "prometheus",
  "protobuf",
  "serde",
  "thiserror",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -5538,7 +5536,6 @@ dependencies = [
  "itertools",
  "juniper",
  "lazy_static 1.4.0",
- "log",
  "math",
  "metrics",
  "openssl",
@@ -6265,7 +6262,6 @@ dependencies = [
  "juniper",
  "lazy_static 1.4.0",
  "libc",
- "log",
  "measure_time",
  "metrics",
  "models",

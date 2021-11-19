@@ -115,9 +115,7 @@ pub fn from_settings<S: AsRef<Path>>(
                     o,
                 ))
             } else {
-                log::error!(
-                    "Expected an order manager to be available for the targeted exchange of this NaiveStrategy"
-                );
+                error!("Expected an order manager to be available for the targeted exchange of this NaiveStrategy");
                 panic!();
             }
         }
@@ -132,7 +130,7 @@ pub fn from_settings<S: AsRef<Path>>(
                     logger,
                 ))
             } else {
-                log::error!(
+                error!(
                     "Expected an order manager to be available for the targeted exchange of this MeanRevertingStrategy"
                 );
                 panic!();
@@ -165,7 +163,7 @@ pub(crate) fn from_settings_s<S: AsRef<Path>>(
                     logger,
                 ))
             } else {
-                log::error!(
+                error!(
                     "Expected an order manager to be available for the targeted exchange of this MeanRevertingStrategy"
                 );
                 panic!();

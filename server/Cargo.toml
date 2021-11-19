@@ -88,8 +88,7 @@ lazy_static = "1.4"
 libc = "0.2"
 
 # Logging
-log = "0.4"
-tracing = "0.1"
+tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
 
 # Nats
 nats = "0.10"

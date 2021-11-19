@@ -2,7 +2,6 @@ use std::convert::TryFrom;
 
 use chrono::{DateTime, TimeZone, Utc};
 use itertools::Itertools;
-use log::Level::Debug;
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
 use strum_macros::{AsRefStr, EnumString};
@@ -132,9 +131,7 @@ pub enum StratEvent {
 
 impl StratEvent {
     pub fn log(&self) {
-        if log_enabled!(Debug) {
-            tracing::debug!(strat_event = ?self);
-        }
+        debug!(strat_event = ?self);
     }
 }
 

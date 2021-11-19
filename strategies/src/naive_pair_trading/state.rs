@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use actix::Addr;
 use chrono::{DateTime, Utc};
-use log::Level::Info;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -522,23 +521,21 @@ impl MovingState {
     }
 
     fn log_indicators(&self, pos: &PositionKind) {
-        if log_enabled!(Info) {
-            info!(
-                "Additional info : units {:.2} beta val {:.2} value strat {}, return {}, res {}, pnl {}",
-                match pos {
-                    PositionKind::Short => self.units_to_buy_short_spread,
-                    PositionKind::Long => self.units_to_buy_long_spread,
-                },
-                self.beta_val,
-                self.value_strat,
-                match pos {
-                    PositionKind::Short => self.short_position_return,
-                    PositionKind::Long => self.long_position_return,
-                },
-                self.res(),
-                self.pnl(),
-            );
-        }
+        info!(
+            "Additional info : units {:.2} beta val {:.2} value strat {}, return {}, res {}, pnl {}",
+            match pos {
+                PositionKind::Short => self.units_to_buy_short_spread,
+                PositionKind::Long => self.units_to_buy_long_spread,
+            },
+            self.beta_val,
+            self.value_strat,
+            match pos {
+                PositionKind::Short => self.short_position_return,
+                PositionKind::Long => self.long_position_return,
+            },
+            self.res(),
+            self.pnl(),
+        );
     }
 
     pub fn stop_trading(&mut self) { self.is_trading = false; }

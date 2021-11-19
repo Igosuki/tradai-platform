@@ -215,7 +215,7 @@ impl Db {
             Err(e) => match e {
                 StoreError::LmdbError(lmdb::Error::NotFound) => Ok(()),
                 e => {
-                    log::error!("Failed to delete key '{}' for {}", key, e);
+                    error!("Failed to delete key '{}' for {}", key, e);
                     Err(e)
                 }
             },

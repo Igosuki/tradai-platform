@@ -16,7 +16,6 @@ extern crate flamer;
 extern crate juniper;
 #[macro_use]
 extern crate lazy_static;
-#[macro_use]
 extern crate measure_time;
 #[macro_use]
 extern crate tracing;
