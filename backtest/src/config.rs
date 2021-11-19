@@ -7,6 +7,8 @@ use parse_duration::parse;
 use typed_builder::TypedBuilder;
 
 use strategies::settings::StrategySettings;
+use strategies::StrategyCopySettings;
+use util::test::test_dir;
 use util::time::{DateRange, DurationRangeType};
 
 use crate::error::*;
@@ -42,13 +44,13 @@ impl Period {
 pub struct BacktestConfig {
     #[builder(default, setter(strip_option))]
     pub db_path: Option<PathBuf>,
-    pub strat: StrategySettings,
+    pub strats: Vec<StrategySettings>,
+    pub strat_copy: Option<StrategyCopySettings>,
     pub fees: f64,
     pub period: Period,
     pub input_format: DatasetInputFormat,
     pub input_dataset: Dataset,
     pub data_dir: PathBuf,
-    pub use_generic: bool,
     #[builder(default, setter(strip_option))]
     pub sql_override: Option<String>,
     #[builder(default, setter(strip_option))]
@@ -70,5 +72,12 @@ impl BacktestConfig {
         s.try_into().map_err(|e| e.into())
     }
 
+    pub fn output_dir(&self) -> PathBuf {
+        self.output_dir.clone().unwrap_or_else(|| {
+            let mut p = test_dir().into_path();
+            p.push("results");
+            p
+        })
+    }
     //pub fn sample_rate(&self) -> Duration { Duration::from_std(parse(&self.input_sample_rate).unwrap()).unwrap() }
 }

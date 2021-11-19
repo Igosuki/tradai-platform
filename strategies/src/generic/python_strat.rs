@@ -9,6 +9,7 @@ use coinnect_rt::exchange::Exchange;
 use ext::ResultExt;
 
 use crate::generic::{InputEvent, Strategy, TradeSignal};
+use crate::query::StrategyIndicators;
 use crate::Channel;
 
 #[pyclass(subclass)]
@@ -111,6 +112,13 @@ impl PythonStratWrapper {
 
 #[async_trait]
 impl Strategy for PythonStratWrapper {
+    fn key(&self) -> String {
+        let inner = self.strat();
+        Python::with_gil(|py| inner.call_method0(py, "key"))
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "python".to_string())
+    }
+
     fn init(&mut self) -> crate::error::Result<()> {
         let inner = self.strat();
         Python::with_gil(|py| inner.call_method0(py, "init"))
@@ -141,6 +149,8 @@ impl Strategy for PythonStratWrapper {
     fn models(&self) -> Vec<(String, Option<Value>)> { vec![] }
 
     fn channels(&self) -> HashSet<Channel> { Default::default() }
+
+    fn indicators(&self) -> StrategyIndicators { StrategyIndicators::default() }
 }
 
 #[cfg(test)]

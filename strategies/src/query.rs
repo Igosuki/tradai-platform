@@ -21,6 +21,7 @@ pub enum DataResult {
     Models(Vec<(String, Option<Value>)>),
     Status(StrategyStatus),
     Operations(Vec<TradeOperation>),
+    Indicators(StrategyIndicators),
 }
 
 #[derive(Deserialize, Serialize, actix::Message)]
@@ -38,6 +39,8 @@ pub enum DataQuery {
     Models,
     /// Status
     Status,
+    /// Indicators
+    Indicators,
 }
 
 #[derive(Deserialize, Serialize, juniper::GraphQLEnum)]
@@ -72,4 +75,12 @@ pub struct ModelReset {
     #[graphql(description = "whether to restart afterwards")]
     #[graphql(default = true)]
     pub restart_after: bool,
+}
+
+/// Global performance indicators of a strategy
+#[derive(Clone, Default, Debug, Serialize, Deserialize, PartialEq, juniper::GraphQLObject)]
+pub struct StrategyIndicators {
+    pub pnl: f64,
+    pub current_return: f64,
+    pub value: f64,
 }

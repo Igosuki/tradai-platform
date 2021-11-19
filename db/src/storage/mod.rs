@@ -5,12 +5,11 @@ use std::sync::Arc;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use ext::ResultExt;
+use ext::{ResultExt, ToAny};
 
 use crate::error::*;
 use crate::storage::rocksdb::RocksDbOptions;
-use crate::RocksDbStorage;
-use std::any::Any;
+use crate::{MemoryKVStore, RocksDbStorage};
 
 pub mod mem;
 #[cfg(feature = "rkv-lmdb")]
@@ -138,25 +137,11 @@ impl<T: Storage + ?Sized> StorageExt for T {
     }
 }
 
-pub trait ToAny {
-    fn to_any<'a>(self: Arc<Self>) -> Arc<dyn Any + 'a>
-    where
-        Self: 'a;
-}
-
-impl<T: Any> ToAny for T {
-    fn to_any<'a>(self: Arc<Self>) -> Arc<dyn Any + 'a>
-    where
-        Self: 'a,
-    {
-        self
-    }
-}
-
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DbEngineOptions {
     RocksDb(RocksDbOptions),
+    InMemory,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -170,6 +155,13 @@ impl<S: AsRef<Path>> DbOptions<S> {
         Self {
             path: db_path,
             engine: DbEngineOptions::RocksDb(RocksDbOptions::default()),
+        }
+    }
+
+    pub fn new_in_memory(db_path: S) -> Self {
+        Self {
+            path: db_path,
+            engine: DbEngineOptions::InMemory,
         }
     }
 }
@@ -201,5 +193,6 @@ pub fn get_or_create<S: AsRef<Path>, S2: AsRef<Path>>(
             pb.push(path);
             Arc::new(RocksDbStorage::try_new(opt, pb, tables).unwrap())
         }
+        DbEngineOptions::InMemory => Arc::new(MemoryKVStore::new()),
     }
 }

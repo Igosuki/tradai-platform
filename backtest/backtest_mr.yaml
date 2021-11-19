@@ -1,34 +1,72 @@
-strat:
-  type: mean_reverting
-  pair: 'LTC_USDT'
-  short_window_size: 100
-  long_window_size: 1000
-  dry_mode: true
-  sample_freq: 1min
-  initial_cap: 100.0
-  threshold_short: 0.02
-  threshold_long: -0.02
-  threshold_eval_freq: 1
-  dynamic_threshold: true
-  threshold_window_size: 10000
-  stop_loss: -0.1
-  stop_gain: 0.075
-  exchange: Binance
-  order_mode: limit
+strats: []
+
+#  - type: mean_reverting
+#    pair: 'LTC_USDT'
+#    short_window_size: 100
+#    long_window_size: 1000
+#    dry_mode: true
+#    sample_freq: 1min
+#    initial_cap: 100.0
+#    threshold_short: 0.02
+#    threshold_long: -0.02
+#    threshold_eval_freq: 1
+#    dynamic_threshold: true
+#    threshold_window_size: 10000
+#    stop_loss: -0.1
+#    stop_gain: 0.075
+#    exchange: Binance
+#    order_mode: limit
+#  - type: mean_reverting
+#    pair: 'FIS_USDT'
+#    short_window_size: 100
+#    long_window_size: 1000
+#    dry_mode: true
+#    sample_freq: 1min
+#    initial_cap: 100.0
+#    threshold_short: 0.02
+#    threshold_long: -0.02
+#    threshold_eval_freq: 1
+#    dynamic_threshold: true
+#    threshold_window_size: 10000
+#    stop_loss: -0.1
+#    stop_gain: 0.075
+#    exchange: Binance
+#    order_mode: limit
+
+strat_copy:
+  type: market_replica
+  pairs: ['.*_USDT']
+  base:
+    type: mean_reverting
+    pair: ''
+    short_window_size: 100
+    long_window_size: 1000
+    dry_mode: true
+    sample_freq: 1min
+    initial_cap: 100.0
+    threshold_short: 0.02
+    threshold_long: -0.02
+    threshold_eval_freq: 1
+    dynamic_threshold: true
+    threshold_window_size: 10000
+    stop_loss: -0.1
+    stop_gain: 0.075
+    exchange: Binance
+    order_mode: limit
 
 fees: 0.001
 
 period:
   type: interval
   from: 2021-10-21
-  to: 2021-10-21
+  to: 2021-11-05
 
 input_format: avro
 input_dataset: orderbooks_by_minute
 #input_dataset: orderbooks_raw
 input_sample_rate: 1min
 
-db_path: /tmp/strat_backtest_dbs
+db_path: .local_data/strat_backtest_dbs
 
 data_dir: /home/geps/dev/bitcoins/data_cache/data
 

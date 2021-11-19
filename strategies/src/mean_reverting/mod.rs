@@ -22,10 +22,10 @@ use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
 use crate::models::io::IterativeModel;
 use crate::models::Sampler;
 use crate::order_manager::OrderManager;
-use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation};
+use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, StrategyIndicators};
 use crate::trading_util::Stopper;
 use crate::types::{BookPosition, PositionKind};
-use crate::{Channel, StrategyStatus};
+use crate::{Channel, StratEvent, StratEventLogger, StrategyStatus};
 
 mod metrics;
 pub mod model;
@@ -43,6 +43,7 @@ pub struct SinglePosRow {
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct MeanRevertingStrategy {
+    key: String,
     exchange: Exchange,
     pair: Pair,
     fees_rate: f64,
@@ -57,9 +58,9 @@ pub struct MeanRevertingStrategy {
     stopper: Stopper<f64>,
     sampler: Sampler,
     last_book_pos: Option<BookPosition>,
+    #[derivative(Debug = "ignore")]
+    logger: Option<Arc<dyn StratEventLogger>>,
 }
-
-static MEAN_REVERTING_DB_KEY: &str = "mean_reverting";
 
 impl MeanRevertingStrategy {
     pub fn new<S: AsRef<Path>>(
@@ -68,13 +69,15 @@ impl MeanRevertingStrategy {
         n: &Options,
         om: Addr<OrderManager>,
         mirp: Addr<MarginInterestRateProvider>,
+        logger: Option<Arc<dyn StratEventLogger>>,
     ) -> Self {
         let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
-        let strat_db_path = format!("{}_{}.{}", MEAN_REVERTING_DB_KEY, n.exchange, n.pair);
-        let db = get_or_create(db_opts, strat_db_path, vec![]);
+        let strat_key = format!("{}_{}.{}", "mean_reverting", n.exchange, n.pair);
+        let db = get_or_create(db_opts, strat_key.clone(), vec![]);
         let state = MeanRevertingState::new(n, fees_rate, db.clone(), om, mirp).unwrap();
         let model = MeanRevertingModel::new(n, db.clone());
         let mut strat = Self {
+            key: strat_key,
             exchange: n.exchange,
             pair: n.pair.clone(),
             fees_rate,
@@ -88,6 +91,7 @@ impl MeanRevertingStrategy {
             metrics: Arc::new(metrics),
             sampler: Sampler::new(n.sample_freq(), Utc.timestamp_millis(0)),
             last_book_pos: None,
+            logger,
         };
         if let Err(e) = strat.load() {
             error!("{}", e);
@@ -162,7 +166,11 @@ impl MeanRevertingStrategy {
         // Possibly close a short position
         else if self.state.is_short() {
             self.state.set_position_return(lr.ask).await?;
-            if (apo < 0.0) || self.stopper.should_stop(self.state.position_return()) {
+            let maybe_stop = self.stopper.should_stop(self.state.position_return());
+            if apo < 0.0 || maybe_stop.is_some() {
+                if let Some(logger) = &self.logger {
+                    logger.maybe_log(maybe_stop.map(|e| StratEvent::Stop { stop: e })).await;
+                }
                 let position = self.short_position(lr.ask, lr.event_time);
                 self.state.close(position).await?;
             }
@@ -176,7 +184,11 @@ impl MeanRevertingStrategy {
         // Possibly close a long position
         else if self.state.is_long() {
             self.state.set_position_return(lr.bid).await?;
-            if (apo > 0.0) || self.stopper.should_stop(self.state.position_return()) {
+            let maybe_stop = self.stopper.should_stop(self.state.position_return());
+            if apo > 0.0 || maybe_stop.is_some() {
+                if let Some(logger) = &self.logger {
+                    logger.maybe_log(maybe_stop.map(|e| StratEvent::Stop { stop: e })).await;
+                }
                 let position = self.long_position(lr.bid, lr.event_time);
                 self.state.close(position).await?;
             }
@@ -229,6 +241,8 @@ impl MeanRevertingStrategy {
 
 #[async_trait]
 impl StrategyDriver for MeanRevertingStrategy {
+    async fn key(&self) -> String { self.key.to_owned() }
+
     #[tracing::instrument(skip(self, le), level = "trace")]
     async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()> {
         if !self.handles(le) {
@@ -257,6 +271,7 @@ impl StrategyDriver for MeanRevertingStrategy {
             DataQuery::State => Ok(DataResult::State(serde_json::to_string(&self.state.vars).unwrap())),
             DataQuery::Status => Ok(DataResult::Status(self.status())),
             DataQuery::Models => Ok(DataResult::Models(self.model.values())),
+            DataQuery::Indicators => Ok(DataResult::Indicators(self.indicators())),
         }
     }
 
@@ -305,6 +320,8 @@ impl StrategyDriver for MeanRevertingStrategy {
 
 #[async_trait]
 impl crate::generic::Strategy for MeanRevertingStrategy {
+    fn key(&self) -> String { self.key.to_owned() }
+
     fn init(&mut self) -> Result<()> { self.load() }
 
     async fn eval(&mut self, e: &crate::generic::InputEvent) -> Result<Vec<crate::generic::TradeSignal>> {
@@ -358,5 +375,13 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
         let mut hs = HashSet::new();
         hs.extend((self as &dyn StrategyDriver).channels());
         hs
+    }
+
+    fn indicators(&self) -> StrategyIndicators {
+        StrategyIndicators {
+            current_return: self.state.position_return(),
+            pnl: self.state.pnl(),
+            value: self.state.value_strat(),
+        }
     }
 }
