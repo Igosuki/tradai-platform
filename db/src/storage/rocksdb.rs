@@ -21,11 +21,27 @@ pub struct RocksDbOptions {
     read_only: bool,
     max_log_file_size: Option<usize>,
     keep_log_file_num: Option<usize>,
+    max_total_wal_size: Option<usize>,
 }
 
 impl RocksDbOptions {
     pub fn read_only(mut self, read_only: bool) -> Self {
         self.read_only = read_only;
+        self
+    }
+
+    pub fn max_log_file_size(mut self, max_log_file_size: usize) -> Self {
+        self.max_log_file_size = Some(max_log_file_size);
+        self
+    }
+
+    pub fn keep_log_file_num(mut self, keep_log_file_num: usize) -> Self {
+        self.keep_log_file_num = Some(keep_log_file_num);
+        self
+    }
+
+    pub fn max_total_wal_size(mut self, max_total_wal_size: usize) -> Self {
+        self.max_total_wal_size = Some(max_total_wal_size);
         self
     }
 }
@@ -46,6 +62,9 @@ impl RocksDbStorage {
         }
         if let Some(keep_log_file_num) = rocksdb_options.keep_log_file_num {
             options.set_keep_log_file_num(keep_log_file_num);
+        }
+        if let Some(max_total_wal_size) = rocksdb_options.max_total_wal_size {
+            options.set_max_total_wal_size(max_total_wal_size as u64);
         }
         let mut tables: HashSet<String> = HashSet::from_iter(tables);
         let query = DB::list_cf(&options, db_path.as_ref());

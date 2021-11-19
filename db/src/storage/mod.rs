@@ -9,7 +9,7 @@ use ext::{ResultExt, ToAny};
 
 use crate::error::*;
 use crate::storage::rocksdb::RocksDbOptions;
-use crate::RocksDbStorage;
+use crate::{MemoryKVStore, RocksDbStorage};
 
 pub mod mem;
 #[cfg(feature = "rkv-lmdb")]
@@ -141,6 +141,7 @@ impl<T: Storage + ?Sized> StorageExt for T {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DbEngineOptions {
     RocksDb(RocksDbOptions),
+    InMemory,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -154,6 +155,13 @@ impl<S: AsRef<Path>> DbOptions<S> {
         Self {
             path: db_path,
             engine: DbEngineOptions::RocksDb(RocksDbOptions::default()),
+        }
+    }
+
+    pub fn new_in_memory(db_path: S) -> Self {
+        Self {
+            path: db_path,
+            engine: DbEngineOptions::InMemory,
         }
     }
 }
@@ -185,5 +193,6 @@ pub fn get_or_create<S: AsRef<Path>, S2: AsRef<Path>>(
             pb.push(path);
             Arc::new(RocksDbStorage::try_new(opt, pb, tables).unwrap())
         }
+        DbEngineOptions::InMemory => Arc::new(MemoryKVStore::new()),
     }
 }

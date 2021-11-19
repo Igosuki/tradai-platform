@@ -20,6 +20,8 @@ mock_time = ["util/mock_time"]
 strategies = { path = "../strategies" }
 util = { path = "../util" }
 ext = { path = "../ext" }
+db = { path = "../db" }
+math = { path = "../math" }
 
 # async
 futures = "0.3"
