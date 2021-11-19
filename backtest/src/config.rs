@@ -8,6 +8,7 @@ use typed_builder::TypedBuilder;
 
 use strategies::settings::StrategySettings;
 use strategies::StrategyCopySettings;
+use util::test::test_dir;
 use util::time::{DateRange, DurationRangeType};
 
 use crate::error::*;
@@ -71,5 +72,12 @@ impl BacktestConfig {
         s.try_into().map_err(|e| e.into())
     }
 
+    pub fn output_dir(&self) -> PathBuf {
+        self.output_dir.clone().unwrap_or_else(|| {
+            let mut p = test_dir().into_path();
+            p.push("results");
+            p
+        })
+    }
     //pub fn sample_rate(&self) -> Duration { Duration::from_std(parse(&self.input_sample_rate).unwrap()).unwrap() }
 }

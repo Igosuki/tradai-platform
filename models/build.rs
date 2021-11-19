@@ -1,4 +1,3 @@
-#![feature(with_options)]
 extern crate crc32fast;
 extern crate rsgen_avro;
 extern crate serde_json;
@@ -24,7 +23,7 @@ fn main() -> io::Result<()> {
     let gen_path = gen_path_dir.join("models.rs");
 
     let avro_state_file_p = Path::new("../target").join(".avro-processed.json");
-    let mut avro_state_file = File::with_options()
+    let mut avro_state_file = File::options()
         .create(true)
         .write(true)
         .truncate(false)
@@ -76,7 +75,7 @@ fn main() -> io::Result<()> {
         }
     }
     if any_changes {
-        let mut file = File::with_options().write(true).create(true).open(gen_path.as_path())?;
+        let mut file = File::options().write(true).create(true).open(gen_path.as_path())?;
         let glob = dest_path.join("*.avsc");
         let x = glob.as_path();
         let source = Source::GlobPattern(x.to_str().unwrap());

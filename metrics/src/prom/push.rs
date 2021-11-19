@@ -1,22 +1,24 @@
 // Copyright 2014 The Prometheus Authors
 // Copyright 2019 TiKV Project Authors. Licensed under Apache-2.0.
 
-use crate::error::Result;
+use std::collections::HashMap;
+use std::hash::BuildHasher;
+use std::str::{self, FromStr};
+use std::time::Duration;
+
 use awc::http::header::CONTENT_TYPE;
 use awc::http::{Method, StatusCode};
 use awc::Client;
 use prometheus::proto;
 use prometheus::Error;
 use prometheus::{BasicAuthentication, Encoder, ProtobufEncoder};
-use std::collections::HashMap;
-use std::hash::BuildHasher;
-use std::str::{self, FromStr};
-use std::time::Duration;
+
+use crate::error::Result;
 
 const CLIENT_TIMEOUT_SEC: Duration = Duration::from_secs(2);
 
 pub fn make_client() -> Client {
-    let conn = actix_http::client::Connector::new()
+    let conn = awc::Connector::new()
         .conn_lifetime(Duration::from_secs(15))
         .conn_keep_alive(Duration::from_secs(10))
         .limit(10);
@@ -231,9 +233,10 @@ pub fn hostname_grouping_key() -> HashMap<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use prometheus::proto;
     use protobuf::RepeatedField;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_hostname_grouping_key() {

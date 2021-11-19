@@ -9,16 +9,17 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
-use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
 use chrono::{Duration, TimeZone, Utc};
+use futures::StreamExt;
 use itertools::Itertools;
 use tokio::sync::Mutex;
 
+use db::{DbEngineOptions, RocksDbOptions};
 use ext::ResultExt;
 use strategies::driver::StrategyDriver;
 use strategies::margin_interest_rates::test_util::mock_interest_rate_provider;
@@ -127,11 +128,7 @@ impl Backtest {
         if let Ok(true) = std::fs::try_exists(db_path.clone()) {
             std::fs::remove_dir_all(db_path.clone()).unwrap();
         }
-        let output_path = conf.output_dir.clone().unwrap_or_else(|| {
-            let mut p = test_dir().into_path();
-            p.push("results");
-            p
-        });
+        let output_path = conf.output_dir();
         let mut all_strategy_settings = vec![];
         all_strategy_settings.extend_from_slice(conf.strats.as_slice());
         if let Some(copy) = conf.strat_copy.as_ref() {
@@ -146,7 +143,15 @@ impl Backtest {
                 let exchange_conf = ExchangeSettings::default_test(conf.fees);
                 let margin_interest_rate_provider_addr = mock_interest_rate_provider(settings.exchange());
 
-                let db_conf = DbOptions::new(local_db_path);
+                let db_conf = DbOptions {
+                    path: local_db_path,
+                    engine: DbEngineOptions::RocksDb(
+                        RocksDbOptions::default()
+                            .max_log_file_size(10 * 1024 * 1024)
+                            .keep_log_file_num(2)
+                            .max_total_wal_size(10 * 1024 * 1024),
+                    ),
+                };
 
                 let logger: Arc<VecEventLogger> = Arc::new(VecEventLogger::default());
                 let strategy_driver = strategies::settings::from_settings(
@@ -157,13 +162,14 @@ impl Backtest {
                     margin_interest_rate_provider_addr,
                     Some(logger.clone()),
                 );
+                info!("Creating strategy : {:?}", settings.key());
                 BacktestRunner {
                     strategy_events_logger: logger,
                     strategy: Arc::new(Mutex::new(strategy_driver)),
                 }
             })
             .collect();
-
+        info!("Created {} strategy runners", runners.len());
         Ok(Self {
             period: conf.period.as_range(),
             runners,
@@ -226,23 +232,32 @@ impl Backtest {
         chans: HashSet<Channel>,
     ) -> Result<HashMap<(Exchange, Pair), Vec<LiveEventEnvelope>>> {
         let mut live_events = HashMap::new();
-        for chan in chans {
-            match chan {
-                Channel::Orderbooks { xch, pair } => {
-                    let partitions = self
-                        .dataset
-                        .partitions(self.data_dir.clone(), self.period.clone(), xch, &pair);
-                    let events = match self.dataset {
-                        Dataset::OrderbooksByMinute | Dataset::OrderbooksBySecond => {
-                            let records = sampled_orderbooks_df(
-                                partitions,
-                                Some(pair.to_string()),
-                                &self.input_format.to_string(),
-                            )
-                            .await?;
-                            events_from_orderbooks(xch, pair.clone(), records.get(pair.as_ref()).unwrap())
+        match self.dataset {
+            Dataset::OrderbooksByMinute | Dataset::OrderbooksBySecond => {
+                let partitions: HashSet<String> = chans
+                    .iter()
+                    .filter(|c| matches!(c, Channel::Orderbooks { .. }))
+                    .map(|c| match c {
+                        Channel::Orderbooks { xch, pair } => {
+                            self.dataset
+                                .partitions(self.data_dir.clone(), self.period.clone(), *xch, pair)
                         }
-                        Dataset::OrderbooksRaw => match self.input_format {
+                        _ => HashSet::new(),
+                    })
+                    .flatten()
+                    .collect();
+                let records = sampled_orderbooks_df(partitions, &self.input_format.to_string()).await?;
+                let xch = chans.iter().last().unwrap().exchange();
+                let events = events_from_orderbooks(xch, records.as_slice());
+                live_events.extend(events.into_iter().map(|e| ((xch, e.e.pair()), e)).into_group_map());
+            }
+            Dataset::OrderbooksRaw => {
+                for chan in chans {
+                    if let Channel::Orderbooks { xch, pair } = chan {
+                        let partitions =
+                            self.dataset
+                                .partitions(self.data_dir.clone(), self.period.clone(), xch, &pair);
+                        let events = match self.input_format {
                             DatasetInputFormat::Csv => {
                                 let records = csv_orderbooks_df(partitions).await?;
                                 events_from_csv_orderbooks(xch, pair.clone(), records.as_slice())
@@ -255,31 +270,42 @@ impl Backtest {
                                     &self.input_format.to_string(),
                                 )
                                 .await?;
-                                events_from_orderbooks(xch, pair.clone(), records.as_slice())
+                                events_from_orderbooks(xch, records.as_slice())
                             }
-                        },
-                        _ => panic!("order books channel requires an order books dataset"),
-                    };
-
-                    match live_events.entry((xch, pair)) {
-                        Entry::Occupied(mut o) => {
-                            let v: &mut Vec<LiveEventEnvelope> = o.get_mut();
-                            v.extend_from_slice(events.as_slice());
-                        }
-                        Entry::Vacant(v) => {
-                            v.insert(events);
-                        }
+                        };
+                        live_events.extend(events.into_iter().map(|e| ((xch, e.e.pair()), e)).into_group_map());
                     }
                 }
-                Channel::Trades { .. } => {
-                    panic!("cannot yet read from trades");
-                }
-                Channel::Orders { .. } => {
-                    panic!("cannot yet read from orders");
-                }
             }
+            _ => panic!("order books channel requires an order books dataset"),
         }
+
         Ok(live_events)
+    }
+
+    pub async fn gen_report(conf: &BacktestConfig) {
+        let mut output_dir = conf.output_dir();
+        output_dir.push("latest");
+        let dir_list = std::fs::read_dir(output_dir.clone()).unwrap();
+        let mut global_report = GlobalReport::new(output_dir.clone());
+        let fetches = futures::stream::iter(dir_list.into_iter().map(|file| async {
+            let dir_entry = file.unwrap();
+            if dir_entry.metadata().unwrap().is_dir() {
+                let report_os_string = dir_entry.file_name();
+                let report_dir = report_os_string.to_str().unwrap();
+                info!("Reading report at {}", report_dir);
+                Some(BacktestReport::from_files(report_dir, dir_entry.path()))
+            } else {
+                None
+            }
+        }))
+        .buffer_unordered(10)
+        .filter_map(futures::future::ready)
+        .collect::<Vec<BacktestReport>>();
+        for report in fetches.await {
+            global_report.add_report(report);
+        }
+        global_report.write_global_report(output_dir.as_path()).unwrap();
     }
 }
 
@@ -370,7 +396,6 @@ impl BacktestRunner {
 }
 
 async fn init_coinnect(xch: Exchange) {
-    eprintln!("init_coinnect");
     let mut exchange_apis: HashMap<Exchange, Arc<dyn ExchangeApi>> = HashMap::new();
     let manager = Coinnect::new_manager();
     let api = manager.build_public_exchange_api(&xch, false).await.unwrap();

@@ -1,4 +1,4 @@
-use datafusion::arrow::array::{Array, ListArray, PrimitiveArray, StructArray, TimestampMillisecondArray};
+use datafusion::arrow::array::{Array, ListArray, PrimitiveArray, StringArray, StructArray, TimestampMillisecondArray};
 use datafusion::arrow::datatypes::Float64Type;
 use datafusion::arrow::record_batch::RecordBatch;
 
@@ -11,13 +11,15 @@ use crate::datasources::orderbook::live_order_book;
 /// asks : List(Tuple(f64))
 /// bids : List(Tuple(f64))
 /// event_ms : TimestampMillisecond
-pub fn events_from_orderbooks(xchg: Exchange, pair: Pair, records: &[RecordBatch]) -> Vec<LiveEventEnvelope> {
+/// pr : String
+pub fn events_from_orderbooks(xchg: Exchange, records: &[RecordBatch]) -> Vec<LiveEventEnvelope> {
     let mut live_events = vec![];
     for record_batch in records {
         let sa: StructArray = to_struct_array(record_batch);
         let asks_col = get_col_as::<ListArray>(&sa, "asks");
         let bids_col = get_col_as::<ListArray>(&sa, "bids");
         let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ms");
+        let pair_col = get_col_as::<StringArray>(&sa, "pr");
         for i in 0..sa.len() {
             let mut bids = vec![];
             for bid in bids_col
@@ -52,7 +54,8 @@ pub fn events_from_orderbooks(xchg: Exchange, pair: Pair, records: &[RecordBatch
                 asks.push((vals[0], vals[1]));
             }
             let ts = event_ms_col.value(i);
-            live_events.push(live_order_book(xchg, pair.clone(), ts, asks, bids));
+            let pair = pair_col.value(i);
+            live_events.push(live_order_book(xchg, Pair::from(pair), ts, asks, bids));
         }
     }
     live_events
