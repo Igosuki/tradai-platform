@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use actix::Addr;
 use chrono::{DateTime, Duration, TimeZone, Utc};
-use log::Level::Debug;
 
 use coinnect_rt::prelude::*;
 use db::{get_or_create, DbOptions, Storage};
@@ -151,7 +150,7 @@ impl NaiveTradingStrategy {
             model_time.add(self.beta_sample_freq.mul(self.beta_eval_freq))
         };
         let is_model_obsolete = event_time.ge(&mt_obsolescence);
-        if is_model_obsolete && log_enabled!(Debug) {
+        if is_model_obsolete {
             debug!(
                 "model obsolete, eval time reached : {} > {} with model_time = {}, beta_val = {}",
                 event_time,

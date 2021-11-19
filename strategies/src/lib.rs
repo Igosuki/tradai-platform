@@ -19,8 +19,6 @@ extern crate derivative;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
-extern crate log;
-#[macro_use]
 extern crate prometheus;
 #[cfg(feature = "python")]
 #[macro_use]

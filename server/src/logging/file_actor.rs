@@ -11,7 +11,6 @@ use avro_rs::encode;
 use avro_rs::{types::Value, Codec, Schema, Writer};
 use chrono::Duration;
 use derive_more::Display;
-use log::Level::*;
 use rand::random;
 use serde::Serialize;
 use thiserror::Error;
@@ -144,9 +143,7 @@ where
         match writer.append_ser(s) {
             Err(e) => {
                 self.metrics.write_append_failure();
-                if log_enabled!(Trace) {
-                    trace!("Error writing avro bean {:?}", e);
-                }
+                trace!("Error writing avro bean {:?}", e);
                 Err(Error::WriterError)
             }
             _ => Ok(0),

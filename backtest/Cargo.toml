@@ -29,7 +29,7 @@ tokio = "1"
 actix = "0.12"
 
 # std
-log = "0.4"
+tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
 structopt = "0.3"
 config = { version = "0.11", features = ["yaml", "toml", "json"], default-features = false }
 thiserror = "1.0"
