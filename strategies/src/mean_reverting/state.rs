@@ -4,7 +4,6 @@ use std::sync::Arc;
 use actix::Addr;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
-use log::Level::Debug;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -520,8 +519,6 @@ impl MeanRevertingState {
     pub(crate) fn is_trading(&self) -> bool { self.vars.is_trading }
 
     fn log_indicators(&mut self) {
-        if log_enabled!(Debug) {
-            debug!("{}", serde_json::to_string(&self.vars).unwrap());
-        }
+        debug!("{}", serde_json::to_string(&self.vars).unwrap());
     }
 }

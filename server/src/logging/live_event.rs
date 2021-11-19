@@ -5,7 +5,6 @@ use std::sync::Arc;
 use actix::Handler;
 use avro_rs::Schema;
 use chrono::{Duration, TimeZone, Utc};
-use log::Level::*;
 
 use coinnect_rt::prelude::*;
 use models::avro_gen::{self,
@@ -71,10 +70,8 @@ impl Handler<Arc<LiveEventEnvelope>> for AvroFileActor<LiveEventEnvelope> {
     fn handle(&mut self, msg: Arc<LiveEventEnvelope>, _ctx: &mut Self::Context) -> Self::Result {
         let rc = self.writer_for(&msg);
         if let Err(rc_err) = rc {
-            if log_enabled!(Debug) {
-                self.metrics.writer_acquisition_failure();
-                debug!("Could not acquire writer for partition {:?}", rc_err);
-            }
+            self.metrics.writer_acquisition_failure();
+            debug!("Could not acquire writer for partition {:?}", rc_err);
             return Err(anyhow!(rc_err));
         }
         let rc_ok = rc.unwrap();

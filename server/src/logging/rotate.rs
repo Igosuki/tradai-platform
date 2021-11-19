@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Duration, Utc};
 use derive_more::Display;
-use log::Level::*;
 use std::error::Error;
 use std::io;
 
@@ -42,9 +41,7 @@ where
     }
 
     fn rotate(&mut self) -> Result<()> {
-        if log_enabled!(Trace) {
-            trace!("Flushing {:?}", &self.path);
-        }
+        trace!("Flushing {:?}", &self.path);
         self.inner.flush()?;
         let &mut RotatingFile {
             ref path,
