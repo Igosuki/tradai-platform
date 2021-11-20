@@ -7,7 +7,7 @@ members = [
     "coinnect",
     "db",
     "ext",
-    "math",
+    "stats",
     "models",
     "account",
     "metrics",

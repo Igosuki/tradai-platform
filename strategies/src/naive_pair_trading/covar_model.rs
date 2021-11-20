@@ -2,7 +2,7 @@ use crate::models::Window;
 use crate::types::BookPosition;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
-use math::iter::{CovarianceExt, MeanExt, VarianceExt};
+use stats::iter::{CovarianceExt, MeanExt, VarianceExt};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataRow {

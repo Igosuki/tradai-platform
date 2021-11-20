@@ -10,7 +10,7 @@ use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
 use coinnect_rt::prelude::*;
 use db::{get_or_create, DbOptions};
 #[cfg(test)]
-use math::indicators::macd_apo::MACDApo;
+use stats::indicators::macd_apo::MACDApo;
 
 use crate::driver::StrategyDriver;
 use crate::error::Result;
