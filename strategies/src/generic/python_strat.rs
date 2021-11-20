@@ -8,8 +8,9 @@ use serde_json::Value;
 use coinnect_rt::exchange::Exchange;
 use ext::ResultExt;
 
-use crate::generic::{InputEvent, Strategy, TradeSignal};
+use crate::generic::Strategy;
 use crate::query::StrategyIndicators;
+use crate::types::{InputEvent, TradeSignal};
 use crate::Channel;
 
 #[pyclass(subclass)]
@@ -159,8 +160,8 @@ mod test {
     use pyo3::Python;
 
     use crate::generic::python_strat::PythonStratWrapper;
-    use crate::generic::{InputEvent, Strategy};
-    use crate::types::BookPosition;
+    use crate::generic::Strategy;
+    use crate::types::{BookPosition, InputEvent};
 
     fn python_script(name: &str) -> std::io::Result<String> {
         let manifest_dir = env!("CARGO_MANIFEST_DIR");

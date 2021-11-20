@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use coinnect_rt::prelude::*;
 use coinnect_rt::types::MarginSideEffect;
+use std::collections::BTreeMap;
 
 use crate::error::BookError;
 
@@ -285,4 +286,26 @@ mod test {
             }
         }
     }
+}
+
+type BookPositions = BTreeMap<Pair, BookPosition>;
+
+#[derive(Debug)]
+pub enum InputEvent {
+    BookPosition(BookPosition),
+    BookPositions(BookPositions),
+}
+
+#[allow(dead_code)]
+#[cfg_attr(feature = "python", pyclass)]
+pub(crate) struct TradeSignal {
+    pub position_kind: PositionKind,
+    pub operation_kind: OperationKind,
+    pub trade_kind: TradeKind,
+    pub price: f64,
+    pub pair: Pair,
+    pub exchange: Exchange,
+    pub instructions: Option<ExecutionInstruction>,
+    pub dry_mode: bool,
+    pub asset_type: AssetType,
 }

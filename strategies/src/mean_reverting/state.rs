@@ -19,7 +19,7 @@ use crate::order_manager::types::{OrderDetail, OrderStatus, Rejection, Transacti
 use crate::order_manager::{OrderManager, OrderResolution, TransactionService};
 use crate::query::MutableField;
 use crate::repos::OperationsRepository;
-use crate::trading_util::interest_fees_since;
+use crate::trading::interest::interest_fees_since;
 use crate::types::{BookPosition, ExecutionInstruction, OperationEvent, OrderMode, StratEvent, TradeEvent,
                    TradeOperation};
 use crate::types::{OperationKind, PositionKind, TradeKind};

@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use serde::Serialize;
 
 use crate::error::Result;
-use crate::generic::InputEvent;
+use crate::types::InputEvent;
 
 pub trait LoadableModel {
     /// Overwrite the current model using the reader
@@ -39,12 +39,12 @@ mod test {
     use util::test::test_results_dir;
 
     use crate::error::Result;
-    use crate::generic::InputEvent;
-    use crate::input;
     use crate::mean_reverting::model::MeanRevertingModel;
     use crate::mean_reverting::options::Options;
     use crate::models::io::{IterativeModel, LoadableModel};
     use crate::test_util::init;
+    use crate::test_util::input;
+    use crate::types::InputEvent;
 
     const PAIR: &str = "BTC_USDT";
 

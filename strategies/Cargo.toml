@@ -10,11 +10,6 @@ name = "strategies"
 path = "src/lib.rs"
 
 [[bin]]
-name = "model_loader"
-path = "src/main.rs"
-required-features = ["binary"]
-
-[[bin]]
 name = "om_tool"
 path = "src/om_tool.rs"
 required-features = ["binary"]

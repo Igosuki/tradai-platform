@@ -10,7 +10,6 @@ use math::indicators::macd_apo::MACDApo;
 use util::test::test_results_dir;
 
 use crate::driver::StrategyDriver;
-use crate::input;
 use crate::margin_interest_rates::test_util::mock_interest_rate_provider;
 use crate::mean_reverting::model::ema_indicator_model;
 use crate::mean_reverting::options::Options;
@@ -19,6 +18,7 @@ use crate::mean_reverting::MeanRevertingStrategy;
 use crate::order_manager::test_util::mock_manager;
 use crate::test_util::draw::{draw_line_plot, StrategyEntry, TimedEntry};
 use crate::test_util::fs::copy_file;
+use crate::test_util::input;
 use crate::test_util::{init, test_db};
 use crate::types::{BookPosition, OperationEvent, OrderMode, TradeEvent};
 

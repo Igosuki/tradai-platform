@@ -59,7 +59,6 @@ pub mod actor;
 pub mod driver;
 pub mod error;
 mod generic;
-pub mod input;
 pub mod mean_reverting;
 mod models;
 pub mod naive_pair_trading;
@@ -69,7 +68,7 @@ mod repos;
 pub mod settings;
 #[cfg(test)]
 mod test_util;
-mod trading_util;
+pub mod trading;
 pub mod types;
 mod wal;
 
