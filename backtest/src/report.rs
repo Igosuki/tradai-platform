@@ -10,7 +10,7 @@ use plotly::layout::{GridPattern, LayoutGrid, Legend, RowOrder};
 use plotly::{Layout, Plot, Scatter};
 use serde::de::DeserializeOwned;
 
-use math::Next;
+use stats::Next;
 use strategies::query::StrategyIndicators;
 use strategies::types::{BookPosition, StratEvent};
 use util::serde::write_as_seq;
@@ -253,7 +253,7 @@ fn stop_event_ratio(events: &[StratEvent]) -> usize {
 
 fn pnl_std_dev(indicators: &[TimedData<StrategyIndicators>]) -> f64 {
     let pnls: Vec<f64> = indicators.iter().map(|v| v.value.pnl).dedup().collect();
-    let mut std_dev = math::StandardDeviation::new(10).unwrap();
+    let mut std_dev = stats::StandardDeviation::new(10).unwrap();
     pnls.iter().fold(0.0, |_, pnl| std_dev.next(*pnl))
 }
 

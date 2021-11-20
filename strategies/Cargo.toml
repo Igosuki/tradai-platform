@@ -28,8 +28,11 @@ db = { path = "../db" }
 ext = { path = "../ext" }
 util = { path = "../util" }
 metrics = { path = "../metrics" }
+#coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
+coinnect_rt = { path = "../coinnect" }
+stats = { path = "../stats" }
 
-# actix
+# actor
 actix = "0.12"
 actix_derive = "0.6"
 
@@ -37,42 +40,42 @@ actix_derive = "0.6"
 clap = { version = "2.33", optional = true }
 structopt = { version = "0.3.23", optional = true }
 
-# Crypto
-#coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
-coinnect_rt = { path = "../coinnect" }
+# io
 csv = "1.1"
 
+# std
 derivative = "2.2"
 derive_more = "0.99"
 env_logger = "0.9"
-
 glob = "0.3"
-
-# std and structs
 itertools = "0.10"
 convert_case = "0.4"
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
-
 uuid = { version = "0.8", features = ["v4"] }
 backoff = "0.3"
 lazy_static = "1.4"
+ordered-float = "2.1"
+parse_duration = "2.1"
+strum = "0.21"
+strum_macros = "0.21"
+tempfile = "3.1"
+thiserror = "1.0"
 
-# futures
+# async
 futures = { version = "0.3", features = ["async-await", "alloc"] }
 async-trait = "0.1"
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
 
 # graph_ql
 juniper = { version = "0.15", features = ["expose-test-schema"] }
 
-# Internal
-math = { path = "../math" }
-
-# Macros
+# metrics and tracing
 opentelemetry = { version = "0.15", default-features = false, features = ["trace"] }
 opentelemetry-jaeger = "0.14"
-ordered-float = "2.1"
-parse_duration = "2.1"
+tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
+tracing-futures = "0.2"
 
 # metrics
 prometheus = { version = "0.12", features = ["nightly", "push", "process", "gen"] }
@@ -80,24 +83,14 @@ prometheus = { version = "0.12", features = ["nightly", "push", "process", "gen"
 # codec
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["float_roundtrip"] }
-strum = "0.21"
-strum_macros = "0.21"
-tempfile = "3.1"
 snap = "1.0"
-
-# Error
-thiserror = "1.0"
-tokio = { version = "1", features = ["full"] }
-tokio-stream = "0.1"
-# Tracing
-tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
-tracing-futures = "0.2"
 
 # python
 #python = { path = "../python" }
 pyo3 = { version = "0.14", features = ["serde", "auto-initialize"], optional = true }
 pyo3-log = { version = "0.4", optional = true }
 
+# sql
 sqlx = { version = "0.5", features = [ "runtime-tokio-native-tls" ] }
 
 [dev-dependencies]

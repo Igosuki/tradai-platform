@@ -826,13 +826,13 @@ dependencies = [
  "ext",
  "futures",
  "itertools",
- "math",
  "parse_duration",
  "plotly",
  "serde",
  "serde_derive",
  "serde_json",
  "serde_yaml",
+ "stats",
  "strategies",
  "structopt",
  "thiserror",
@@ -3360,23 +3360,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a3e378b66a060d48947b590737b30a1be76706c8dd7b8ba0f2fe3989c68a853f"
 
 [[package]]
-name = "math"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "float-cmp",
- "itertools",
- "num-traits",
- "peroxide",
- "rand 0.8.4",
- "serde",
- "serde_derive",
- "ta",
- "thiserror",
- "tracing",
-]
-
-[[package]]
 name = "matrixmultiply"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5451,6 +5434,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "stats"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "float-cmp",
+ "itertools",
+ "num-traits",
+ "peroxide",
+ "rand 0.8.4",
+ "serde",
+ "serde_derive",
+ "ta",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "stdweb"
 version = "0.4.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5536,7 +5536,6 @@ dependencies = [
  "itertools",
  "juniper",
  "lazy_static 1.4.0",
- "math",
  "metrics",
  "openssl",
  "opentelemetry",
@@ -5555,6 +5554,7 @@ dependencies = [
  "snap 1.0.5",
  "socket2",
  "sqlx",
+ "stats",
  "structopt",
  "strum 0.21.0",
  "strum_macros 0.21.1",
