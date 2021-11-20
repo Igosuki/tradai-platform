@@ -15,11 +15,11 @@ use math::indicators::macd_apo::MACDApo;
 use math::iter::QuantileExt;
 
 use crate::error::Result;
-use crate::generic::InputEvent;
 use crate::mean_reverting::options::Options;
 use crate::models::io::{IterativeModel, LoadableModel};
 use crate::models::persist::TimedValue;
 use crate::models::{IndicatorModel, Sampler, Window, WindowedModel};
+use crate::types::InputEvent;
 use crate::Model;
 
 pub fn ema_indicator_model(

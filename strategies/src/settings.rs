@@ -16,6 +16,7 @@ use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
 use crate::order_manager::OrderManager;
 use crate::{error, generic, DbOptions, StratEventLogger, StrategyKey, StrategyType};
 
+/// Strategy configuration
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
@@ -73,6 +74,7 @@ impl StrategySettings {
     }
 }
 
+/// Handles replicating strategy configurations
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
