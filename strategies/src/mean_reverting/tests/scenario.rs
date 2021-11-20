@@ -6,7 +6,7 @@ use tokio::time::Duration;
 
 use coinnect_rt::prelude::*;
 use db::DbOptions;
-use math::indicators::macd_apo::MACDApo;
+use stats::indicators::macd_apo::MACDApo;
 use util::test::test_results_dir;
 
 use crate::driver::StrategyDriver;

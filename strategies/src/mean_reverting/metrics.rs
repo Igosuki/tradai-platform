@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use prometheus::{CounterVec, GaugeVec, Registry};
 
-use math::indicators::macd_apo::MACDApo;
 use metrics::store::MetricStore;
+use stats::indicators::macd_apo::MACDApo;
 
 use crate::mean_reverting::state::{MeanRevertingState, Position};
 use crate::mean_reverting::SinglePosRow;

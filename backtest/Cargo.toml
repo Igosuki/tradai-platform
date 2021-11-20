@@ -21,7 +21,7 @@ strategies = { path = "../strategies" }
 util = { path = "../util" }
 ext = { path = "../ext" }
 db = { path = "../db" }
-math = { path = "../math" }
+stats = { path = "../stats" }
 
 # async
 futures = "0.3"

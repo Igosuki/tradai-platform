@@ -11,8 +11,8 @@ use serde::ser::Serializer;
 
 use db::Storage;
 use ext::ResultExt;
-use math::indicators::macd_apo::MACDApo;
-use math::iter::QuantileExt;
+use stats::indicators::macd_apo::MACDApo;
+use stats::iter::QuantileExt;
 
 use crate::error::Result;
 use crate::mean_reverting::options::Options;

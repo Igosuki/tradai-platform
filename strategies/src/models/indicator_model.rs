@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use db::Storage;
 use ext::ResultExt;
-use math::Next;
+use stats::Next;
 
 use crate::error::Result;
 use crate::models::Model;
