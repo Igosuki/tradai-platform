@@ -1,3 +1,6 @@
+pub mod interest;
+pub mod stop;
+
 /*use crate::order_types::Transaction;
 use crate::types::{OperationKind, PositionKind, TradeOperation};
 use std::marker::PhantomData;

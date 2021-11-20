@@ -2,8 +2,6 @@ use std::collections::{BTreeMap, HashSet};
 use std::convert::TryInto;
 use std::sync::{Arc, Mutex};
 
-#[cfg(feature = "python")]
-use pyo3::prelude::*;
 use tokio::sync::RwLock;
 
 use coinnect_rt::prelude::*;
@@ -11,7 +9,7 @@ use coinnect_rt::prelude::*;
 use crate::driver::StrategyDriver;
 use crate::error::Result;
 use crate::query::{DataQuery, DataResult, Mutation, StrategyIndicators};
-use crate::types::{BookPosition, ExecutionInstruction, OperationKind, PositionKind, TradeKind};
+use crate::types::{BookPosition, InputEvent, TradeSignal};
 use crate::{Channel, StrategyStatus};
 
 #[cfg(feature = "python")]
@@ -38,32 +36,10 @@ pub(crate) trait Strategy: Sync + Send {
     fn indicators(&self) -> StrategyIndicators;
 }
 
-type BookPositions = BTreeMap<Pair, BookPosition>;
-
 #[allow(dead_code)]
 struct StrategyContext<C> {
     db: Arc<dyn Strategy>,
     conf: C,
-}
-
-#[derive(Debug)]
-pub enum InputEvent {
-    BookPosition(BookPosition),
-    BookPositions(BookPositions),
-}
-
-#[allow(dead_code)]
-#[cfg_attr(feature = "python", pyclass)]
-pub(crate) struct TradeSignal {
-    pub position_kind: PositionKind,
-    pub operation_kind: OperationKind,
-    pub trade_kind: TradeKind,
-    pub price: f64,
-    pub pair: Pair,
-    pub exchange: Exchange,
-    pub instructions: Option<ExecutionInstruction>,
-    pub dry_mode: bool,
-    pub asset_type: AssetType,
 }
 
 pub struct GenericStrategy {

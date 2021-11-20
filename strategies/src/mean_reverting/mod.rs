@@ -14,7 +14,7 @@ use math::indicators::macd_apo::MACDApo;
 
 use crate::driver::StrategyDriver;
 use crate::error::Result;
-use crate::generic::{InputEvent, Strategy, TradeSignal};
+use crate::generic::Strategy;
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
 use crate::mean_reverting::model::MeanRevertingModel;
 use crate::mean_reverting::options::Options;
@@ -23,8 +23,8 @@ use crate::models::io::IterativeModel;
 use crate::models::Sampler;
 use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, StrategyIndicators};
-use crate::trading_util::Stopper;
-use crate::types::{BookPosition, PositionKind};
+use crate::trading::stop::Stopper;
+use crate::types::{BookPosition, InputEvent, PositionKind, TradeSignal};
 use crate::{Channel, StratEvent, StratEventLogger, StrategyStatus};
 
 mod metrics;
@@ -324,7 +324,7 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
 
     fn init(&mut self) -> Result<()> { self.load() }
 
-    async fn eval(&mut self, e: &crate::generic::InputEvent) -> Result<Vec<crate::generic::TradeSignal>> {
+    async fn eval(&mut self, e: &crate::types::InputEvent) -> Result<Vec<crate::types::TradeSignal>> {
         let mut signals = vec![];
         if !self.can_eval() {
             return Ok(signals);
@@ -359,7 +359,7 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
     }
 
     #[tracing::instrument(skip(self), level = "trace")]
-    async fn update_model(&mut self, e: &crate::generic::InputEvent) -> Result<()> {
+    async fn update_model(&mut self, e: &crate::types::InputEvent) -> Result<()> {
         self.model.next_model(e)?;
         let t = self.model.thresholds();
         self.metrics.log_thresholds(t.0, t.1);

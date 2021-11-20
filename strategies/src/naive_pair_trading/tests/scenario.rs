@@ -8,7 +8,6 @@ use coinnect_rt::exchange::Exchange;
 use db::DbOptions;
 use util::test::test_results_dir;
 
-use crate::input;
 use crate::naive_pair_trading::covar_model::LinearModelValue;
 use crate::naive_pair_trading::options::Options;
 use crate::naive_pair_trading::state::MovingState;
@@ -16,6 +15,7 @@ use crate::naive_pair_trading::{covar_model, DataRow, NaiveTradingStrategy};
 use crate::order_manager::test_util::mock_manager;
 use crate::test_util::draw::{draw_line_plot, StrategyEntry, TimedEntry};
 use crate::test_util::fs::copy_file;
+use crate::test_util::input;
 use crate::test_util::test_db;
 use crate::types::{OperationEvent, OrderMode, TradeEvent};
 
