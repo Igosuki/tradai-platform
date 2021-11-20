@@ -1,3 +1,5 @@
+///! Standard library extensions through traits
+///! use [`ext`]
 use std::any::Any;
 use std::sync::Arc;
 
@@ -72,4 +74,8 @@ impl<T: Any> ToAny for T {
     {
         self
     }
+}
+
+pub mod prelude {
+    pub use super::{MapInto, ResultExt, ToAny};
 }
