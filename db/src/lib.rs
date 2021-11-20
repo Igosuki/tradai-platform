@@ -2,6 +2,9 @@
 #![feature(btree_drain_filter)]
 #![allow(incomplete_features)]
 
+///! Key/Value based storage interfaces
+///! Main implementations are rkv-lmdb, rocksdb and in-memory
+
 #[cfg(test)]
 #[macro_use]
 extern crate measure_time;
