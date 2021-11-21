@@ -6,7 +6,8 @@ use uuid::Uuid;
 
 use coinnect_rt::prelude::*;
 use strategies::query::DataQuery;
-use strategies::types::{OperationKind, PositionKind, TradeOperation};
+use trading::position::{OperationKind, PositionKind};
+use trading::types::TradeOperation;
 
 use crate::graphql_schemas::context::Context;
 

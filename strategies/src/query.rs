@@ -1,11 +1,11 @@
 use actix::Message;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use trading::types::TradeOperation;
 
 use crate::error::*;
 use crate::mean_reverting::state::Operation as MeanRevertingOperation;
 use crate::naive_pair_trading::state::Operation as NaiveOperation;
-use crate::types::TradeOperation;
 use crate::StrategyStatus;
 
 // TODO: Use GraphQLUnion to refactor this ugly bit of code

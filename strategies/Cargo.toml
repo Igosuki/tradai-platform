@@ -9,13 +9,8 @@ edition = "2021"
 name = "strategies"
 path = "src/lib.rs"
 
-[[bin]]
-name = "om_tool"
-path = "src/om_tool.rs"
-required-features = ["binary"]
 
 [features]
-binary = ["clap", "structopt"]
 zstd = ["awc/compress-zstd"]
 python = ["pyo3", "pyo3-log"]
 backtests = ["util/mock_time"]
@@ -31,14 +26,11 @@ metrics = { path = "../metrics" }
 #coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
 coinnect_rt = { path = "../coinnect" }
 stats = { path = "../stats" }
+trading = { path = "../trading" }
 
 # actor
 actix = "0.12"
 actix_derive = "0.6"
-
-# bin
-clap = { version = "2.33", optional = true }
-structopt = { version = "0.3.23", optional = true }
 
 # io
 csv = "1.1"
@@ -47,9 +39,7 @@ csv = "1.1"
 derivative = "2.2"
 derive_more = "0.99"
 env_logger = "0.9"
-glob = "0.3"
 itertools = "0.10"
-convert_case = "0.4"
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "0.8", features = ["v4"] }
@@ -59,14 +49,12 @@ ordered-float = "2.1"
 parse_duration = "2.1"
 strum = "0.21"
 strum_macros = "0.21"
-tempfile = "3.1"
 thiserror = "1.0"
 
 # async
 futures = { version = "0.3", features = ["async-await", "alloc"] }
 async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
-tokio-stream = "0.1"
 
 # graph_ql
 juniper = { version = "0.15", features = ["expose-test-schema"] }
@@ -90,14 +78,12 @@ snap = "1.0"
 pyo3 = { version = "0.14", features = ["serde", "auto-initialize"], optional = true }
 pyo3-log = { version = "0.4", optional = true }
 
-# sql
-sqlx = { version = "0.5", features = [ "runtime-tokio-native-tls" ] }
-
 [dev-dependencies]
 # ours
 backtest = { path = "../backtest" }
 util = { path = "../util" }
 binance-rs-async = { path = "../binance-rs" }
+trading = { path = "../trading", features = ["test_util"] }
 
 # actix
 actix-codec = "0.4"
@@ -122,6 +108,11 @@ bytes = "1.0"
 bytestring = "1.0.0"
 openssl = "0.10"
 rand = "0.8"
+tempfile = "3.2"
+glob = "0.3"
+
+# async
+tokio-stream = "0.1"
 
 # http
 http = "0.2"

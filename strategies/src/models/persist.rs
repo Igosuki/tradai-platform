@@ -224,11 +224,11 @@ mod test {
     use quickcheck::{Arbitrary, Gen};
 
     use db::{get_or_create, DbOptions};
+    use trading::book::BookPosition;
     use util::test::test_dir;
 
     use crate::models::persist::PersistentVec;
     use crate::test_util::test_db;
-    use crate::types::BookPosition;
 
     use super::ModelValue;
     use super::PersistentModel;

@@ -11,9 +11,9 @@ use juniper::executor::{FieldError, FieldResult};
 
 use coinnect_rt::prelude::*;
 use strategies::actor::StrategyActor;
-use strategies::order_manager::OrderManager;
 use strategies::query::{DataQuery, DataResult};
 use strategies::{Strategy, StrategyKey};
+use trading::order_manager::OrderManager;
 
 use crate::graphql_schemas::unhandled_data_result;
 

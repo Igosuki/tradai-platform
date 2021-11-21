@@ -7,6 +7,9 @@ use tokio::time::Duration;
 use coinnect_rt::prelude::*;
 use db::DbOptions;
 use stats::indicators::macd_apo::MACDApo;
+use trading::book::BookPosition;
+use trading::order_manager::test_util::mock_manager;
+use trading::types::OrderMode;
 use util::test::test_results_dir;
 
 use crate::driver::StrategyDriver;
@@ -15,12 +18,11 @@ use crate::mean_reverting::model::ema_indicator_model;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation};
 use crate::mean_reverting::MeanRevertingStrategy;
-use crate::order_manager::test_util::mock_manager;
 use crate::test_util::draw::{draw_line_plot, StrategyEntry, TimedEntry};
 use crate::test_util::fs::copy_file;
 use crate::test_util::input;
 use crate::test_util::{init, test_db};
-use crate::types::{BookPosition, OperationEvent, OrderMode, TradeEvent};
+use crate::types::{OperationEvent, TradeEvent};
 
 #[derive(Debug, Serialize, Clone)]
 struct StrategyLog {
@@ -73,7 +75,7 @@ async fn moving_average_model_backtest() {
     let csv_records =
         input::load_csv_records(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 9), vec![PAIR], EXCHANGE, CHANNEL).await;
     csv_records[0].iter().take(500).for_each(|l| {
-        let pos: BookPosition = l.into();
+        let pos: BookPosition = l.to_bp();
         model.update(pos.mid).unwrap();
     });
     let apo = model.value().unwrap().apo;

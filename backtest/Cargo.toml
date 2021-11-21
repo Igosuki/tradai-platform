@@ -10,11 +10,11 @@ path = "src/lib.rs"
 [[bin]]
 name = "backtest"
 path = "src/main.rs"
-required-features = ["env_logger"]
+required-features = ["binary"]
 
 [features]
 mock_time = ["util/mock_time"]
-
+binary = ["env_logger", "structopt"]
 [dependencies]
 # trader
 strategies = { path = "../strategies" }
@@ -22,6 +22,7 @@ util = { path = "../util" }
 ext = { path = "../ext" }
 db = { path = "../db" }
 stats = { path = "../stats" }
+trading = { path = "../trading", features = ["test_util"] }
 
 # async
 futures = "0.3"
@@ -30,12 +31,11 @@ actix = "0.12"
 
 # std
 tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
-structopt = "0.3"
+structopt = { version = "0.3", optional = true }
 config = { version = "0.11", features = ["yaml", "toml", "json"], default-features = false }
 thiserror = "1.0"
 serde = "1.0"
 serde_derive = "1.0"
-serde_yaml = "0.8"
 serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 parse_duration = "2.1"

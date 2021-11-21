@@ -7,10 +7,11 @@ use serde_json::Value;
 
 use coinnect_rt::exchange::Exchange;
 use ext::ResultExt;
+use trading::signal::TradeSignal;
 
 use crate::generic::Strategy;
 use crate::query::StrategyIndicators;
-use crate::types::{InputEvent, TradeSignal};
+use crate::types::InputEvent;
 use crate::Channel;
 
 #[pyclass(subclass)]
@@ -158,10 +159,11 @@ impl Strategy for PythonStratWrapper {
 mod test {
     use chrono::Utc;
     use pyo3::Python;
+    use trading::book::BookPosition;
 
-    use crate::generic::python_strat::PythonStratWrapper;
     use crate::generic::Strategy;
-    use crate::types::{BookPosition, InputEvent};
+    use crate::python_strat::PythonStratWrapper;
+    use crate::types::InputEvent;
 
     fn python_script(name: &str) -> std::io::Result<String> {
         let manifest_dir = env!("CARGO_MANIFEST_DIR");

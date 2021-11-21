@@ -10,15 +10,16 @@ use coinnect_rt::prelude::*;
 use db::{get_or_create, DbOptions, Storage};
 use options::Options;
 use state::{MovingState, Position};
+use trading::book::BookPosition;
+use trading::order_manager::OrderManager;
+use trading::position::PositionKind;
 
 use crate::driver::StrategyDriver;
 use crate::error::*;
 use crate::models::{Model, WindowedModel};
-use crate::naive_pair_trading::covar_model::{DataRow, LinearModelValue};
+use crate::naive_pair_trading::covar_model::{DualBookPosition, LinearModelValue};
 use crate::naive_pair_trading::state::Operation;
-use crate::order_manager::OrderManager;
 use crate::query::{ModelReset, MutableField, Mutation, StrategyIndicators};
-use crate::types::{BookPosition, PositionKind};
 use crate::{Channel, DataQuery, DataResult, StrategyStatus};
 
 use self::metrics::NaiveStrategyMetrics;
@@ -44,7 +45,7 @@ pub struct NaiveTradingStrategy {
     beta_eval_freq: i32,
     beta_sample_freq: Duration,
     state: MovingState,
-    data_table: WindowedModel<DataRow, LinearModelValue>,
+    data_table: WindowedModel<DualBookPosition, LinearModelValue>,
     pub right_pair: String,
     pub left_pair: String,
     metrics: Arc<NaiveStrategyMetrics>,
@@ -112,7 +113,7 @@ impl NaiveTradingStrategy {
         right_pair: &str,
         db: Arc<dyn Storage>,
         window_size: usize,
-    ) -> WindowedModel<DataRow, LinearModelValue> {
+    ) -> WindowedModel<DualBookPosition, LinearModelValue> {
         WindowedModel::new(
             &format!("{}_{}", left_pair, right_pair),
             db,
@@ -213,7 +214,7 @@ impl NaiveTradingStrategy {
         }
     }
 
-    async fn eval_latest(&mut self, lr: &DataRow) {
+    async fn eval_latest(&mut self, lr: &DualBookPosition) {
         if self.state.ongoing_op().is_some() {
             return;
         }
@@ -297,7 +298,7 @@ impl NaiveTradingStrategy {
     }
 
     #[tracing::instrument(skip(self), level = "trace")]
-    async fn process_row(&mut self, row: &DataRow) {
+    async fn process_row(&mut self, row: &DualBookPosition) {
         let time = self.last_sample_time.add(self.beta_sample_freq);
         let should_sample = row.time.ge(&time);
         // A model is available
@@ -355,7 +356,7 @@ impl StrategyDriver for NaiveTradingStrategy {
         let now = Utc::now();
         if now.gt(&self.last_row_process_time.add(chrono::Duration::milliseconds(200))) {
             if let (Some(l), Some(r)) = (self.last_left.clone(), self.last_right.clone()) {
-                let x = DataRow {
+                let x = DualBookPosition {
                     left: l,
                     right: r,
                     time: now,
@@ -421,7 +422,7 @@ impl StrategyDriver for NaiveTradingStrategy {
                 && self.last_right.is_some()
                 && self.last_left.is_some()
             {
-                self.eval_latest(&DataRow {
+                self.eval_latest(&DualBookPosition {
                     left: self.last_left.as_ref().unwrap().clone(),
                     right: self.last_right.as_ref().unwrap().clone(),
                     time: Utc::now(),

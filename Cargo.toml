@@ -5,6 +5,7 @@ cargo-features = ["named-profiles"]
 members = [
     "binance-rs",
     "coinnect",
+    "coinnect_test_util",
     "db",
     "ext",
     "stats",
@@ -14,7 +15,8 @@ members = [
     "server",
     "strategies",
     "util",
-    "backtest"
+    "backtest",
+    "trading"
 ]
 
 exclude = [

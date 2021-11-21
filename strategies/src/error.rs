@@ -1,4 +1,6 @@
 use thiserror::Error;
+use trading::book::BookError;
+use trading::order_manager;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -8,6 +10,8 @@ pub enum Error {
     Json(#[from] serde_json::Error),
     #[error("Coinnect {0}")]
     Coinnect(#[from] coinnect_rt::error::Error),
+    #[error("Trading {0}")]
+    Trading(#[from] trading::error::Error),
     #[error("Db {0}")]
     Db(#[from] db::Error),
     #[error("model not loaded : {0}")]
@@ -26,14 +30,8 @@ pub enum Error {
     OperationCancelled,
     #[error("missing order in operation : {0}")]
     OperationMissingOrder(String),
-    #[error("order manager mailbox was full")]
-    OrderManagerMailboxError,
-    #[error("interest rate provider mailbox was full")]
-    InterestRateProviderMailboxError,
-    #[error("order not found : {0}")]
-    OrderNotFound(String),
-    #[error("staged order required")]
-    StagedOrderRequired,
+    #[error("order manager {0}")]
+    OrderManager(#[from] order_manager::error::Error),
     #[error("invalid position")]
     InvalidPosition,
     #[error("invalid book position")]
@@ -55,30 +53,20 @@ impl Error {
             Error::NoTransactionChange => "no_transaction_change",
             Error::NoTransactionInOperation => "no_transaction_in_operation",
             Error::OperationRejected => "operation_restaged",
-            Error::OrderManagerMailboxError => "order_manager_mailbox",
-            Error::OrderNotFound(_) => "order_not_found",
             Error::InvalidPosition => "invalid_position",
             Error::OperationCancelled => "operation_cancelled",
             Error::OperationBadRequest => "operation_bad_request",
             #[cfg(feature = "python")]
             Error::Python(_) => "python",
-            Error::InterestRateProviderMailboxError => "interest_rate_provider_mailbox",
+            Error::Trading(_) => "trading",
             Error::PendingOperation => "pending_operation",
             Error::FeatureNotImplemented => "feature_not_implemented",
-            Error::StagedOrderRequired => "staged_order_required",
             Error::Json(_) => "json",
             Error::OperationMissingOrder(_) => "operation_missing_order",
             Error::BookError(_) => "book_error",
+            Error::OrderManager(_) => "order_manager",
         }
     }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-
-#[derive(Error, Debug)]
-pub enum BookError {
-    #[error("at least one bid expected")]
-    MissingBids,
-    #[error("at least one ask expected")]
-    MissingAsks,
-}

@@ -1,8 +1,7 @@
 use config::ConfigError;
 use datafusion::arrow::error::ArrowError;
 use datafusion::error::DataFusionError;
-
-use strategies::error::BookError;
+use trading::book::BookError;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {

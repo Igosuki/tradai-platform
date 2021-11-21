@@ -16,7 +16,7 @@ path = "src/lib.rs"
 default = []
 rocksdb-static = ["rocksdb/static"]
 rocksdb-vendor = ["rocksdb/vendor"]
-rkv-lmdb = ["rkv"]
+rkv-lmdb = ["rkv", "lmdb-rkv", "tracing"]
 
 [dependencies]
 # trader
@@ -26,23 +26,19 @@ ext = { path = "../ext" }
 structopt = { version = "0.3", optional = true }
 
 # std
-anyhow = "1.0"
 thiserror = "1.0"
 bincode = "1.3"
-chrono = "0.4"
 itertools = "0.10"
 serde_json = { version = "1.0", features = ["float_roundtrip"] }
-measure_time = "0.7"
 serde = { version = "1.0", features = ["derive"] }
-tracing = { version ="0.1", features = ["release_max_level_debug", "log"] }
+tracing = { version ="0.1", features = ["release_max_level_debug", "log"], optional=true }
 
 # databases
-lmdb-rkv = "0.14"
+lmdb-rkv = { version = "0.14", optional = true }
 rkv = { version = "0.17", optional = true }
 rocksdb = { git = "https://github.com/Igosuki/rust-rocksdb.git", branch = "librocksdb-sys-link", features = ["multi-threaded-cf", "pkg-config", "snappy", "lz4", "zstd", "zlib", "bzip2"], default-features = false }
 # Flatdata is write once read many and fast memory mapping a structured file
 #flatdata = "0.5"
-diesel = { version = "1.4", features = ["sqlite", "serde_json"] }
 
 [dev-dependencies]
 env_logger = "0.9"
@@ -50,3 +46,5 @@ pretty_assertions = "0.7"
 rand = "0.8"
 tempdir = "0.3"
 util = { path = "../util" }
+chrono = "0.4"
+measure_time = "0.7"

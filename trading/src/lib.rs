@@ -1,5 +1,23 @@
+#![allow(unused_braces)]
+
+#[macro_use]
+extern crate serde;
+#[macro_use]
+extern crate anyhow;
+#[macro_use]
+extern crate tracing;
+#[macro_use]
+extern crate strum_macros;
+
+pub mod book;
+pub mod error;
 pub mod interest;
+pub mod order_manager;
+pub mod position;
+pub mod python_impls;
+pub mod signal;
 pub mod stop;
+pub mod types;
 
 /*use crate::order_types::Transaction;
 use crate::types::{OperationKind, PositionKind, TradeOperation};

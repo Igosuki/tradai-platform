@@ -7,15 +7,15 @@ use std::time::Instant;
 
 use chrono::prelude::*;
 use chrono::{DateTime, Utc};
+#[cfg(feature = "dialog_cli")]
 use glob::glob;
 use serde::{Deserialize, Serialize};
 
 use coinnect_rt::types::Orderbook;
+use trading::book::BookPosition;
 use util::serde::date_time_format;
 use util::test::test_data_dir;
 use util::time::{DateRange, DurationRangeType};
-
-use crate::types::BookPosition;
 
 async fn dl_test_data(base_path: &str, exchange_name: &str, channel: &str, pair: String) {
     let out_file_name = format!("{}.zip", pair);
@@ -100,14 +100,8 @@ impl CsvRecord {
             last_order_id: None,
         }
     }
-}
 
-impl From<CsvRecord> for BookPosition {
-    fn from(csvr: CsvRecord) -> BookPosition { BookPosition::new(csvr.event_ms, &csvr.asks(), &csvr.bids()) }
-}
-
-impl<'a> From<&'a CsvRecord> for BookPosition {
-    fn from(csvr: &'a CsvRecord) -> Self { csvr.clone().into() }
+    pub fn to_bp(&self) -> BookPosition { BookPosition::new(self.event_ms, &self.asks(), &self.bids()) }
 }
 
 pub fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
@@ -130,11 +124,11 @@ where
                     .join(format!("dt={}", date.format("%Y-%m-%d")));
                 let glob_string = format!("{}{}", buf.to_str().unwrap(), glob_str);
                 trace!("Loading csv records from : {:?}", glob_string);
-                let files = glob(&glob_string).unwrap();
+                let files = glob::glob(&glob_string).unwrap();
                 if files.count() == 0 {
                     trace!("no files found !");
                 }
-                let files = glob(&glob_string).unwrap();
+                let files = glob::glob(&glob_string).unwrap();
                 files.flat_map(|p| load_records(p.unwrap().to_str().unwrap()))
             })
             .collect()
