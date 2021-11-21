@@ -6,7 +6,7 @@ use strum_macros::EnumString;
 
 use coinnect_rt::exchange::MockExchangeApi;
 use db::DbOptions;
-use strategies::order_manager::OrderManager;
+use trading::order_manager::OrderManager;
 
 #[derive(StructOpt, Debug, EnumString)]
 enum Cmd {

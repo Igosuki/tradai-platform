@@ -11,6 +11,7 @@ use coinnect_rt::prelude::*;
 use db::{get_or_create, DbOptions};
 #[cfg(test)]
 use stats::indicators::macd_apo::MACDApo;
+use trading::book::BookPosition;
 
 use crate::driver::StrategyDriver;
 use crate::error::Result;
@@ -21,11 +22,13 @@ use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
 use crate::models::io::IterativeModel;
 use crate::models::Sampler;
-use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, StrategyIndicators};
-use crate::trading::stop::Stopper;
-use crate::types::{BookPosition, InputEvent, PositionKind, TradeSignal};
+use crate::types::InputEvent;
 use crate::{Channel, StratEvent, StratEventLogger, StrategyStatus};
+use trading::order_manager::OrderManager;
+use trading::position::PositionKind;
+use trading::signal::TradeSignal;
+use trading::stop::Stopper;
 
 mod metrics;
 pub mod model;
@@ -324,7 +327,7 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
 
     fn init(&mut self) -> Result<()> { self.load() }
 
-    async fn eval(&mut self, e: &crate::types::InputEvent) -> Result<Vec<crate::types::TradeSignal>> {
+    async fn eval(&mut self, e: &crate::types::InputEvent) -> Result<Vec<TradeSignal>> {
         let mut signals = vec![];
         if !self.can_eval() {
             return Ok(signals);

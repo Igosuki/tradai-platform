@@ -4,10 +4,10 @@ use prometheus::{CounterVec, GaugeVec, Registry};
 
 use metrics::store::MetricStore;
 use stats::indicators::macd_apo::MACDApo;
+use trading::position::OperationKind;
 
 use crate::mean_reverting::state::{MeanRevertingState, Position};
 use crate::mean_reverting::SinglePosRow;
-use crate::types::OperationKind;
 
 type StateIndicatorFn = (String, fn(&MeanRevertingState) -> f64);
 

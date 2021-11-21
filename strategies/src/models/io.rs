@@ -68,7 +68,7 @@ mod test {
         let mut model_values = vec![];
 
         for csvr in pair_csv_records {
-            model.next(&InputEvent::BookPosition(csvr.into())).unwrap();
+            model.next(&InputEvent::BookPosition(csvr.to_bp())).unwrap();
             model_values.push(model.export_values().unwrap());
         }
         let results_dir = PathBuf::from(test_results_dir(module_path!()));

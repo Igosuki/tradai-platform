@@ -6,9 +6,10 @@ use juniper::{FieldError, FieldResult, RootNode};
 
 use coinnect_rt::prelude::*;
 use ext::MapInto;
-use strategies::order_manager::types::PassOrder;
 use strategies::query::{DataQuery, DataResult, ModelReset, StateFieldMutation};
-use strategies::{order_manager, StrategyKey, StrategyLifecycleCmd, StrategyStatus};
+use strategies::{StrategyKey, StrategyLifecycleCmd, StrategyStatus};
+use trading::order_manager;
+use trading::order_manager::types::PassOrder;
 
 use crate::graphql_schemas::unhandled_data_result;
 

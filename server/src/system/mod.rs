@@ -22,8 +22,8 @@ use metrics::prom::PrometheusPushActor;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use portfolio::margin::{MarginAccountReporter, MarginAccountReporterOptions};
 use strategies::margin_interest_rates::MarginInterestRateProvider;
-use strategies::order_manager::OrderManager;
 use strategies::{self, Strategy, StrategyKey};
+use trading::order_manager::OrderManager;
 
 use crate::connectivity::run_connectivity_checker;
 use crate::logging::file_actor::{AvroFileActor, FileActorOptions};

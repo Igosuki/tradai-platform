@@ -9,10 +9,15 @@ extern crate serde_derive;
 extern crate test;
 #[macro_use]
 extern crate thiserror;
+#[macro_use]
+extern crate prettytable;
 
 pub use ta::indicators::*;
 pub use ta::*;
 
+mod dispersion;
 mod error;
 pub mod indicators;
 pub mod iter;
+mod math;
+mod summary;

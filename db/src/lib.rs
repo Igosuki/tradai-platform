@@ -10,6 +10,7 @@
 extern crate measure_time;
 #[macro_use]
 extern crate serde;
+#[cfg(feature = "rkv-lmdb")]
 #[macro_use]
 extern crate tracing;
 

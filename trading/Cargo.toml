@@ -1,0 +1,68 @@
+[package]
+name = "trading"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "om_tool"
+path = "src/om_tool.rs"
+required-features = ["binary"]
+
+[features]
+binary = ["clap", "structopt"]
+python = ["pyo3"]
+test_util = ["binance-rs-async", "httpmock", "rand", "env_logger", "fake", "quickcheck"]
+
+[dependencies]
+# own
+ext = { path = "../ext" }
+coinnect_rt = { path = "../coinnect"}
+db = { path = "../db" }
+util = { path = "../util" }
+# actix
+actix = "0.12"
+actix_derive = "0.6"
+# std
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+itertools = "0.10"
+strum = "0.21"
+strum_macros = "0.21"
+uuid = { version = "0.8", features = ["v4"] }
+derive_more = "0.99"
+anyhow = "1.0"
+# async
+futures = { version = "0.3", features = ["async-await", "alloc"] }
+async-trait = "0.1"
+tokio = { version = "1", features = ["full"] }
+
+# bin
+clap = { version = "2.33", optional = true }
+structopt = { version = "0.3.23", optional = true }
+
+# metrics & tracing
+tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
+
+# graphql
+juniper = { version = "0.15", features = ["expose-test-schema"] }
+
+# python
+pyo3 = { version = "0.14", features = ["serde", "auto-initialize"], optional = true }
+binance-rs-async = {path="../binance-rs", optional = true }
+httpmock = { git = "https://github.com/Igosuki/httpmock.git", optional = true }
+rand = {version = "0.8", optional = true}
+env_logger = {version="0.9", optional=true}
+fake = {version="2.4", optional=true}
+quickcheck = {version="1.0", optional=true}
+
+[dev-dependencies]
+lazy_static = "1.4"
+coinnect_test_util = {path="../coinnect_test_util"}
+binance-rs-async = {path="../binance-rs"}
+httpmock = { git = "https://github.com/Igosuki/httpmock.git" }
+fake = "2.4"
+quickcheck = "1.0"
+rand = "0.8"
+env_logger = "0.9"

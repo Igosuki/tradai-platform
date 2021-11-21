@@ -45,15 +45,15 @@ pub use coinnect_rt::prelude::*;
 pub use coinnect_rt::types as coinnect_types;
 pub use db::DbOptions;
 use error::*;
-#[cfg(feature = "python")]
-pub use generic::python_strat;
 pub use models::Model;
+#[cfg(feature = "python")]
+pub use python_wrapper::python_strat;
 pub use settings::{StrategyCopySettings, StrategySettings};
 
 use crate::actor::StrategyActorOptions;
-use crate::order_manager::OrderManager;
 use crate::query::{DataQuery, DataResult};
 use crate::types::StratEvent;
+use trading::order_manager::OrderManager;
 
 pub mod actor;
 pub mod driver;
@@ -62,15 +62,13 @@ mod generic;
 pub mod mean_reverting;
 mod models;
 pub mod naive_pair_trading;
-pub mod order_manager;
+mod python_wrapper;
 pub mod query;
 mod repos;
 pub mod settings;
 #[cfg(test)]
 mod test_util;
-pub mod trading;
 pub mod types;
-mod wal;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Channel {

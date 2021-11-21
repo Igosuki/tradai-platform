@@ -3,10 +3,9 @@ use std::collections::HashMap;
 use prometheus::{CounterVec, GaugeVec, Opts, Registry};
 
 use metrics::store::MetricStore;
+use trading::position::OperationKind;
 
-use crate::types::OperationKind;
-
-use super::covar_model::DataRow;
+use super::covar_model::DualBookPosition;
 use super::state::MovingState;
 use super::state::Position;
 
@@ -118,7 +117,7 @@ impl NaiveStrategyMetrics {
         }
     }
 
-    pub(super) fn log_row(&self, lr: &DataRow) {
+    pub(super) fn log_row(&self, lr: &DualBookPosition) {
         if let Some(g) = self.gauges.get("left_mid") {
             g.with_label_values(&[]).set(lr.left.mid)
         };
