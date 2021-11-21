@@ -7,13 +7,12 @@ use serde::{Deserialize, Serialize};
 
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::pair::symbol_to_pair;
-use coinnect_rt::types::{AddOrderRequest, AssetType, InterestRate, MarginSideEffect, OrderQuery,
+use coinnect_rt::types::{AddOrderRequest, AssetType, InterestRate, MarginSideEffect, OrderEnforcement, OrderQuery,
                          OrderStatus as ExchangeOrderStatus, OrderSubmission, OrderType, OrderUpdate, Pair, TradeType};
 use util::time::now;
 
-use crate::coinnect_types::OrderEnforcement;
-use crate::error::*;
-use crate::wal::WalCmp;
+use super::error::*;
+use super::wal::WalCmp;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "reject_type", content = "__field0")]
@@ -125,7 +124,7 @@ impl Transaction {
 
 #[derive(Message, Debug)]
 #[rtype(result = "Result<OrderDetail>")]
-pub(crate) struct StagedOrder {
+pub struct StagedOrder {
     pub request: AddOrderRequest,
 }
 

@@ -12,17 +12,19 @@ use coinnect_rt::prelude::*;
 use coinnect_rt::types::{AssetType, MarginSideEffect};
 use db::{Storage, StorageExt};
 use ext::ResultExt;
+use trading::book::BookPosition;
 
 use crate::error::{Error, Result};
 use crate::mean_reverting::options::Options;
-use crate::order_manager::types::{OrderDetail, OrderStatus, Rejection, Transaction, TransactionStatus};
-use crate::order_manager::{OrderManager, OrderResolution, TransactionService};
 use crate::query::MutableField;
 use crate::repos::OperationsRepository;
-use crate::trading::interest::interest_fees_since;
-use crate::types::{BookPosition, ExecutionInstruction, OperationEvent, OrderMode, StratEvent, TradeEvent,
-                   TradeOperation};
-use crate::types::{OperationKind, PositionKind, TradeKind};
+use crate::types::{OperationEvent, StratEvent, TradeEvent};
+use trading::interest::interest_fees_since;
+use trading::order_manager::types::{OrderDetail, OrderStatus, Rejection, Transaction, TransactionStatus};
+use trading::order_manager::{OrderManager, OrderResolution, TransactionService};
+use trading::position::{OperationKind, PositionKind};
+use trading::signal::ExecutionInstruction;
+use trading::types::{OrderMode, TradeKind, TradeOperation};
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, juniper::GraphQLObject)]
 pub struct Position {
@@ -274,7 +276,9 @@ impl MeanRevertingState {
     pub(super) async fn interest_fees_since_open(&self) -> Result<f64> {
         match self.last_open_order.as_ref() {
             None => Ok(0.0),
-            Some(o) => interest_fees_since(self.mirp.clone(), self.exchange, o).await,
+            Some(o) => interest_fees_since(self.mirp.clone(), self.exchange, o)
+                .await
+                .err_into(),
         }
     }
 
@@ -489,6 +493,7 @@ impl MeanRevertingState {
         self.ts
             .stage_trade(&op.trade)
             .await
+            .err_into()
             .and_then(|order| {
                 op.order_detail = Some(order);
                 self.save_operation(op)?;

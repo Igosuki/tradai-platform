@@ -2,8 +2,8 @@ use chrono::Duration;
 use parse_duration::parse;
 
 use coinnect_rt::prelude::*;
-
-use crate::types::{ExecutionInstruction, OrderMode};
+use trading::signal::ExecutionInstruction;
+use trading::types::OrderMode;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Options {

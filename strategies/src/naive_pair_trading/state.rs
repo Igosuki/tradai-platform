@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use actix::Addr;
 use chrono::{DateTime, Utc};
+use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -10,13 +11,14 @@ use db::{Storage, StorageExt};
 
 use crate::coinnect_types::AssetType;
 use crate::error::*;
-use crate::naive_pair_trading::covar_model::DataRow;
+use crate::naive_pair_trading::covar_model::DualBookPosition;
 use crate::naive_pair_trading::options::Options;
-use crate::order_manager::types::{OrderDetail, Transaction};
-use crate::order_manager::{OrderManager, OrderResolution, TransactionService};
 use crate::query::MutableField;
-use crate::types::{OperationEvent, OrderMode, StratEvent, TradeEvent, TradeOperation};
-use crate::types::{OperationKind, PositionKind, TradeKind};
+use crate::types::{OperationEvent, StratEvent, TradeEvent};
+use trading::order_manager::types::{OrderDetail, Transaction};
+use trading::order_manager::{OrderManager, OrderResolution, TransactionService};
+use trading::position::{OperationKind, PositionKind};
+use trading::types::{OrderMode, TradeKind, TradeOperation};
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, juniper::GraphQLObject)]
 pub struct Position {
@@ -464,8 +466,8 @@ impl MovingState {
     async fn stage_operation(&mut self, op: &mut Operation) {
         self.save_operation(op);
         let reqs: (Result<OrderDetail>, Result<OrderDetail>) = futures::future::join(
-            self.ts.stage_trade(&op.left_trade),
-            self.ts.stage_trade(&op.right_trade),
+            self.ts.stage_trade(&op.left_trade).err_into(),
+            self.ts.stage_trade(&op.right_trade).err_into(),
         )
         .await;
 
@@ -478,7 +480,7 @@ impl MovingState {
         }
     }
 
-    pub(super) fn update_spread(&mut self, row: &DataRow) {
+    pub(super) fn update_spread(&mut self, row: &DualBookPosition) {
         self.units_to_buy_long_spread = self.value_strat / row.right.ask;
         self.units_to_buy_short_spread = self.value_strat / (row.left.ask * self.beta());
     }

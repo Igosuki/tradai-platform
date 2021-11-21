@@ -1,0 +1,181 @@
+// --------- Data Types ---------
+
+use crate::order_manager::types::OrderDetail;
+use chrono::{DateTime, Utc};
+use uuid::Uuid;
+
+#[derive(Eq, PartialEq, Clone, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
+#[serde(rename_all = "lowercase")]
+pub enum PositionKind {
+    #[strum(serialize = "short")]
+    Short,
+    #[strum(serialize = "long")]
+    Long,
+}
+
+impl Default for PositionKind {
+    fn default() -> Self { Self::Long }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum OperationKind {
+    #[strum(serialize = "open")]
+    Open,
+    #[strum(serialize = "close")]
+    Close,
+}
+
+/// Metadata detailing the trace UUIDs & timestamps associated with entering, updating & exiting
+/// a [Position].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PositionMeta {
+    /// Trace UUID of the MarketEvent that triggered the entering of this [Position].
+    pub enter_trace_id: Uuid,
+
+    /// MarketEvent Bar timestamp that triggered the entering of this [Position].
+    pub open_at: DateTime<Utc>,
+
+    /// Trace UUID of the last event to trigger a [Position] update.
+    pub last_update_trace_id: Uuid,
+
+    /// Event timestamp of the last event to trigger a [Position] update.9
+    pub last_update: DateTime<Utc>,
+
+    /// Trace UUID of the MarketEvent that triggered the exiting of this [Position].
+    pub close_trace_id: Option<Uuid>,
+
+    /// MarketEvent Bar timestamp that triggered the exiting of this [Position].
+    pub close_at: Option<DateTime<Utc>>,
+
+    /// Portfolio [EquityPoint] calculated after the [Position] exit.
+    pub exit_equity_point: Option<EquityPoint>,
+}
+
+impl Default for PositionMeta {
+    fn default() -> Self {
+        Self {
+            enter_trace_id: Default::default(),
+            open_at: Utc::now(),
+            last_update_trace_id: Default::default(),
+            last_update: Utc::now(),
+            close_trace_id: None,
+            close_at: None,
+            exit_equity_point: None,
+        }
+    }
+}
+
+/// Data encapsulating the state of an ongoing or closed [Position].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Position {
+    /// Metadata detailing trace UUIDs, timestamps & equity associated with entering, updating & exiting.
+    pub meta: PositionMeta,
+
+    /// Target exchange.
+    pub exchange: String,
+
+    /// Market symbol.
+    pub symbol: String,
+
+    /// Long or Short.
+    pub kind: PositionKind,
+
+    /// +ve or -ve quantity of symbol contracts opened.
+    pub quantity: f64,
+
+    pub open_order: Option<OrderDetail>,
+
+    pub close_order: Option<OrderDetail>,
+
+    /// Symbol current close price.
+    pub current_symbol_price: f64,
+
+    /// Unrealised PnL whilst the [Position] is open.
+    pub unreal_profit_loss: f64,
+
+    /// Realised PnL after the [Position] has closed.
+    pub result_profit_loss: f64,
+}
+
+impl Default for Position {
+    fn default() -> Self {
+        Self {
+            meta: Default::default(),
+            exchange: String::from("Binance"),
+            symbol: String::from("BTC_USDT"),
+            kind: PositionKind::default(),
+            quantity: 1.0,
+            open_order: None,
+            close_order: None,
+            current_symbol_price: 100.0,
+            unreal_profit_loss: 0.0,
+            result_profit_loss: 0.0,
+        }
+    }
+}
+
+impl Position {
+    pub fn current_value_gross(&self) -> f64 { self.quantity.abs() * self.current_symbol_price }
+
+    /// Calculate the approximate [Position::unreal_profit_loss] of a [Position].
+    pub fn calculate_unreal_profit_loss(&self) -> f64 {
+        let enter_value = self.open_quote_value();
+        // missing interests and exit fees
+        match self.kind {
+            PositionKind::Long => self.current_value_gross() - enter_value,
+            PositionKind::Short => enter_value - self.current_value_gross(),
+        }
+    }
+
+    fn open_quote_value(&self) -> f64 { self.open_order.as_ref().map(|o| o.realized_quote_value()).unwrap() }
+
+    fn close_quote_value(&self) -> f64 { self.close_order.as_ref().map(|o| o.realized_quote_value()).unwrap() }
+
+    /// Calculate the exact [Position::result_profit_loss] of a [Position].
+    pub fn calculate_result_profit_loss(&self) -> f64 {
+        let exit_value = self.close_quote_value();
+        let enter_value = self.open_quote_value();
+        match self.kind {
+            PositionKind::Long => exit_value - enter_value,
+            PositionKind::Short => enter_value - exit_value,
+        }
+    }
+
+    /// Calculate the PnL return of a closed [Position] - assumed [Position::result_profit_loss] is
+    /// appropriately calculated.
+    pub fn calculate_profit_loss_return(&self) -> f64 { self.result_profit_loss / self.open_quote_value() }
+}
+
+/// Equity value at a point in time.
+#[derive(Debug, Clone, PartialOrd, PartialEq, Serialize, Deserialize)]
+pub struct EquityPoint {
+    pub equity: f64,
+    pub timestamp: DateTime<Utc>,
+}
+
+impl Default for EquityPoint {
+    fn default() -> Self {
+        Self {
+            equity: 0.0,
+            timestamp: Utc::now(),
+        }
+    }
+}
+
+impl EquityPoint {
+    /// Updates using the input [Position]'s PnL & associated timestamp.
+    pub fn update(&mut self, position: &Position) {
+        match position.meta.close_at {
+            None => {
+                // Position is not exited
+                self.equity += position.unreal_profit_loss;
+                self.timestamp = position.meta.last_update;
+            }
+            Some(exit_timestamp) => {
+                self.equity += position.result_profit_loss;
+                self.timestamp = exit_timestamp;
+            }
+        }
+    }
+}

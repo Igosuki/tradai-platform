@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 
 use coinnect_rt::pair::pair_confs;
 use coinnect_rt::prelude::*;
-use strategies::order_manager::OrderManager;
 use strategies::{Strategy, StrategyKey};
+use trading::order_manager::OrderManager;
 
 use crate::api::ApiError::ExchangeNotFound;
 use crate::graphql_schemas::root::Schema;
@@ -135,8 +135,8 @@ mod tests {
     use tokio::time::timeout;
 
     use coinnect_rt::prelude::*;
-    use strategies::order_manager::OrderManager;
     use strategies::{Strategy, StrategyKey};
+    use trading::order_manager::OrderManager;
 
     use crate::api::config_app;
     use crate::graphql_schemas::root::create_schema;

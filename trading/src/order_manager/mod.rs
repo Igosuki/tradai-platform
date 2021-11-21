@@ -17,19 +17,24 @@ use coinnect_rt::types::{Order, OrderStatus, OrderUpdate};
 use db::{get_or_create, DbOptions, Storage, StorageExt};
 use ext::ResultExt;
 
-use crate::coinnect_types::AccountType;
-use crate::error::Error;
-use crate::error::Error::OrderNotFound;
-use crate::error::Result;
+use self::error::{Error, Result};
 use crate::types::TradeOperation;
-use crate::wal::{Wal, WalCmp};
+use wal::{Wal, WalCmp};
 
 use self::types::{OrderDetail, OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
 
+pub mod error;
+#[cfg(any(
+    test,
+    feature = "test_util",
+    feature = "live_e2e_tests",
+    feature = "manual_e2e_tests"
+))]
 pub mod test_util;
 #[cfg(test)]
 mod tests;
 pub mod types;
+mod wal;
 
 static TRANSACTIONS_TABLE: &str = "transactions_wal";
 static ORDERS_TABLE: &str = "orders";
@@ -67,7 +72,7 @@ impl OrderRepository {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct TransactionService {
+pub struct TransactionService {
     om: Addr<OrderManager>,
 }
 
@@ -277,7 +282,7 @@ impl OrderManager {
                 order.from_rejected(rejection);
                 self.repo.put(order)
             }
-            _ => Err(OrderNotFound(order_id.clone())),
+            _ => Err(Error::OrderNotFound(order_id.clone())),
         };
         if let Err(e) = result {
             tracing::error!(order_id = %order_id, error = %e, "Failed to update order in order table")

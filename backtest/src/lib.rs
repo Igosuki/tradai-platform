@@ -23,11 +23,12 @@ use db::{DbEngineOptions, RocksDbOptions};
 use ext::ResultExt;
 use strategies::driver::StrategyDriver;
 use strategies::margin_interest_rates::test_util::mock_interest_rate_provider;
-use strategies::order_manager::test_util::mock_manager;
 use strategies::query::{DataQuery, DataResult};
-use strategies::types::{BookPosition, StratEvent};
+use strategies::types::StratEvent;
 use strategies::{Channel, Coinnect, DbOptions, Exchange, ExchangeApi, ExchangeSettings, LiveEvent, LiveEventEnvelope,
                  Pair, StratEventLogger};
+use trading::book::BookPosition;
+use trading::order_manager::test_util::mock_manager;
 use util::test::test_dir;
 use util::time::{now, DateRange};
 
@@ -135,6 +136,7 @@ impl Backtest {
             init_coinnect(copy.exchange()).await;
             all_strategy_settings.extend_from_slice(copy.all().unwrap().as_slice());
         }
+        // TODO: factorize all of that shit into an 'Engine'
         let order_manager_addr = mock_manager(&db_path.clone());
         let runners: Vec<BacktestRunner> = all_strategy_settings
             .into_iter()

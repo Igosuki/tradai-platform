@@ -8,7 +8,7 @@ use serde::Serialize;
 
 use db::{Storage, StorageExt};
 
-use crate::error::*;
+use super::error::*;
 
 static WAL_KEY_SEP: &str = "|";
 

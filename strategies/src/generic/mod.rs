@@ -9,13 +9,10 @@ use coinnect_rt::prelude::*;
 use crate::driver::StrategyDriver;
 use crate::error::Result;
 use crate::query::{DataQuery, DataResult, Mutation, StrategyIndicators};
-use crate::types::{BookPosition, InputEvent, TradeSignal};
+use crate::types::InputEvent;
 use crate::{Channel, StrategyStatus};
-
-#[cfg(feature = "python")]
-pub mod python_strat;
-#[cfg(feature = "python")]
-mod python_types_impl;
+use trading::book::BookPosition;
+use trading::signal::TradeSignal;
 
 #[async_trait]
 pub(crate) trait Strategy: Sync + Send {

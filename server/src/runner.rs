@@ -111,15 +111,15 @@ async fn get_config_file(opts: &CliOptions) -> String {
     let config_file = if config_metadata.is_file() {
         config_input.to_string()
     } else {
-        #[cfg(not(feature = "dialoguer"))]
+        #[cfg(not(feature = "dialog_cli"))]
         panic!("dialoguer is required to pick a configuration from the terminal");
-        #[cfg(feature = "dialoguer")]
+        #[cfg(feature = "dialog_cli")]
         config_from_stdin(&config_input).await
     };
     config_file
 }
 
-#[cfg(feature = "dialoguer")]
+#[cfg(feature = "dialog_cli")]
 async fn config_from_stdin(config_input: &&str) -> String {
     use std::path::PathBuf;
     let mut p = PathBuf::from(&config_input);
@@ -140,7 +140,7 @@ async fn config_from_stdin(config_input: &&str) -> String {
     path
 }
 
-#[cfg(feature = "dialoguer")]
+#[cfg(feature = "dialog_cli")]
 fn prompt_choice(choices: &mut Vec<String>) -> usize {
     use dialoguer::console::Style;
     let mut prompt_theme = dialoguer::theme::ColorfulTheme::default();

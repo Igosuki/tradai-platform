@@ -6,18 +6,19 @@ use serde::Serialize;
 
 use coinnect_rt::exchange::Exchange;
 use db::DbOptions;
+use trading::order_manager::test_util::mock_manager;
+use trading::types::OrderMode;
 use util::test::test_results_dir;
 
 use crate::naive_pair_trading::covar_model::LinearModelValue;
 use crate::naive_pair_trading::options::Options;
 use crate::naive_pair_trading::state::MovingState;
-use crate::naive_pair_trading::{covar_model, DataRow, NaiveTradingStrategy};
-use crate::order_manager::test_util::mock_manager;
+use crate::naive_pair_trading::{covar_model, DualBookPosition, NaiveTradingStrategy};
 use crate::test_util::draw::{draw_line_plot, StrategyEntry, TimedEntry};
 use crate::test_util::fs::copy_file;
 use crate::test_util::input;
 use crate::test_util::test_db;
-use crate::types::{OperationEvent, OrderMode, TradeEvent};
+use crate::types::{OperationEvent, TradeEvent};
 
 static LEFT_PAIR: &str = "LTC_USDT";
 static RIGHT_PAIR: &str = "BTC_USDT";
@@ -44,7 +45,7 @@ impl StrategyLog {
     fn from_state(
         time: DateTime<Utc>,
         state: &MovingState,
-        last_row: &DataRow,
+        last_row: &DualBookPosition,
         _model_value: Option<LinearModelValue>,
     ) -> StrategyLog {
         StrategyLog {
@@ -91,10 +92,10 @@ async fn model_backtest() {
     .await;
     // align data
     records[0].iter().zip(records[1].iter()).take(500).for_each(|(l, r)| {
-        dt.push(&DataRow {
+        dt.push(&DualBookPosition {
             time: l.event_ms,
-            left: l.into(),
-            right: r.into(),
+            left: l.to_bp(),
+            right: r.to_bp(),
         })
     });
 
@@ -155,10 +156,10 @@ async fn complete_backtest() {
     for (l, r) in zip {
         let now = Instant::now();
         let row_time = l.event_ms;
-        let row = DataRow {
+        let row = DualBookPosition {
             time: row_time,
-            left: l.into(),
-            right: r.into(),
+            left: l.to_bp(),
+            right: r.to_bp(),
         };
         strat.process_row(&row).await;
         if let Some(value) = strat.model_value() {

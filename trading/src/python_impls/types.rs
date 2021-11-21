@@ -5,11 +5,11 @@ use std::str::FromStr;
 use pyo3::exceptions::PyBaseException;
 use pyo3::prelude::*;
 
+use crate::position::{OperationKind, PositionKind};
+use crate::signal::{ExecutionInstruction, TradeSignal};
+use crate::types::TradeKind;
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::AssetType;
-
-use crate::types::*;
-use crate::types::{InputEvent, TradeSignal};
 
 #[pymethods]
 impl TradeSignal {
@@ -46,15 +46,5 @@ impl TradeSignal {
             asset_type: AssetType::from_str(asset_type)
                 .map_err(|_| PyBaseException::new_err(format!("unknown asset type '{}'", asset_type)))?,
         })
-    }
-}
-
-impl ToPyObject for InputEvent {
-    fn to_object(&self, py: Python) -> PyObject {
-        match self {
-            InputEvent::BookPosition(bp) => IntoPy::into_py(bp.clone(), py),
-            //putEvent::BookPositions(bp) => python! {'bp},
-            _ => unimplemented!(),
-        }
     }
 }

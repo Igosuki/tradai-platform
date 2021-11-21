@@ -1,7 +1,7 @@
-use crate::types::OrderMode;
 use chrono::Duration;
 use coinnect_rt::prelude::*;
 use parse_duration::parse;
+use trading::types::OrderMode;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Options {

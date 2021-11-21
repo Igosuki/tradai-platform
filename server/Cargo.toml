@@ -20,7 +20,7 @@ flame_it = ["flame", "flamer"]
 gprof = ["gperftools"]
 zstd = ["awc/compress-zstd", "actix-web/compress-zstd"]
 checkers_alloc = ["checkers"]
-
+dialog_cli = ["dialoguer", "glob"]
 [dependencies]
 # Self crates
 models = { path = "../models" }
@@ -32,6 +32,7 @@ coinnect_rt = { path = "../coinnect" }
 db = { path = "../db" }
 metrics = { path = "../metrics" }
 ext = { path = "../ext" }
+trading = { path = "../trading" }
 
 # actix
 actix = "0.12"
@@ -49,13 +50,11 @@ anyhow = "1.0"
 avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "master_merge" }
 
 # Data structures
-bidir-map = "1.0"
 byte-unit = "4.0"
 bytes = "1.0"
 
 # Std Utils
 chrono = { version = "0.4", features = ["serde"] }
-glob = "0.3"
 
 # CLI
 clap = "3.0.0-beta.1"
@@ -71,7 +70,6 @@ env_logger = "0.9"
 # Profiling
 flame = { version = "0.2", optional = true }
 flamer = { version = "0.4", optional = true }
-fs_extra = "1.1"
 futures = { version = "0.3", features = ["thread-pool"] }
 futures-util = "0.3"
 gperftools = { version = "0.2", optional = true, features = ["heap"] }
@@ -103,7 +101,6 @@ rand = "0.8"
 online = "3.0"
 
 # DB
-rkv = { version = "0.17", features = ["db-int-key"] }
 serde = { version = "1.0", features = ["derive"] }
 
 # Codecs
@@ -123,6 +120,8 @@ url = "2.2"
 
 uuid = { version = "0.8", features = ["v4"] }
 measure_time = "0.7"
+glob = {version="0.3",optional=true}
 
 [dev-dependencies]
 pretty_assertions = "0.7"
+fs_extra = "1.2"

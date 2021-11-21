@@ -1,69 +1,39 @@
-use std::io;
-use std::sync::Arc;
-
-use actix_http::ws;
-use bytestring::ByteString;
+use actix::{Actor, Addr};
+use binance::rest_model::TimeInForce;
 use chrono::Utc;
-use futures::Future;
-use httpmock::prelude::*;
+use coinnect_rt::exchange::MockExchangeApi;
+use ext::prelude::*;
+use httpmock::Method::POST;
 use httpmock::{Mock, MockServer};
 use rand::random;
+use std::path::Path;
+use std::sync::Arc;
 
-use binance::config::Config;
-use binance::rest_model::TimeInForce;
-use coinnect_rt::binance::BinanceApi;
-use coinnect_rt::credential::{BasicCredentials, Credentials};
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
-use coinnect_rt::pair::{default_pair_registry, PairConf};
-use coinnect_rt::types::{OrderEnforcement, TradeType};
-use ext::MapInto;
+use coinnect_rt::pair::register_pair_default;
+use coinnect_rt::prelude::*;
+use db::DbOptions;
 
-use crate::coinnect_types::OrderType;
 use crate::order_manager::types::OrderDetail;
+use crate::order_manager::OrderManager;
 
-type WSResponse = impl Future<Output = Result<ws::Message, io::Error>>;
+pub fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
-type WSEndpoint = impl Fn(ws::Frame) -> WSResponse + Clone;
-
-pub fn account_ws() -> Box<WSEndpoint> {
-    let _responses_vec = vec!["hello".to_string()];
-    // Create a channel to receive the events.
-    let closure = async move |req: ws::Frame| unsafe {
-        // let input = input.to_owned();
-        // let msg = input.recv().unwrap();
-        let result: Result<ws::Message, io::Error> = match req {
-            ws::Frame::Ping(msg) => Ok(ws::Message::Pong(msg)),
-            ws::Frame::Text(text) => Ok(ws::Message::Text(ByteString::from_bytes_unchecked(text))),
-            ws::Frame::Binary(bin) => Ok(ws::Message::Binary(bin)),
-            ws::Frame::Close(reason) => Ok(ws::Message::Close(reason)),
-            _ => Ok(ws::Message::Close(None)),
-        };
-        result
-    };
-    Box::new(closure)
+pub async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
+    keys_file: S2,
+    dir: S,
+    exchange: Exchange,
+) -> OrderManager {
+    let api = Coinnect::new_manager()
+        .build_exchange_api(keys_file.as_ref().to_path_buf(), &exchange, true)
+        .await
+        .unwrap();
+    let om_path = format!("om_{}", exchange);
+    OrderManager::new(api, &DbOptions::new(dir), om_path)
 }
 
-pub async fn local_api() -> (MockServer, Arc<dyn ExchangeApi>) {
-    let server = MockServer::start();
-    let creds: Box<dyn Credentials> = Box::new(BasicCredentials::empty(Exchange::Binance));
-    let mock_server_address = server.address().to_string();
-    let conf = Config::default()
-        .set_rest_api_endpoint(&format!("http://{}", mock_server_address))
-        .set_ws_endpoint(&format!("ws://{}", mock_server_address));
-    let api = BinanceApi::new_with_config(creds.as_ref(), conf).await.unwrap();
-    (server, Arc::new(api))
-}
-
-pub fn register_pair(symbol: &str, pair: &str) {
-    let (base, quote) = pair.split_once('_').unwrap();
-    let conf = PairConf {
-        symbol: symbol.into(),
-        pair: pair.into(),
-        base: base.to_string(),
-        quote: quote.to_string(),
-        ..PairConf::default()
-    };
-    default_pair_registry().register(Exchange::Binance, vec![conf]);
+pub fn local_manager<S: AsRef<Path>>(path: S, api: Arc<dyn ExchangeApi>) -> Addr<OrderManager> {
+    let order_manager = OrderManager::new(api, &DbOptions::new(path), "");
+    OrderManager::start(order_manager)
 }
 
 fn expected_ok_status(order: &OrderDetail) -> binance::rest_model::OrderStatus {
@@ -78,7 +48,7 @@ fn expected_ok_status(order: &OrderDetail) -> binance::rest_model::OrderStatus {
 
 pub fn create_ok_order_mock(server: &MockServer, order: OrderDetail) -> Mock<'_> {
     let symbol = format!("{}{}", order.base_asset, order.quote_asset);
-    register_pair(&symbol, &order.pair);
+    register_pair_default(Exchange::Binance, &symbol, &order.pair);
     let price = order.price.unwrap_or_else(random);
     let qty = order.base_qty.unwrap_or_else(random);
     let quote_qty = price * qty;
@@ -120,7 +90,7 @@ pub fn create_ok_order_mock(server: &MockServer, order: OrderDetail) -> Mock<'_>
 
 pub fn create_ok_margin_order_mock(server: &MockServer, order: OrderDetail) -> Mock<'_> {
     let symbol = format!("{}{}", order.base_asset, order.quote_asset);
-    register_pair(&symbol, &order.pair);
+    register_pair_default(Exchange::Binance, &symbol, &order.pair);
     let price = order.price.unwrap_or_else(random);
     let qty = order.base_qty.unwrap_or_else(random);
     let quote_qty = price * qty;
@@ -165,4 +135,44 @@ pub fn create_ok_margin_order_mock(server: &MockServer, order: OrderDetail) -> M
             .header("content-type", "application/json; charset=UTF-8")
             .body(serde_json::to_string(&response).unwrap());
     })
+}
+
+pub fn new_mock_manager<S: AsRef<Path>>(path: S) -> OrderManager {
+    let api: Arc<dyn ExchangeApi> = Arc::new(MockExchangeApi::default());
+    OrderManager::new(api, &DbOptions::new(path), "")
+}
+
+pub fn mock_manager<S: AsRef<Path>>(path: S) -> Addr<OrderManager> {
+    let order_manager = new_mock_manager(path);
+    let act = OrderManager::start(order_manager);
+    loop {
+        if act.connected() {
+            break;
+        }
+    }
+    act
+}
+
+pub mod e2e {
+    use super::super::error::*;
+    use coinnect_rt::credential::Credentials;
+    use coinnect_rt::prelude::*;
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    pub async fn build_apis() -> Result<(Box<dyn Credentials>, Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>)> {
+        let credentials_file = std::env::var("BITCOINS_E2E_TEST_CREDS_FILE").expect("BITCOINS_E2E_TEST_CREDS_FILE");
+        let credentials_path = PathBuf::from(credentials_file);
+        let credentials = coinnect_rt::coinnect::Coinnect::credentials_for(Exchange::Binance, credentials_path.clone())
+            .expect("valid credentials file");
+        let manager = coinnect_rt::coinnect::Coinnect::new_manager();
+        let api = manager
+            .build_exchange_api(credentials_path, &Exchange::Binance, false)
+            .await?;
+        let mut apis_map = HashMap::new();
+        apis_map.insert(Exchange::Binance, api.clone());
+        let apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>> = Arc::new(apis_map);
+        Ok((credentials, apis))
+    }
 }

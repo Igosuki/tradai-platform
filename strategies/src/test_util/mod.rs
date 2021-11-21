@@ -2,20 +2,10 @@ use std::sync::Arc;
 
 use db::{get_or_create, DbOptions, Storage};
 
-pub use self::binance::account_ws as binance_account_ws;
-pub use self::http::ws_it_server;
-
-#[cfg(test)]
-pub mod binance;
 #[cfg(test)]
 pub mod draw;
-#[cfg(any(feature = "live_e2e_tests", feature = "manual_e2e_tests"))]
-#[cfg(test)]
-pub mod e2e;
 #[cfg(test)]
 pub mod fs;
-#[cfg(test)]
-pub mod http;
 #[cfg(test)]
 pub mod input;
 #[cfg(test)]

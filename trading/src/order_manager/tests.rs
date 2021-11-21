@@ -2,17 +2,15 @@ use actix::Addr;
 use httpmock::{Mock, MockServer};
 use uuid::Uuid;
 
-use coinnect_rt::prelude::*;
-use coinnect_rt::types::{MarginSideEffect, OrderSubmission, OrderUpdate};
-use util::test::test_dir;
-
-use crate::coinnect_types::OrderType;
-use crate::error::*;
-use crate::order_manager::test_util::{it_order_manager, new_mock_manager};
+use super::error::*;
+use super::test_util::{create_ok_margin_order_mock, create_ok_order_mock};
+use crate::order_manager::test_util::{init, it_order_manager, new_mock_manager};
 use crate::order_manager::types::OrderId;
 use crate::order_manager::OrderManager;
-use crate::test_util::binance::{create_ok_margin_order_mock, create_ok_order_mock, local_api};
-use crate::test_util::{binance_account_ws, init};
+use coinnect_rt::prelude::*;
+use coinnect_rt::types::{MarginSideEffect, OrderSubmission, OrderUpdate};
+use coinnect_test_util::binance::{account_ws as binance_account_ws, local_api};
+use util::test::test_dir;
 
 use super::types::{OrderDetail, OrderStatus, Rejection, StagedOrder, Transaction, TransactionStatus};
 
@@ -176,7 +174,7 @@ async fn pass_mock_order_and_expect_status(
 #[actix::test]
 async fn test_limit_order_workflow() -> Result<()> {
     init();
-    let _account_server = crate::test_util::ws_it_server(binance_account_ws()).await;
+    let _account_server = coinnect_test_util::http::ws_it_server(binance_account_ws()).await;
     let (server, binance_api) = local_api().await;
     let test_dir = util::test::test_dir();
     let om = crate::order_manager::test_util::local_manager(test_dir, binance_api);
@@ -199,7 +197,7 @@ async fn test_limit_order_workflow() -> Result<()> {
 #[actix::test]
 async fn test_market_order_workflow() -> Result<()> {
     init();
-    let _account_server = crate::test_util::ws_it_server(binance_account_ws()).await;
+    let _account_server = coinnect_test_util::http::ws_it_server(binance_account_ws()).await;
     let (server, binance_api) = local_api().await;
     let test_dir = util::test::test_dir();
     let om = crate::order_manager::test_util::local_manager(test_dir, binance_api);
@@ -221,7 +219,7 @@ async fn test_market_order_workflow() -> Result<()> {
 #[actix::test]
 async fn test_market_margin_order_workflow() -> Result<()> {
     init();
-    let _account_server = crate::test_util::ws_it_server(binance_account_ws()).await;
+    let _account_server = coinnect_test_util::http::ws_it_server(binance_account_ws()).await;
     let (server, binance_api) = local_api().await;
     let test_dir = util::test::test_dir();
     let om = crate::order_manager::test_util::local_manager(test_dir, binance_api);

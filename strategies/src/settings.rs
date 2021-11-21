@@ -13,8 +13,8 @@ use crate::driver::StrategyDriver;
 use crate::generic::Strategy;
 use crate::mean_reverting::options::Options as MeanRevertingStrategyOptions;
 use crate::naive_pair_trading::options::Options as NaiveStrategyOptions;
-use crate::order_manager::OrderManager;
 use crate::{error, generic, DbOptions, StratEventLogger, StrategyKey, StrategyType};
+use trading::order_manager::OrderManager;
 
 /// Strategy configuration
 #[derive(Clone, Debug, Deserialize)]

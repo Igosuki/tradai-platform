@@ -1,4 +1,9 @@
-use crate::types::{StopEvent, StratEvent};
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum StopEvent {
+    Gain,
+    Loss,
+}
 
 #[derive(Debug)]
 pub struct Stopper<T> {
@@ -19,13 +24,4 @@ impl<T: std::cmp::PartialOrd + Copy> Stopper<T> {
             None
         }
     }
-}
-
-#[allow(dead_code)]
-pub fn maybe_log_stop(stop_event: Option<StopEvent>) {
-    stop_event.map(|stop| {
-        let strat_event = StratEvent::Stop { stop };
-        strat_event.log();
-        strat_event
-    });
 }

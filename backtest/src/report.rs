@@ -12,7 +12,8 @@ use serde::de::DeserializeOwned;
 
 use stats::Next;
 use strategies::query::StrategyIndicators;
-use strategies::types::{BookPosition, StratEvent};
+use strategies::types::StratEvent;
+use trading::book::BookPosition;
 use util::serde::write_as_seq;
 use util::time::now_str;
 

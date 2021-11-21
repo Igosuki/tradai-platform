@@ -102,11 +102,11 @@ mod test {
     use chrono::{DateTime, Utc};
     use fake::Fake;
     use quickcheck::{Arbitrary, Gen};
+    use trading::book::BookPosition;
 
     use crate::models::WindowedModel;
     use crate::models::{Model, Window};
     use crate::test_util::test_db;
-    use crate::types::BookPosition;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct TestRow {
