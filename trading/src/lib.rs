@@ -8,6 +8,12 @@ extern crate anyhow;
 extern crate tracing;
 #[macro_use]
 extern crate strum_macros;
+#[macro_use]
+extern crate async_trait;
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate prometheus;
 
 pub mod book;
 pub mod error;
@@ -17,6 +23,7 @@ pub mod position;
 pub mod python_impls;
 pub mod signal;
 pub mod stop;
+mod test_util;
 pub mod types;
 
 /*use crate::order_types::Transaction;

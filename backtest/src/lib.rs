@@ -22,12 +22,12 @@ use tokio::sync::Mutex;
 use db::{DbEngineOptions, RocksDbOptions};
 use ext::ResultExt;
 use strategies::driver::StrategyDriver;
-use strategies::margin_interest_rates::test_util::mock_interest_rate_provider;
 use strategies::query::{DataQuery, DataResult};
 use strategies::types::StratEvent;
 use strategies::{Channel, Coinnect, DbOptions, Exchange, ExchangeApi, ExchangeSettings, LiveEventEnvelope,
                  MarketEvent, Pair, StratEventLogger};
 use trading::book::BookPosition;
+use trading::interest::test_util::mock_interest_rate_provider;
 use trading::order_manager::test_util::mock_manager;
 use util::test::test_dir;
 use util::time::{now, DateRange};
