@@ -1,4 +1,4 @@
-use strategies::{Exchange, LiveEvent, LiveEventEnvelope, Orderbook, Pair};
+use strategies::{Exchange, LiveEventEnvelope, MarketEvent, Orderbook, Pair};
 
 pub mod convert;
 pub mod csv_source;
@@ -23,6 +23,6 @@ fn live_order_book(
     LiveEventEnvelope {
         xch: exchange,
         pair: atom,
-        e: LiveEvent::LiveOrderbook(orderbook),
+        e: MarketEvent::Orderbook(orderbook),
     }
 }

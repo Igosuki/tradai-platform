@@ -151,7 +151,7 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
     for row in pair_csv_records.map(|csvr| LiveEventEnvelope {
         xch: Exchange::from(EXCHANGE.to_string()),
         pair: PAIR.into(),
-        e: LiveEvent::LiveOrderbook(csvr.to_orderbook(PAIR)),
+        e: MarketEvent::Orderbook(csvr.to_orderbook(PAIR)),
     }) {
         let now = Instant::now();
         util::time::set_current_time(row.e.time());
@@ -172,7 +172,7 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
         let value = strat.model_value().unwrap();
         let row_time = row.e.time();
         model_values.push((row_time, value.clone(), strat.state.value_strat()));
-        if let LiveEvent::LiveOrderbook(ob) = row.e {
+        if let MarketEvent::Orderbook(ob) = row.e {
             strategy_logs.push(StrategyLog::from_state(
                 row_time,
                 &strat.state,
