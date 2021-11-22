@@ -72,11 +72,11 @@ impl OrderRepository {
 }
 
 #[derive(Debug, Clone)]
-pub struct TransactionService {
+pub struct OrderExecutor {
     om: Addr<OrderManager>,
 }
 
-impl TransactionService {
+impl OrderExecutor {
     pub fn new(om: Addr<OrderManager>) -> Self { Self { om } }
 
     /// Stage an order
