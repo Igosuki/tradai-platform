@@ -30,9 +30,8 @@ impl Partitioner<LiveEventEnvelope> for LiveEventPartitioner {
     fn partition(&self, data: &LiveEventEnvelope) -> Option<Partition> {
         let exchange = format!("{:?}", data.xch);
         match &data.e {
-            LiveEvent::LiveOrderbook(ob) => Some((ob.timestamp, "order_books", ob.pair.clone())),
-            LiveEvent::LiveOrder(o) => Some((o.event_ms, "orders", o.pair.clone())),
-            LiveEvent::LiveTrade(t) => Some((t.event_ms, "trades", t.pair.clone())),
+            MarketEvent::Orderbook(ob) => Some((ob.timestamp, "order_books", ob.pair.clone())),
+            MarketEvent::Trade(t) => Some((t.event_ms, "trades", t.pair.clone())),
             // No partitioning for this event
             _ => None,
         }
@@ -56,9 +55,8 @@ impl Partitioner<LiveEventEnvelope> for LiveEventPartitioner {
 impl ToAvroSchema for LiveEventEnvelope {
     fn schema(&self) -> Option<&'static Schema> {
         match &self.e {
-            LiveEvent::LiveTrade(_) => Some(&*avro_gen::models::LIVETRADE_SCHEMA),
-            LiveEvent::LiveOrder(_) => Some(&*avro_gen::models::LIVEORDER_SCHEMA),
-            LiveEvent::LiveOrderbook(_) => Some(&*avro_gen::models::ORDERBOOK_SCHEMA),
+            MarketEvent::Trade(_) => Some(&*avro_gen::models::LIVETRADE_SCHEMA),
+            MarketEvent::Orderbook(_) => Some(&*avro_gen::models::ORDERBOOK_SCHEMA),
             _ => None,
         }
     }
@@ -78,7 +76,7 @@ impl Handler<Arc<LiveEventEnvelope>> for AvroFileActor<LiveEventEnvelope> {
         let mut writer = rc_ok.borrow_mut();
         let now = Utc::now();
         let appended = match &msg.e {
-            LiveEvent::LiveTrade(lt) => {
+            MarketEvent::Trade(lt) => {
                 let lt = LT {
                     pair: lt.pair.to_string(),
                     tt: lt.tt.into(),
@@ -89,7 +87,7 @@ impl Handler<Arc<LiveEventEnvelope>> for AvroFileActor<LiveEventEnvelope> {
                 self.metrics.event_lag(now.timestamp_millis() - lt.event_ms);
                 self.append_log(&mut writer, lt)
             }
-            LiveEvent::LiveOrderbook(lt) => {
+            MarketEvent::Orderbook(lt) => {
                 self.metrics.event_lag(now.timestamp_millis() - lt.timestamp);
                 let orderbook = OB {
                     pair: lt.pair.to_string(),

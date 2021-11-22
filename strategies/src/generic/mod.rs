@@ -76,7 +76,7 @@ impl GenericStrategy {
             (
                 Channel::Orderbooks { pair, xch },
                 le @ LiveEventEnvelope {
-                    e: LiveEvent::LiveOrderbook(ob),
+                    e: MarketEvent::Orderbook(ob),
                     ..
                 },
             ) => pair == &ob.pair && xch == &le.xch,
@@ -108,7 +108,7 @@ impl StrategyDriver for GenericStrategy {
         if !self.handles(le) {
             return Ok(());
         }
-        if let LiveEvent::LiveOrderbook(ob) = &le.e {
+        if let MarketEvent::Orderbook(ob) = &le.e {
             if let Ok(pos) = ob.try_into() {
                 let event = if self.multi_market {
                     let positions = {

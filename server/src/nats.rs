@@ -4,7 +4,7 @@ use actix::{Actor, Context, Handler, Message, Recipient};
 use nats::Connection;
 use serde::de::DeserializeOwned;
 
-use coinnect_rt::types::{LiveEvent, LiveEventEnvelope};
+use coinnect_rt::types::{LiveEventEnvelope, MarketEvent};
 use strategies::Channel;
 
 type Result<T> = anyhow::Result<T>;
@@ -27,10 +27,10 @@ pub trait Subject {
 impl Subject for LiveEventEnvelope {
     fn subject(&self) -> String {
         format!("live_event.{}.{}", self.xch, match &self.e {
-            LiveEvent::LiveOrder(lo) => format!("{}.orders", lo.pair),
-            LiveEvent::LiveTrade(lt) => format!("{}.trades", lt.pair),
-            LiveEvent::LiveOrderbook(ob) => format!("{}.obs", ob.pair),
-            _ => "noop".to_string(),
+            MarketEvent::Trade(lt) => format!("{}.trades", lt.pair),
+            MarketEvent::Orderbook(ob) => format!("{}.obs", ob.pair),
+            MarketEvent::Noop => "noop".to_string(),
+            MarketEvent::CandleTick(ct) => format!("{}.cts", ct.pair),
         })
     }
 
