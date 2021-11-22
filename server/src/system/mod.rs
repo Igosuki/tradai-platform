@@ -22,7 +22,7 @@ use metrics::prom::PrometheusPushActor;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use portfolio::margin::{MarginAccountReporter, MarginAccountReporterOptions};
 use strategies::margin_interest_rates::MarginInterestRateProvider;
-use strategies::{self, Strategy, StrategyKey};
+use strategies::{self, StrategyKey, Trader};
 use trading::order_manager::OrderManager;
 
 use crate::connectivity::run_connectivity_checker;
@@ -60,7 +60,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
         apis.keys().map(|xch| (*xch, vec![])).collect();
     let mut margin_account_recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>> =
         apis.keys().map(|xch| (*xch, vec![])).collect();
-    let mut strategy_actors = vec![];
+    let mut traders = vec![];
     let mut order_managers_addr = HashMap::new();
 
     // strategies, cf strategies crate
@@ -94,9 +94,9 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 let strategies = strategies(settings_arc.clone(), oms.clone(), mirp.clone())
                     .instrument(tracing::info_span!("starting strategies"))
                     .await;
-                for a in strategies.clone() {
-                    strat_recipients.push(a.1.clone().recipient());
-                    strategy_actors.push(a.clone());
+                for trader in strategies.clone() {
+                    strat_recipients.push(trader.live_event_recipient());
+                    traders.push(trader.clone());
                 }
             }
         }
@@ -170,9 +170,9 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
             StreamSettings::Nats(nats_settings) => {
                 info!("nats consumers");
                 // For now, give each strategy a nats consumer
-                for strategy in strategy_actors.clone() {
-                    let topics = strategy
-                        .2
+                for trader in traders.clone() {
+                    let topics = trader
+                        .channels
                         .iter()
                         .map(<LiveEventEnvelope as Subject>::from_channel)
                         .collect();
@@ -182,7 +182,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                             &nats_settings.username,
                             &nats_settings.username,
                             topics,
-                            vec![strategy.1.recipient()],
+                            vec![trader.live_event_recipient()],
                         )
                         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
                     );
@@ -205,13 +205,8 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
         }
     }
 
-    let strats_map: Arc<HashMap<StrategyKey, Strategy>> = Arc::new(
-        strategy_actors
-            .clone()
-            .iter()
-            .map(|s| (s.0.clone(), s.clone()))
-            .collect(),
-    );
+    let strats_map: Arc<HashMap<StrategyKey, Trader>> =
+        Arc::new(traders.clone().iter().map(|s| (s.key.clone(), s.clone())).collect());
     // API Server
     let server = server::httpserver(
         &settings_v.api,
@@ -279,7 +274,7 @@ async fn strategies(
     settings: Arc<RwLock<Settings>>,
     oms: Arc<HashMap<Exchange, Addr<OrderManager>>>,
     mirp: Addr<MarginInterestRateProvider>,
-) -> Vec<Strategy> {
+) -> Vec<Trader> {
     let settings_v = settings.read().await;
     let exchanges = Arc::new(settings_v.exchanges.clone());
     let mut strategies = settings_v.strategies.clone();
@@ -294,7 +289,7 @@ async fn strategies(
         let mirp = mirp.clone();
         let actor_options = settings_v.strat_actor.clone();
         async move {
-            Strategy::new(
+            Trader::new(
                 db.as_ref(),
                 &exchange_conf,
                 &actor_options,

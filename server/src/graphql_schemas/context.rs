@@ -6,13 +6,13 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use actix::{Addr, MailboxError};
+use actix::Addr;
 use juniper::executor::{FieldError, FieldResult};
 
 use coinnect_rt::prelude::*;
 use strategies::actor::StrategyActor;
 use strategies::query::{DataQuery, DataResult};
-use strategies::{Strategy, StrategyKey};
+use strategies::{StrategyKey, Trader};
 use trading::order_manager::OrderManager;
 
 use crate::graphql_schemas::unhandled_data_result;
@@ -20,7 +20,7 @@ use crate::graphql_schemas::unhandled_data_result;
 use super::types::TypeAndKeyInput;
 
 pub(crate) struct Context {
-    pub strats: Arc<HashMap<StrategyKey, Strategy>>,
+    pub strats: Arc<HashMap<StrategyKey, Trader>>,
     pub exchanges: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
     pub order_managers: Arc<HashMap<Exchange, Addr<OrderManager>>>,
 }
@@ -44,7 +44,7 @@ impl Context {
                 graphql_value!({ "not_found": "strategy not found" }),
             )),
             Some(strat) => {
-                let res = strat.1.send(q).await;
+                let res = strat.send(q).await;
                 match res {
                     Ok(Ok(Some(dr))) => f(dr),
                     Err(_) => Err(FieldError::new(
@@ -111,12 +111,15 @@ impl Context {
                 "Strategy not found",
                 graphql_value!({ "not_found": "strategy not found" }),
             )),
-            Some(strat) => match strat.1.send(m).await {
+            Some(strat) => match strat.send(m).await {
                 Ok(response) => Ok(response),
-                Err(MailboxError::Closed | MailboxError::Timeout) => Err(FieldError::new(
-                    "Strategy mailbox was full",
-                    graphql_value!({ "unavailable": "strategy mailbox full" }),
-                )),
+                Err(e) => {
+                    let err_str = format!("{}", e);
+                    Err(FieldError::new(
+                        "strategy error",
+                        graphql_value!({ "unexpected": err_str }),
+                    ))
+                }
             },
         }
     }
