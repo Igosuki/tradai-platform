@@ -15,16 +15,18 @@ use coinnect_rt::bot::Ping;
 use coinnect_rt::error::Error as CoinnectError;
 use coinnect_rt::prelude::*;
 use coinnect_rt::types::{Order, OrderStatus, OrderUpdate};
-use db::{get_or_create, DbOptions, Storage, StorageExt};
+use db::{get_or_create, DbOptions};
 use ext::ResultExt;
 
 use self::error::{Error, Result};
+use crate::order_manager::repo::{OrderRepository, ORDERS_TABLE};
 use crate::types::TradeOperation;
 use wal::{Wal, WalCmp};
 
 use self::types::{OrderDetail, OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
 
 pub mod error;
+mod repo;
 #[cfg(any(
     test,
     feature = "test_util",
@@ -38,7 +40,6 @@ pub mod types;
 mod wal;
 
 static TRANSACTIONS_TABLE: &str = "transactions_wal";
-static ORDERS_TABLE: &str = "orders";
 
 #[derive(Debug, AsRefStr, PartialEq)]
 pub enum OrderResolution {
@@ -54,22 +55,6 @@ pub enum OrderResolution {
     Rejected,
     #[strum(serialize = "retryable")]
     Retryable,
-}
-
-#[derive(Debug, Clone)]
-pub struct OrderRepository {
-    db: Arc<dyn Storage>,
-}
-
-impl OrderRepository {
-    pub(crate) fn new(db: Arc<dyn Storage>) -> Self { Self { db } }
-
-    pub(crate) fn get(&self, id: &str) -> Result<OrderDetail> { self.db.get(ORDERS_TABLE, id).err_into() }
-
-    #[tracing::instrument(skip(self), level = "info")]
-    pub(crate) fn put(&self, order: OrderDetail) -> Result<()> {
-        self.db.put(ORDERS_TABLE, &order.id.clone(), order).err_into()
-    }
 }
 
 /// Handles and queries orders
@@ -175,18 +160,18 @@ impl OrderManager {
         db_options: &DbOptions<S>,
         db_path: S2,
     ) -> Self {
-        let manager_db = get_or_create(db_options, db_path, vec![
+        let storage = get_or_create(db_options, db_path, vec![
             TRANSACTIONS_TABLE.to_string(),
             ORDERS_TABLE.to_string(),
         ]);
-        let wal = Arc::new(Wal::new(manager_db.clone(), TRANSACTIONS_TABLE.to_string()));
+        let wal = Arc::new(Wal::new(storage.clone(), TRANSACTIONS_TABLE.to_string()));
         let orders = Arc::new(RwLock::new(HashMap::new()));
         OrderManager {
             xchg: api.exchange(),
             api,
             orders,
             transactions_wal: wal,
-            repo: OrderRepository::new(manager_db),
+            repo: OrderRepository::new(storage),
         }
     }
 
