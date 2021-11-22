@@ -21,7 +21,7 @@ use crate::repos::OperationsRepository;
 use crate::types::{OperationEvent, StratEvent, TradeEvent};
 use trading::interest::interest_fees_since;
 use trading::order_manager::types::{OrderDetail, OrderStatus, Rejection, Transaction, TransactionStatus};
-use trading::order_manager::{OrderManager, OrderResolution, TransactionService};
+use trading::order_manager::{OrderExecutor, OrderManager, OrderResolution};
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::ExecutionInstruction;
 use trading::types::{OrderMode, TradeKind, TradeOperation};
@@ -157,7 +157,7 @@ pub(super) struct MeanRevertingState {
     #[serde(skip_serializing)]
     db: Arc<dyn Storage>,
     #[serde(skip_serializing)]
-    ts: TransactionService,
+    ts: OrderExecutor,
     #[serde(skip_serializing)]
     mirp: Addr<MarginInterestRateProvider>,
     #[serde(skip_serializing)]
@@ -193,7 +193,7 @@ impl MeanRevertingState {
             base_qty_to_sell: 0.0,
             db: db.clone(),
             state_key: format!("{}", options.pair),
-            ts: TransactionService::new(om),
+            ts: OrderExecutor::new(om),
             ongoing_op: None,
             dry_mode: options.dry_mode(),
             order_mode: options.order_mode.unwrap_or(OrderMode::Limit),
