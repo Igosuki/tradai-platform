@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use coinnect_rt::pair::pair_confs;
 use coinnect_rt::prelude::*;
-use strategies::{Strategy, StrategyKey};
+use strategies::{StrategyKey, Trader};
 use trading::order_manager::OrderManager;
 
 use crate::api::ApiError::ExchangeNotFound;
@@ -64,7 +64,7 @@ async fn graphiql_handler() -> Result<HttpResponse, Error> { self::graphql::grap
 async fn playground_handler() -> Result<HttpResponse, Error> { self::graphql::playground_handler("/", None).await }
 
 type ExchangeData = web::Data<Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>>;
-type StratsData = web::Data<Arc<HashMap<StrategyKey, Strategy>>>;
+type StratsData = web::Data<Arc<HashMap<StrategyKey, Trader>>>;
 type OrderManagerData = web::Data<Arc<HashMap<Exchange, Addr<OrderManager>>>>;
 
 async fn graphql(
@@ -135,13 +135,13 @@ mod tests {
     use tokio::time::timeout;
 
     use coinnect_rt::prelude::*;
-    use strategies::{Strategy, StrategyKey};
+    use strategies::{StrategyKey, Trader};
     use trading::order_manager::OrderManager;
 
     use crate::api::config_app;
     use crate::graphql_schemas::root::create_schema;
 
-    fn strats() -> HashMap<StrategyKey, Strategy> { HashMap::new() }
+    fn strats() -> HashMap<StrategyKey, Trader> { HashMap::new() }
 
     fn oms() -> Arc<HashMap<Exchange, Addr<OrderManager>>> { Default::default() }
 
@@ -173,7 +173,7 @@ mod tests {
 
     fn build_test_api(apis: ExchangeApis, cfg: &mut web::ServiceConfig) {
         let schema = create_schema();
-        let strats: Arc<HashMap<StrategyKey, Strategy>> = Arc::new(strats());
+        let strats: Arc<HashMap<StrategyKey, Trader>> = Arc::new(strats());
         cfg.app_data(Data::new(apis.clone()))
             .app_data(Data::new(schema))
             .app_data(Data::new(strats))
