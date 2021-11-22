@@ -1,13 +1,11 @@
 use std::panic;
 use std::sync::Arc;
 
-use actix::Addr;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
 use coinnect_rt::prelude::*;
 use coinnect_rt::types::{AssetType, MarginSideEffect};
 use db::{Storage, StorageExt};
@@ -19,7 +17,7 @@ use crate::mean_reverting::options::Options;
 use crate::query::MutableField;
 use crate::repos::OperationsRepository;
 use crate::types::{OperationEvent, StratEvent, TradeEvent};
-use trading::interest::interest_fees_since;
+use trading::interest::InterestRateProvider;
 use trading::order_manager::types::{OrderDetail, OrderStatus, Rejection, Transaction, TransactionStatus};
 use trading::order_manager::{OrderExecutor, OrderResolution};
 use trading::position::{OperationKind, PositionKind};
@@ -159,7 +157,7 @@ pub(super) struct MeanRevertingState {
     #[serde(skip_serializing)]
     ts: Arc<dyn OrderExecutor>,
     #[serde(skip_serializing)]
-    mirp: Addr<MarginInterestRateProvider>,
+    mirp: Arc<dyn InterestRateProvider>,
     #[serde(skip_serializing)]
     operations_repo: OperationsRepository,
 }
@@ -182,7 +180,7 @@ impl MeanRevertingState {
         fees_rate: f64,
         db: Arc<dyn Storage>,
         om: Arc<dyn OrderExecutor>,
-        mirp: Addr<MarginInterestRateProvider>,
+        mirp: Arc<dyn InterestRateProvider>,
     ) -> Result<MeanRevertingState> {
         db.ensure_table(STATE_KEY).unwrap();
         let mut state = MeanRevertingState {
@@ -276,9 +274,7 @@ impl MeanRevertingState {
     pub(super) async fn interest_fees_since_open(&self) -> Result<f64> {
         match self.last_open_order.as_ref() {
             None => Ok(0.0),
-            Some(o) => interest_fees_since(self.mirp.clone(), self.exchange, o)
-                .await
-                .err_into(),
+            Some(o) => self.mirp.interest_fees_since(self.exchange, o).await.err_into(),
         }
     }
 

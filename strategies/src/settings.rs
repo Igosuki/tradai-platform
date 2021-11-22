@@ -5,9 +5,9 @@ use std::sync::Arc;
 use actix::Addr;
 use itertools::Itertools;
 
-use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
 use coinnect_rt::pair::filter_pairs;
 use coinnect_rt::prelude::*;
+use trading::interest::{InterestRateProvider, MarginInterestRateProvider, MarginInterestRateProviderClient};
 
 use crate::driver::StrategyDriver;
 use crate::generic::Strategy;
@@ -108,6 +108,7 @@ pub fn from_settings<S: AsRef<Path>>(
     logger: Option<Arc<dyn StratEventLogger>>,
 ) -> Box<dyn StrategyDriver> {
     let executor = Arc::new(OrderManagerClient::new(om));
+    let interest_rate_provider = Arc::new(MarginInterestRateProviderClient::new(mirp));
     match s {
         StrategySettings::Naive(n) => Box::new(crate::naive_pair_trading::NaiveTradingStrategy::new(
             db,
@@ -120,11 +121,12 @@ pub fn from_settings<S: AsRef<Path>>(
             exchange_conf.fees,
             n,
             executor,
-            mirp,
+            interest_rate_provider,
             logger,
         )),
         StrategySettings::Generic(s) => {
-            let inner: Box<dyn generic::Strategy> = from_settings_s(db, exchange_conf, s, executor, mirp, logger);
+            let inner: Box<dyn generic::Strategy> =
+                from_settings_s(db, exchange_conf, s, executor, interest_rate_provider, logger);
             Box::new(crate::generic::GenericStrategy::try_new(inner.channels().into_iter().collect(), inner).unwrap())
         }
     }
@@ -135,7 +137,7 @@ pub(crate) fn from_settings_s<S: AsRef<Path>>(
     exchange_conf: &ExchangeSettings,
     s: &StrategySettings,
     om: Arc<dyn OrderExecutor>,
-    mirp: Addr<MarginInterestRateProvider>,
+    mirp: Arc<dyn InterestRateProvider>,
     logger: Option<Arc<dyn StratEventLogger>>,
 ) -> Box<dyn Strategy> {
     match s {

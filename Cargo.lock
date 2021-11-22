@@ -12,7 +12,7 @@ dependencies = [
  "chrono",
  "coinnect_rt",
  "futures",
- "prometheus",
+ "prometheus 0.12.0",
  "serde",
  "thiserror",
  "tracing",
@@ -1346,7 +1346,7 @@ dependencies = [
  "openssl",
  "ordered-float 2.8.0",
  "pin-project",
- "prometheus",
+ "prometheus 0.12.0",
  "quickcheck",
  "quickcheck_macros",
  "regex",
@@ -3353,7 +3353,7 @@ dependencies = [
  "awc",
  "lazy_static 1.4.0",
  "libc",
- "prometheus",
+ "prometheus 0.12.0",
  "protobuf",
  "serde",
  "thiserror",
@@ -4328,6 +4328,21 @@ dependencies = [
  "protobuf",
  "protobuf-codegen-pure",
  "reqwest",
+ "thiserror",
+]
+
+[[package]]
+name = "prometheus"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7f64969ffd5dd8f39bd57a68ac53c163a095ed9d0fb707146da1b27025a3504"
+dependencies = [
+ "cfg-if 1.0.0",
+ "fnv",
+ "lazy_static 1.4.0",
+ "memchr",
+ "parking_lot",
+ "protobuf",
  "thiserror",
 ]
 
@@ -5400,7 +5415,7 @@ dependencies = [
  "parse_duration",
  "plotly",
  "pretty_assertions",
- "prometheus",
+ "prometheus 0.12.0",
  "pyo3",
  "pyo3-log",
  "quickcheck",
@@ -6128,7 +6143,7 @@ dependencies = [
  "openssl",
  "parse_duration",
  "pretty_assertions",
- "prometheus",
+ "prometheus 0.12.0",
  "rand 0.8.4",
  "serde",
  "serde_json",
@@ -6169,6 +6184,7 @@ dependencies = [
  "itertools",
  "juniper",
  "lazy_static 1.4.0",
+ "prometheus 0.13.0",
  "pyo3",
  "quickcheck",
  "rand 0.8.4",
