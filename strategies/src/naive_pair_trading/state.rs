@@ -16,7 +16,7 @@ use crate::naive_pair_trading::options::Options;
 use crate::query::MutableField;
 use crate::types::{OperationEvent, StratEvent, TradeEvent};
 use trading::order_manager::types::{OrderDetail, Transaction};
-use trading::order_manager::{OrderManager, OrderResolution, TransactionService};
+use trading::order_manager::{OrderExecutor, OrderManager, OrderResolution};
 use trading::position::{OperationKind, PositionKind};
 use trading::types::{OrderMode, TradeKind, TradeOperation};
 
@@ -126,7 +126,7 @@ pub(super) struct MovingState {
     dry_mode: bool,
     order_mode: OrderMode,
     #[serde(skip_serializing)]
-    ts: TransactionService,
+    ts: OrderExecutor,
     is_trading: bool,
 }
 
@@ -166,7 +166,7 @@ impl MovingState {
             ongoing_op: None,
             dry_mode: n.dry_mode(),
             order_mode: n.order_mode,
-            ts: TransactionService::new(om),
+            ts: OrderExecutor::new(om),
             is_trading: true,
         };
         state.reload_state();
