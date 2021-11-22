@@ -28,10 +28,11 @@ extern crate serde;
 #[macro_use]
 extern crate tracing;
 
+use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use actix::Addr;
+use actix::{Addr, Message, Recipient};
 use derive_more::Display;
 use serde::Deserialize;
 use strum_macros::AsRefStr;
@@ -45,6 +46,7 @@ pub use coinnect_rt::prelude::*;
 pub use coinnect_rt::types as coinnect_types;
 pub use db::DbOptions;
 use error::*;
+use ext::ResultExt;
 pub use models::Model;
 #[cfg(feature = "python")]
 pub use python_wrapper::python_strat;
@@ -136,10 +138,16 @@ impl ToString for StrategyKey {
     fn to_string(&self) -> String { format!("{}_{}", self.0, self.1) }
 }
 
+/// A trader owns the context of running a single strategy and is responsible for managing
+/// its data interface and lifecycle
 #[derive(Clone)]
-pub struct Strategy(pub StrategyKey, pub Addr<StrategyActor>, pub Vec<Channel>);
+pub struct Trader {
+    pub key: StrategyKey,
+    actor: Addr<StrategyActor>,
+    pub channels: Vec<Channel>,
+}
 
-impl Strategy {
+impl Trader {
     // TODO: om, mirp and fees could be in a single trading engine struct
     pub fn new(
         db: &DbOptions<String>,
@@ -164,7 +172,22 @@ impl Strategy {
         );
         let channels = actor.channels();
         info!(uuid = %uuid, channels = ?channels, "starting strategy");
-        Self(key, actix::Supervisor::start(|_| actor), channels)
+        Self {
+            key,
+            actor: actix::Supervisor::start(|_| actor),
+            channels,
+        }
+    }
+
+    pub fn live_event_recipient(&self) -> Recipient<Arc<LiveEventEnvelope>> { self.actor.clone().recipient() }
+
+    pub async fn send<M: 'static>(&self, m: M) -> Result<<M as Message>::Result>
+    where
+        M: Message + Send,
+        M::Result: Send + Debug,
+        StrategyActor: actix::Handler<M>,
+    {
+        self.actor.send(m).await.err_into()
     }
 }
 

@@ -38,6 +38,8 @@ pub enum Error {
     BookError(#[from] BookError),
     #[error("feature is not available yet for this")]
     FeatureNotImplemented,
+    #[error("actor mailbox was full")]
+    MailboxError(#[from] actix::MailboxError),
     #[cfg(feature = "python")]
     #[error("error running python code")]
     Python(#[from] pyo3::PyErr),
@@ -65,6 +67,7 @@ impl Error {
             Error::OperationMissingOrder(_) => "operation_missing_order",
             Error::BookError(_) => "book_error",
             Error::OrderManager(_) => "order_manager",
+            Error::MailboxError(_) => "mailbox_error",
         }
     }
 }

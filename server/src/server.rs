@@ -8,7 +8,7 @@ use actix_web::web::Data;
 use actix_web::{http, HttpServer};
 
 use coinnect_rt::prelude::*;
-use strategies::{Strategy, StrategyKey};
+use strategies::{StrategyKey, Trader};
 use trading::order_manager::OrderManager;
 
 use crate::graphql_schemas::root::create_schema;
@@ -18,7 +18,7 @@ pub async fn httpserver(
     settings: &ApiSettings,
     version: Option<Version>,
     apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
-    strategies: Arc<HashMap<StrategyKey, Strategy>>,
+    strategies: Arc<HashMap<StrategyKey, Trader>>,
     order_managers: Arc<HashMap<Exchange, Addr<OrderManager>>>,
 ) -> std::io::Result<()> {
     // Make and start the api
