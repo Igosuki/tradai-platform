@@ -258,6 +258,7 @@ mod test {
         System::new().block_on(async move {
             let order_book_event = LiveEventEnvelope {
                 xch: Exchange::Binance,
+                pair: TEST_PAIR.into(),
                 e: LiveEvent::LiveOrderbook(Orderbook {
                     timestamp: chrono::Utc::now().timestamp(),
                     pair: TEST_PAIR.into(),

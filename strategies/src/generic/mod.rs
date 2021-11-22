@@ -109,13 +109,11 @@ impl StrategyDriver for GenericStrategy {
             return Ok(());
         }
         if let LiveEvent::LiveOrderbook(ob) = &le.e {
-            let ob_pair = ob.pair.clone();
-            let book_pos = ob.try_into().ok();
-            if let Some(pos) = book_pos {
+            if let Ok(pos) = ob.try_into() {
                 let event = if self.multi_market {
                     let positions = {
                         let mut lock = self.last_positions.lock().unwrap();
-                        lock.insert(ob_pair, pos);
+                        lock.insert(ob.pair.clone(), pos);
                         lock.clone()
                     };
                     InputEvent::BookPositions(positions)
