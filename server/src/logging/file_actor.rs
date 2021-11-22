@@ -240,11 +240,13 @@ mod test {
         let new_dir = dir_str;
         System::new().block_on(async move {
             let addr = SyncArbiter::start(1, move || actor(new_dir.clone().as_str()));
+            let pair: Pair = "BTC_USDT".into();
             let order_book_event = Arc::new(LiveEventEnvelope {
                 xch: Exchange::Binance,
+                pair: pair.clone(),
                 e: LiveEvent::LiveOrderbook(Orderbook {
                     timestamp: chrono::Utc::now().timestamp(),
-                    pair: "BTC_USDT".into(),
+                    pair,
                     asks: vec![(0.1, 0.1), (0.2, 0.2)],
                     bids: vec![(0.1, 0.1), (0.2, 0.2)],
                     last_order_id: None,

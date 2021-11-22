@@ -12,6 +12,7 @@ fn live_order_book(
     asks: Vec<(f64, f64)>,
     bids: Vec<(f64, f64)>,
 ) -> LiveEventEnvelope {
+    let atom = pair.clone();
     let orderbook = Orderbook {
         timestamp: ts,
         pair,
@@ -21,6 +22,7 @@ fn live_order_book(
     };
     LiveEventEnvelope {
         xch: exchange,
+        pair: atom,
         e: LiveEvent::LiveOrderbook(orderbook),
     }
 }

@@ -150,6 +150,7 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
     let before_evals = Instant::now();
     for row in pair_csv_records.map(|csvr| LiveEventEnvelope {
         xch: Exchange::from(EXCHANGE.to_string()),
+        pair: PAIR.into(),
         e: LiveEvent::LiveOrderbook(csvr.to_orderbook(PAIR)),
     }) {
         let now = Instant::now();
