@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Instant;
 
 use chrono::{DateTime, TimeZone, Utc};
@@ -6,7 +7,7 @@ use serde::Serialize;
 
 use coinnect_rt::exchange::Exchange;
 use db::DbOptions;
-use trading::order_manager::test_util::mock_manager;
+use trading::order_manager::test_util::mock_manager_client;
 use trading::types::OrderMode;
 use util::test::test_results_dir;
 
@@ -107,7 +108,7 @@ async fn model_backtest() {
 async fn complete_backtest() {
     init();
     let path = util::test::test_dir();
-    let order_manager_addr = mock_manager(&path);
+    let order_manager_addr = Arc::new(mock_manager_client(&path));
     let test_results_dir = test_results_dir(module_path!());
     let mut strat = NaiveTradingStrategy::new(
         &DbOptions::new(path),

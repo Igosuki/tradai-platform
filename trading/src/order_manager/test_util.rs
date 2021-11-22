@@ -14,7 +14,7 @@ use coinnect_rt::prelude::*;
 use db::DbOptions;
 
 use crate::order_manager::types::OrderDetail;
-use crate::order_manager::OrderManager;
+use crate::order_manager::{OrderManager, OrderManagerClient};
 
 pub fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
@@ -151,6 +151,11 @@ pub fn mock_manager<S: AsRef<Path>>(path: S) -> Addr<OrderManager> {
         }
     }
     act
+}
+
+pub fn mock_manager_client<S: AsRef<Path>>(path: S) -> OrderManagerClient {
+    let om = mock_manager(path);
+    OrderManagerClient::new(om)
 }
 
 pub mod e2e {

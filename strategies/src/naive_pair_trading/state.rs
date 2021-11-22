@@ -1,7 +1,6 @@
 use std::panic;
 use std::sync::Arc;
 
-use actix::Addr;
 use chrono::{DateTime, Utc};
 use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
@@ -16,7 +15,7 @@ use crate::naive_pair_trading::options::Options;
 use crate::query::MutableField;
 use crate::types::{OperationEvent, StratEvent, TradeEvent};
 use trading::order_manager::types::{OrderDetail, Transaction};
-use trading::order_manager::{OrderExecutor, OrderManager, OrderResolution};
+use trading::order_manager::{OrderExecutor, OrderResolution};
 use trading::position::{OperationKind, PositionKind};
 use trading::types::{OrderMode, TradeKind, TradeOperation};
 
@@ -126,7 +125,7 @@ pub(super) struct MovingState {
     dry_mode: bool,
     order_mode: OrderMode,
     #[serde(skip_serializing)]
-    ts: OrderExecutor,
+    ts: Arc<dyn OrderExecutor>,
     is_trading: bool,
 }
 
@@ -143,7 +142,7 @@ struct TransientState {
 }
 
 impl MovingState {
-    pub fn new(n: &Options, db: Arc<dyn Storage>, om: Addr<OrderManager>) -> MovingState {
+    pub fn new(n: &Options, db: Arc<dyn Storage>, om: Arc<dyn OrderExecutor>) -> MovingState {
         db.ensure_table(STATE_KEY).unwrap();
         db.ensure_table(OPERATIONS_KEY).unwrap();
         let mut state = MovingState {
@@ -166,7 +165,7 @@ impl MovingState {
             ongoing_op: None,
             dry_mode: n.dry_mode(),
             order_mode: n.order_mode,
-            ts: OrderExecutor::new(om),
+            ts: om,
             is_trading: true,
         };
         state.reload_state();

@@ -1,11 +1,12 @@
-use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Arc;
-
 use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, WrapFuture};
 use actix_derive::{Message, MessageResponse};
+use async_trait::async_trait;
 use futures::FutureExt;
 use itertools::Itertools;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::path::Path;
+use std::sync::Arc;
 use strum_macros::AsRefStr;
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -71,25 +72,41 @@ impl OrderRepository {
     }
 }
 
+/// Handles and queries orders
+#[async_trait]
+pub trait OrderExecutor: Send + Sync + Debug {
+    /// Stage an order
+    async fn stage_order(&self, staged_order: StagedOrder) -> Result<OrderDetail>;
+    /// Retry staging an order if it was rejected
+    async fn stage_trade(&self, trade: &TradeOperation) -> Result<OrderDetail>;
+    /// Takes an order, and returns the latest order detail, transaction and resolutions found
+    /// with the executor
+    async fn resolve_pending_order(
+        &self,
+        order: &OrderDetail,
+    ) -> Result<(OrderDetail, Option<Transaction>, OrderResolution)>;
+}
+
 #[derive(Debug, Clone)]
-pub struct OrderExecutor {
+pub struct OrderManagerClient {
     om: Addr<OrderManager>,
 }
 
-impl OrderExecutor {
+impl OrderManagerClient {
     pub fn new(om: Addr<OrderManager>) -> Self { Self { om } }
+}
 
-    /// Stage an order
+#[async_trait]
+impl OrderExecutor for OrderManagerClient {
     #[tracing::instrument(skip(self), level = "debug")]
-    pub async fn stage_order(&self, staged_order: StagedOrder) -> Result<OrderDetail> {
+    async fn stage_order(&self, staged_order: StagedOrder) -> Result<OrderDetail> {
         self.om
             .send(staged_order)
             .await
             .map_err(|_| Error::OrderManagerMailboxError)?
     }
 
-    /// Retry staging an order if it was rejected
-    pub async fn stage_trade(&self, trade: &TradeOperation) -> Result<OrderDetail> {
+    async fn stage_trade(&self, trade: &TradeOperation) -> Result<OrderDetail> {
         let staged_order = StagedOrder {
             request: trade.clone().into(),
         };
@@ -99,7 +116,7 @@ impl OrderExecutor {
         })
     }
 
-    pub async fn resolve_pending_order(
+    async fn resolve_pending_order(
         &self,
         order: &OrderDetail,
     ) -> Result<(OrderDetail, Option<Transaction>, OrderResolution)> {

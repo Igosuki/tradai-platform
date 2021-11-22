@@ -154,7 +154,7 @@ impl Trader {
         exchange_conf: &ExchangeSettings,
         actor_settings: &StrategyActorOptions,
         settings: &StrategySettings,
-        om: Option<Addr<OrderManager>>,
+        om: Addr<OrderManager>,
         mirp: Addr<MarginInterestRateProvider>,
         logger: Option<Arc<dyn StratEventLogger>>,
     ) -> Self {

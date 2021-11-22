@@ -25,7 +25,7 @@ use crate::models::Sampler;
 use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, StrategyIndicators};
 use crate::types::InputEvent;
 use crate::{Channel, StratEvent, StratEventLogger, StrategyStatus};
-use trading::order_manager::OrderManager;
+use trading::order_manager::OrderExecutor;
 use trading::position::PositionKind;
 use trading::signal::TradeSignal;
 use trading::stop::Stopper;
@@ -70,7 +70,7 @@ impl MeanRevertingStrategy {
         db_opts: &DbOptions<S>,
         fees_rate: f64,
         n: &Options,
-        om: Addr<OrderManager>,
+        om: Arc<dyn OrderExecutor>,
         mirp: Addr<MarginInterestRateProvider>,
         logger: Option<Arc<dyn StratEventLogger>>,
     ) -> Self {

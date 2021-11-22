@@ -294,7 +294,7 @@ async fn strategies(
                 &exchange_conf,
                 &actor_options,
                 &strategy_settings,
-                oms.get(&exchange).cloned(),
+                oms.get(&exchange).expect("order manage required").clone(),
                 mirp,
                 None,
             )
