@@ -25,7 +25,7 @@ dialog_cli = ["dialoguer", "glob"]
 # Self crates
 models = { path = "../models" }
 util = { path = "../util" }
-account = { path = "../account" }
+account = { path = "../portfolio" }
 strategies = { path = "../strategies" }
 #coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
 coinnect_rt = { path = "../coinnect" }
