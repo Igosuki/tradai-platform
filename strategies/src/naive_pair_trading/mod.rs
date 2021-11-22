@@ -3,7 +3,6 @@ use std::ops::{Add, Mul, Sub};
 use std::path::Path;
 use std::sync::Arc;
 
-use actix::Addr;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 
 use coinnect_rt::prelude::*;
@@ -11,7 +10,7 @@ use db::{get_or_create, DbOptions, Storage};
 use options::Options;
 use state::{MovingState, Position};
 use trading::book::BookPosition;
-use trading::order_manager::OrderManager;
+use trading::order_manager::OrderExecutor;
 use trading::position::PositionKind;
 
 use crate::driver::StrategyDriver;
@@ -57,7 +56,12 @@ pub struct NaiveTradingStrategy {
 }
 
 impl NaiveTradingStrategy {
-    pub fn new<S: AsRef<Path>>(db_opts: &DbOptions<S>, fees_rate: f64, n: &Options, om: Addr<OrderManager>) -> Self {
+    pub fn new<S: AsRef<Path>>(
+        db_opts: &DbOptions<S>,
+        fees_rate: f64,
+        n: &Options,
+        om: Arc<dyn OrderExecutor>,
+    ) -> Self {
         let metrics = NaiveStrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
         let strat_key = format!("naive_pair_trading_{}_{}", n.left, n.right);
         let db = get_or_create(db_opts, strat_key.clone(), vec![]);
