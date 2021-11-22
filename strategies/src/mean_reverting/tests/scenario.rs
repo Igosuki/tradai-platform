@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Instant;
 
 use chrono::{DateTime, TimeZone, Utc};
@@ -8,7 +9,7 @@ use coinnect_rt::prelude::*;
 use db::DbOptions;
 use stats::indicators::macd_apo::MACDApo;
 use trading::book::BookPosition;
-use trading::order_manager::test_util::mock_manager;
+use trading::order_manager::test_util::mock_manager_client;
 use trading::types::OrderMode;
 use util::test::test_results_dir;
 
@@ -123,7 +124,7 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
     init();
     //setup_opentelemetry();
     let path = util::test::test_dir();
-    let order_manager_addr = mock_manager(&path);
+    let order_manager_addr = Arc::new(mock_manager_client(&path));
     let margin_interest_rate_provider_addr = mock_interest_rate_provider(Exchange::Binance);
     let full_test_name = format!("{}_{}", module_path!(), test_name);
     let test_results_dir = test_results_dir(&full_test_name);

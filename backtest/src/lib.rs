@@ -160,7 +160,7 @@ impl Backtest {
                     &db_conf,
                     &exchange_conf,
                     &settings,
-                    Some(order_manager_addr.clone()),
+                    order_manager_addr.clone(),
                     margin_interest_rate_provider_addr,
                     Some(logger.clone()),
                 );
