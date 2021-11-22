@@ -228,7 +228,7 @@ impl MeanRevertingStrategy {
     pub(crate) fn handles(&self, e: &LiveEventEnvelope) -> bool {
         self.exchange == e.xch
             && match &e.e {
-                LiveEvent::LiveOrderbook(ob) => ob.pair == self.pair,
+                MarketEvent::Orderbook(ob) => ob.pair == self.pair,
                 _ => false,
             }
     }
@@ -251,7 +251,7 @@ impl StrategyDriver for MeanRevertingStrategy {
         if !self.handles(le) {
             return Ok(());
         }
-        if let LiveEvent::LiveOrderbook(ob) = &le.e {
+        if let MarketEvent::Orderbook(ob) = &le.e {
             let book_pos = ob.try_into().ok();
             if let Some(pos) = book_pos {
                 let x = SinglePosRow {

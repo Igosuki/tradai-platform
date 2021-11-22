@@ -244,7 +244,7 @@ mod test {
             let order_book_event = Arc::new(LiveEventEnvelope {
                 xch: Exchange::Binance,
                 pair: pair.clone(),
-                e: LiveEvent::LiveOrderbook(Orderbook {
+                e: MarketEvent::Orderbook(Orderbook {
                     timestamp: chrono::Utc::now().timestamp(),
                     pair,
                     asks: vec![(0.1, 0.1), (0.2, 0.2)],

@@ -25,8 +25,8 @@ use strategies::driver::StrategyDriver;
 use strategies::margin_interest_rates::test_util::mock_interest_rate_provider;
 use strategies::query::{DataQuery, DataResult};
 use strategies::types::StratEvent;
-use strategies::{Channel, Coinnect, DbOptions, Exchange, ExchangeApi, ExchangeSettings, LiveEvent, LiveEventEnvelope,
-                 Pair, StratEventLogger};
+use strategies::{Channel, Coinnect, DbOptions, Exchange, ExchangeApi, ExchangeSettings, LiveEventEnvelope,
+                 MarketEvent, Pair, StratEventLogger};
 use trading::book::BookPosition;
 use trading::order_manager::test_util::mock_manager;
 use util::test::test_dir;
@@ -370,7 +370,7 @@ impl BacktestRunner {
                     break;
                 }
             }
-            if let LiveEvent::LiveOrderbook(ob) = &live_event.e {
+            if let MarketEvent::Orderbook(ob) = &live_event.e {
                 let bp_try: Result<BookPosition> = ob.try_into().err_into();
                 if let Ok(bp) = bp_try {
                     report.book_positions.push(TimedData::new(live_event.e.time(), bp));

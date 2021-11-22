@@ -259,7 +259,7 @@ mod test {
             let order_book_event = LiveEventEnvelope {
                 xch: Exchange::Binance,
                 pair: TEST_PAIR.into(),
-                e: LiveEvent::LiveOrderbook(Orderbook {
+                e: MarketEvent::Orderbook(Orderbook {
                     timestamp: chrono::Utc::now().timestamp(),
                     pair: TEST_PAIR.into(),
                     asks: vec![(0.1, 0.1), (0.2, 0.2)],

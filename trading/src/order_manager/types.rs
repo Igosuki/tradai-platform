@@ -403,8 +403,8 @@ mod test {
     use chrono::{Duration, Utc};
 
     use coinnect_rt::exchange::Exchange;
-    use coinnect_rt::types::{AddOrderRequest, InterestRate, InterestRatePeriod, OrderQuery,
-                             OrderStatus as CoinOrderStatus, OrderSubmission, OrderUpdate, Trade};
+    use coinnect_rt::types::{AddOrderRequest, InterestRate, InterestRatePeriod, OrderFill, OrderQuery,
+                             OrderStatus as CoinOrderStatus, OrderSubmission, OrderUpdate};
 
     use super::{OrderDetail, OrderStatus, Rejection, Transaction, TransactionStatus};
 
@@ -457,16 +457,16 @@ mod test {
         OrderDetail::from_query(Exchange::Binance, None, request);
     }
 
-    fn trades() -> Vec<Trade> {
+    fn trades() -> Vec<OrderFill> {
         vec![
-            Trade {
+            OrderFill {
                 id: None,
                 price: 1.0,
                 qty: 1.0,
                 fee: 0.001,
                 fee_asset: "BTC".into(),
             },
-            Trade {
+            OrderFill {
                 id: None,
                 price: 1.1,
                 qty: 1.2,

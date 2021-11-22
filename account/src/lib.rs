@@ -7,5 +7,4 @@ extern crate serde;
 
 pub mod balance;
 pub mod error;
-pub mod kline;
 pub mod margin;
