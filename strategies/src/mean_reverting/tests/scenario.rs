@@ -9,12 +9,12 @@ use coinnect_rt::prelude::*;
 use db::DbOptions;
 use stats::indicators::macd_apo::MACDApo;
 use trading::book::BookPosition;
+use trading::interest::test_util::mock_interest_rate_client;
 use trading::order_manager::test_util::mock_manager_client;
 use trading::types::OrderMode;
 use util::test::test_results_dir;
 
 use crate::driver::StrategyDriver;
-use crate::margin_interest_rates::test_util::mock_interest_rate_provider;
 use crate::mean_reverting::model::ema_indicator_model;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::state::{MeanRevertingState, Operation};
@@ -125,7 +125,7 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
     //setup_opentelemetry();
     let path = util::test::test_dir();
     let order_manager_addr = Arc::new(mock_manager_client(&path));
-    let margin_interest_rate_provider_addr = mock_interest_rate_provider(Exchange::Binance);
+    let margin_interest_rate_provider_addr = Arc::new(mock_interest_rate_client(Exchange::Binance));
     let full_test_name = format!("{}_{}", module_path!(), test_name);
     let test_results_dir = test_results_dir(&full_test_name);
 

@@ -3,15 +3,14 @@ use std::convert::TryInto;
 use std::path::Path;
 use std::sync::Arc;
 
-use actix::Addr;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 
-use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
 use coinnect_rt::prelude::*;
 use db::{get_or_create, DbOptions};
 #[cfg(test)]
 use stats::indicators::macd_apo::MACDApo;
 use trading::book::BookPosition;
+use trading::interest::InterestRateProvider;
 
 use crate::driver::StrategyDriver;
 use crate::error::Result;
@@ -71,7 +70,7 @@ impl MeanRevertingStrategy {
         fees_rate: f64,
         n: &Options,
         om: Arc<dyn OrderExecutor>,
-        mirp: Addr<MarginInterestRateProvider>,
+        mirp: Arc<dyn InterestRateProvider>,
         logger: Option<Arc<dyn StratEventLogger>>,
     ) -> Self {
         let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);

@@ -28,34 +28,32 @@ extern crate serde;
 #[macro_use]
 extern crate tracing;
 
+use actix::{Addr, Message, Recipient};
+use actor::StrategyActor;
+use derive_more::Display;
+use error::*;
+use ext::ResultExt;
+use serde::Deserialize;
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
-
-use actix::{Addr, Message, Recipient};
-use derive_more::Display;
-use serde::Deserialize;
 use strum_macros::AsRefStr;
 use strum_macros::EnumString;
+use trading::order_manager::OrderManager;
 use uuid::Uuid;
-
-use actor::StrategyActor;
-pub use coinnect_rt::margin_interest_rates;
-use coinnect_rt::margin_interest_rates::MarginInterestRateProvider;
-pub use coinnect_rt::prelude::*;
-pub use coinnect_rt::types as coinnect_types;
-pub use db::DbOptions;
-use error::*;
-use ext::ResultExt;
-pub use models::Model;
-#[cfg(feature = "python")]
-pub use python_wrapper::python_strat;
-pub use settings::{StrategyCopySettings, StrategySettings};
 
 use crate::actor::StrategyActorOptions;
 use crate::query::{DataQuery, DataResult};
 use crate::types::StratEvent;
-use trading::order_manager::OrderManager;
+
+pub use coinnect_rt::prelude::*;
+pub use coinnect_rt::types as coinnect_types;
+pub use db::DbOptions;
+pub use models::Model;
+#[cfg(feature = "python")]
+pub use python_wrapper::python_strat;
+pub use settings::{StrategyCopySettings, StrategySettings};
+use trading::interest::MarginInterestRateProvider;
 
 pub mod actor;
 pub mod driver;
