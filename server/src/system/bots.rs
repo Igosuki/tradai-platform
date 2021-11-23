@@ -13,7 +13,7 @@ use coinnect_rt::prelude::*;
 pub async fn exchange_bots(
     exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
     keys_path: PathBuf,
-    recipients: Vec<Recipient<Arc<LiveEventEnvelope>>>,
+    recipients: Vec<Recipient<Arc<MarketEventEnvelope>>>,
 ) -> anyhow::Result<HashMap<Exchange, Box<dyn ExchangeBot>>> {
     let mut bots: HashMap<Exchange, Box<dyn ExchangeBot>> = HashMap::new();
     for (xch, conf) in exchanges_settings.clone().iter() {

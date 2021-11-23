@@ -9,6 +9,7 @@ dependencies = [
  "actix",
  "actix_derive",
  "anyhow",
+ "async-trait",
  "chrono",
  "coinnect_rt",
  "futures",
@@ -16,6 +17,7 @@ dependencies = [
  "serde",
  "thiserror",
  "tracing",
+ "trading",
  "util",
 ]
 

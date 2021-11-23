@@ -224,7 +224,7 @@ impl MeanRevertingStrategy {
         self.metrics.log_row(row);
     }
 
-    pub(crate) fn handles(&self, e: &LiveEventEnvelope) -> bool {
+    pub(crate) fn handles(&self, e: &MarketEventEnvelope) -> bool {
         self.exchange == e.xch
             && match &e.e {
                 MarketEvent::Orderbook(ob) => ob.pair == self.pair,
@@ -246,7 +246,7 @@ impl StrategyDriver for MeanRevertingStrategy {
     async fn key(&self) -> String { self.key.to_owned() }
 
     #[tracing::instrument(skip(self, le), level = "trace")]
-    async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()> {
+    async fn add_event(&mut self, le: &MarketEventEnvelope) -> Result<()> {
         if !self.handles(le) {
             return Ok(());
         }
@@ -341,6 +341,7 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
                     let op = op.clone();
                     self.metrics.log_position(&op.pos, &op.kind);
                     signals.push(TradeSignal {
+                        trace_id: Default::default(),
                         position_kind: op.pos.kind,
                         operation_kind: op.kind,
                         trade_kind: op.trade.kind,

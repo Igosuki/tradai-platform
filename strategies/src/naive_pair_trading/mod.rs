@@ -346,7 +346,7 @@ impl NaiveTradingStrategy {
 impl StrategyDriver for NaiveTradingStrategy {
     async fn key(&self) -> String { self.key.to_owned() }
 
-    async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()> {
+    async fn add_event(&mut self, le: &MarketEventEnvelope) -> Result<()> {
         if let MarketEvent::Orderbook(ob) = &le.e {
             let string = ob.pair.clone();
             if string == self.left_pair {

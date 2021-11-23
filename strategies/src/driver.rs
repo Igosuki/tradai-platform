@@ -1,4 +1,4 @@
-use coinnect_rt::types::LiveEventEnvelope;
+use coinnect_rt::types::MarketEventEnvelope;
 
 use crate::query::{DataQuery, DataResult, Mutation};
 use crate::{error, Channel};
@@ -9,7 +9,7 @@ pub trait StrategyDriver {
     async fn key(&self) -> String;
 
     /// Receive a data event from live streams
-    async fn add_event(&mut self, le: &LiveEventEnvelope) -> error::Result<()>;
+    async fn add_event(&mut self, le: &MarketEventEnvelope) -> error::Result<()>;
 
     /// Handle a `DataQuery`
     /// this is used to inspect the internal state of strategies

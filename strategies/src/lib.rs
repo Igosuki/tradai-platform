@@ -177,7 +177,7 @@ impl Trader {
         }
     }
 
-    pub fn live_event_recipient(&self) -> Recipient<Arc<LiveEventEnvelope>> { self.actor.clone().recipient() }
+    pub fn live_event_recipient(&self) -> Recipient<Arc<MarketEventEnvelope>> { self.actor.clone().recipient() }
 
     pub async fn send<M: 'static>(&self, m: M) -> Result<<M as Message>::Result>
     where
@@ -215,18 +215,18 @@ mod test {
     const TEST_PAIR: &str = "BTC_USDT";
 
     struct LoggingStrat {
-        log: Arc<Mutex<Vec<LiveEventEnvelope>>>,
+        log: Arc<Mutex<Vec<MarketEventEnvelope>>>,
     }
 
     impl LoggingStrat {
-        fn new(log: Arc<Mutex<Vec<LiveEventEnvelope>>>) -> Self { Self { log } }
+        fn new(log: Arc<Mutex<Vec<MarketEventEnvelope>>>) -> Self { Self { log } }
     }
 
     #[async_trait]
     impl StrategyDriver for LoggingStrat {
         async fn key(&self) -> String { "logging".to_string() }
 
-        async fn add_event(&mut self, e: &LiveEventEnvelope) -> Result<()> {
+        async fn add_event(&mut self, e: &MarketEventEnvelope) -> Result<()> {
             let mut g = self.log.lock().unwrap();
             g.push(e.clone());
             Ok(())
@@ -254,19 +254,15 @@ mod test {
     fn test_workflow() {
         init();
         System::new().block_on(async move {
-            let order_book_event = LiveEventEnvelope {
-                xch: Exchange::Binance,
-                pair: TEST_PAIR.into(),
-                e: MarketEvent::Orderbook(Orderbook {
-                    timestamp: chrono::Utc::now().timestamp(),
-                    pair: TEST_PAIR.into(),
-                    asks: vec![(0.1, 0.1), (0.2, 0.2)],
-                    bids: vec![(0.1, 0.1), (0.2, 0.2)],
-                    last_order_id: None,
-                }),
-            };
+            let order_book_event = MarketEventEnvelope::order_book_event(
+                Exchange::Binance,
+                TEST_PAIR.into(),
+                chrono::Utc::now().timestamp(),
+                vec![(0.1, 0.1), (0.2, 0.2)],
+                vec![(0.1, 0.1), (0.2, 0.2)],
+            );
             let log = Arc::new(Mutex::new(vec![]));
-            let events: Vec<LiveEventEnvelope> = std::iter::repeat(order_book_event).take(10).collect();
+            let events: Vec<MarketEventEnvelope> = std::iter::repeat(order_book_event).take(10).collect();
             let log_a = log.clone();
             let options = StrategyActorOptions::default();
             let addr = actix::Supervisor::start(move |_| {

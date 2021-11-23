@@ -222,7 +222,7 @@ mod test {
 
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
-    fn actor(base_dir: &str) -> AvroFileActor<LiveEventEnvelope> {
+    fn actor(base_dir: &str) -> AvroFileActor<MarketEventEnvelope> {
         AvroFileActor::new(&FileActorOptions {
             max_file_size: 100_000,
             max_file_time: Duration::seconds(1),
@@ -240,18 +240,13 @@ mod test {
         let new_dir = dir_str;
         System::new().block_on(async move {
             let addr = SyncArbiter::start(1, move || actor(new_dir.clone().as_str()));
-            let pair: Pair = "BTC_USDT".into();
-            let order_book_event = Arc::new(LiveEventEnvelope {
-                xch: Exchange::Binance,
-                pair: pair.clone(),
-                e: MarketEvent::Orderbook(Orderbook {
-                    timestamp: chrono::Utc::now().timestamp(),
-                    pair,
-                    asks: vec![(0.1, 0.1), (0.2, 0.2)],
-                    bids: vec![(0.1, 0.1), (0.2, 0.2)],
-                    last_order_id: None,
-                }),
-            });
+            let order_book_event = Arc::new(MarketEventEnvelope::order_book_event(
+                Exchange::Binance,
+                "BTC_USDT".into(),
+                chrono::Utc::now().timestamp(),
+                vec![(0.1, 0.1), (0.2, 0.2)],
+                vec![(0.1, 0.1), (0.2, 0.2)],
+            ));
             println!("Sending...");
             for _ in 0..100000 {
                 addr.do_send(order_book_event.clone());

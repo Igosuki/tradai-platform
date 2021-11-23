@@ -24,8 +24,8 @@ use ext::ResultExt;
 use strategies::driver::StrategyDriver;
 use strategies::query::{DataQuery, DataResult};
 use strategies::types::StratEvent;
-use strategies::{Channel, Coinnect, DbOptions, Exchange, ExchangeApi, ExchangeSettings, LiveEventEnvelope,
-                 MarketEvent, Pair, StratEventLogger};
+use strategies::{Channel, Coinnect, DbOptions, Exchange, ExchangeApi, ExchangeSettings, MarketEvent,
+                 MarketEventEnvelope, Pair, StratEventLogger};
 use trading::book::BookPosition;
 use trading::interest::test_util::mock_interest_rate_provider;
 use trading::order_manager::test_util::mock_manager;
@@ -209,7 +209,7 @@ impl Backtest {
                 let strat = r.strategy.lock().await;
                 strat.channels()
             };
-            let events: Vec<LiveEventEnvelope> = strat_chans
+            let events: Vec<MarketEventEnvelope> = strat_chans
                 .into_iter()
                 .map(|c| live_events.get(&(c.exchange(), c.pair())))
                 .flatten()
@@ -232,7 +232,7 @@ impl Backtest {
     async fn read_channels(
         &self,
         chans: HashSet<Channel>,
-    ) -> Result<HashMap<(Exchange, Pair), Vec<LiveEventEnvelope>>> {
+    ) -> Result<HashMap<(Exchange, Pair), Vec<MarketEventEnvelope>>> {
         let mut live_events = HashMap::new();
         match self.dataset {
             Dataset::OrderbooksByMinute | Dataset::OrderbooksBySecond => {
@@ -346,7 +346,7 @@ struct BacktestRunner {
 }
 
 impl BacktestRunner {
-    async fn run(&self, live_events: &[LiveEventEnvelope]) -> BacktestReport {
+    async fn run(&self, live_events: &[MarketEventEnvelope]) -> BacktestReport {
         let mut strategy = self.strategy.lock().await;
         let mut report = BacktestReport::new(strategy.key().await);
         for live_event in live_events.iter().sorted_by_key(|le| le.e.time().timestamp_millis()) {
