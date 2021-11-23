@@ -2,17 +2,16 @@ use datafusion::arrow::array::{Array, ListArray, PrimitiveArray, StringArray, St
 use datafusion::arrow::datatypes::Float64Type;
 use datafusion::arrow::record_batch::RecordBatch;
 
-use strategies::{Exchange, LiveEventEnvelope, Pair};
+use strategies::{Exchange, MarketEventEnvelope, Pair};
 
 use crate::datafusion_util::{get_col_as, to_struct_array};
-use crate::datasources::orderbook::live_order_book;
 
 /// Expects a record batch with the following schema :
 /// asks : List(Tuple(f64))
 /// bids : List(Tuple(f64))
 /// event_ms : TimestampMillisecond
 /// pr : String
-pub fn events_from_orderbooks(xchg: Exchange, records: &[RecordBatch]) -> Vec<LiveEventEnvelope> {
+pub fn events_from_orderbooks(xchg: Exchange, records: &[RecordBatch]) -> Vec<MarketEventEnvelope> {
     let mut live_events = vec![];
     for record_batch in records {
         let sa: StructArray = to_struct_array(record_batch);
@@ -55,7 +54,13 @@ pub fn events_from_orderbooks(xchg: Exchange, records: &[RecordBatch]) -> Vec<Li
             }
             let ts = event_ms_col.value(i);
             let pair = pair_col.value(i);
-            live_events.push(live_order_book(xchg, Pair::from(pair), ts, asks, bids));
+            live_events.push(MarketEventEnvelope::order_book_event(
+                xchg,
+                Pair::from(pair),
+                ts,
+                asks,
+                bids,
+            ));
         }
     }
     live_events

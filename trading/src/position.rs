@@ -1,8 +1,9 @@
 // --------- Data Types ---------
 
-use crate::order_manager::types::OrderDetail;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
+
+use crate::order_manager::types::OrderDetail;
 
 #[derive(Eq, PartialEq, Clone, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "lowercase")]
@@ -17,6 +18,12 @@ impl Default for PositionKind {
     fn default() -> Self { Self::Long }
 }
 
+impl PositionKind {
+    pub fn is_short(&self) -> bool { matches!(self, PositionKind::Short) }
+
+    pub fn is_long(&self) -> bool { matches!(self, PositionKind::Long) }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum OperationKind {
@@ -24,6 +31,12 @@ pub enum OperationKind {
     Open,
     #[strum(serialize = "close")]
     Close,
+}
+
+impl OperationKind {
+    pub fn is_open(&self) -> bool { matches!(self, OperationKind::Open) }
+
+    pub fn is_close(&self) -> bool { matches!(self, OperationKind::Close) }
 }
 
 /// Metadata detailing the trace UUIDs & timestamps associated with entering, updating & exiting

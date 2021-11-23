@@ -22,12 +22,12 @@ impl LiveEventPartitioner {
     pub fn new(grace_period: Duration) -> Self { Self { grace_period } }
 }
 
-impl Partitioner<LiveEventEnvelope> for LiveEventPartitioner {
+impl Partitioner<MarketEventEnvelope> for LiveEventPartitioner {
     /// Create a partition for this event
     /// each partition has a key and value formatted like hdfs does
     /// /k1=v1/k2=v2/...
     /// Dates are formatted using strftime/Ymd
-    fn partition(&self, data: &LiveEventEnvelope) -> Option<Partition> {
+    fn partition(&self, data: &MarketEventEnvelope) -> Option<Partition> {
         let exchange = format!("{:?}", data.xch);
         match &data.e {
             MarketEvent::Orderbook(ob) => Some((ob.timestamp, "order_books", ob.pair.clone())),
@@ -52,7 +52,7 @@ impl Partitioner<LiveEventEnvelope> for LiveEventPartitioner {
     }
 }
 
-impl ToAvroSchema for LiveEventEnvelope {
+impl ToAvroSchema for MarketEventEnvelope {
     fn schema(&self) -> Option<&'static Schema> {
         match &self.e {
             MarketEvent::Trade(_) => Some(&*avro_gen::models::LIVETRADE_SCHEMA),
@@ -62,10 +62,10 @@ impl ToAvroSchema for LiveEventEnvelope {
     }
 }
 
-impl Handler<Arc<LiveEventEnvelope>> for AvroFileActor<LiveEventEnvelope> {
+impl Handler<Arc<MarketEventEnvelope>> for AvroFileActor<MarketEventEnvelope> {
     type Result = anyhow::Result<()>;
 
-    fn handle(&mut self, msg: Arc<LiveEventEnvelope>, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: Arc<MarketEventEnvelope>, _ctx: &mut Self::Context) -> Self::Result {
         let rc = self.writer_for(&msg);
         if let Err(rc_err) = rc {
             self.metrics.writer_acquisition_failure();

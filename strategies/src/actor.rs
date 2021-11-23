@@ -7,7 +7,7 @@ use chrono::Duration;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use coinnect_rt::types::LiveEventEnvelope;
+use coinnect_rt::types::MarketEventEnvelope;
 use util::serde::decode_duration_str;
 
 use crate::driver::StrategyDriver;
@@ -112,11 +112,11 @@ impl actix::Supervised for StrategyActor {
 
 type StratActorResponseFuture<T> = ResponseActFuture<StrategyActor, T>;
 
-impl Handler<Arc<LiveEventEnvelope>> for StrategyActor {
+impl Handler<Arc<MarketEventEnvelope>> for StrategyActor {
     type Result = StratActorResponseFuture<anyhow::Result<()>>;
 
     #[cfg_attr(feature = "flame_it", flame)]
-    fn handle(&mut self, msg: Arc<LiveEventEnvelope>, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: Arc<MarketEventEnvelope>, _ctx: &mut Self::Context) -> Self::Result {
         let lock = self.inner.clone();
         Box::pin(
             async move {
