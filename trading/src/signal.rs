@@ -1,12 +1,16 @@
-use crate::position::{OperationKind, PositionKind};
-use crate::types::TradeKind;
-use coinnect_rt::prelude::*;
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
+use uuid::Uuid;
+
+use coinnect_rt::prelude::*;
+
+use crate::position::{OperationKind, PositionKind};
+use crate::types::TradeKind;
 
 #[allow(dead_code)]
 #[cfg_attr(feature = "python", pyclass)]
 pub struct TradeSignal {
+    pub trace_id: Uuid,
     pub position_kind: PositionKind,
     pub operation_kind: OperationKind,
     pub trade_kind: TradeKind,

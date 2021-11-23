@@ -54,8 +54,8 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
         .await?;
 
     let mut termination_handles: Vec<Pin<Box<dyn Future<Output = std::io::Result<()>>>>> = vec![];
-    let mut broadcast_recipients: Vec<Recipient<Arc<LiveEventEnvelope>>> = Vec::new();
-    let mut strat_recipients: Vec<Recipient<Arc<LiveEventEnvelope>>> = Vec::new();
+    let mut broadcast_recipients: Vec<Recipient<Arc<MarketEventEnvelope>>> = Vec::new();
+    let mut strat_recipients: Vec<Recipient<Arc<MarketEventEnvelope>>> = Vec::new();
     let mut spot_account_recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>> =
         apis.keys().map(|xch| (*xch, vec![])).collect();
     let mut margin_account_recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>> =
@@ -174,10 +174,10 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                     let topics = trader
                         .channels
                         .iter()
-                        .map(<LiveEventEnvelope as Subject>::from_channel)
+                        .map(<MarketEventEnvelope as Subject>::from_channel)
                         .collect();
                     let consumer = NatsConsumer::start(
-                        NatsConsumer::new::<Arc<LiveEventEnvelope>>(
+                        NatsConsumer::new::<Arc<MarketEventEnvelope>>(
                             &nats_settings.host,
                             &nats_settings.username,
                             &nats_settings.username,
@@ -194,7 +194,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                             &nats_settings.host,
                             &nats_settings.username,
                             &nats_settings.username,
-                            vec![<LiveEventEnvelope as Subject>::glob()],
+                            vec![<MarketEventEnvelope as Subject>::glob()],
                             broadcast_recipients.clone(),
                         )
                         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
@@ -255,7 +255,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
 
 fn connectivity_checker(interval: u64) { actix::spawn(run_connectivity_checker(interval)); }
 
-fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<LiveEventEnvelope>> {
+fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<MarketEventEnvelope>> {
     info!("starting avro file logger");
     SyncArbiter::start(settings.parallelism.unwrap_or(2), move || {
         let dir = Path::new(settings.basedir.as_str());

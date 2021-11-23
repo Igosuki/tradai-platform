@@ -71,11 +71,11 @@ impl GenericStrategy {
         strat.init()
     }
 
-    fn handles(&self, le: &LiveEventEnvelope) -> bool {
+    fn handles(&self, le: &MarketEventEnvelope) -> bool {
         self.channels.iter().any(|c| match (c, le) {
             (
                 Channel::Orderbooks { pair, xch },
-                le @ LiveEventEnvelope {
+                le @ MarketEventEnvelope {
                     e: MarketEvent::Orderbook(ob),
                     ..
                 },
@@ -100,7 +100,7 @@ impl StrategyDriver for GenericStrategy {
         r.key()
     }
 
-    async fn add_event(&mut self, le: &LiveEventEnvelope) -> Result<()> {
+    async fn add_event(&mut self, le: &MarketEventEnvelope) -> Result<()> {
         if !self.initialized {
             self.init().await.unwrap();
             self.initialized = true;

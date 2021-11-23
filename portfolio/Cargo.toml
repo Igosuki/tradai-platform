@@ -9,21 +9,27 @@ name = "portfolio"
 path = "src/lib.rs"
 
 [dependencies]
+#coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
+coinnect_rt = { path = "../coinnect" }
+trading = { path = "../trading" }
+util = { path = "../util" }
+
 # actix
 actix = "0.12"
 actix_derive = "0.6"
+
+# metrics
+prometheus = "0.12"
+tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
+
+# std
+thiserror = "1.0"
+serde = "1.0"
 anyhow = "1.0"
 chrono = "0.4"
-# Crypto
-#coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
-coinnect_rt = { path = "../coinnect" }
-prometheus = "0.12"
-serde = "1.0"
 
-thiserror = "1.0"
-# core
-util = { path = "../util" }
+# async
 futures = "0.3"
-tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
+async-trait = "0.1"
 
 [dev-dependencies]

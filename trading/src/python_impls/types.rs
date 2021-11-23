@@ -27,6 +27,7 @@ impl TradeSignal {
         instructions: Option<&str>,
     ) -> PyResult<Self> {
         Ok(Self {
+            trace_id: Default::default(),
             position_kind: PositionKind::from_str(position)
                 .map_err(|_| PyBaseException::new_err(format!("unknown position '{}'", position)))?,
             operation_kind: OperationKind::from_str(operation)

@@ -148,10 +148,12 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
     let mut trade_events: Vec<(OperationEvent, TradeEvent)> = Vec::new();
 
     let before_evals = Instant::now();
-    for row in pair_csv_records.map(|csvr| LiveEventEnvelope {
-        xch: Exchange::from(EXCHANGE.to_string()),
-        pair: PAIR.into(),
-        e: MarketEvent::Orderbook(csvr.to_orderbook(PAIR)),
+    for row in pair_csv_records.map(|csvr| {
+        MarketEventEnvelope::new(
+            Exchange::from(EXCHANGE.to_string()),
+            PAIR.into(),
+            MarketEvent::Orderbook(csvr.to_orderbook(PAIR)),
+        )
     }) {
         let now = Instant::now();
         util::time::set_current_time(row.e.time());
