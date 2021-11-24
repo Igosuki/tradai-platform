@@ -1,11 +1,14 @@
 // --------- Data Types ---------
 
 use chrono::{DateTime, Utc};
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::prelude::Exchange::Binance;
+use coinnect_rt::types::Pair;
 use uuid::Uuid;
 
 use crate::order_manager::types::OrderDetail;
 
-#[derive(Eq, PartialEq, Clone, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
+#[derive(Copy, Eq, PartialEq, Clone, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum PositionKind {
     #[strum(serialize = "short")]
@@ -89,10 +92,10 @@ pub struct Position {
     pub meta: PositionMeta,
 
     /// Target exchange.
-    pub exchange: String,
+    pub exchange: Exchange,
 
     /// Market symbol.
-    pub symbol: String,
+    pub symbol: Pair,
 
     /// Long or Short.
     pub kind: PositionKind,
@@ -119,8 +122,8 @@ impl Default for Position {
         Self {
             id: Uuid::new_v4(),
             meta: Default::default(),
-            exchange: String::from("Binance"),
-            symbol: String::from("BTC_USDT"),
+            exchange: Binance,
+            symbol: "BTC_USDT".into(),
             kind: PositionKind::default(),
             quantity: 1.0,
             open_order: None,
@@ -162,6 +165,10 @@ impl Position {
     /// Calculate the PnL return of a closed [Position] - assumed [Position::result_profit_loss] is
     /// appropriately calculated.
     pub fn calculate_profit_loss_return(&self) -> f64 { self.result_profit_loss / self.open_quote_value() }
+
+    pub fn is_opened(&self) -> bool { self.close_order.is_none() && self.open_order.is_some() }
+
+    pub fn is_closed(&self) -> bool { self.close_order.is_some() && self.open_order.is_some() }
 }
 
 /// Equity value at a point in time.

@@ -346,11 +346,15 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
                         operation_kind: op.kind,
                         trade_kind: op.trade.kind,
                         price: op.trade.price,
-                        pair: self.pair.clone(),
-                        exchange: self.exchange,
+                        qty: op.trade.qty,
+                        pair: self.pair.to_string(),
+                        exchange: self.exchange.to_string(),
                         instructions: op.instructions,
                         dry_mode: op.trade.dry_mode,
-                        asset_type: AssetType::Spot,
+                        order_type: OrderType::Market,
+                        enforcement: None,
+                        asset_type: Some(AssetType::Spot),
+                        side_effect: None,
                     });
                 }
                 Err(e) => self.metrics.log_error(e.short_name()),
