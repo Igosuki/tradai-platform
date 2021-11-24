@@ -8,23 +8,25 @@ use db::Storage;
 use ext::ResultExt;
 
 use crate::error::Result;
-use crate::models::persist::{ModelValue, TimedValue, TimedWindow};
-use crate::models::Model;
+use crate::models::persist::ModelValue;
+use crate::models::{Model, TimedValue, TimedWindow, Window, WindowedModel};
 
-use super::persist::{PersistentModel, PersistentVec, Window};
+use super::persist::{PersistentModel, PersistentVec};
 
 type WindowFn<T, M> = fn(&M, Window<'_, T>) -> M;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub struct WindowedModel<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone> {
+pub struct PersistentWindowedModel<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone> {
     rows: PersistentVec<T>,
     model: PersistentModel<M>,
     #[derivative(Debug = "ignore")]
     window_fn: WindowFn<T, M>,
 }
 
-impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone + Default> WindowedModel<T, M> {
+impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone + Default>
+    PersistentWindowedModel<T, M>
+{
     pub fn new(
         id: &str,
         db: Arc<dyn Storage>,
@@ -41,36 +43,14 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
         }
     }
 
-    pub fn update_model(&mut self) -> Result<()> {
+    pub fn update(&mut self) -> Result<()> {
         if self.is_filled() && !self.has_model() {
             self.model.set_last_model(M::default());
         }
         self.model.update(self.window_fn, self.rows.window()).err_into()
     }
 
-    pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }
-
-    pub fn has_model(&self) -> bool { self.model.has_model() }
-
-    pub fn push(&mut self, row: &T) { self.rows.push(row); }
-
-    pub fn is_filled(&self) -> bool { self.rows.is_filled() }
-
-    pub fn window(&self) -> Window<'_, T> { self.rows.window() }
-
-    pub fn timed_window(&self) -> TimedWindow<'_, T> { self.rows.timed_window() }
-
-    pub fn len(&self) -> usize { self.rows.len() }
-
-    pub fn model(&self) -> Option<ModelValue<M>> { self.model.model() }
-
-    pub fn is_loaded(&self) -> bool { self.model.is_loaded() && self.rows.is_loaded() }
-
-    pub fn wipe(&mut self) -> Result<()> {
-        self.model.wipe()?;
-        self.rows.wipe()?;
-        Ok(())
-    }
+    //pub fn model(&self) -> Option<ModelValue<M>> { self.model.model() }
 
     pub fn import(&mut self, model_value: serde_json::Value, table: serde_json::Value) -> Result<()> {
         let model: M = serde_json::from_value(model_value)?;
@@ -82,15 +62,44 @@ impl<T: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
     }
 }
 
-impl<R: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone + Default> Model
-    for WindowedModel<R, M>
+impl<R, M> WindowedModel<R, M> for PersistentWindowedModel<R, M>
+where
+    M: Serialize + DeserializeOwned + Clone + Default,
+    R: Serialize + DeserializeOwned + Clone,
 {
-    fn ser(&self) -> Option<serde_json::Value> { self.model().and_then(|m| serde_json::to_value(m).ok()) }
+    fn is_filled(&self) -> bool { self.rows.is_filled() }
+
+    fn window(&self) -> Window<'_, R> { self.rows.window() }
+
+    fn timed_window(&self) -> TimedWindow<'_, R> { self.rows.timed_window() }
+
+    fn push(&mut self, row: &R) { self.rows.push(row); }
+
+    fn len(&self) -> usize { self.rows.len() }
+}
+
+impl<R: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone + Default> Model<M>
+    for PersistentWindowedModel<R, M>
+{
+    fn ser(&self) -> Option<serde_json::Value> { self.value().and_then(|m| serde_json::to_value(m).ok()) }
 
     fn try_load(&mut self) -> crate::error::Result<()> {
         self.model.try_loading()?;
         self.rows.try_loading()
     }
+
+    fn is_loaded(&self) -> bool { self.model.is_loaded() && self.rows.is_loaded() }
+
+    fn wipe(&mut self) -> Result<()> {
+        self.model.wipe()?;
+        self.rows.wipe()
+    }
+
+    fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }
+
+    fn has_model(&self) -> bool { self.model.has_model() }
+
+    fn value(&self) -> Option<M> { self.model.value() }
 }
 
 #[cfg(test)]
@@ -104,8 +113,8 @@ mod test {
     use quickcheck::{Arbitrary, Gen};
     use trading::book::BookPosition;
 
-    use crate::models::WindowedModel;
     use crate::models::{Model, Window};
+    use crate::models::{PersistentWindowedModel, WindowedModel};
     use crate::test_util::test_db;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,13 +140,13 @@ mod test {
         let id = "default";
         let max_size = 2000;
         let db = test_db();
-        let mut table = WindowedModel::new(id, db, 1000, Some(max_size), sum_window, None);
+        let mut table = PersistentWindowedModel::new(id, db, 1000, Some(max_size), sum_window, None);
         let mut gen = Gen::new(500);
         for _ in 0..max_size {
             table.push(&TestRow::arbitrary(&mut gen))
         }
         b.iter(|| {
-            table.update_model().unwrap();
+            table.update().unwrap();
             table.try_load().unwrap();
         });
     }

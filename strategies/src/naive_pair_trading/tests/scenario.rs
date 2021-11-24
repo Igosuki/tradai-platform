@@ -5,6 +5,7 @@ use chrono::{DateTime, TimeZone, Utc};
 use itertools::Itertools;
 use serde::Serialize;
 
+use crate::models::WindowedModel;
 use coinnect_rt::exchange::Exchange;
 use db::DbOptions;
 use trading::order_manager::test_util::mock_manager_client;

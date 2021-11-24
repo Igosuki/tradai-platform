@@ -17,8 +17,7 @@ use stats::iter::QuantileExt;
 use crate::error::Result;
 use crate::mean_reverting::options::Options;
 use crate::models::io::{IterativeModel, LoadableModel};
-use crate::models::persist::TimedValue;
-use crate::models::{IndicatorModel, Sampler, Window, WindowedModel};
+use crate::models::{IndicatorModel, PersistentWindowedModel, Sampler, TimedValue, Window, WindowedModel};
 use crate::types::InputEvent;
 use crate::Model;
 
@@ -66,7 +65,7 @@ pub fn threshold(m: &ApoThresholds, wdw: Window<'_, f64>) -> ApoThresholds {
 pub struct MeanRevertingModel {
     sampler: Sampler,
     apo: IndicatorModel<MACDApo, f64>,
-    thresholds: Option<WindowedModel<f64, ApoThresholds>>,
+    thresholds: Option<PersistentWindowedModel<f64, ApoThresholds>>,
     thresholds_0: (f64, f64),
 }
 
@@ -75,7 +74,7 @@ impl MeanRevertingModel {
         let ema_model = ema_indicator_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
         let threshold_table = if n.dynamic_threshold() {
             n.threshold_window_size.map(|thresold_window_size| {
-                WindowedModel::new(
+                PersistentWindowedModel::new(
                     &format!("thresholds_{}", n.pair.as_ref()),
                     db.clone(),
                     thresold_window_size,
@@ -119,7 +118,7 @@ impl MeanRevertingModel {
             if let Some(t) = self.thresholds.as_mut() {
                 t.push(&apo);
                 if t.is_filled() {
-                    t.update_model().map_err(|e| {
+                    t.update().map_err(|e| {
                         tracing::debug!(err = %e, "failed to update thresholds");
                         e
                     })?;
@@ -174,7 +173,7 @@ impl MeanRevertingModel {
                 "thresholds".to_string(),
                 self.thresholds
                     .as_ref()
-                    .and_then(|t| t.model().and_then(|m| serde_json::to_value(m.value).ok())),
+                    .and_then(|t| t.value().and_then(|m| serde_json::to_value(m).ok())),
             ),
         ]
     }
@@ -185,7 +184,7 @@ impl MeanRevertingModel {
 
     pub(crate) fn thresholds(&self) -> (f64, f64) {
         match self.thresholds.as_ref() {
-            Some(t) if t.is_filled() => t.model().map(|m| (m.value.short, m.value.long)),
+            Some(t) if t.is_filled() => t.value().map(|m| (m.short, m.long)),
             _ => None,
         }
         .unwrap_or(self.thresholds_0)
@@ -225,8 +224,8 @@ impl LoadableModel for MeanRevertingModel {
             ser_struct.serialize_field("apo", &model)?;
         }
         if let Some(windowed_model) = &self.thresholds {
-            if let Some(model) = windowed_model.model() {
-                ser_struct.serialize_field("thresholds", &model.value)?;
+            if let Some(model) = windowed_model.value() {
+                ser_struct.serialize_field("thresholds", &model)?;
             }
             ser_struct.serialize_field(
                 "thresholds_table",
