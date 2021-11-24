@@ -15,7 +15,7 @@ use trading::position::PositionKind;
 
 use crate::driver::StrategyDriver;
 use crate::error::*;
-use crate::models::{Model, WindowedModel};
+use crate::models::{Model, PersistentWindowedModel, WindowedModel};
 use crate::naive_pair_trading::covar_model::{DualBookPosition, LinearModelValue};
 use crate::naive_pair_trading::state::Operation;
 use crate::query::{ModelReset, MutableField, Mutation, StrategyIndicators};
@@ -44,7 +44,7 @@ pub struct NaiveTradingStrategy {
     beta_eval_freq: i32,
     beta_sample_freq: Duration,
     state: MovingState,
-    data_table: WindowedModel<DualBookPosition, LinearModelValue>,
+    data_table: PersistentWindowedModel<DualBookPosition, LinearModelValue>,
     pub right_pair: String,
     pub left_pair: String,
     metrics: Arc<NaiveStrategyMetrics>,
@@ -101,7 +101,7 @@ impl NaiveTradingStrategy {
             .last_model_time()
             .unwrap_or_else(|| Utc.timestamp_millis(0));
         debug!("Loaded model time at {}", self.last_row_time_at_eval);
-        if !self.models_loaded() {
+        if !self.data_table.is_loaded() {
             Err(crate::error::Error::ModelLoadError(
                 "models not loaded for unknown reasons".to_string(),
             ))
@@ -110,15 +110,13 @@ impl NaiveTradingStrategy {
         }
     }
 
-    fn models_loaded(&self) -> bool { self.data_table.is_loaded() }
-
     pub fn make_lm_table(
         left_pair: &str,
         right_pair: &str,
         db: Arc<dyn Storage>,
         window_size: usize,
-    ) -> WindowedModel<DualBookPosition, LinearModelValue> {
-        WindowedModel::new(
+    ) -> PersistentWindowedModel<DualBookPosition, LinearModelValue> {
+        PersistentWindowedModel::new(
             &format!("{}_{}", left_pair, right_pair),
             db,
             window_size,
@@ -154,8 +152,8 @@ impl NaiveTradingStrategy {
             // Model obsolescence is defined here as event time being greater than the sample window
             model_time.add(self.beta_sample_freq.mul(self.beta_eval_freq))
         };
-        let is_model_obsolete = event_time.ge(&mt_obsolescence);
-        if is_model_obsolete {
+        let should_eval_model = event_time.ge(&mt_obsolescence);
+        if should_eval_model {
             debug!(
                 "model obsolete, eval time reached : {} > {} with model_time = {}, beta_val = {}",
                 event_time,
@@ -164,18 +162,18 @@ impl NaiveTradingStrategy {
                 self.state.beta_lr()
             );
         }
-        is_model_obsolete
+        should_eval_model
     }
 
     fn set_model_from_table(&mut self) {
-        if let Some(lm) = self.data_table.model() {
-            self.state.set_beta(lm.value.beta);
-            self.state.set_alpha(lm.value.alpha);
+        if let Some(lm) = self.data_table.value() {
+            self.state.set_beta(lm.beta);
+            self.state.set_alpha(lm.alpha);
         }
     }
 
     fn eval_linear_model(&mut self) {
-        if let Err(e) = self.data_table.update_model() {
+        if let Err(e) = self.data_table.update() {
             error!("Error saving model : {:?}", e);
         }
         self.set_model_from_table();
@@ -285,14 +283,14 @@ impl NaiveTradingStrategy {
     }
 
     fn can_eval(&self) -> bool {
-        let has_model = self.data_table.has_model() && self.models_loaded();
+        let has_model = self.data_table.has_model() && self.data_table.is_loaded();
         let has_position = !self.state.no_position_taken();
         // Check that model is more recent than sample freq * (eval frequency + CUTOFF_RATIO%)
         let is_model_obsolete = self
             .data_table
-            .model()
-            .map(|m| {
-                m.at.gt(&Utc::now().sub(
+            .last_model_time()
+            .map(|at| {
+                at.gt(&Utc::now().sub(
                     self.beta_sample_freq
                         .mul((self.beta_eval_freq as f64 * (1.0 + LM_AGE_CUTOFF_RATIO)) as i32),
                 ))
@@ -329,7 +327,7 @@ impl NaiveTradingStrategy {
 
     #[cfg(test)]
     #[allow(dead_code)]
-    fn model_value(&self) -> Option<LinearModelValue> { self.data_table.model().map(|m| m.value) }
+    fn model_value(&self) -> Option<LinearModelValue> { self.data_table.value() }
 
     fn log_state(&self) { self.metrics.log_state(&self.state); }
 

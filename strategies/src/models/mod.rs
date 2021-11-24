@@ -3,8 +3,7 @@ use std::ops::{Add, Mul};
 use chrono::{DateTime, Duration, Utc};
 
 pub use indicator_model::IndicatorModel;
-pub use persist::Window;
-pub use windowed_model::WindowedModel;
+pub use windowed_model::PersistentWindowedModel;
 
 use crate::error::Result;
 
@@ -13,10 +12,28 @@ pub mod io;
 pub(crate) mod persist;
 pub(crate) mod windowed_model;
 
-pub trait Model {
+pub trait Model<T> {
     fn ser(&self) -> Option<serde_json::Value>;
-
     fn try_load(&mut self) -> Result<()>;
+    fn is_loaded(&self) -> bool;
+    fn wipe(&mut self) -> Result<()>;
+    fn last_model_time(&self) -> Option<DateTime<Utc>>;
+    fn has_model(&self) -> bool;
+    fn value(&self) -> Option<T>;
+}
+
+pub type Window<'a, T> = impl Iterator<Item = &'a T> + Clone;
+pub type TimedWindow<'a, T> = impl Iterator<Item = &'a TimedValue<T>> + Clone;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TimedValue<T>(i64, T);
+
+pub trait WindowedModel<R, M>: Model<M> {
+    fn is_filled(&self) -> bool;
+    fn window(&self) -> Window<'_, R>;
+    fn timed_window(&self) -> TimedWindow<'_, R>;
+    fn push(&mut self, row: &R);
+    fn len(&self) -> usize;
 }
 
 // TODO: Maybe used in a middleware like structure

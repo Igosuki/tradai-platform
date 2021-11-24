@@ -9,6 +9,7 @@ use db::Storage;
 use db::StorageExt;
 
 use crate::error::Result;
+use crate::models::{TimedValue, TimedWindow, Window};
 
 static MODELS_TABLE_NAME: &str = "models";
 
@@ -81,8 +82,6 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
 
     pub fn has_model(&self) -> bool { self.last_model.is_some() }
 
-    pub fn model(&self) -> Option<ModelValue<T>> { self.last_model.clone() }
-
     pub fn value(&self) -> Option<T> { self.last_model.clone().map(|s| s.value) }
 
     pub fn try_loading(&mut self) -> crate::error::Result<()> {
@@ -98,13 +97,6 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
 
     pub fn is_loaded(&self) -> bool { self.is_loaded }
 }
-
-pub type Window<'a, T> = impl Iterator<Item = &'a T> + Clone;
-pub type TimedWindow<'a, T> = impl Iterator<Item = &'a TimedValue<T>> + Clone;
-//pub type Window<'a, T> = Take<Rev<Map<Iter<'a, T>>>>;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TimedValue<T>(i64, T);
 
 // Fixed size vector backed by a database
 #[derive(Debug)]
