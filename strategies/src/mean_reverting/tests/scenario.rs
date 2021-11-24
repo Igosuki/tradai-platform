@@ -24,6 +24,7 @@ use crate::test_util::fs::copy_file;
 use crate::test_util::input;
 use crate::test_util::{init, test_db};
 use crate::types::{OperationEvent, TradeEvent};
+use crate::Model;
 
 #[derive(Debug, Serialize, Clone)]
 struct StrategyLog {
