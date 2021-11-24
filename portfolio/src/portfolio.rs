@@ -1,11 +1,15 @@
 use std::collections::BTreeMap;
+use std::fmt::Debug;
+use std::sync::Arc;
 
 use coinnect_rt::types::{OrderQuery, Pair};
+use db::Storage;
 use trading::order_manager::types::OrderDetail;
 use trading::position::Position;
 use trading::signal::TradeSignal;
 
 use crate::error::*;
+use crate::risk::RiskEvaluator;
 
 /// Determines how to handle multiple positions
 pub enum MarketLockRule {
@@ -24,6 +28,9 @@ pub struct Portfolio {
     value: f64,
     pnl: f64,
     positions: BTreeMap<Pair, Position>,
+    key: String,
+    repo: Arc<dyn PortfolioRepo>,
+    risk: Arc<dyn RiskEvaluator>,
 }
 
 /// Workflow :
@@ -32,10 +39,46 @@ pub struct Portfolio {
 /// When fill happens -> update the position
 /// When close, update the position, update the indicators and unlock
 impl Portfolio {
+    fn try_new(initial_value: f64, key: String, repo: Arc<dyn PortfolioRepo>, risk: Arc<dyn RiskEvaluator>) -> Self {
+        Self {
+            value: initial_value,
+            pnl: initial_value,
+            key,
+            repo,
+            positions: Default::default(),
+            risk,
+        }
+    }
+
     /// If no position taken for market and risk and provisioning pass, emit and order query and
     /// set a lock for the position
     fn maybe_convert(&self, signal: TradeSignal) -> Result<Option<OrderQuery>> { Ok(None) }
 
     /// Check position for the market, update accordingly
     fn update_position(&self, order: OrderDetail) {}
+}
+
+pub trait PortfolioRepo: Debug + Send + Sync {
+    fn put_position(&self, pos: Position) -> Result<()>;
+    fn get_position(&self, pos: Position) -> Result<Option<Position>>;
+    fn delete_position(&self, pos: Position) -> Result<Option<Position>>;
+    fn update_vars(&self, _: &Portfolio) -> Result<()>;
+    fn load(&self, _: &Portfolio) -> Result<Option<Portfolio>>;
+}
+
+#[derive(Debug)]
+pub struct PersistentPortfolio {
+    db: Arc<dyn Storage>,
+}
+
+impl PortfolioRepo for PersistentPortfolio {
+    fn put_position(&self, pos: Position) -> Result<()> { todo!() }
+
+    fn get_position(&self, pos: Position) -> Result<Option<Position>> { todo!() }
+
+    fn delete_position(&self, pos: Position) -> Result<Option<Position>> { todo!() }
+
+    fn update_vars(&self, _: &Portfolio) -> Result<()> { todo!() }
+
+    fn load(&self, _: &Portfolio) -> Result<Option<Portfolio>> { todo!() }
 }

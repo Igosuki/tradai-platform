@@ -82,6 +82,9 @@ impl Default for PositionMeta {
 /// Data encapsulating the state of an ongoing or closed [Position].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Position {
+    /// A unique ID for this position
+    pub id: Uuid,
+
     /// Metadata detailing trace UUIDs, timestamps & equity associated with entering, updating & exiting.
     pub meta: PositionMeta,
 
@@ -114,6 +117,7 @@ pub struct Position {
 impl Default for Position {
     fn default() -> Self {
         Self {
+            id: Uuid::new_v4(),
             meta: Default::default(),
             exchange: String::from("Binance"),
             symbol: String::from("BTC_USDT"),
