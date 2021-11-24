@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 use uuid::Uuid;
 
 use coinnect_rt::prelude::*;
+use coinnect_rt::types::MarginSideEffect;
 
 use crate::position::{OperationKind, PositionKind};
 use crate::types::TradeKind;
@@ -15,11 +16,41 @@ pub struct TradeSignal {
     pub operation_kind: OperationKind,
     pub trade_kind: TradeKind,
     pub price: f64,
-    pub pair: Pair,
-    pub exchange: Exchange,
+    pub qty: f64,
+    pub pair: String,
+    pub exchange: String,
     pub instructions: Option<ExecutionInstruction>,
     pub dry_mode: bool,
-    pub asset_type: AssetType,
+    pub order_type: OrderType,
+    pub enforcement: Option<OrderEnforcement>,
+    pub asset_type: Option<AssetType>,
+    pub side_effect: Option<MarginSideEffect>,
+}
+
+impl TradeSignal {
+    pub fn xch_and_pair(&self) -> (String, String) { (self.exchange.to_string(), self.pair.clone()) }
+}
+
+impl From<TradeSignal> for AddOrderRequest {
+    fn from(t: TradeSignal) -> Self {
+        let side = match (t.position_kind, t.operation_kind) {
+            (PositionKind::Short, OperationKind::Open) | (PositionKind::Long, OperationKind::Close) => TradeType::Sell,
+            (PositionKind::Short, OperationKind::Close) | (PositionKind::Long, OperationKind::Open) => TradeType::Buy,
+        };
+        Self {
+            pair: t.pair.into(),
+            side,
+            order_type: t.order_type,
+            enforcement: t.enforcement,
+            quantity: Some(t.qty),
+            price: Some(t.price),
+            order_id: Some(Uuid::new_v4().to_string()),
+            dry_run: t.dry_mode,
+            asset_type: t.asset_type,
+            side_effect_type: t.side_effect,
+            ..AddOrderRequest::default()
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize, PartialEq, EnumString)]

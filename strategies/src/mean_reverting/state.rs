@@ -107,7 +107,7 @@ impl Operation {
     pub fn operation_event(&self) -> OperationEvent {
         OperationEvent {
             op: self.kind,
-            pos: self.pos.kind.clone(),
+            pos: self.pos.kind,
             at: self.pos.time,
         }
     }
@@ -242,7 +242,7 @@ impl MeanRevertingState {
         });
         if let Some(o) = last_unrejected_op {
             if matches!(o.kind, OperationKind::Open) {
-                self.set_position(o.pos.kind.clone());
+                self.set_position(o.pos.kind);
                 self.last_open_order = o.order_detail.clone();
                 self.vars.last_open_order_id = self.last_open_order.as_ref().map(|o| o.id.clone());
             }
@@ -430,8 +430,8 @@ impl MeanRevertingState {
 
     #[tracing::instrument(skip(self), level = "debug")]
     pub(super) async fn open(&mut self, pos: Position) -> Result<Operation> {
-        let position_kind = pos.kind.clone();
-        self.set_position(position_kind.clone());
+        let position_kind = pos.kind;
+        self.set_position(position_kind);
         let base_qty = match position_kind {
             PositionKind::Short => self.base_qty_to_sell,
             PositionKind::Long => self.base_qty_to_buy,
