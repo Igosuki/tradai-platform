@@ -59,7 +59,7 @@ impl Operation {
     pub fn operation_event(&self) -> OperationEvent {
         OperationEvent {
             op: self.kind,
-            pos: self.pos.kind.clone(),
+            pos: self.pos.kind,
             at: self.pos.time,
         }
     }
@@ -177,7 +177,7 @@ impl MovingState {
         ops.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
         if let Some(o) = ops.last() {
             if OperationKind::Open == o.kind {
-                self.set_position(o.pos.kind.clone());
+                self.set_position(o.pos.kind);
             }
         }
         let previous_state: Option<TransientState> = self.db.get(STATE_KEY, STATE_KEY).ok();
@@ -396,8 +396,8 @@ impl MovingState {
     }
 
     pub(super) async fn open(&mut self, pos: Position, fees: f64) -> Operation {
-        let position_kind = pos.kind.clone();
-        self.set_position(position_kind.clone());
+        let position_kind = pos.kind;
+        self.set_position(position_kind);
         self.nominal_position = self.beta_val;
         self.traded_price_right = pos.right_price;
         self.traded_price_left = pos.left_price;
@@ -425,7 +425,7 @@ impl MovingState {
     }
 
     pub(super) async fn close(&mut self, pos: Position, fees: f64) -> Operation {
-        let kind: PositionKind = pos.kind.clone();
+        let kind: PositionKind = pos.kind;
         let (spread, right_coef, left_coef) = match kind {
             PositionKind::Short => {
                 let (spread, right_coef, left_coef) = (self.units_to_buy_short_spread, 1.0 + fees, 1.0 - fees);
