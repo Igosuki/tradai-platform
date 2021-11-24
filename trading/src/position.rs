@@ -1,9 +1,8 @@
 // --------- Data Types ---------
 
 use chrono::{DateTime, Utc};
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::prelude::Exchange::Binance;
-use coinnect_rt::types::Pair;
+use coinnect_rt::prelude::{MarketEvent, MarketEventEnvelope, TradeType};
+use util::time::now;
 use uuid::Uuid;
 
 use crate::order_manager::types::OrderDetail;
@@ -92,10 +91,10 @@ pub struct Position {
     pub meta: PositionMeta,
 
     /// Target exchange.
-    pub exchange: Exchange,
+    pub exchange: String,
 
     /// Market symbol.
-    pub symbol: Pair,
+    pub symbol: String,
 
     /// Long or Short.
     pub kind: PositionKind,
@@ -122,13 +121,13 @@ impl Default for Position {
         Self {
             id: Uuid::new_v4(),
             meta: Default::default(),
-            exchange: Binance,
-            symbol: "BTC_USDT".into(),
+            exchange: "binance".to_string(),
+            symbol: "BTC_USDT".to_string(),
             kind: PositionKind::default(),
-            quantity: 1.0,
+            quantity: 0.0,
             open_order: None,
             close_order: None,
-            current_symbol_price: 100.0,
+            current_symbol_price: 0.0,
             unreal_profit_loss: 0.0,
             result_profit_loss: 0.0,
         }
@@ -136,7 +135,69 @@ impl Default for Position {
 }
 
 impl Position {
-    pub fn current_value_gross(&self) -> f64 { self.quantity.abs() * self.current_symbol_price }
+    pub fn open(order: &OrderDetail) -> Self {
+        let kind = match order.side {
+            TradeType::Sell => PositionKind::Short,
+            TradeType::Buy => PositionKind::Long,
+        };
+        let trace_id = Uuid::new_v4();
+        let now = now();
+        Self {
+            meta: PositionMeta {
+                enter_trace_id: trace_id,
+                open_at: now,
+                last_update_trace_id: trace_id,
+                last_update: now,
+                close_trace_id: None,
+                close_at: None,
+                exit_equity_point: None,
+            },
+            quantity: order.total_executed_qty,
+            exchange: order.exchange.clone(),
+            symbol: order.pair.to_string(),
+            kind,
+            open_order: Some(order.clone()),
+            ..Position::default()
+        }
+    }
+
+    pub fn close(&mut self, value: f64, order: &OrderDetail) {
+        let trace_id = Uuid::new_v4();
+        let now = now();
+        self.meta.close_trace_id = Some(trace_id);
+        self.meta.close_at = Some(now);
+        self.meta.last_update = now;
+        self.meta.exit_equity_point = Some(EquityPoint {
+            equity: value,
+            timestamp: now,
+        });
+        self.close_order = Some(order.clone());
+        self.current_symbol_price = order.price.unwrap_or(0.0);
+        self.result_profit_loss = self.calculate_result_profit_loss();
+        self.unreal_profit_loss = self.result_profit_loss;
+    }
+
+    pub fn update(&mut self, event: MarketEventEnvelope) {
+        let price = match event.e {
+            MarketEvent::Trade(ref t) => t.price,
+            MarketEvent::Orderbook(ref o) => o.avg_price().unwrap_or(0.0),
+            MarketEvent::CandleTick(ref ct) => ct.close,
+            MarketEvent::Noop => 0.0,
+        };
+        self.meta.last_update_trace_id = event.trace_id;
+        self.meta.last_update = event.e.time();
+        self.current_symbol_price = price;
+        self.unreal_profit_loss = self.calculate_unreal_profit_loss();
+    }
+
+    pub fn current_value_gross(&self) -> f64 {
+        self.open_order
+            .as_ref()
+            .map(|o| o.total_executed_qty)
+            .unwrap_or(0.0)
+            .abs()
+            * self.current_symbol_price
+    }
 
     /// Calculate the approximate [Position::unreal_profit_loss] of a [Position].
     pub fn calculate_unreal_profit_loss(&self) -> f64 {
@@ -166,9 +227,11 @@ impl Position {
     /// appropriately calculated.
     pub fn calculate_profit_loss_return(&self) -> f64 { self.result_profit_loss / self.open_quote_value() }
 
-    pub fn is_opened(&self) -> bool { self.close_order.is_none() && self.open_order.is_some() }
+    pub fn is_opened(&self) -> bool { self.open_order.as_ref().map(|o| o.is_filled()).unwrap_or(false) }
 
-    pub fn is_closed(&self) -> bool { self.close_order.is_some() && self.open_order.is_some() }
+    pub fn is_closed(&self) -> bool { self.close_order.as_ref().map(|o| o.is_filled()).unwrap_or(false) }
+
+    pub fn quantity(&self) -> f64 { self.open_order.as_ref().map(|o| o.total_executed_qty).unwrap_or(0.0) }
 }
 
 /// Equity value at a point in time.

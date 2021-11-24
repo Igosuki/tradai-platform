@@ -44,7 +44,7 @@ impl From<TradeSignal> for AddOrderRequest {
             enforcement: t.enforcement,
             quantity: Some(t.qty),
             price: Some(t.price),
-            order_id: Some(Uuid::new_v4().to_string()),
+            order_id: Uuid::new_v4().to_string(),
             dry_run: t.dry_mode,
             asset_type: t.asset_type,
             side_effect_type: t.side_effect,
