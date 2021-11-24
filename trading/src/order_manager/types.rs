@@ -243,7 +243,7 @@ impl OrderDetail {
         let base_asset = base_asset.to_string();
         let quote_asset = quote_asset.to_string();
         Self {
-            id: add_order.order_id.expect("order id is required"),
+            id: add_order.order_id,
             transaction_id,
             remote_id: None,
             status: OrderStatus::Staged,
@@ -439,19 +439,8 @@ mod test {
     #[should_panic]
     fn test_order_detail_bad_pair() {
         let request = AddOrderRequest {
-            order_id: Some("id".to_string()),
+            order_id: "id".to_string(),
             pair: "btcusdt".into(),
-            ..AddOrderRequest::default()
-        };
-        OrderDetail::from_query(Exchange::Binance, None, request);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_order_detail_no_order_id() {
-        let request = AddOrderRequest {
-            order_id: None,
-            pair: "BTC_USDT".into(),
             ..AddOrderRequest::default()
         };
         OrderDetail::from_query(Exchange::Binance, None, request);
@@ -479,7 +468,7 @@ mod test {
     #[test]
     fn test_order_detail_new_filled() {
         let request = AddOrderRequest {
-            order_id: Some("id".to_string()),
+            order_id: "id".to_string(),
             pair: "BTC_USDT".into(),
             ..AddOrderRequest::default()
         };
@@ -513,7 +502,7 @@ mod test {
     #[test]
     fn test_order_detail_fill_after_already_filled() {
         let request = AddOrderRequest {
-            order_id: Some("id".to_string()),
+            order_id: "id".to_string(),
             pair: "BTC_USDT".into(),
             ..AddOrderRequest::default()
         };
@@ -544,7 +533,7 @@ mod test {
     #[test]
     fn test_order_detail_successive_fills() {
         let request = AddOrderRequest {
-            order_id: Some("id".to_string()),
+            order_id: "id".to_string(),
             pair: "BTC_USDT".into(),
             ..AddOrderRequest::default()
         };
@@ -585,7 +574,7 @@ mod test {
     #[test]
     fn test_order_detail_rejected() {
         let request = AddOrderRequest {
-            order_id: Some("id".to_string()),
+            order_id: "id".to_string(),
             pair: "BTC_USDT".into(),
             ..AddOrderRequest::default()
         };
@@ -600,7 +589,7 @@ mod test {
     #[test]
     fn test_order_detail_margin_interest_rate() {
         let request = AddOrderRequest {
-            order_id: Some("id".to_string()),
+            order_id: "id".to_string(),
             pair: "BTC_USDT".into(),
             ..AddOrderRequest::default()
         };
@@ -633,7 +622,7 @@ mod test {
         let transact_time = Utc::now();
         let i = transact_time.timestamp_millis();
         let request = AddOrderRequest {
-            order_id: Some("id".to_string()),
+            order_id: "id".to_string(),
             pair: "BTC_USDT".into(),
             ..AddOrderRequest::default()
         };

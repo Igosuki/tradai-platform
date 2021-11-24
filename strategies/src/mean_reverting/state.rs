@@ -75,7 +75,7 @@ impl Operation {
             order_detail: None,
             total_interests: None,
             trade: TradeOperation {
-                id: Some(TradeOperation::new_id()),
+                id: TradeOperation::new_id(),
                 price: pos.price,
                 qty,
                 pair: pos.pair,

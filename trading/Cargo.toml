@@ -57,14 +57,14 @@ binance-rs-async = {path="../binance-rs", optional = true }
 httpmock = { git = "https://github.com/Igosuki/httpmock.git", optional = true }
 rand = {version = "0.8", optional = true}
 env_logger = {version="0.9", optional=true}
-fake = {version="2.4", optional=true}
+fake = {version="2.4", features = ["chrono"], optional=true}
 quickcheck = {version="1.0", optional=true}
 
 [dev-dependencies]
 coinnect_test_util = {path="../coinnect_test_util"}
 binance-rs-async = {path="../binance-rs"}
 httpmock = { git = "https://github.com/Igosuki/httpmock.git" }
-fake = "2.4"
+fake = {version="2.4", features = ["chrono"]}
 quickcheck = "1.0"
 rand = "0.8"
 env_logger = "0.9"

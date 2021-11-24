@@ -63,7 +63,7 @@ async fn test_register_transactions() {
         }),
         TransactionStatus::Staged(OrderQuery::AddOrder(AddOrderRequest {
             pair,
-            order_id: Some(order_id.clone()),
+            order_id: order_id.clone(),
             ..AddOrderRequest::default()
         })),
         TransactionStatus::Filled(OrderUpdate {
@@ -186,7 +186,7 @@ async fn test_limit_order_workflow() -> Result<()> {
         dry_run: false,
         quantity: Some(0.1),
         side: TradeType::Buy,
-        order_id: Some(Uuid::new_v4().to_string()),
+        order_id: Uuid::new_v4().to_string(),
         order_type: OrderType::Limit,
         enforcement: Some(OrderEnforcement::GTC),
         ..AddOrderRequest::default()
@@ -208,7 +208,7 @@ async fn test_market_order_workflow() -> Result<()> {
         dry_run: false,
         quantity: Some(0.1),
         side: TradeType::Buy,
-        order_id: Some(Uuid::new_v4().to_string()),
+        order_id: Uuid::new_v4().to_string(),
         order_type: OrderType::Market,
         enforcement: Some(OrderEnforcement::FOK),
         ..AddOrderRequest::default()
@@ -230,7 +230,7 @@ async fn test_market_margin_order_workflow() -> Result<()> {
         dry_run: false,
         quantity: Some(0.1),
         side: TradeType::Buy,
-        order_id: Some(Uuid::new_v4().to_string()),
+        order_id: Uuid::new_v4().to_string(),
         order_type: OrderType::Market,
         enforcement: Some(OrderEnforcement::FOK),
         asset_type: Some(AssetType::Margin),
@@ -369,7 +369,7 @@ async fn test_live() -> Result<()> {
     let buy_long = AddOrderRequest {
         side: TradeType::Buy,
         side_effect_type: Some(MarginSideEffect::AutoRepay),
-        order_id: Some(Uuid::new_v4().to_string()),
+        order_id: AddOrderRequest::new_id(),
         ..base_margin_order.clone()
     };
     let order_detail = pass_live_order(om.clone(), buy_long).await?;

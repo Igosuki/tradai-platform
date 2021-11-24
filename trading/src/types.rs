@@ -43,7 +43,7 @@ impl Default for OrderMode {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct TradeOperation {
-    pub id: Option<String>,
+    pub id: String,
     pub kind: TradeKind,
     pub pair: String,
     pub qty: f64,

@@ -317,7 +317,7 @@ impl MovingState {
             left_order: None,
             right_order: None,
             left_trade: TradeOperation {
-                id: Some(TradeOperation::new_id()),
+                id: TradeOperation::new_id(),
                 price: pos.left_price,
                 qty: spread * self.beta_val,
                 pair: pos.left_pair,
@@ -328,7 +328,7 @@ impl MovingState {
                 side_effect: None,
             },
             right_trade: TradeOperation {
-                id: Some(TradeOperation::new_id()),
+                id: TradeOperation::new_id(),
                 price: pos.right_price,
                 qty: spread,
                 pair: pos.right_pair,

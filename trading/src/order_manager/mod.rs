@@ -9,7 +9,6 @@ use std::path::Path;
 use std::sync::Arc;
 use strum_macros::AsRefStr;
 use tokio::sync::RwLock;
-use uuid::Uuid;
 
 use coinnect_rt::bot::Ping;
 use coinnect_rt::error::Error as CoinnectError;
@@ -192,14 +191,10 @@ impl OrderManager {
 
     /// Registers an order, and passes it to be later processed
     pub(crate) async fn stage_order(&mut self, staged_order: StagedOrder) -> Result<(AddOrderRequest, OrderDetail)> {
-        let mut request = staged_order.request;
-        if request.order_id.is_none() {
-            let order_id = Uuid::new_v4().to_string();
-            request.order_id = Some(order_id);
-        }
+        let request = staged_order.request;
         let add_order = OrderQuery::AddOrder(request.clone());
-        let staged_transaction = TransactionStatus::Staged(add_order.clone());
-        let order_id = request.order_id.as_ref().unwrap().clone();
+        let staged_transaction = TransactionStatus::Staged(add_order);
+        let order_id = request.order_id.clone();
         self.register(order_id.clone(), staged_transaction.clone()).await?;
         Ok((request, self.repo.get(&order_id)?))
     }

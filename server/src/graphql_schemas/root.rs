@@ -205,20 +205,15 @@ impl MutationRoot {
     async fn _pass_order(context: &Context, exchange: String, input: AddOrderInput) -> FieldResult<String> {
         let query: OrderQuery = input.into();
         let id = query.id();
-        match id {
-            Some(id) => {
-                context
-                    .with_order_manager(&exchange, PassOrder { id, query }, |dr| match dr {
-                        Ok(_) => Ok("passed".to_string()),
-                        Err(e) => {
-                            let error_str = format!("{}", e);
-                            Err(FieldError::new("order error", graphql_value!({ "error": error_str })))
-                        }
-                    })
-                    .await
-            }
-            None => unhandled_data_result(),
-        }
+        context
+            .with_order_manager(&exchange, PassOrder { id, query }, |dr| match dr {
+                Ok(_) => Ok("passed".to_string()),
+                Err(e) => {
+                    let error_str = format!("{}", e);
+                    Err(FieldError::new("order error", graphql_value!({ "error": error_str })))
+                }
+            })
+            .await
     }
 }
 

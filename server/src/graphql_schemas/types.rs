@@ -2,7 +2,6 @@
 
 use chrono::{DateTime, Utc};
 use juniper::FieldResult;
-use uuid::Uuid;
 
 use coinnect_rt::prelude::*;
 use strategies::query::DataQuery;
@@ -97,7 +96,7 @@ impl From<AddOrderInput> for OrderQuery {
             price: Some(aoi.price),
             enforcement: Some(OrderEnforcement::FOK),
             dry_run: aoi.dry_run,
-            order_id: Some(Uuid::new_v4().to_string()),
+            order_id: AddOrderRequest::new_id(),
             ..AddOrderRequest::default()
         })
     }
