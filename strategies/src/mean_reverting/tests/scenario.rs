@@ -218,6 +218,7 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
     // Find that latest operations are correct
     let mut positions = strat.get_operations();
     positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
+    insta::assert_debug_snapshot!(positions.last());
     positions
 }
 

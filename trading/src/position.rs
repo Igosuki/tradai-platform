@@ -1,13 +1,17 @@
 // --------- Data Types ---------
 
 use chrono::{DateTime, Utc};
-use coinnect_rt::prelude::{MarketEvent, MarketEventEnvelope, TradeType};
+use coinnect_rt::prelude::{Exchange, MarketEvent, MarketEventEnvelope, TradeType};
+use coinnect_rt::types::Pair;
+use std::str::FromStr;
 use util::time::now;
 use uuid::Uuid;
 
 use crate::order_manager::types::OrderDetail;
 
-#[derive(Copy, Eq, PartialEq, Clone, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
+#[derive(
+    Display, Copy, Eq, PartialEq, Clone, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum PositionKind {
     #[strum(serialize = "short")]
@@ -91,10 +95,10 @@ pub struct Position {
     pub meta: PositionMeta,
 
     /// Target exchange.
-    pub exchange: String,
+    pub exchange: Exchange,
 
     /// Market symbol.
-    pub symbol: String,
+    pub symbol: Pair,
 
     /// Long or Short.
     pub kind: PositionKind,
@@ -121,8 +125,8 @@ impl Default for Position {
         Self {
             id: Uuid::new_v4(),
             meta: Default::default(),
-            exchange: "binance".to_string(),
-            symbol: "BTC_USDT".to_string(),
+            exchange: Exchange::Binance,
+            symbol: "BTC_USDT".into(),
             kind: PositionKind::default(),
             quantity: 0.0,
             open_order: None,
@@ -153,8 +157,8 @@ impl Position {
                 exit_equity_point: None,
             },
             quantity: order.total_executed_qty,
-            exchange: order.exchange.clone(),
-            symbol: order.pair.to_string(),
+            exchange: Exchange::from_str(order.exchange.as_str()).unwrap(),
+            symbol: order.pair.clone().into(),
             kind,
             open_order: Some(order.clone()),
             ..Position::default()
@@ -226,6 +230,8 @@ impl Position {
     /// Calculate the PnL return of a closed [Position] - assumed [Position::result_profit_loss] is
     /// appropriately calculated.
     pub fn calculate_profit_loss_return(&self) -> f64 { self.result_profit_loss / self.open_quote_value() }
+
+    pub fn is_failed_open(&self) -> bool { self.open_order.as_ref().map(|o| o.is_rejected()).unwrap_or(false) }
 
     pub fn is_opened(&self) -> bool { self.open_order.as_ref().map(|o| o.is_filled()).unwrap_or(false) }
 

@@ -17,8 +17,8 @@ pub struct TradeSignal {
     pub trade_kind: TradeKind,
     pub price: f64,
     pub qty: f64,
-    pub pair: String,
-    pub exchange: String,
+    pub pair: Pair,
+    pub exchange: Exchange,
     pub instructions: Option<ExecutionInstruction>,
     pub dry_mode: bool,
     pub order_type: OrderType,
@@ -28,7 +28,7 @@ pub struct TradeSignal {
 }
 
 impl TradeSignal {
-    pub fn xch_and_pair(&self) -> (String, String) { (self.exchange.to_string(), self.pair.clone()) }
+    pub fn xch_and_pair(&self) -> (Exchange, Pair) { (self.exchange, self.pair.clone()) }
 }
 
 impl From<TradeSignal> for AddOrderRequest {
@@ -38,7 +38,7 @@ impl From<TradeSignal> for AddOrderRequest {
             (PositionKind::Short, OperationKind::Close) | (PositionKind::Long, OperationKind::Open) => TradeType::Buy,
         };
         Self {
-            pair: t.pair.into(),
+            pair: t.pair.clone(),
             side,
             order_type: t.order_type,
             enforcement: t.enforcement,

@@ -102,6 +102,7 @@ tempdir = "0.3"
 test-env-log = "0.2"
 quickcheck = "1.0"
 pretty_assertions = "0.7"
+insta = "1.8"
 
 # std
 bytes = "1.0"

@@ -43,8 +43,7 @@ impl TradeSignal {
             qty,
             pair: pair.into(),
             exchange: Exchange::from_str(exchange)
-                .map_err(|_| PyBaseException::new_err(format!("unknown exchange '{}'", exchange)))?
-                .to_string(),
+                .map_err(|_| PyBaseException::new_err(format!("unknown exchange '{}'", exchange)))?,
             instructions: instructions.and_then(|i| {
                 ExecutionInstruction::from_str(i)
                     .map_err(|_| PyBaseException::new_err(format!("unknown execution instruction '{}'", i)))
