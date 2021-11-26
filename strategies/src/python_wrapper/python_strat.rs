@@ -6,12 +6,12 @@ use pyo3::{wrap_pymodule, Python};
 use serde_json::Value;
 
 use coinnect_rt::exchange::Exchange;
+use coinnect_rt::prelude::MarketEventEnvelope;
 use ext::ResultExt;
+use trading::python_impls::types::PyMarketEventEnvelope;
 use trading::signal::TradeSignal;
 
 use crate::generic::Strategy;
-use crate::query::StrategyIndicators;
-use crate::types::InputEvent;
 use crate::Channel;
 
 #[pyclass(subclass)]
@@ -128,42 +128,38 @@ impl Strategy for PythonStratWrapper {
             .err_into()
     }
 
-    async fn eval(&mut self, e: &InputEvent) -> crate::error::Result<Vec<TradeSignal>> {
+    async fn eval(&mut self, e: &MarketEventEnvelope) -> crate::error::Result<Vec<TradeSignal>> {
         let inner = self.strat();
         let val = Python::with_gil(|py| {
-            let py_input = e.to_object(py);
-            inner.call_method1(py, "eval", (py_input,))
+            let py_event = PyMarketEventEnvelope::from(e);
+            inner.call_method1(py, "eval", (py_event,))
         });
         eprintln!("val = {:?}", val);
         val.map(|_v| vec![]).err_into()
     }
 
-    async fn update_model(&mut self, e: &InputEvent) -> crate::error::Result<()> {
+    async fn update_model(&mut self, e: &MarketEventEnvelope) -> crate::error::Result<()> {
         let inner = self.strat();
         let val = Python::with_gil(|py| {
-            let py_input = e.to_object(py);
-            inner.call_method1(py, "update_model", (py_input,))
+            let py_event = PyMarketEventEnvelope::from(e);
+            inner.call_method1(py, "update_model", (py_event,))
         });
         eprintln!("val = {:?}", val);
         val.map(|_| ()).err_into()
     }
 
-    fn models(&self) -> Vec<(String, Option<Value>)> { vec![] }
+    fn model(&self) -> Vec<(String, Option<Value>)> { vec![] }
 
     fn channels(&self) -> HashSet<Channel> { Default::default() }
-
-    fn indicators(&self) -> StrategyIndicators { StrategyIndicators::default() }
 }
 
 #[cfg(test)]
 mod test {
-    use chrono::Utc;
     use pyo3::Python;
-    use trading::book::BookPosition;
 
     use crate::generic::Strategy;
     use crate::python_strat::PythonStratWrapper;
-    use crate::types::InputEvent;
+    use crate::test_util::fixtures::default_order_book_event;
 
     fn python_script(name: &str) -> std::io::Result<String> {
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
@@ -196,17 +192,10 @@ mod test {
         let python_script = python_script("calls").unwrap();
         let mut strat_wrapper = PythonStratWrapper::new(Default::default(), python_script);
         strat_wrapper.init()?;
-        let event = InputEvent::BookPosition(BookPosition {
-            mid: 0.0,
-            ask: 0.0,
-            ask_q: 0.0,
-            bid: 0.0,
-            bid_q: 0.0,
-            event_time: Utc::now(),
-        });
+        let event = default_order_book_event();
         strat_wrapper.update_model(&event).await?;
         strat_wrapper.eval(&event).await?;
-        strat_wrapper.models();
+        strat_wrapper.model();
         strat_wrapper.channels();
         Ok(())
     }

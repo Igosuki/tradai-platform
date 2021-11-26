@@ -237,7 +237,7 @@ impl OrderDetail {
         self.is_rejected() && matches!(self.rejection_reason, Some(Rejection::Cancelled(_)))
     }
 
-    pub fn from_query(exchange: Exchange, transaction_id: Option<String>, add_order: AddOrderRequest) -> Self {
+    pub fn from_query(transaction_id: Option<String>, add_order: AddOrderRequest) -> Self {
         let pair_string = add_order.pair.to_string();
         let (base_asset, quote_asset) = pair_string.split_once('_').expect("pair string should be BASE_QUOTE");
         let base_asset = base_asset.to_string();
@@ -247,7 +247,7 @@ impl OrderDetail {
             transaction_id,
             remote_id: None,
             status: OrderStatus::Staged,
-            exchange: exchange.to_string(),
+            exchange: add_order.xch.to_string(),
             pair: pair_string,
             base_asset,
             quote_asset,
@@ -402,7 +402,6 @@ mod test {
 
     use chrono::{Duration, Utc};
 
-    use coinnect_rt::exchange::Exchange;
     use coinnect_rt::types::{AddOrderRequest, InterestRate, InterestRatePeriod, OrderFill, OrderQuery,
                              OrderStatus as CoinOrderStatus, OrderSubmission, OrderUpdate};
 
@@ -443,7 +442,7 @@ mod test {
             pair: "btcusdt".into(),
             ..AddOrderRequest::default()
         };
-        OrderDetail::from_query(Exchange::Binance, None, request);
+        OrderDetail::from_query(None, request);
     }
 
     fn trades() -> Vec<OrderFill> {
@@ -472,7 +471,7 @@ mod test {
             pair: "BTC_USDT".into(),
             ..AddOrderRequest::default()
         };
-        let mut order = OrderDetail::from_query(Exchange::Binance, None, request.clone());
+        let mut order = OrderDetail::from_query(None, request.clone());
         let transact_time = Utc::now();
         let i = transact_time.timestamp_millis();
         let submission = OrderSubmission {
@@ -506,7 +505,7 @@ mod test {
             pair: "BTC_USDT".into(),
             ..AddOrderRequest::default()
         };
-        let mut order = OrderDetail::from_query(Exchange::Binance, None, request.clone());
+        let mut order = OrderDetail::from_query(None, request.clone());
         let transact_time = Utc::now();
         let i = transact_time.timestamp_millis();
         let trades = trades();
@@ -537,7 +536,7 @@ mod test {
             pair: "BTC_USDT".into(),
             ..AddOrderRequest::default()
         };
-        let mut order = OrderDetail::from_query(Exchange::Binance, None, request.clone());
+        let mut order = OrderDetail::from_query(None, request.clone());
         let transact_time = Utc::now();
         let i = transact_time.timestamp_millis();
         let trades = trades();
@@ -578,7 +577,7 @@ mod test {
             pair: "BTC_USDT".into(),
             ..AddOrderRequest::default()
         };
-        let mut order = OrderDetail::from_query(Exchange::Binance, None, request);
+        let mut order = OrderDetail::from_query(None, request);
         assert_eq!(order.status, OrderStatus::Staged);
         let rejection = Rejection::Cancelled(None);
         order.from_rejected(rejection.clone());
@@ -593,7 +592,7 @@ mod test {
             pair: "BTC_USDT".into(),
             ..AddOrderRequest::default()
         };
-        let mut order = OrderDetail::from_query(Exchange::Binance, None, request.clone());
+        let mut order = OrderDetail::from_query(None, request.clone());
         let transact_time = Utc::now().sub(Duration::days(1)).sub(Duration::hours(2));
         let i = transact_time.timestamp_millis();
         assert_eq!(order.status, OrderStatus::Staged);
@@ -626,7 +625,7 @@ mod test {
             pair: "BTC_USDT".into(),
             ..AddOrderRequest::default()
         };
-        let order = OrderDetail::from_query(Exchange::Binance, None, request.clone());
+        let order = OrderDetail::from_query(None, request.clone());
         let mut next_order = order.clone();
         let submission = OrderSubmission {
             status: CoinOrderStatus::Filled,

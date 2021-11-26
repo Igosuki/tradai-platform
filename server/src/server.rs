@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use actix::Addr;
 use actix_cors::Cors;
 use actix_web::middleware::{Compat, Logger};
 use actix_web::web::Data;
@@ -9,7 +8,6 @@ use actix_web::{http, HttpServer};
 
 use coinnect_rt::prelude::*;
 use strategies::{StrategyKey, Trader};
-use trading::order_manager::OrderManager;
 
 use crate::graphql_schemas::root::create_schema;
 use crate::settings::{ApiSettings, CorsMode, Version};
@@ -19,7 +17,6 @@ pub async fn httpserver(
     version: Option<Version>,
     apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
     strategies: Arc<HashMap<StrategyKey, Trader>>,
-    order_managers: Arc<HashMap<Exchange, Addr<OrderManager>>>,
 ) -> std::io::Result<()> {
     // Make and start the api
     let port = settings.port.0;
@@ -61,7 +58,6 @@ pub async fn httpserver(
             .app_data(Data::new(schema))
             .app_data(Data::new(apis.clone()))
             .app_data(Data::new(strategies.clone()))
-            .app_data(Data::new(order_managers.clone()))
             .app_data(Data::new(version.clone()))
             .configure(crate::api::config_app)
     };

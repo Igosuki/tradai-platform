@@ -6,11 +6,9 @@ use itertools::Itertools;
 use tokio::time::Duration;
 
 use coinnect_rt::prelude::*;
-use db::DbOptions;
 use stats::indicators::macd_apo::MACDApo;
 use trading::book::BookPosition;
-use trading::interest::test_util::mock_interest_rate_client;
-use trading::order_manager::test_util::mock_manager_client;
+use trading::engine::mock_engine;
 use trading::types::OrderMode;
 use util::test::test_results_dir;
 
@@ -21,8 +19,8 @@ use crate::mean_reverting::state::{MeanRevertingState, Operation};
 use crate::mean_reverting::MeanRevertingStrategy;
 use crate::test_util::draw::{draw_line_plot, StrategyEntry, TimedEntry};
 use crate::test_util::fs::copy_file;
-use crate::test_util::input;
 use crate::test_util::{init, test_db};
+use crate::test_util::{input, test_db_with_path};
 use crate::types::{OperationEvent, TradeEvent};
 use crate::Model;
 
@@ -125,19 +123,11 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
     init();
     //setup_opentelemetry();
     let path = util::test::test_dir();
-    let order_manager_addr = Arc::new(mock_manager_client(&path));
-    let margin_interest_rate_provider_addr = Arc::new(mock_interest_rate_client(Exchange::Binance));
+    let engine = Arc::new(mock_engine(path.path(), &[Exchange::Binance]));
     let full_test_name = format!("{}_{}", module_path!(), test_name);
     let test_results_dir = test_results_dir(&full_test_name);
-
-    let mut strat = MeanRevertingStrategy::new(
-        &DbOptions::new(path),
-        0.001,
-        conf,
-        order_manager_addr,
-        margin_interest_rate_provider_addr,
-        None,
-    );
+    let db = test_db_with_path(path);
+    let mut strat = MeanRevertingStrategy::new(db, "mean_reverting_test".to_string(), 0.001, conf, engine, None);
     let mut elapsed = 0_u128;
     let csv_records =
         input::load_csv_records(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 9), vec![PAIR], EXCHANGE, CHANNEL).await;

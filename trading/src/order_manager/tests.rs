@@ -135,7 +135,7 @@ async fn pass_spot_order_and_expect_status(
     request: AddOrderRequest,
     expected: OrderStatus,
 ) -> Result<()> {
-    let staged_detail = OrderDetail::from_query(Exchange::Binance, None, request.clone());
+    let staged_detail = OrderDetail::from_query(None, request.clone());
     let mocked_pass_order = create_ok_order_mock(server, staged_detail);
     pass_mock_order_and_expect_status(om, mocked_pass_order, request, expected).await
 }
@@ -237,7 +237,7 @@ async fn test_market_margin_order_workflow() -> Result<()> {
         side_effect_type: Some(MarginSideEffect::MarginBuy),
         ..AddOrderRequest::default()
     };
-    let staged_detail = OrderDetail::from_query(Exchange::Binance, None, request.clone());
+    let staged_detail = OrderDetail::from_query(None, request.clone());
     let mocked_pass_order = create_ok_margin_order_mock(&server, staged_detail);
     pass_mock_order_and_expect_status(om, mocked_pass_order, request, OrderStatus::Filled).await
 }
