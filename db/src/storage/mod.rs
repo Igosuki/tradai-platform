@@ -16,6 +16,8 @@ pub mod mem;
 pub mod rkv;
 pub mod rocksdb;
 
+pub type Bytes = Box<[u8]>;
+
 pub trait Storage: Send + Sync + Debug + ToAny {
     fn _put(&self, table: &str, key: &[u8], value: &[u8]) -> Result<()>;
 
@@ -26,7 +28,7 @@ pub trait Storage: Send + Sync + Debug + ToAny {
     fn _get_range(&self, table: &str, from: &[u8], to: &[u8]) -> Result<Vec<(String, Box<[u8]>)>>;
 
     /// TODO: this should return impl Iterator
-    fn _get_all(&self, table: &str) -> Result<Vec<(String, Box<[u8]>)>>;
+    fn _get_all(&self, table: &str) -> Result<Vec<(Bytes, Bytes)>>;
 
     fn _delete(&self, table: &str, key: &[u8]) -> Result<()>;
 
@@ -57,7 +59,7 @@ pub trait StorageExt {
         F2: AsRef<[u8]>,
         V: DeserializeOwned;
 
-    fn get_all<V>(&self, table: &str) -> Result<Vec<(String, V)>>
+    fn get_all<V>(&self, table: &str) -> Result<Vec<(Box<[u8]>, V)>>
     where
         V: DeserializeOwned;
 
@@ -111,14 +113,14 @@ impl<T: Storage + ?Sized> StorageExt for T {
             .collect()
     }
 
-    fn get_all<V>(&self, table: &str) -> Result<Vec<(String, V)>>
+    fn get_all<V>(&self, table: &str) -> Result<Vec<(Box<[u8]>, V)>>
     where
         V: DeserializeOwned,
     {
         let items = self._get_all(table)?;
         items
-            .iter()
-            .map(|(k, v)| serde_json::from_slice::<V>(v).map(|v| (k.clone(), v)).err_into())
+            .into_iter()
+            .map(|(k, v)| serde_json::from_slice::<V>(&v).map(|v| (k, v)).err_into())
             .collect()
     }
 

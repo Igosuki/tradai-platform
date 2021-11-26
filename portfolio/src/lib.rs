@@ -1,3 +1,5 @@
+#![feature(assert_matches)]
+
 #[macro_use]
 extern crate prometheus;
 #[macro_use]
@@ -12,3 +14,5 @@ pub mod error;
 pub mod margin;
 pub mod portfolio;
 pub mod risk;
+#[cfg(test)]
+mod test_util;
