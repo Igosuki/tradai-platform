@@ -47,7 +47,7 @@ impl OperationKind {
 
 /// Metadata detailing the trace UUIDs & timestamps associated with entering, updating & exiting
 /// a [Position].
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PositionMeta {
     /// Trace UUID of the MarketEvent that triggered the entering of this [Position].
     pub enter_trace_id: Uuid,
@@ -86,7 +86,7 @@ impl Default for PositionMeta {
 }
 
 /// Data encapsulating the state of an ongoing or closed [Position].
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Position {
     /// A unique ID for this position
     pub id: Uuid,

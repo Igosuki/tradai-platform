@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use actix::Addr;
-use actix_web::{body::Body,
+use actix_web::{body::AnyBody,
                 web::{self},
                 Error, HttpResponse, ResponseError};
 use derive_more::Display;
@@ -45,7 +45,7 @@ pub enum ApiError {
 }
 
 impl ResponseError for ApiError {
-    fn error_response(&self) -> HttpResponse<Body> {
+    fn error_response(&self) -> HttpResponse<AnyBody> {
         match self {
             ExchangeNotFound(_e) => HttpResponse::NotFound().finish(),
             ApiError::Coinnect(e) => HttpResponse::InternalServerError().body(e.to_string()),

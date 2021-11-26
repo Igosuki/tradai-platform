@@ -47,3 +47,5 @@ inherits = "release"
 debug = true
 lto = false
 
+[patch.crates-io]
+plotly = { git = "https://github.com/igiagkiozis/plotly", branch = "master" }
