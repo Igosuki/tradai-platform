@@ -27,8 +27,7 @@ use strategies::types::StratEvent;
 use strategies::{Channel, Coinnect, DbOptions, Exchange, ExchangeApi, ExchangeSettings, MarketEvent,
                  MarketEventEnvelope, Pair, StratEventLogger};
 use trading::book::BookPosition;
-use trading::interest::test_util::mock_interest_rate_provider;
-use trading::order_manager::test_util::mock_manager;
+use trading::engine::mock_engine;
 use util::test::test_dir;
 use util::time::{now, DateRange};
 
@@ -136,15 +135,13 @@ impl Backtest {
             init_coinnect(copy.exchange()).await;
             all_strategy_settings.extend_from_slice(copy.all().unwrap().as_slice());
         }
-        // TODO: factorize all of that shit into an 'Engine'
-        let order_manager_addr = mock_manager(&db_path.clone());
+        let exchanges: Vec<Exchange> = all_strategy_settings.iter().map(|s| s.exchange()).collect();
+        let mock_engine = Arc::new(mock_engine(db_path.clone(), &exchanges));
         let runners: Vec<BacktestRunner> = all_strategy_settings
             .into_iter()
             .map(|settings| {
                 let local_db_path = db_path.clone();
                 let exchange_conf = ExchangeSettings::default_test(conf.fees);
-                let margin_interest_rate_provider_addr = mock_interest_rate_provider(settings.exchange());
-
                 let db_conf = DbOptions {
                     path: local_db_path,
                     engine: DbEngineOptions::RocksDb(
@@ -160,8 +157,7 @@ impl Backtest {
                     &db_conf,
                     &exchange_conf,
                     &settings,
-                    order_manager_addr.clone(),
-                    margin_interest_rate_provider_addr,
+                    mock_engine.clone(),
                     Some(logger.clone()),
                 );
                 info!("Creating strategy : {:?}", settings.key());
@@ -311,7 +307,7 @@ impl Backtest {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VecEventLogger {
     events: Arc<Mutex<TimedVec<StratEvent>>>,
 }

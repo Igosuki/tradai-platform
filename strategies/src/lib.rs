@@ -39,7 +39,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 use strum_macros::AsRefStr;
 use strum_macros::EnumString;
-use trading::order_manager::OrderManager;
 use uuid::Uuid;
 
 use crate::actor::StrategyActorOptions;
@@ -53,7 +52,7 @@ pub use models::Model;
 #[cfg(feature = "python")]
 pub use python_wrapper::python_strat;
 pub use settings::{StrategyCopySettings, StrategySettings};
-use trading::interest::MarginInterestRateProvider;
+use trading::engine::TradingEngine;
 
 pub mod actor;
 pub mod driver;
@@ -152,8 +151,7 @@ impl Trader {
         exchange_conf: &ExchangeSettings,
         actor_settings: &StrategyActorOptions,
         settings: &StrategySettings,
-        om: Addr<OrderManager>,
-        mirp: Addr<MarginInterestRateProvider>,
+        engine: Arc<TradingEngine>,
         logger: Option<Arc<dyn StratEventLogger>>,
     ) -> Self {
         let uuid = Uuid::new_v4();
@@ -162,9 +160,7 @@ impl Trader {
         let settings = settings.clone();
         let exchange_conf = exchange_conf.clone();
         let actor = StrategyActor::new_with_uuid(
-            Box::new(move || {
-                settings::from_settings(&db, &exchange_conf, &settings, om.clone(), mirp.clone(), logger.clone())
-            }),
+            Box::new(move || settings::from_settings(&db, &exchange_conf, &settings, engine.clone(), logger.clone())),
             actor_settings,
             uuid,
         );
@@ -190,7 +186,7 @@ impl Trader {
 }
 
 #[async_trait]
-pub trait StratEventLogger: Sync + Send {
+pub trait StratEventLogger: Sync + Send + Debug {
     async fn maybe_log(&self, event: Option<StratEvent>);
 }
 

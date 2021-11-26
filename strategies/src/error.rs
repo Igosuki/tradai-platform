@@ -4,16 +4,18 @@ use trading::order_manager;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("IOError {0}")]
+    #[error("io {0}")]
     IOError(#[from] std::io::Error),
-    #[error("Json {0}")]
+    #[error("json {0}")]
     Json(#[from] serde_json::Error),
-    #[error("Coinnect {0}")]
+    #[error("coinnect {0}")]
     Coinnect(#[from] coinnect_rt::error::Error),
-    #[error("Trading {0}")]
+    #[error("trading {0}")]
     Trading(#[from] trading::error::Error),
-    #[error("Db {0}")]
+    #[error("db {0}")]
     Db(#[from] db::Error),
+    #[error("portfolio")]
+    Portfolio(#[from] portfolio::Error),
     #[error("model not loaded : {0}")]
     ModelLoadError(String),
     #[error("there are pending operations")]
@@ -68,6 +70,7 @@ impl Error {
             Error::BookError(_) => "book_error",
             Error::OrderManager(_) => "order_manager",
             Error::MailboxError(_) => "mailbox_error",
+            Error::Portfolio(_) => "portfolio",
         }
     }
 }

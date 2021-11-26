@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use db::{Storage, StorageExt};
+use trading::engine::TradingEngine;
 
 use crate::coinnect_types::AssetType;
 use crate::error::*;
@@ -15,7 +16,7 @@ use crate::naive_pair_trading::options::Options;
 use crate::query::MutableField;
 use crate::types::{OperationEvent, StratEvent, TradeEvent};
 use trading::order_manager::types::{OrderDetail, Transaction};
-use trading::order_manager::{OrderExecutor, OrderResolution};
+use trading::order_manager::OrderResolution;
 use trading::position::{OperationKind, PositionKind};
 use trading::types::{OrderMode, TradeKind, TradeOperation};
 
@@ -125,7 +126,7 @@ pub(super) struct MovingState {
     dry_mode: bool,
     order_mode: OrderMode,
     #[serde(skip_serializing)]
-    ts: Arc<dyn OrderExecutor>,
+    engine: Arc<TradingEngine>,
     is_trading: bool,
 }
 
@@ -142,7 +143,7 @@ struct TransientState {
 }
 
 impl MovingState {
-    pub fn new(n: &Options, db: Arc<dyn Storage>, om: Arc<dyn OrderExecutor>) -> MovingState {
+    pub fn new(n: &Options, db: Arc<dyn Storage>, engine: Arc<TradingEngine>) -> MovingState {
         db.ensure_table(STATE_KEY).unwrap();
         db.ensure_table(OPERATIONS_KEY).unwrap();
         let mut state = MovingState {
@@ -165,7 +166,7 @@ impl MovingState {
             ongoing_op: None,
             dry_mode: n.dry_mode(),
             order_mode: n.order_mode,
-            ts: om,
+            engine,
             is_trading: true,
         };
         state.reload_state();
@@ -361,8 +362,8 @@ impl MovingState {
         let left_order = ongoing_op.left_order.as_ref().unwrap();
         let right_order = ongoing_op.right_order.as_ref().unwrap();
         let (olr, orr) = futures::future::join(
-            self.ts.resolve_pending_order(left_order),
-            self.ts.resolve_pending_order(right_order),
+            self.engine.order_executor.resolve_pending_order(left_order),
+            self.engine.order_executor.resolve_pending_order(right_order),
         )
         .await;
         let olr = olr?;
@@ -465,8 +466,8 @@ impl MovingState {
     async fn stage_operation(&mut self, op: &mut Operation) {
         self.save_operation(op);
         let reqs: (Result<OrderDetail>, Result<OrderDetail>) = futures::future::join(
-            self.ts.stage_trade(&op.left_trade).err_into(),
-            self.ts.stage_trade(&op.right_trade).err_into(),
+            self.engine.order_executor.stage_trade(&op.left_trade).err_into(),
+            self.engine.order_executor.stage_trade(&op.right_trade).err_into(),
         )
         .await;
 

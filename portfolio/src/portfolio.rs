@@ -11,6 +11,7 @@ use uuid::Uuid;
 use coinnect_rt::types::{AddOrderRequest, MarketEventEnvelope, Pair};
 use db::{Storage, StorageExt};
 use ext::ResultExt;
+use trading::interest::InterestRateProvider;
 use trading::order_manager::types::OrderDetail;
 use trading::position::{Position, PositionKind};
 use trading::signal::TradeSignal;
@@ -60,21 +61,23 @@ pub struct Portfolio {
     key: String,
     repo: Arc<dyn PortfolioRepo>,
     risk: Arc<dyn RiskEvaluator>,
+    interest_rates: Arc<dyn InterestRateProvider>,
     risk_threshold: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct PortfolioVars {
+pub struct PortfolioVars {
     value: f64,
     pnl: f64,
 }
 
 impl Portfolio {
-    fn try_new(
+    pub fn try_new(
         initial_value: f64,
         key: String,
         repo: Arc<dyn PortfolioRepo>,
         risk: Arc<dyn RiskEvaluator>,
+        interest_rates: Arc<dyn InterestRateProvider>,
     ) -> Result<Self> {
         let mut p = Self {
             value: initial_value,
@@ -85,6 +88,7 @@ impl Portfolio {
             risk,
             risk_threshold: 0.5,
             locks: Default::default(),
+            interest_rates,
         };
         {
             let arc = p.repo.clone();
@@ -93,7 +97,7 @@ impl Portfolio {
         Ok(p)
     }
 
-    fn vars(&self) -> PortfolioVars {
+    pub fn vars(&self) -> PortfolioVars {
         PortfolioVars {
             value: self.value,
             pnl: self.pnl,
@@ -102,7 +106,7 @@ impl Portfolio {
 
     /// Convert the signal to a request if it passes checks and no locks exist for the target market
     /// Sets a lock for the market, which can be removed by filling the order
-    pub fn maybe_convert(&mut self, signal: TradeSignal) -> Result<Option<AddOrderRequest>> {
+    pub fn maybe_convert(&mut self, signal: &TradeSignal) -> Result<Option<AddOrderRequest>> {
         // Determine whether position can be opened or closed
         let pos_key = signal.xch_and_pair();
         if self.is_locked(&pos_key) {
@@ -232,11 +236,22 @@ impl Portfolio {
         }
     }
 
-    fn is_locked(&self, key: &PositionKey) -> bool { self.locks.get(key).is_some() }
+    pub fn is_locked(&self, key: &PositionKey) -> bool { self.locks.get(key).is_some() }
 
     fn remove_lock(&mut self, key: &PositionKey) -> Result<()> {
         self.locks.remove(key);
         self.repo.release_lock(key)
+    }
+
+    pub fn value(&self) -> f64 { self.value }
+
+    pub fn pnl(&self) -> f64 { self.value }
+
+    pub fn returns(&self) -> Vec<(PositionKey, f64)> {
+        self.open_positions
+            .iter()
+            .map(|(k, pos)| (k.clone(), pos.unreal_profit_loss))
+            .collect()
     }
 }
 
@@ -273,12 +288,12 @@ static PORTFOLIO_VARS: &str = "vars";
 
 /// K/V Store based implementation of the portfolio repository
 #[derive(Debug)]
-pub struct PersistentPortfolio {
+pub struct PortfolioRepoImpl {
     db: Arc<dyn Storage>,
 }
 
-impl PersistentPortfolio {
-    fn new(db: Arc<dyn Storage>) -> Self {
+impl PortfolioRepoImpl {
+    pub fn new(db: Arc<dyn Storage>) -> Self {
         for table in &[
             POSITION_LOCKS_TABLE,
             POSITIONS_ARCHIVE_TABLE,
@@ -298,7 +313,7 @@ impl PersistentPortfolio {
     }
 }
 
-impl PortfolioRepo for PersistentPortfolio {
+impl PortfolioRepo for PortfolioRepoImpl {
     fn open_position(&self, pos: &Position) -> Result<()> {
         self.put_position(pos)?;
         self.db.put(OPEN_POSITIONS_TABLE, pos.id.as_bytes(), true).err_into()
@@ -383,22 +398,22 @@ impl PortfolioRepo for PersistentPortfolio {
 
 #[cfg(test)]
 mod repository_test {
-    use crate::portfolio::{pos_key_from_position, PersistentPortfolio, Portfolio, PortfolioRepo, PositionLock};
+    use crate::portfolio::{pos_key_from_position, Portfolio, PortfolioRepo, PortfolioRepoImpl, PositionLock};
     use crate::risk::DefaultMarketRiskEvaluator;
     use crate::test_util::test_db;
     use chrono::Utc;
-    use coinnect_rt::exchange::Exchange;
     use coinnect_rt::types::AddOrderRequest;
     use std::assert_matches::assert_matches;
     use std::collections::BTreeMap;
     use std::sync::Arc;
     use test_log::test;
+    use trading::interest::FlatInterestRateProvider;
     use trading::order_manager::types::OrderDetail;
     use trading::position::Position;
 
-    fn make_test_repo() -> PersistentPortfolio {
+    fn make_test_repo() -> PortfolioRepoImpl {
         let db = test_db();
-        PersistentPortfolio::new(db.clone())
+        PortfolioRepoImpl::new(db.clone())
     }
 
     #[test(tokio::test)]
@@ -412,7 +427,7 @@ mod repository_test {
         assert_eq!(get_pos.unwrap().unwrap(), pos);
         let is_open = repo.is_open(&pos.id);
         assert_matches!(is_open, Ok(true));
-        pos.close_order = Some(OrderDetail::from_query(Exchange::Binance, None, AddOrderRequest {
+        pos.close_order = Some(OrderDetail::from_query(None, AddOrderRequest {
             pair: pos.symbol.clone(),
             ..AddOrderRequest::default()
         }));
@@ -466,7 +481,14 @@ mod repository_test {
     async fn load_portfolio() {
         let repo = make_test_repo();
         let risk = DefaultMarketRiskEvaluator::default();
-        let mut portfolio = Portfolio::try_new(100.0, "key".to_string(), Arc::new(repo), Arc::new(risk)).unwrap();
+        let mut portfolio = Portfolio::try_new(
+            100.0,
+            "key".to_string(),
+            Arc::new(repo),
+            Arc::new(risk),
+            Arc::new(FlatInterestRateProvider::new(0.002)),
+        )
+        .unwrap();
         let arc = portfolio.repo.clone();
         let load = arc.load(&mut portfolio);
         assert_matches!(load, Ok(_));
@@ -503,18 +525,26 @@ mod repository_test {
 
 #[cfg(test)]
 mod portfolio_test {
-    use crate::portfolio::{PersistentPortfolio, Portfolio};
+    use crate::portfolio::{Portfolio, PortfolioRepoImpl};
     use crate::risk::DefaultMarketRiskEvaluator;
     use crate::test_util::test_db;
     use std::sync::Arc;
     use test_log::test;
+    use trading::interest::FlatInterestRateProvider;
     use trading::signal::TradeSignal;
 
     fn make_test_portfolio() -> Portfolio {
         let db = test_db();
-        let repo = PersistentPortfolio::new(db.clone());
+        let repo = PortfolioRepoImpl::new(db.clone());
         let risk = DefaultMarketRiskEvaluator::default();
-        Portfolio::try_new(100.0, "portfolio_key".to_string(), Arc::new(repo), Arc::new(risk)).unwrap()
+        Portfolio::try_new(
+            100.0,
+            "portfolio_key".to_string(),
+            Arc::new(repo),
+            Arc::new(risk),
+            Arc::new(FlatInterestRateProvider::new(0.002)),
+        )
+        .unwrap()
     }
 
     #[test(tokio::test)]

@@ -1,5 +1,6 @@
 #![allow(clippy::needless_option_as_deref)]
 
+use chrono::{DateTime, Utc};
 use std::str::FromStr;
 
 use pyo3::exceptions::PyBaseException;
@@ -9,8 +10,8 @@ use crate::position::{OperationKind, PositionKind};
 use crate::signal::{ExecutionInstruction, TradeSignal};
 use crate::types::TradeKind;
 use coinnect_rt::exchange::Exchange;
-use coinnect_rt::prelude::OrderEnforcement;
-use coinnect_rt::types::{AssetType, MarginSideEffect, OrderType};
+use coinnect_rt::prelude::{MarketEventEnvelope, OrderEnforcement};
+use coinnect_rt::types::{AssetType, MarginSideEffect, MarketEvent, OrderType};
 
 #[pymethods]
 impl TradeSignal {
@@ -67,5 +68,28 @@ impl TradeSignal {
                     .ok()
             }),
         })
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(tag = "type")]
+#[pyclass]
+pub struct PyMarketEventEnvelope {
+    pub xch: String,
+    pub pair: String,
+    pub trace_id: String,
+    pub ts: DateTime<Utc>,
+    pub e: MarketEvent,
+}
+
+impl<'a> From<&'a MarketEventEnvelope> for PyMarketEventEnvelope {
+    fn from(e: &'a MarketEventEnvelope) -> Self {
+        Self {
+            xch: e.xch.to_string(),
+            pair: e.pair.to_string(),
+            trace_id: e.trace_id.to_string(),
+            ts: e.ts,
+            e: e.e.clone(),
+        }
     }
 }

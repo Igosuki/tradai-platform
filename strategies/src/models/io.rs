@@ -1,9 +1,9 @@
 use std::io::{Read, Write};
 
+use coinnect_rt::types::MarketEventEnvelope;
 use serde::Serialize;
 
 use crate::error::Result;
-use crate::types::InputEvent;
 
 pub trait LoadableModel {
     /// Overwrite the current model using the reader
@@ -20,7 +20,7 @@ pub trait IterativeModel {
     type ExportValue: Serialize;
 
     /// Generate the next model value from the input event
-    fn next_model(&mut self, e: &InputEvent) -> Result<()>;
+    fn next_model(&mut self, e: &MarketEventEnvelope) -> Result<()>;
 
     /// Serialize a short, readable version of the model
     fn export_values(&self) -> Result<Self::ExportValue>;
@@ -34,6 +34,7 @@ mod test {
     use chrono::{TimeZone, Utc};
 
     use coinnect_rt::exchange::Exchange;
+    use coinnect_rt::types::MarketEvent;
     use db::MemoryKVStore;
     use util::serde::write_as_seq;
     use util::test::test_results_dir;
@@ -44,7 +45,6 @@ mod test {
     use crate::models::io::{IterativeModel, LoadableModel};
     use crate::test_util::init;
     use crate::test_util::input;
-    use crate::types::InputEvent;
 
     const PAIR: &str = "BTC_USDT";
 
@@ -68,7 +68,14 @@ mod test {
         let mut model_values = vec![];
 
         for csvr in pair_csv_records {
-            model.next(&InputEvent::BookPosition(csvr.to_bp())).unwrap();
+            // let event = MarketEventEnvelope {
+            //     trace_id: Uuid::new_v4(),
+            //     pair: PAIR.into(),
+            //     xch: Exchange::Binance,
+            //     ts: csvr.event_ms,
+            //     e: ,
+            // };
+            model.next(&MarketEvent::Orderbook(csvr.to_orderbook(PAIR))).unwrap();
             model_values.push(model.export_values().unwrap());
         }
         let results_dir = PathBuf::from(test_results_dir(module_path!()));

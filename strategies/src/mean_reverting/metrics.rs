@@ -4,10 +4,10 @@ use prometheus::{CounterVec, GaugeVec, Registry};
 
 use metrics::store::MetricStore;
 use stats::indicators::macd_apo::MACDApo;
+use trading::book::BookPosition;
 use trading::position::OperationKind;
 
 use crate::mean_reverting::state::{MeanRevertingState, Position};
-use crate::mean_reverting::SinglePosRow;
 
 type StateIndicatorFn = (String, fn(&MeanRevertingState) -> f64);
 
@@ -139,9 +139,9 @@ impl MeanRevertingStrategyMetrics {
         }
     }
 
-    pub(super) fn log_row(&self, lr: &SinglePosRow) {
+    pub(super) fn log_pos(&self, pos: &BookPosition) {
         if let Some(g) = self.common_gauges.get("mr_mid") {
-            g.with_label_values(&[]).set(lr.pos.mid);
+            g.with_label_values(&[]).set(pos.mid);
         };
     }
 

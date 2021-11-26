@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::future::Future;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::rc::Rc;
@@ -22,6 +23,7 @@ use metrics::prom::PrometheusPushActor;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use portfolio::margin::{MarginAccountReporter, MarginAccountReporterOptions};
 use strategies::{self, StrategyKey, Trader};
+use trading::engine::{new_trading_engine, TradingEngine};
 use trading::interest::MarginInterestRateProvider;
 use trading::order_manager::OrderManager;
 
@@ -42,7 +44,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     fs::metadata(keys_path.clone()).map_err(|_| anyhow!("key file doesn't exist at {:?}", keys_path.clone()))?;
 
     let exchanges_conf = Arc::new(exchanges.clone());
-    let manager = Coinnect::new_manager();
+    let manager = Arc::new(Coinnect::new_manager());
     manager
         .build_exchange_apis(exchanges_conf.clone(), keys_path.clone())
         .await;
@@ -61,7 +63,6 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     let mut margin_account_recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>> =
         apis.keys().map(|xch| (*xch, vec![])).collect();
     let mut traders = vec![];
-    let mut order_managers_addr = HashMap::new();
 
     // strategies, cf strategies crate
     let settings_arc = Arc::clone(&settings);
@@ -77,21 +78,17 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 broadcast_recipients.push(NatsProducer::start(producer).recipient())
             }
             OutputSettings::Strategies => {
-                let oms = Arc::new(order_managers(&settings_v.storage, &manager).await?);
-                if !oms.is_empty() {
-                    termination_handles.push(Box::pin(bots::poll_pingables(
-                        oms.values().map(|addr| addr.clone().recipient()).collect(),
-                    )));
-                    for (xchg, addr) in oms.clone().iter() {
-                        spot_account_recipients
-                            .get_mut(xchg)
-                            .unwrap()
-                            .push(addr.clone().recipient());
-                        order_managers_addr.insert(*xchg, addr.clone());
-                    }
+                let om = order_manager(&settings_v.storage, manager.clone()).await;
+                termination_handles.push(Box::pin(bots::poll_pingables(vec![om.clone().recipient()])));
+                for xch in manager.exchange_apis().keys() {
+                    spot_account_recipients
+                        .get_mut(xch)
+                        .unwrap()
+                        .push(om.clone().recipient());
                 }
                 let mirp = margin_interest_rate_provider(apis.clone());
-                let strategies = strategies(settings_arc.clone(), oms.clone(), mirp.clone())
+                let engine = new_trading_engine(manager.clone(), om, mirp);
+                let strategies = strategies(settings_arc.clone(), Arc::new(engine))
                     .instrument(tracing::info_span!("starting strategies"))
                     .await;
                 for trader in strategies.clone() {
@@ -208,13 +205,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     let strats_map: Arc<HashMap<StrategyKey, Trader>> =
         Arc::new(traders.clone().iter().map(|s| (s.key.clone(), s.clone())).collect());
     // API Server
-    let server = server::httpserver(
-        &settings_v.api,
-        settings_v.version.clone(),
-        apis.clone(),
-        strats_map,
-        Arc::new(order_managers_addr),
-    );
+    let server = server::httpserver(&settings_v.api, settings_v.version.clone(), apis.clone(), strats_map);
     termination_handles.push(Box::pin(server));
 
     // Handle interrupts for graceful shutdown
@@ -269,12 +260,8 @@ fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<MarketEven
     })
 }
 
-#[tracing::instrument(skip(settings, oms), level = "info")]
-async fn strategies(
-    settings: Arc<RwLock<Settings>>,
-    oms: Arc<HashMap<Exchange, Addr<OrderManager>>>,
-    mirp: Addr<MarginInterestRateProvider>,
-) -> Vec<Trader> {
+#[tracing::instrument(skip(settings, engine), level = "info")]
+async fn strategies(settings: Arc<RwLock<Settings>>, engine: Arc<TradingEngine>) -> Vec<Trader> {
     let settings_v = settings.read().await;
     let exchanges = Arc::new(settings_v.exchanges.clone());
     let mut strategies = settings_v.strategies.clone();
@@ -284,18 +271,16 @@ async fn strategies(
         let exchanges_conf = exchanges.clone();
         let exchange = strategy_settings.exchange();
         let exchange_conf = exchanges_conf.get(&exchange).unwrap().clone();
-        let oms = oms.clone();
         let db = storage.clone();
-        let mirp = mirp.clone();
         let actor_options = settings_v.strat_actor.clone();
+        let arc = engine.clone();
         async move {
             Trader::new(
                 db.as_ref(),
                 &exchange_conf,
                 &actor_options,
                 &strategy_settings,
-                oms.get(&exchange).expect("order manage required").clone(),
-                mirp,
+                arc,
                 None,
             )
         }
@@ -324,17 +309,9 @@ async fn margin_account_reporter(
 
 /// Get an order manager for each exchange
 /// N.B.: Does not currently use test mode
-async fn order_managers(
-    db: &DbOptions<String>,
-    exchange_manager: &ExchangeManager,
-) -> anyhow::Result<HashMap<Exchange, Addr<OrderManager>>> {
-    let mut oms: HashMap<Exchange, Addr<OrderManager>> = HashMap::new();
-    for (xch, api) in exchange_manager.exchange_apis().iter() {
-        let om_db_path = format!("om_{}", xch);
-        let order_manager = OrderManager::new(api.clone(), db, om_db_path);
-        oms.insert(*xch, OrderManager::start(order_manager));
-    }
-    Ok(oms)
+async fn order_manager(db: &DbOptions<String>, exchange_manager: Arc<ExchangeManager>) -> Addr<OrderManager> {
+    let order_manager = OrderManager::new(exchange_manager.exchange_apis().deref().clone(), db, "order_manager");
+    OrderManager::start(order_manager)
 }
 
 fn margin_interest_rate_provider(

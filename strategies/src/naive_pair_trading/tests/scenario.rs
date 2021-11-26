@@ -7,8 +7,7 @@ use serde::Serialize;
 
 use crate::models::WindowedModel;
 use coinnect_rt::exchange::Exchange;
-use db::DbOptions;
-use trading::order_manager::test_util::mock_manager_client;
+use trading::engine::mock_engine;
 use trading::types::OrderMode;
 use util::test::test_results_dir;
 
@@ -18,8 +17,8 @@ use crate::naive_pair_trading::state::MovingState;
 use crate::naive_pair_trading::{covar_model, DualBookPosition, NaiveTradingStrategy};
 use crate::test_util::draw::{draw_line_plot, StrategyEntry, TimedEntry};
 use crate::test_util::fs::copy_file;
-use crate::test_util::input;
 use crate::test_util::test_db;
+use crate::test_util::{input, test_db_with_path};
 use crate::types::{OperationEvent, TradeEvent};
 
 static LEFT_PAIR: &str = "LTC_USDT";
@@ -109,10 +108,12 @@ async fn model_backtest() {
 async fn complete_backtest() {
     init();
     let path = util::test::test_dir();
-    let order_manager_addr = Arc::new(mock_manager_client(&path));
+    let engine = Arc::new(mock_engine(path.as_ref(), &[Exchange::Binance]));
     let test_results_dir = test_results_dir(module_path!());
+    let db = test_db_with_path(path);
     let mut strat = NaiveTradingStrategy::new(
-        &DbOptions::new(path),
+        db,
+        "naive_strat_test".to_string(),
         0.001,
         &Options {
             left: LEFT_PAIR.into(),
@@ -129,7 +130,7 @@ async fn complete_backtest() {
             dry_mode: Some(true),
             order_mode: OrderMode::Limit,
         },
-        order_manager_addr,
+        engine,
     );
     // Read downsampled streams
     let records = input::load_csv_records(

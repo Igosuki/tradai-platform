@@ -11,15 +11,15 @@ use coinnect_rt::types::{AssetType, MarginSideEffect};
 use db::{Storage, StorageExt};
 use ext::ResultExt;
 use trading::book::BookPosition;
+use trading::engine::TradingEngine;
 
 use crate::error::{Error, Result};
 use crate::mean_reverting::options::Options;
 use crate::query::MutableField;
 use crate::repos::OperationsRepository;
 use crate::types::{OperationEvent, StratEvent, TradeEvent};
-use trading::interest::InterestRateProvider;
 use trading::order_manager::types::{OrderDetail, OrderStatus, Rejection, Transaction, TransactionStatus};
-use trading::order_manager::{OrderExecutor, OrderResolution};
+use trading::order_manager::OrderResolution;
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::ExecutionInstruction;
 use trading::types::{OrderMode, TradeKind, TradeOperation};
@@ -133,7 +133,7 @@ impl Operation {
 
 pub(crate) static STATE_KEY: &str = "state";
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub(super) struct MeanRevertingState {
     // Persist
     position: Option<PositionKind>,
@@ -152,13 +152,8 @@ pub(super) struct MeanRevertingState {
     fees_rate: f64,
     exchange: Exchange,
     // Access
-    #[serde(skip_serializing)]
     db: Arc<dyn Storage>,
-    #[serde(skip_serializing)]
-    ts: Arc<dyn OrderExecutor>,
-    #[serde(skip_serializing)]
-    mirp: Arc<dyn InterestRateProvider>,
-    #[serde(skip_serializing)]
+    engine: Arc<TradingEngine>,
     operations_repo: OperationsRepository,
 }
 
@@ -179,8 +174,7 @@ impl MeanRevertingState {
         options: &Options,
         fees_rate: f64,
         db: Arc<dyn Storage>,
-        om: Arc<dyn OrderExecutor>,
-        mirp: Arc<dyn InterestRateProvider>,
+        engine: Arc<TradingEngine>,
     ) -> Result<MeanRevertingState> {
         db.ensure_table(STATE_KEY).unwrap();
         let mut state = MeanRevertingState {
@@ -191,7 +185,7 @@ impl MeanRevertingState {
             base_qty_to_sell: 0.0,
             db: db.clone(),
             state_key: format!("{}", options.pair),
-            ts: om,
+            engine,
             ongoing_op: None,
             dry_mode: options.dry_mode(),
             order_mode: options.order_mode.unwrap_or(OrderMode::Limit),
@@ -199,7 +193,6 @@ impl MeanRevertingState {
             order_asset_type: options.order_asset_type(),
             fees_rate,
             last_open_order: None,
-            mirp,
             operations_repo: OperationsRepository::new(db),
             vars: TransientState {
                 pnl: options.initial_cap,
@@ -274,7 +267,12 @@ impl MeanRevertingState {
     pub(super) async fn interest_fees_since_open(&self) -> Result<f64> {
         match self.last_open_order.as_ref() {
             None => Ok(0.0),
-            Some(o) => self.mirp.interest_fees_since(self.exchange, o).await.err_into(),
+            Some(o) => self
+                .engine
+                .interest_rate_provider
+                .interest_fees_since(self.exchange, o)
+                .await
+                .err_into(),
         }
     }
 
@@ -387,7 +385,8 @@ impl MeanRevertingState {
             return Err(Error::NoTransactionInOperation);
         }
         let order_detail = ongoing_op.order_detail.as_ref().unwrap();
-        let (new_order, transaction, resolution) = self.ts.resolve_pending_order(order_detail).await?;
+        let (new_order, transaction, resolution) =
+            self.engine.order_executor.resolve_pending_order(order_detail).await?;
         let mut new_op = ongoing_op.clone();
         new_op.order_detail = Some(new_order.clone());
         new_op.transaction = transaction;
@@ -486,7 +485,8 @@ impl MeanRevertingState {
     async fn stage_operation(&mut self, op: &mut Operation) -> Result<Operation> {
         self.save_operation(op)?;
         self.set_ongoing_op(Some(op.clone()));
-        self.ts
+        self.engine
+            .order_executor
             .stage_trade(&op.trade)
             .await
             .err_into()

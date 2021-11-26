@@ -1,16 +1,15 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
-use std::path::Path;
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, TimeZone, Utc};
 
 use coinnect_rt::prelude::*;
-use db::{get_or_create, DbOptions};
+use db::Storage;
 #[cfg(test)]
 use stats::indicators::macd_apo::MACDApo;
 use trading::book::BookPosition;
-use trading::interest::InterestRateProvider;
+use trading::engine::TradingEngine;
 
 use crate::driver::StrategyDriver;
 use crate::error::Result;
@@ -22,9 +21,7 @@ use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
 use crate::models::io::IterativeModel;
 use crate::models::Sampler;
 use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, StrategyIndicators};
-use crate::types::InputEvent;
 use crate::{Channel, StratEvent, StratEventLogger, StrategyStatus};
-use trading::order_manager::OrderExecutor;
 use trading::position::PositionKind;
 use trading::signal::TradeSignal;
 use trading::stop::Stopper;
@@ -35,12 +32,6 @@ pub mod options;
 pub mod state;
 #[cfg(test)]
 mod tests;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SinglePosRow {
-    pub time: DateTime<Utc>,
-    pub pos: BookPosition, // crypto_1
-}
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -60,23 +51,20 @@ pub struct MeanRevertingStrategy {
     stopper: Stopper<f64>,
     sampler: Sampler,
     last_book_pos: Option<BookPosition>,
-    #[derivative(Debug = "ignore")]
     logger: Option<Arc<dyn StratEventLogger>>,
 }
 
 impl MeanRevertingStrategy {
-    pub fn new<S: AsRef<Path>>(
-        db_opts: &DbOptions<S>,
+    pub fn new(
+        db: Arc<dyn Storage>,
+        strat_key: String,
         fees_rate: f64,
         n: &Options,
-        om: Arc<dyn OrderExecutor>,
-        mirp: Arc<dyn InterestRateProvider>,
+        engine: Arc<TradingEngine>,
         logger: Option<Arc<dyn StratEventLogger>>,
     ) -> Self {
         let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
-        let strat_key = format!("{}_{}.{}", "mean_reverting", n.exchange, n.pair);
-        let db = get_or_create(db_opts, strat_key.clone(), vec![]);
-        let state = MeanRevertingState::new(n, fees_rate, db.clone(), om, mirp).unwrap();
+        let state = MeanRevertingState::new(n, fees_rate, db.clone(), engine).unwrap();
         let model = MeanRevertingModel::new(n, db.clone());
         let mut strat = Self {
             key: strat_key,
@@ -200,16 +188,28 @@ impl MeanRevertingStrategy {
 
     fn can_eval(&self) -> bool { self.model.is_loaded() }
 
-    async fn process_row(&mut self, row: &SinglePosRow) {
+    fn parse_book_position(&self, event: &MarketEventEnvelope) -> Option<BookPosition> {
+        match &event.e {
+            MarketEvent::Orderbook(ob) => ob.try_into().ok(),
+            _ => None,
+        }
+    }
+
+    async fn process_event(&mut self, event: &MarketEventEnvelope) {
         // A model is available
-        if let Err(e) = self.update_model(&InputEvent::BookPosition(row.pos.clone())).await {
+        if let Err(e) = self.update_model(event).await {
             self.metrics.log_error(e.short_name());
             return;
         }
-        self.last_book_pos = Some(row.pos.clone());
+        let pos = self.parse_book_position(event);
+        if pos.is_none() {
+            return;
+        }
+        let pos = pos.unwrap();
+        self.last_book_pos = Some(pos.clone());
         if self.can_eval() {
             if self.state.is_trading() {
-                match self.eval_latest(&row.pos).await {
+                match self.eval_latest(&pos).await {
                     Ok(Some(op)) => {
                         let op = op.clone();
                         self.metrics.log_position(&op.pos, &op.kind);
@@ -221,7 +221,7 @@ impl MeanRevertingStrategy {
             self.log_state();
         }
         self.metrics.log_is_trading(self.state.is_trading());
-        self.metrics.log_row(row);
+        self.metrics.log_pos(&pos);
     }
 
     pub(crate) fn handles(&self, e: &MarketEventEnvelope) -> bool {
@@ -239,6 +239,14 @@ impl MeanRevertingStrategy {
             StrategyStatus::NotTrading
         }
     }
+
+    pub(crate) fn indicators(&self) -> StrategyIndicators {
+        StrategyIndicators {
+            current_return: self.state.position_return(),
+            pnl: self.state.pnl(),
+            value: self.state.value_strat(),
+        }
+    }
 }
 
 #[async_trait]
@@ -250,16 +258,8 @@ impl StrategyDriver for MeanRevertingStrategy {
         if !self.handles(le) {
             return Ok(());
         }
-        if let MarketEvent::Orderbook(ob) = &le.e {
-            let book_pos = ob.try_into().ok();
-            if let Some(pos) = book_pos {
-                let x = SinglePosRow {
-                    time: Utc.timestamp_millis(ob.timestamp),
-                    pos,
-                };
-                self.process_row(&x).await;
-            }
-        }
+        self.process_event(le).await;
+
         Ok(())
     }
 
@@ -326,17 +326,17 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
 
     fn init(&mut self) -> Result<()> { self.load() }
 
-    async fn eval(&mut self, e: &crate::types::InputEvent) -> Result<Vec<TradeSignal>> {
+    async fn eval(&mut self, e: &MarketEventEnvelope) -> Result<Vec<TradeSignal>> {
         let mut signals = vec![];
         if !self.can_eval() {
             return Ok(signals);
         }
-        let book_pos = match e {
-            InputEvent::BookPosition(bp) => bp,
-            _ => return Ok(signals),
+        let book_pos = self.parse_book_position(e);
+        if book_pos.is_none() {
+            return Ok(vec![]);
         };
         if self.state.is_trading() {
-            match self.eval_latest(book_pos).await {
+            match self.eval_latest(&book_pos.unwrap()).await {
                 Ok(Some(op)) => {
                     let op = op.clone();
                     self.metrics.log_position(&op.pos, &op.kind);
@@ -366,7 +366,7 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
     }
 
     #[tracing::instrument(skip(self), level = "trace")]
-    async fn update_model(&mut self, e: &crate::types::InputEvent) -> Result<()> {
+    async fn update_model(&mut self, e: &MarketEventEnvelope) -> Result<()> {
         self.model.next_model(e)?;
         let t = self.model.thresholds();
         self.metrics.log_thresholds(t.0, t.1);
@@ -376,7 +376,7 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
         Ok(())
     }
 
-    fn models(&self) -> Vec<(String, Option<serde_json::Value>)> { self.model.values() }
+    fn model(&self) -> Vec<(String, Option<serde_json::Value>)> { self.model.values() }
 
     fn channels(&self) -> HashSet<Channel> {
         let mut hs = HashSet::new();
@@ -384,11 +384,11 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
         hs
     }
 
-    fn indicators(&self) -> StrategyIndicators {
-        StrategyIndicators {
-            current_return: self.state.position_return(),
-            pnl: self.state.pnl(),
-            value: self.state.value_strat(),
-        }
-    }
+    // fn indicators(&self) -> StrategyIndicators {
+    //     StrategyIndicators {
+    //         current_return: self.state.position_return(),
+    //         pnl: self.state.pnl(),
+    //         value: self.state.value_strat(),
+    //     }
+    // }
 }

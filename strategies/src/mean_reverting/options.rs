@@ -32,6 +32,8 @@ pub struct Options {
 }
 
 impl Options {
+    pub fn strat_key(&self) -> String { format!("{}_{}.{}", "mean_reverting", self.exchange, self.pair) }
+
     pub(super) fn dry_mode(&self) -> bool { self.dry_mode.unwrap_or(true) }
 
     pub(crate) fn dynamic_threshold(&self) -> bool { self.dynamic_threshold.unwrap_or(true) }

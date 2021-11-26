@@ -16,6 +16,7 @@ extern crate lazy_static;
 extern crate prometheus;
 
 pub mod book;
+pub mod engine;
 pub mod error;
 pub mod interest;
 pub mod order_manager;

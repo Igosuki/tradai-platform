@@ -6,6 +6,7 @@ use itertools::Itertools;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 use strum_macros::AsRefStr;
 use tokio::sync::RwLock;
@@ -146,8 +147,7 @@ pub enum DataQuery {
 
 #[derive(Debug, Clone)]
 pub struct OrderManager {
-    xchg: Exchange,
-    api: Arc<dyn ExchangeApi>,
+    apis: HashMap<Exchange, Arc<dyn ExchangeApi>>,
     orders: Arc<RwLock<HashMap<String, TransactionStatus>>>,
     pub transactions_wal: Arc<Wal>,
     pub repo: OrderRepository,
@@ -155,7 +155,7 @@ pub struct OrderManager {
 
 impl OrderManager {
     pub fn new<S: AsRef<Path>, S2: AsRef<Path>>(
-        api: Arc<dyn ExchangeApi>,
+        apis: HashMap<Exchange, Arc<dyn ExchangeApi>>,
         db_options: &DbOptions<S>,
         db_path: S2,
     ) -> Self {
@@ -166,13 +166,14 @@ impl OrderManager {
         let wal = Arc::new(Wal::new(storage.clone(), TRANSACTIONS_TABLE.to_string()));
         let orders = Arc::new(RwLock::new(HashMap::new()));
         OrderManager {
-            xchg: api.exchange(),
-            api,
+            apis,
             orders,
             transactions_wal: wal,
             repo: OrderRepository::new(storage),
         }
     }
+
+    fn get_api(&self, xch: Exchange) -> &Arc<dyn ExchangeApi> { self.apis.get(&xch).unwrap() }
 
     /// Updates an already registered order
     pub(crate) async fn update_order(&mut self, order: OrderUpdate) -> Result<()> {
@@ -210,9 +211,9 @@ impl OrderManager {
             TransactionStatus::New(request.into())
         } else {
             // Here the order is truncated according to the exchange configuration
-            let pair_conf = coinnect_rt::pair::pair_conf(&self.xchg, &order.query.pair())?;
+            let pair_conf = coinnect_rt::pair::pair_conf(&order.query.xch(), &order.query.pair())?;
             let query = order.query.truncate(pair_conf);
-            let order_info = self.api.order(query).await;
+            let order_info = self.get_api(query.xch()).order(query).await;
             match order_info {
                 Ok(o) => TransactionStatus::New(o),
                 Err(e) => TransactionStatus::Rejected(match e {
@@ -247,8 +248,14 @@ impl OrderManager {
     }
 
     /// Get the latest remote status for this order id
-    pub(crate) async fn fetch_order(&self, order_id: String, pair: Pair, asset_type: AssetType) -> Result<Order> {
-        Ok(self.api.get_order(order_id, pair, asset_type).await?)
+    pub(crate) async fn fetch_order(
+        &self,
+        order_id: String,
+        xch: Exchange,
+        pair: Pair,
+        asset_type: AssetType,
+    ) -> Result<Order> {
+        Ok(self.get_api(xch).get_order(order_id, pair, asset_type).await?)
     }
 
     /// Registers a transaction
@@ -265,7 +272,7 @@ impl OrderManager {
         let order = self.get_order_from_storage(&order_id);
         let result = match (tr.clone(), order) {
             (TransactionStatus::Staged(OrderQuery::AddOrder(add_order)), _) => {
-                self.repo.put(OrderDetail::from_query(self.xchg, None, add_order))
+                self.repo.put(OrderDetail::from_query(None, add_order))
             }
             (TransactionStatus::New(submission), Ok(mut order)) => {
                 order.from_submission(submission);
@@ -335,11 +342,12 @@ impl OrderManager {
         }
         let orders_read_lock = self.orders.read().await;
         // Fetch all latest orders
-        info!(xchg = ?self.xchg, "fetching remote orders for all unfilled transactions");
+        info!("fetching remote orders for all unfilled transactions");
+        // TODO : replace with sql or simply the orders table to stop using the log
         let non_filled_order_futs =
             futures::future::join_all(orders_read_lock.iter().filter(|(_k, v)| v.is_incomplete()).map(
                 |(tr_id, tr_status)| {
-                    let pair = tr_status.get_pair(self.xchg);
+                    let pair = tr_status.get_pair(Exchange::Binance);
                     info!(order_id = ?tr_id.clone(), pair = ?pair, "fetching remote for unresolved order");
                     let order = self.repo.get(tr_id).or_else(|_| {
                         // If not found, try to rebuild the order detail from the transactions
@@ -350,7 +358,7 @@ impl OrderManager {
                         let staged_tr = iter.find(staged_order_predicate);
                         let other_trs = iter2.filter(|ts| !staged_order_predicate(ts));
                         if let Some(TransactionStatus::Staged(OrderQuery::AddOrder(request))) = staged_tr {
-                            let mut od = OrderDetail::from_query(self.xchg, None, request);
+                            let mut od = OrderDetail::from_query(None, request);
                             for tr in other_trs {
                                 od.from_status(tr);
                             }
@@ -361,7 +369,17 @@ impl OrderManager {
                         }
                     });
                     order
-                        .and_then(|o| pair.map(|pair| self.fetch_order(tr_id.clone(), pair, o.asset_type).boxed()))
+                        .and_then(|o| {
+                            pair.map(|pair| {
+                                self.fetch_order(
+                                    tr_id.clone(),
+                                    Exchange::from_str(&o.exchange).unwrap(),
+                                    pair,
+                                    o.asset_type,
+                                )
+                                .boxed()
+                            })
+                        })
                         .unwrap_or_else(|e| {
                             debug!(error = ?e, "failed to fetch order");
                             Box::pin(futures::future::err(e))
@@ -381,14 +399,14 @@ impl OrderManager {
                     if let Some(tr_status) = orders_read_lock.get(&order.orig_order_id) {
                         if !equivalent_status(tr_status, &order.status) {
                             notifications.push(AccountEventEnveloppe {
-                                xchg: self.xchg,
+                                xchg: order.xch,
                                 event: AccountEvent::OrderUpdate(order.into()),
                                 account_type,
                             });
                         }
                     } else {
                         notifications.push(AccountEventEnveloppe {
-                            xchg: self.xchg,
+                            xchg: order.xch,
                             event: AccountEvent::OrderUpdate(order.into()),
                             account_type,
                         });
@@ -419,7 +437,7 @@ impl Actor for OrderManager {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        info!(xchg = ?self.xchg, "starting order manager");
+        info!("starting order manager");
         let manager = self.clone();
         let refresh_orders =
             async move { manager.repair_orders().await }

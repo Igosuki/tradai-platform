@@ -10,9 +10,12 @@ extern crate tracing;
 extern crate async_trait;
 
 pub mod balance;
-pub mod error;
+mod error;
 pub mod margin;
 pub mod portfolio;
 pub mod risk;
+
+pub use error::*;
+
 #[cfg(test)]
 mod test_util;

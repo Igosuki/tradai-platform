@@ -1,17 +1,21 @@
-use std::collections::{BTreeMap, HashSet};
-use std::convert::TryInto;
-use std::sync::{Arc, Mutex};
+mod metrics;
+
+use std::collections::HashSet;
+use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
 use coinnect_rt::prelude::*;
+use db::Storage;
+use portfolio::portfolio::{Portfolio, PortfolioRepoImpl};
+use portfolio::risk::DefaultMarketRiskEvaluator;
+use trading::engine::TradingEngine;
 
 use crate::driver::StrategyDriver;
 use crate::error::Result;
 use crate::query::{DataQuery, DataResult, Mutation, StrategyIndicators};
-use crate::types::InputEvent;
 use crate::{Channel, StrategyStatus};
-use trading::book::BookPosition;
+use trading::order_manager::types::StagedOrder;
 use trading::signal::TradeSignal;
 
 #[async_trait]
@@ -22,15 +26,13 @@ pub(crate) trait Strategy: Sync + Send {
 
     fn init(&mut self) -> Result<()>;
 
-    async fn eval(&mut self, e: &InputEvent) -> Result<Vec<TradeSignal>>;
+    async fn eval(&mut self, e: &MarketEventEnvelope) -> Result<Vec<TradeSignal>>;
 
-    async fn update_model(&mut self, e: &InputEvent) -> Result<()>;
+    async fn update_model(&mut self, e: &MarketEventEnvelope) -> Result<()>;
 
-    fn models(&self) -> Vec<(String, Option<serde_json::Value>)>;
+    fn model(&self) -> Vec<(String, Option<serde_json::Value>)>;
 
     fn channels(&self) -> HashSet<Channel>;
-
-    fn indicators(&self) -> StrategyIndicators;
 }
 
 #[allow(dead_code)]
@@ -39,30 +41,48 @@ struct StrategyContext<C> {
     conf: C,
 }
 
-pub struct GenericStrategy {
-    channels: HashSet<Channel>,
-    last_positions: Mutex<BTreeMap<Pair, BookPosition>>,
-    inner: RwLock<Box<dyn Strategy>>,
-    multi_market: bool,
-    initialized: bool,
-    signals: Vec<TradeSignal>,
-    last_models: Vec<(String, Option<serde_json::Value>)>,
-    last_indicators: StrategyIndicators,
-    is_trading: bool,
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct PortfolioOptions {
+    initial_quote_cash: f64,
 }
 
-impl GenericStrategy {
-    pub(crate) fn try_new(channels: HashSet<Channel>, strat: Box<dyn Strategy>) -> Result<Self> {
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct GenericDriverOptions {
+    portfolio: PortfolioOptions,
+}
+
+pub struct GenericDriver {
+    channels: HashSet<Channel>,
+    inner: RwLock<Box<dyn Strategy>>,
+    initialized: bool,
+    is_trading: bool,
+    portfolio: Portfolio,
+    engine: Arc<TradingEngine>,
+}
+
+impl GenericDriver {
+    pub(crate) fn try_new(
+        channels: HashSet<Channel>,
+        db: Arc<dyn Storage>,
+        driver_options: &GenericDriverOptions,
+        strat: Box<dyn Strategy>,
+        engine: Arc<TradingEngine>,
+    ) -> Result<Self> {
+        let portfolio_options = &driver_options.portfolio;
+        let portfolio = Portfolio::try_new(
+            portfolio_options.initial_quote_cash,
+            strat.key(),
+            Arc::new(PortfolioRepoImpl::new(db)),
+            Arc::new(DefaultMarketRiskEvaluator::default()),
+            engine.interest_rate_provider.clone(),
+        )?;
         Ok(Self {
             channels,
-            last_positions: Mutex::new(Default::default()),
             inner: RwLock::new(strat),
-            multi_market: false,
             initialized: false,
-            signals: Default::default(),
-            last_models: vec![],
-            last_indicators: StrategyIndicators::default(),
             is_trading: true,
+            portfolio,
+            engine,
         })
     }
 
@@ -91,16 +111,28 @@ impl GenericStrategy {
     // async fn get_state(&self) -> String;
     //
     // async fn get_status(&self) -> StrategyStatus;
-}
-
-#[async_trait]
-impl StrategyDriver for GenericStrategy {
-    async fn key(&self) -> String {
-        let r = self.inner.read().await;
-        r.key()
+    async fn process_signals(&mut self, signals: &[TradeSignal]) -> Result<()> {
+        for signal in signals {
+            let order = self.portfolio.maybe_convert(signal)?;
+            if let Some(order) = order {
+                self.engine
+                    .order_executor
+                    .stage_order(StagedOrder { request: order })
+                    .await?;
+            }
+        }
+        Ok(())
     }
 
-    async fn add_event(&mut self, le: &MarketEventEnvelope) -> Result<()> {
+    fn indicators(&self) -> StrategyIndicators {
+        StrategyIndicators {
+            value: self.portfolio.value(),
+            pnl: self.portfolio.pnl(),
+            current_return: self.portfolio.returns().last().map(|l| l.1).unwrap_or(0.0),
+        }
+    }
+
+    async fn process_event(&mut self, le: &MarketEventEnvelope) -> Result<()> {
         if !self.initialized {
             self.init().await.unwrap();
             self.initialized = true;
@@ -108,30 +140,34 @@ impl StrategyDriver for GenericStrategy {
         if !self.handles(le) {
             return Ok(());
         }
-        if let MarketEvent::Orderbook(ob) = &le.e {
-            if let Ok(pos) = ob.try_into() {
-                let event = if self.multi_market {
-                    let positions = {
-                        let mut lock = self.last_positions.lock().unwrap();
-                        lock.insert(ob.pair.clone(), pos);
-                        lock.clone()
-                    };
-                    InputEvent::BookPositions(positions)
-                } else {
-                    InputEvent::BookPosition(pos)
-                };
-                {
-                    let mut inner = self.inner.write().await;
-                    if inner.update_model(&event).await.is_ok() {
-                        self.last_models = inner.models();
-                    }
-                    let signals = inner.eval(&event).await.unwrap();
-                    self.signals.extend(signals);
-                    self.last_indicators = inner.indicators();
-                }
+        let signals = {
+            let mut inner = self.inner.write().await;
+            inner.update_model(le).await?;
+            inner.eval(le).await?
+        };
+        if !self.portfolio.is_locked(&(le.xch, le.pair.clone())) {
+            if let Err(_e) = self.process_signals(signals.as_slice()).await {
+                metrics::get().signal_error(&le.xch, &le.pair);
             }
+        } else {
+            metrics::get().log_lock(&le.xch, &le.pair)
         }
         Ok(())
+    }
+}
+
+#[async_trait]
+impl StrategyDriver for GenericDriver {
+    async fn key(&self) -> String {
+        let r = self.inner.read().await;
+        r.key()
+    }
+
+    async fn add_event(&mut self, le: &MarketEventEnvelope) -> Result<()> {
+        self.process_event(le).await.map_err(|e| {
+            metrics::get().log_error(e.short_name());
+            e
+        })
     }
 
     fn data(&mut self, q: DataQuery) -> Result<DataResult> {
@@ -140,9 +176,10 @@ impl StrategyDriver for GenericStrategy {
             DataQuery::OpenOperations => Ok(DataResult::Operations(vec![])),
             DataQuery::CancelOngoingOp => Ok(DataResult::Success(false)),
             DataQuery::State => Ok(DataResult::State("".to_string())),
-            DataQuery::Models => Ok(DataResult::Models(self.last_models.to_owned())),
+            //self.inner.read().await.model().to_owned()
+            DataQuery::Models => Ok(DataResult::Models(vec![])),
             DataQuery::Status => Ok(DataResult::Status(StrategyStatus::NotTrading)),
-            DataQuery::Indicators => Ok(DataResult::Indicators(self.last_indicators.clone())),
+            DataQuery::Indicators => Ok(DataResult::Indicators(self.indicators())),
         }
     }
 

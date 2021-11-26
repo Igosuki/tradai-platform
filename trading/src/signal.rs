@@ -52,8 +52,8 @@ impl TradeSignal {
     pub fn xch_and_pair(&self) -> (Exchange, Pair) { (self.exchange, self.pair.clone()) }
 }
 
-impl From<TradeSignal> for AddOrderRequest {
-    fn from(t: TradeSignal) -> Self {
+impl<'a> From<&'a TradeSignal> for AddOrderRequest {
+    fn from(t: &'a TradeSignal) -> Self {
         let side = match (t.position_kind, t.operation_kind) {
             (PositionKind::Short, OperationKind::Open) | (PositionKind::Long, OperationKind::Close) => TradeType::Sell,
             (PositionKind::Short, OperationKind::Close) | (PositionKind::Long, OperationKind::Open) => TradeType::Buy,
