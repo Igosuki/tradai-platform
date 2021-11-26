@@ -95,7 +95,7 @@ impl RocksDbStorage {
     fn cf(&self, name: &str) -> Result<Arc<BoundColumnFamily<'_>>> {
         self.inner
             .cf_handle(name.as_ref())
-            .ok_or_else(|| Error::NotFound(name.to_string()))
+            .ok_or_else(|| Error::NotFound(name.as_bytes().to_vec()))
     }
 
     pub fn inner_db(&self) -> &DB { &self.inner }
@@ -112,7 +112,7 @@ impl Storage for RocksDbStorage {
         self.inner
             .get_cf(&cf, key)
             .err_into()
-            .and_then(|r| r.ok_or_else(|| Error::NotFound(String::from_utf8(key.into()).unwrap())))
+            .and_then(|r| r.ok_or_else(|| Error::NotFound(key.to_vec())))
     }
 
     fn _get_ranged(&self, table: &str, from: &[u8]) -> Result<Vec<Bytes>> {
@@ -134,14 +134,10 @@ impl Storage for RocksDbStorage {
         Ok(ret_vec)
     }
 
-    fn _get_all(&self, table: &str) -> Result<Vec<(String, Bytes)>> {
+    fn _get_all(&self, table: &str) -> Result<Vec<(Bytes, Bytes)>> {
         let mode = IteratorMode::Start;
         let cf = self.cf(table)?;
-        Ok(self
-            .inner
-            .iterator_cf(&cf, mode)
-            .map(|(k, v)| (String::from_utf8(k.into()).unwrap(), v))
-            .collect())
+        Ok(self.inner.iterator_cf(&cf, mode).collect())
     }
 
     fn _delete(&self, table: &str, key: &[u8]) -> Result<()> {
@@ -244,7 +240,7 @@ mod test {
         });
         db._delete(table, key).unwrap();
         let get_result = db._get(table, key);
-        matches!(get_result, Err(Error::NotFound(x)) if x == "foo");
+        matches!(get_result, Err(Error::NotFound(x)) if x == "foo".as_bytes().to_vec());
         //assert_eq!(Err(Error::NotFound(String::from_utf8_lossy(key).to_string())), foo);
     }
 
@@ -275,7 +271,7 @@ mod test {
         });
         db.delete(table, key).unwrap();
         let get_result: crate::error::Result<Foobar> = db.get(table, key);
-        matches!(get_result, Err(Error::NotFound(x)) if x == "foo");
+        matches!(get_result, Err(Error::NotFound(x)) if x == "foo".as_bytes().to_vec());
         //assert_eq!(Err(Error::NotFound(String::from_utf8_lossy(key).to_string())), foo);
     }
 

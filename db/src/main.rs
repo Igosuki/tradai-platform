@@ -53,7 +53,7 @@ fn main() {
             let db = db(options.db_type, &path, readonly, vec![table.clone()]);
             let all = db.get_all::<serde_json::Value>(table).unwrap();
             for (k, v) in all {
-                println!("{{\"id\": \"{}\", \"transaction\": {}}}", k, v);
+                println!("{{\"id\": \"{:?}\", \"transaction\": {}}}", k, v);
             }
         }
         DbCommand::Repair { skip_corrupted } => match options.db_type {

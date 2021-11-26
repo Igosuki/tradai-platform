@@ -8,8 +8,8 @@ pub enum Error {
     Json(#[from] serde_json::Error),
     #[error("rkv error")]
     RocksDb(#[from] rocksdb::Error),
-    #[error("record not found {0}")]
-    NotFound(String),
+    #[error("record not found {0:?}")]
+    NotFound(Vec<u8>),
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

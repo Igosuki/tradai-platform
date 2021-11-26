@@ -27,6 +27,27 @@ pub struct TradeSignal {
     pub side_effect: Option<MarginSideEffect>,
 }
 
+impl Default for TradeSignal {
+    fn default() -> Self {
+        Self {
+            trace_id: Default::default(),
+            position_kind: Default::default(),
+            operation_kind: OperationKind::Open,
+            trade_kind: TradeKind::Buy,
+            price: 0.0,
+            qty: 0.0,
+            pair: "BTC_USDT".into(),
+            exchange: Exchange::Binance,
+            instructions: None,
+            dry_mode: false,
+            order_type: Default::default(),
+            enforcement: None,
+            asset_type: None,
+            side_effect: None,
+        }
+    }
+}
+
 impl TradeSignal {
     pub fn xch_and_pair(&self) -> (Exchange, Pair) { (self.exchange, self.pair.clone()) }
 }

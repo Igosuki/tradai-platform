@@ -3,6 +3,7 @@ use coinnect_rt::prelude::{Exchange, TradeType};
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
+use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -27,7 +28,13 @@ pub enum MarketLockRule {
 
 pub type PositionKey = (Exchange, Pair);
 
-#[derive(Debug, Serialize, Deserialize)]
+fn pos_key_from_order(order: &OrderDetail) -> Result<PositionKey> {
+    Ok((Exchange::from_str(&order.exchange)?, order.pair.clone().into()))
+}
+
+fn pos_key_from_position(pos: &Position) -> PositionKey { (pos.exchange, pos.symbol.clone()) }
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct PositionLock {
     at: DateTime<Utc>,
     order_id: String,
@@ -128,7 +135,7 @@ impl Portfolio {
     /// Update the position from an order, closing or opening with the wrong side and kind will
     /// result in error. The lock will be released if the order is filled
     pub fn update_position(&mut self, order: OrderDetail) -> Result<()> {
-        let pos_key: PositionKey = (Exchange::from_str(&order.exchange).unwrap(), order.pair.clone().into());
+        let pos_key: PositionKey = pos_key_from_order(&order)?;
         {
             if let Some(pos) = self.open_positions.get_mut(&pos_key) {
                 // Close
@@ -264,6 +271,7 @@ static OPEN_POSITIONS_TABLE: &str = "open_positions";
 static POSITION_LOCKS_TABLE: &str = "locks";
 static PORTFOLIO_VARS: &str = "vars";
 
+/// K/V Store based implementation of the portfolio repository
 #[derive(Debug)]
 pub struct PersistentPortfolio {
     db: Arc<dyn Storage>,
@@ -271,7 +279,12 @@ pub struct PersistentPortfolio {
 
 impl PersistentPortfolio {
     fn new(db: Arc<dyn Storage>) -> Self {
-        for table in &[POSITION_LOCKS_TABLE, POSITIONS_ARCHIVE_TABLE, PORTFOLIO_VARS] {
+        for table in &[
+            POSITION_LOCKS_TABLE,
+            POSITIONS_ARCHIVE_TABLE,
+            PORTFOLIO_VARS,
+            OPEN_POSITIONS_TABLE,
+        ] {
             db.ensure_table(table).unwrap();
         }
         Self { db }
@@ -297,8 +310,10 @@ impl PortfolioRepo for PersistentPortfolio {
     }
 
     fn is_open(&self, pos_id: &Uuid) -> Result<bool> {
-        let is_open: Option<bool> = self.db.get(OPEN_POSITIONS_TABLE, pos_id.as_bytes())?;
-        Ok(is_open.is_some())
+        match self.db.get(OPEN_POSITIONS_TABLE, pos_id.as_bytes()) {
+            Err(db::Error::NotFound(_)) => Ok(false),
+            r => r.err_into(),
+        }
     }
 
     fn put_position(&self, pos: &Position) -> Result<()> {
@@ -306,7 +321,10 @@ impl PortfolioRepo for PersistentPortfolio {
     }
 
     fn get_position(&self, pos_id: Uuid) -> Result<Option<Position>> {
-        self.db.get(POSITIONS_ARCHIVE_TABLE, pos_id.as_bytes()).err_into()
+        match self.db.get(POSITIONS_ARCHIVE_TABLE, pos_id.as_bytes()) {
+            Err(db::Error::NotFound(_)) => Ok(None),
+            r => r.err_into(),
+        }
     }
 
     fn all_positions(&self) -> Result<Vec<Position>> {
@@ -338,24 +356,172 @@ impl PortfolioRepo for PersistentPortfolio {
     }
 
     fn load(&self, p: &mut Portfolio) -> Result<()> {
-        let maybe_vars: Option<PortfolioVars> = self.db.get(PORTFOLIO_VARS, &p.key)?;
+        let maybe_vars: Option<PortfolioVars> = match self.db.get(PORTFOLIO_VARS, &p.key) {
+            Err(db::Error::NotFound(_)) => Ok(None),
+            r => r,
+        }?;
         if let Some(vars) = maybe_vars {
             p.pnl = vars.pnl;
             p.value = vars.value;
         }
         for (pos_id, _) in self.db.get_all::<bool>(OPEN_POSITIONS_TABLE)? {
-            let pos_id = Uuid::from_slice(pos_id.as_bytes())?;
+            let pos_id = Uuid::from_slice(pos_id.deref())?;
             if let Some(pos) = self.get_position(pos_id)? {
                 error!("failed to retrieve open position {} from storage", pos_id);
-                p.open_positions.insert((pos.exchange, pos.symbol.clone()), pos);
+                p.open_positions.insert(pos_key_from_position(&pos), pos);
             }
         }
         p.locks.extend(
             self.db
-                .get_all(POSITION_LOCKS_TABLE)?
+                .get_all::<PositionLock>(POSITION_LOCKS_TABLE)?
                 .into_iter()
-                .map(|(k, v)| (Self::parse_key_string(k.as_str()), v)),
+                .map(|(k, v)| (Self::parse_key_string(std::str::from_utf8(k.deref()).unwrap()), v)),
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod repository_test {
+    use crate::portfolio::{pos_key_from_position, PersistentPortfolio, Portfolio, PortfolioRepo, PositionLock};
+    use crate::risk::DefaultMarketRiskEvaluator;
+    use crate::test_util::test_db;
+    use chrono::Utc;
+    use coinnect_rt::exchange::Exchange;
+    use coinnect_rt::types::AddOrderRequest;
+    use std::assert_matches::assert_matches;
+    use std::collections::BTreeMap;
+    use std::sync::Arc;
+    use test_log::test;
+    use trading::order_manager::types::OrderDetail;
+    use trading::position::Position;
+
+    fn make_test_repo() -> PersistentPortfolio {
+        let db = test_db();
+        PersistentPortfolio::new(db.clone())
+    }
+
+    #[test(tokio::test)]
+    async fn open_position_should_not_be_open_after_close() {
+        let repo = make_test_repo();
+        let mut pos = Position::default();
+        let open = repo.open_position(&pos);
+        assert_matches!(open, Ok(_));
+        let get_pos = repo.get_position(pos.id);
+        assert_matches!(get_pos, Ok(Some(_)));
+        assert_eq!(get_pos.unwrap().unwrap(), pos);
+        let is_open = repo.is_open(&pos.id);
+        assert_matches!(is_open, Ok(true));
+        pos.close_order = Some(OrderDetail::from_query(Exchange::Binance, None, AddOrderRequest {
+            pair: pos.symbol.clone(),
+            ..AddOrderRequest::default()
+        }));
+        let close_pos = repo.close_position(&pos);
+        assert_matches!(close_pos, Ok(_));
+        let get_pos = repo.get_position(pos.id);
+        assert_matches!(get_pos, Ok(Some(_)));
+        assert_eq!(get_pos.unwrap().unwrap(), pos);
+        let is_open = repo.is_open(&pos.id);
+        assert_matches!(is_open, Ok(false));
+    }
+
+    #[test(tokio::test)]
+    async fn set_and_release_lock() {
+        let repo = make_test_repo();
+        let pos = Position::default();
+        let pos_key = pos_key_from_position(&pos);
+        let lock = PositionLock {
+            at: Utc::now(),
+            order_id: "id".to_string(),
+        };
+        let locked = repo.set_lock(&pos_key, &lock);
+        assert_matches!(locked, Ok(_));
+        let unlocked = repo.release_lock(&pos_key);
+        assert_matches!(unlocked, Ok(_));
+    }
+
+    #[test(tokio::test)]
+    async fn put_and_delete_position() {
+        let repo = make_test_repo();
+        let pos = Position::default();
+        let put = repo.put_position(&pos);
+        assert_matches!(put, Ok(_));
+        let pos_id = pos.id;
+        let get_pos = repo.get_position(pos_id);
+        assert_matches!(get_pos, Ok(Some(_)));
+        assert_eq!(get_pos.unwrap().unwrap(), pos);
+        let all_pos = repo.all_positions();
+        assert_matches!(all_pos, Ok(_));
+        assert_eq!(all_pos.unwrap(), vec![pos]);
+        let delete = repo.delete_position(pos_id);
+        assert_matches!(delete, Ok(_));
+        let get_pos = repo.get_position(pos_id);
+        assert_matches!(get_pos, Ok(None));
+        let all_pos = repo.all_positions();
+        assert_matches!(all_pos, Ok(_));
+        assert_eq!(all_pos.unwrap(), vec![]);
+    }
+
+    #[test(tokio::test)]
+    async fn load_portfolio() {
+        let repo = make_test_repo();
+        let risk = DefaultMarketRiskEvaluator::default();
+        let mut portfolio = Portfolio::try_new(100.0, "key".to_string(), Arc::new(repo), Arc::new(risk)).unwrap();
+        let arc = portfolio.repo.clone();
+        let load = arc.load(&mut portfolio);
+        assert_matches!(load, Ok(_));
+        assert_eq!(portfolio.pnl, 100.0);
+        assert_eq!(portfolio.value, 100.0);
+        assert!(portfolio.open_positions.is_empty());
+        assert!(portfolio.locks.is_empty());
+        let pos = Position::default();
+        let pos_key = pos_key_from_position(&pos);
+        portfolio.pnl = 200.0;
+        portfolio.value = 400.0;
+        let put = arc.update_vars(&portfolio);
+        assert_matches!(put, Ok(_));
+        let put = arc.open_position(&pos);
+        assert_matches!(put, Ok(_));
+        let lock = PositionLock {
+            at: Utc::now(),
+            order_id: "id".to_string(),
+        };
+        let locked = arc.set_lock(&pos_key, &lock);
+        assert_matches!(locked, Ok(_));
+        let load = arc.load(&mut portfolio);
+        assert_matches!(load, Ok(_));
+        assert_eq!(portfolio.pnl, 200.0);
+        assert_eq!(portfolio.value, 400.0);
+        let mut expected = BTreeMap::new();
+        expected.insert(pos_key.clone(), pos);
+        assert_eq!(portfolio.open_positions, expected);
+        let mut expected = BTreeMap::new();
+        expected.insert(pos_key, lock);
+        assert_eq!(portfolio.locks, expected);
+    }
+}
+
+#[cfg(test)]
+mod portfolio_test {
+    use crate::portfolio::{PersistentPortfolio, Portfolio};
+    use crate::risk::DefaultMarketRiskEvaluator;
+    use crate::test_util::test_db;
+    use std::sync::Arc;
+    use test_log::test;
+    use trading::signal::TradeSignal;
+
+    fn make_test_portfolio() -> Portfolio {
+        let db = test_db();
+        let repo = PersistentPortfolio::new(db.clone());
+        let risk = DefaultMarketRiskEvaluator::default();
+        Portfolio::try_new(100.0, "portfolio_key".to_string(), Arc::new(repo), Arc::new(risk)).unwrap()
+    }
+
+    #[test(tokio::test)]
+    async fn convert_open_signal() {
+        let portfolio = make_test_portfolio();
+        let signal = TradeSignal {
+            ..TradeSignal::default()
+        };
     }
 }

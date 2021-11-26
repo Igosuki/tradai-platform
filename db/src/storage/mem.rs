@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::RwLock;
 
 use crate::error::*;
+use crate::storage::Bytes;
 use crate::Storage;
 
 type InMemoryTable = BTreeMap<Vec<u8>, Vec<u8>>;
@@ -39,17 +40,17 @@ impl Storage for MemoryKVStore {
 
     fn _get(&self, table: &str, key: &[u8]) -> Result<Vec<u8>> {
         self.with_table(table, |t| t.get(table.as_bytes()).cloned())
-            .ok_or_else(|| Error::NotFound(format!("Could not find {}", std::str::from_utf8(key).unwrap())))
+            .ok_or_else(|| Error::NotFound(key.to_vec()))
     }
 
     fn _get_ranged(&self, _table: &str, _from: &[u8]) -> Result<Vec<Box<[u8]>>> { todo!() }
 
     fn _get_range(&self, _table: &str, _from: &[u8], _to: &[u8]) -> Result<Vec<(String, Box<[u8]>)>> { todo!() }
 
-    fn _get_all(&self, table: &str) -> Result<Vec<(String, Box<[u8]>)>> {
+    fn _get_all(&self, table: &str) -> Result<Vec<(Bytes, Bytes)>> {
         let vec = self.with_table(table, |t| {
             t.iter()
-                .map(|(k, v)| (String::from_utf8(k.clone()).unwrap(), v.clone().into_boxed_slice()))
+                .map(|(k, v)| (k.clone().into_boxed_slice(), v.clone().into_boxed_slice()))
                 .collect()
         });
         Ok(vec)

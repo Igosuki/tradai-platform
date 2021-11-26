@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::sync::Arc;
 
 use chrono::{DateTime, TimeZone, Utc};
@@ -170,7 +171,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
             .db
             .get_all(&self.key)?
             .into_iter()
-            .map(|v| TimedValue(v.0.parse::<i64>().unwrap(), v.1))
+            .map(|v| TimedValue(std::str::from_utf8(v.0.deref()).unwrap().parse::<i64>().unwrap(), v.1))
             .sorted_by_key(|t| t.0)
             .collect();
         self.last_load_attempt = Some(Utc::now());

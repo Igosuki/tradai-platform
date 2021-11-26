@@ -1,5 +1,6 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::sync::Arc;
 
 use chrono::Utc;
@@ -33,7 +34,7 @@ impl Wal {
             .for_each(|(k, v)| {
                 serde_json::from_value(v)
                     .map(|v| {
-                        let split: Vec<&str> = k.split(WAL_KEY_SEP).collect();
+                        let split: Vec<&str> = std::str::from_utf8(k.deref()).unwrap().split(WAL_KEY_SEP).collect();
                         if let [key, _ts] = split[..] {
                             let key_string = key.to_string();
                             match records.entry(key_string.clone()) {
@@ -58,7 +59,7 @@ impl Wal {
         let res = v
             .into_iter()
             .filter_map(|(key, v)| {
-                let (k, t): (String, i64) = Wal::wal_key(key);
+                let (k, t): (String, i64) = Wal::wal_key(String::from_utf8(key.to_vec()).unwrap());
                 serde_json::from_value(v).map(|vt| (t, (k, vt))).ok()
             })
             .collect();

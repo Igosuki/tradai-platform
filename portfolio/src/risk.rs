@@ -11,7 +11,7 @@ pub trait RiskEvaluator: Debug + Send + Sync {
     fn evaluate(&self, portfolio: &Portfolio, order: &AddOrderRequest) -> f64;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DefaultMarketRiskEvaluator {}
 
 #[async_trait]
