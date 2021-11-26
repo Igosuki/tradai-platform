@@ -27,6 +27,7 @@ metrics = { path = "../metrics" }
 coinnect_rt = { path = "../coinnect" }
 stats = { path = "../stats" }
 trading = { path = "../trading" }
+account = { path = "../portfolio" }
 
 # actor
 actix = "0.12"

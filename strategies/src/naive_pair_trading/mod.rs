@@ -1,16 +1,15 @@
 use std::convert::TryInto;
 use std::ops::{Add, Mul, Sub};
-use std::path::Path;
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, TimeZone, Utc};
 
 use coinnect_rt::prelude::*;
-use db::{get_or_create, DbOptions, Storage};
+use db::Storage;
 use options::Options;
 use state::{MovingState, Position};
 use trading::book::BookPosition;
-use trading::order_manager::OrderExecutor;
+use trading::engine::TradingEngine;
 use trading::position::PositionKind;
 
 use crate::driver::StrategyDriver;
@@ -56,15 +55,14 @@ pub struct NaiveTradingStrategy {
 }
 
 impl NaiveTradingStrategy {
-    pub fn new<S: AsRef<Path>>(
-        db_opts: &DbOptions<S>,
+    pub fn new(
+        db: Arc<dyn Storage>,
+        strat_key: String,
         fees_rate: f64,
         n: &Options,
-        om: Arc<dyn OrderExecutor>,
+        engine: Arc<TradingEngine>,
     ) -> Self {
         let metrics = NaiveStrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
-        let strat_key = format!("naive_pair_trading_{}_{}", n.left, n.right);
-        let db = get_or_create(db_opts, strat_key.clone(), vec![]);
         let mut strat = Self {
             key: strat_key,
             exchange: n.exchange,
@@ -74,7 +72,7 @@ impl NaiveTradingStrategy {
             stop_loss: n.stop_loss,
             stop_gain: n.stop_gain,
             beta_eval_freq: n.beta_eval_freq,
-            state: MovingState::new(n, db.clone(), om),
+            state: MovingState::new(n, db.clone(), engine),
             data_table: Self::make_lm_table(&n.left, &n.right, db, n.window_size as usize),
             right_pair: n.right.to_string(),
             left_pair: n.left.to_string(),

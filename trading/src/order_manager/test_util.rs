@@ -6,6 +6,7 @@ use ext::prelude::*;
 use httpmock::Method::POST;
 use httpmock::{Mock, MockServer};
 use rand::random;
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -27,12 +28,15 @@ pub async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
         .build_exchange_api(keys_file.as_ref().to_path_buf(), &exchange, true)
         .await
         .unwrap();
-    let om_path = format!("om_{}", exchange);
-    OrderManager::new(api, &DbOptions::new(dir), om_path)
+    let mut apis: HashMap<Exchange, Arc<dyn ExchangeApi>> = Default::default();
+    apis.insert(api.exchange(), api);
+    OrderManager::new(apis, &DbOptions::new(dir), "order_manager")
 }
 
 pub fn local_manager<S: AsRef<Path>>(path: S, api: Arc<dyn ExchangeApi>) -> Addr<OrderManager> {
-    let order_manager = OrderManager::new(api, &DbOptions::new(path), "");
+    let mut apis: HashMap<Exchange, Arc<dyn ExchangeApi>> = Default::default();
+    apis.insert(api.exchange(), api);
+    let order_manager = OrderManager::new(apis, &DbOptions::new(path), "");
     OrderManager::start(order_manager)
 }
 
@@ -139,7 +143,9 @@ pub fn create_ok_margin_order_mock(server: &MockServer, order: OrderDetail) -> M
 
 pub fn new_mock_manager<S: AsRef<Path>>(path: S) -> OrderManager {
     let api: Arc<dyn ExchangeApi> = Arc::new(MockExchangeApi::default());
-    OrderManager::new(api, &DbOptions::new(path), "")
+    let mut apis: HashMap<Exchange, Arc<dyn ExchangeApi>> = Default::default();
+    apis.insert(api.exchange(), api);
+    OrderManager::new(apis, &DbOptions::new(path), "")
 }
 
 pub fn mock_manager<S: AsRef<Path>>(path: S) -> Addr<OrderManager> {

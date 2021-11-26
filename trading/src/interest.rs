@@ -1,9 +1,10 @@
 use crate::error::{Error, Result};
 use crate::order_manager::types::OrderDetail;
 use actix::{Actor, Addr, Context, Handler, ResponseActFuture, WrapFuture};
+use chrono::Utc;
 use coinnect_rt::exchange::margin_interest_rates::get_interest_rate;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
-use coinnect_rt::types::InterestRate;
+use coinnect_rt::types::{InterestRate, InterestRatePeriod};
 use ext::ResultExt;
 use prometheus::CounterVec;
 use std::collections::HashMap;
@@ -25,7 +26,36 @@ pub trait InterestRateProvider: Send + Sync + Debug {
     async fn get_interest_rate(&self, exchange: Exchange, asset: String) -> Result<InterestRate>;
 
     /// Get the accumulated interest fees since the order was opened on the exchange
-    async fn interest_fees_since(&self, exchange: Exchange, order: &OrderDetail) -> Result<f64>;
+    async fn interest_fees_since(&self, exchange: Exchange, order: &OrderDetail) -> Result<f64> {
+        let i = if order.asset_type.is_margin() && order.borrowed_amount.is_some() {
+            let interest_rate = self.get_interest_rate(exchange, order.base_asset.clone()).await?;
+            order.total_interest(interest_rate)
+        } else {
+            0.0
+        };
+        Ok(i)
+    }
+}
+
+#[derive(Debug)]
+pub struct FlatInterestRateProvider {
+    rate: f64,
+}
+
+impl FlatInterestRateProvider {
+    pub fn new(rate: f64) -> Self { Self { rate } }
+}
+
+#[async_trait]
+impl InterestRateProvider for FlatInterestRateProvider {
+    async fn get_interest_rate(&self, _exchange: Exchange, asset: String) -> Result<InterestRate> {
+        Ok(InterestRate {
+            symbol: asset,
+            ts: Utc::now().timestamp_millis() as u128,
+            rate: self.rate,
+            period: InterestRatePeriod::Daily,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -45,16 +75,6 @@ impl InterestRateProvider for MarginInterestRateProviderClient {
             .await
             .map_err(|_| Error::InterestRateProviderMailboxError)?
             .err_into()
-    }
-
-    async fn interest_fees_since(&self, exchange: Exchange, order: &OrderDetail) -> Result<f64> {
-        let i = if order.asset_type.is_margin() && order.borrowed_amount.is_some() {
-            let interest_rate = self.get_interest_rate(exchange, order.base_asset.clone()).await?;
-            order.total_interest(interest_rate)
-        } else {
-            0.0
-        };
-        Ok(i)
     }
 }
 
@@ -126,16 +146,18 @@ pub mod test_util {
         MarginInterestRateProvider::new(apis)
     }
 
-    pub fn new_mock_interest_rate_provider(exchange: Exchange) -> MarginInterestRateProvider {
+    pub fn new_mock_interest_rate_provider(exchanges: &[Exchange]) -> MarginInterestRateProvider {
         let api: Arc<dyn ExchangeApi> = Arc::new(MockExchangeApi::default());
         let mut apis = HashMap::new();
-        apis.insert(exchange, api);
+        for exchange in exchanges {
+            apis.insert(*exchange, api.clone());
+        }
         let apis = Arc::new(apis);
         MarginInterestRateProvider::new(apis)
     }
 
-    pub fn mock_interest_rate_provider(exchange: Exchange) -> Addr<MarginInterestRateProvider> {
-        let provider = new_mock_interest_rate_provider(exchange);
+    pub fn mock_interest_rate_provider(exchanges: &[Exchange]) -> Addr<MarginInterestRateProvider> {
+        let provider = new_mock_interest_rate_provider(exchanges);
         let act = MarginInterestRateProvider::start(provider);
         loop {
             if act.connected() {
@@ -146,7 +168,7 @@ pub mod test_util {
     }
 
     pub fn mock_interest_rate_client(exchange: Exchange) -> MarginInterestRateProviderClient {
-        let provider = mock_interest_rate_provider(exchange);
+        let provider = mock_interest_rate_provider(&[exchange]);
         MarginInterestRateProviderClient::new(provider)
     }
 

@@ -16,6 +16,9 @@ impl OrderRepository {
 
     pub(crate) fn get(&self, id: &str) -> Result<OrderDetail> { self.db.get(ORDERS_TABLE, id).err_into() }
 
+    #[allow(dead_code)]
+    pub(crate) fn all(&self) -> Result<Vec<(Box<[u8]>, OrderDetail)>> { self.db.get_all(ORDERS_TABLE).err_into() }
+
     #[tracing::instrument(skip(self), level = "info")]
     pub(crate) fn put(&self, order: OrderDetail) -> Result<()> {
         self.db.put(ORDERS_TABLE, &order.id.clone(), order).err_into()

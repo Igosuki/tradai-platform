@@ -4,6 +4,7 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::sync::Arc;
 
 use chrono::{TimeZone, Utc};
+use coinnect_rt::types::{MarketEvent, MarketEventEnvelope};
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use serde::ser::SerializeStruct;
@@ -13,12 +14,12 @@ use db::Storage;
 use ext::ResultExt;
 use stats::indicators::macd_apo::MACDApo;
 use stats::iter::QuantileExt;
+use trading::book::BookPosition;
 
 use crate::error::Result;
 use crate::mean_reverting::options::Options;
 use crate::models::io::{IterativeModel, LoadableModel};
 use crate::models::{IndicatorModel, PersistentWindowedModel, Sampler, TimedValue, Window, WindowedModel};
-use crate::types::InputEvent;
 use crate::Model;
 
 pub fn ema_indicator_model(
@@ -94,10 +95,11 @@ impl MeanRevertingModel {
         }
     }
 
-    pub fn next(&mut self, e: &InputEvent) -> Result<()> {
-        let book_pos = match e {
-            InputEvent::BookPosition(bp) => bp,
-            _ => return Ok(()),
+    pub fn next(&mut self, e: &MarketEvent) -> Result<()> {
+        let book_pos: BookPosition = if let MarketEvent::Orderbook(ob) = e {
+            ob.try_into()?
+        } else {
+            return Ok(());
         };
         if !self.sampler.sample(book_pos.event_time) {
             return Ok(());
@@ -240,7 +242,7 @@ impl LoadableModel for MeanRevertingModel {
 impl IterativeModel for MeanRevertingModel {
     type ExportValue = BTreeMap<String, Option<serde_json::Value>>;
 
-    fn next_model(&mut self, e: &InputEvent) -> Result<()> { self.next(e) }
+    fn next_model(&mut self, e: &MarketEventEnvelope) -> Result<()> { self.next(&e.e) }
 
     fn export_values(&self) -> Result<Self::ExportValue> { Ok(self.values().into_iter().collect()) }
 }
