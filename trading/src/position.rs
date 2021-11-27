@@ -181,7 +181,7 @@ impl Position {
         self.unreal_profit_loss = self.result_profit_loss;
     }
 
-    pub fn update(&mut self, event: MarketEventEnvelope) {
+    pub fn update(&mut self, event: MarketEventEnvelope, fees_rate: f64, interests: f64) {
         let price = match event.e {
             MarketEvent::Trade(ref t) => t.price,
             MarketEvent::Orderbook(ref o) => o.avg_price().unwrap_or(0.0),

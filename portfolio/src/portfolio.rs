@@ -64,6 +64,7 @@ pub struct Portfolio {
     repo: Arc<dyn PortfolioRepo>,
     risk: Arc<dyn RiskEvaluator>,
     interest_rates: Arc<dyn InterestRateProvider>,
+    fees_rate: f64,
     risk_threshold: f64,
 }
 
@@ -76,6 +77,7 @@ pub struct PortfolioVars {
 impl Portfolio {
     pub fn try_new(
         initial_value: f64,
+        fees_rate: f64,
         key: String,
         repo: Arc<dyn PortfolioRepo>,
         risk: Arc<dyn RiskEvaluator>,
@@ -91,6 +93,7 @@ impl Portfolio {
             risk_threshold: 0.5,
             locks: Default::default(),
             interest_rates,
+            fees_rate,
         };
         {
             let arc = p.repo.clone();
@@ -125,6 +128,7 @@ impl Portfolio {
         } else {
             return Ok(None);
         };
+        // TODO : integrate interest fees for closing order
         // TODO: Check that cash can be provisionned for pair, this should be compatible with margin trading multiplers
         if self.risk.evaluate(self, &request) > self.risk_threshold {
             return Ok(None);
@@ -203,9 +207,23 @@ impl Portfolio {
     }
 
     /// Update the corresponding position with the latest event (typically the price)
-    pub fn update_from_market(&mut self, event: MarketEventEnvelope) {
+    pub async fn update_from_market(&mut self, event: MarketEventEnvelope) -> Result<()> {
         if let Some(p) = self.open_positions.get_mut(&(event.xch, event.pair.clone())) {
-            p.update(event);
+            // let interests = self.interest_fees_since_open(p.open_order.as_ref()).await?;
+            p.update(event, self.fees_rate, 0.0);
+        }
+        Ok(())
+    }
+
+    // TODO : it seems heavy to query an actor for something that changes once a day
+    async fn interest_fees_since_open(&self, order: Option<&OrderDetail>) -> Result<f64> {
+        match order {
+            None => Ok(0.0),
+            Some(o) => self
+                .interest_rates
+                .interest_fees_since(Exchange::from_str(&o.exchange).unwrap(), o)
+                .await
+                .err_into(),
         }
     }
 
@@ -505,6 +523,7 @@ mod repository_test {
         let risk = DefaultMarketRiskEvaluator::default();
         let mut portfolio = Portfolio::try_new(
             100.0,
+            0.001,
             "key".to_string(),
             Arc::new(repo),
             Arc::new(risk),
@@ -561,6 +580,7 @@ mod portfolio_test {
         let risk = DefaultMarketRiskEvaluator::default();
         Portfolio::try_new(
             100.0,
+            0.001,
             "portfolio_key".to_string(),
             Arc::new(repo),
             Arc::new(risk),
