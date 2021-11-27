@@ -18,6 +18,8 @@ pub enum Error {
     UuidParse(#[from] uuid::Error),
     #[error("no more lock existed for order")]
     NoLockForOrder,
+    #[error("trading error")]
+    Trading(#[from] trading::error::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
