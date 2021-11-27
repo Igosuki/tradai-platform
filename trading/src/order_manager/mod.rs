@@ -64,12 +64,15 @@ pub trait OrderExecutor: Send + Sync + Debug {
     async fn stage_order(&self, staged_order: StagedOrder) -> Result<OrderDetail>;
     /// Retry staging an order if it was rejected
     async fn stage_trade(&self, trade: &TradeOperation) -> Result<OrderDetail>;
-    /// Takes an order, and returns the latest order detail, transaction and resolutions found
-    /// with the executor
+    /// Resolves the order against the latest known order detail and transaction,
+    /// the order resolution is indicative of what can be done in relation
+    /// to the two orders
     async fn resolve_pending_order(
         &self,
         order: &OrderDetail,
     ) -> Result<(OrderDetail, Option<Transaction>, OrderResolution)>;
+    /// Returns the latest known detail and transaction for this order id
+    async fn get_order(&self, order_id: &str) -> Result<(OrderDetail, Option<Transaction>)>;
 }
 
 #[derive(Debug, Clone)]
@@ -101,16 +104,19 @@ impl OrderExecutor for OrderManagerClient {
         })
     }
 
+    async fn get_order(&self, order_id: &str) -> Result<(OrderDetail, Option<Transaction>)> {
+        self.om
+            .send(OrderId(order_id.to_string()))
+            .await
+            .map_err(|_| Error::OrderManagerMailboxError)
+            .and_then(|(or, t)| or.map(|o| (o, t.ok())))
+    }
+
     async fn resolve_pending_order(
         &self,
         order: &OrderDetail,
     ) -> Result<(OrderDetail, Option<Transaction>, OrderResolution)> {
-        let (resolved_order, resolved_transaction) = self
-            .om
-            .send(OrderId(order.id.clone()))
-            .await
-            .map_err(|_| Error::OrderManagerMailboxError)?;
-        let stored_order = resolved_order?;
+        let (stored_order, resolved_transaction) = self.get_order(order.id.as_str()).await?;
         let result = if order.is_same_status(&stored_order.status) {
             OrderResolution::NoChange
         } else if stored_order.is_filled() {
@@ -126,7 +132,7 @@ impl OrderExecutor for OrderManagerClient {
         } else {
             OrderResolution::NoChange
         };
-        Ok((stored_order, resolved_transaction.ok(), result))
+        Ok((stored_order, resolved_transaction, result))
     }
 }
 
