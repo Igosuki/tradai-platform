@@ -145,7 +145,7 @@ impl GenericDriver {
             inner.update_model(le).await?;
             inner.eval(le).await?
         };
-        if !self.portfolio.is_locked(&(le.xch, le.pair.clone())) {
+        if !self.portfolio.is_locked(&(le.xch, le.pair.clone())) && !self.portfolio.has_any_failed_position() {
             if let Err(_e) = self.process_signals(signals.as_slice()).await {
                 metrics::get().signal_error(&le.xch, &le.pair);
             }
@@ -203,5 +203,20 @@ impl StrategyDriver for GenericDriver {
 
     fn resume_trading(&mut self) { self.is_trading = true; }
 
-    async fn resolve_orders(&mut self) { todo!() }
+    async fn resolve_orders(&mut self) {
+        // TODO : probably bad performance
+        let locked_ids: Vec<String> = self.portfolio.locks().iter().map(|(k, v)| v.order_id.clone()).collect();
+        for lock in locked_ids {
+            match self.engine.order_executor.get_order(lock.as_str()).await {
+                Ok((order, _)) => {
+                    if let Err(_e) = self.portfolio.update_position(order) {
+                        // log err
+                    }
+                }
+                Err(_e) => {
+                    //log err
+                }
+            }
+        }
+    }
 }

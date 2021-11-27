@@ -3,7 +3,9 @@ use coinnect_rt::prelude::{Exchange, TradeType};
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
+use std::future::Future;
 use std::ops::Deref;
+use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -35,10 +37,10 @@ fn pos_key_from_order(order: &OrderDetail) -> Result<PositionKey> {
 
 fn pos_key_from_position(pos: &Position) -> PositionKey { (pos.exchange, pos.symbol.clone()) }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct PositionLock {
-    at: DateTime<Utc>,
-    order_id: String,
+    pub at: DateTime<Utc>,
+    pub order_id: String,
 }
 
 /// A [`Portfolio`] has real time access to accounts, and keeps track of PnL,
@@ -140,6 +142,11 @@ impl Portfolio {
     /// result in error. The lock will be released if the order is filled
     pub fn update_position(&mut self, order: OrderDetail) -> Result<()> {
         let pos_key: PositionKey = pos_key_from_order(&order)?;
+        if let Some(PositionLock { order_id, .. }) = self.locks.get(&pos_key) {
+            if order_id != &order.id {
+                return Err(Error::NoLockForOrder);
+            }
+        }
         {
             if let Some(pos) = self.open_positions.get_mut(&pos_key) {
                 // Close
@@ -147,6 +154,7 @@ impl Portfolio {
                     (pos.kind, order.side),
                     (PositionKind::Short, TradeType::Buy) | (PositionKind::Long, TradeType::Sell)
                 ) {
+                    pos.close(self.value, &order);
                     if order.is_filled() {
                         match pos.kind {
                             PositionKind::Short => self.value -= order.quote_value(),
@@ -154,7 +162,6 @@ impl Portfolio {
                         }
                         self.pnl = self.value;
                     }
-                    pos.close(self.value, &order);
                 } else {
                     return Err(Error::BadSideForPosition("close", pos.kind, order.side));
                 }
@@ -180,13 +187,17 @@ impl Portfolio {
         }
         if let Entry::Occupied(pos_entry) = self.open_positions.entry(pos_key.clone()) {
             let pos = pos_entry.get();
-            // Archive position, release lock and update vars
             self.repo.put_position(pos)?;
-            if pos.is_closed() {
-                pos_entry.remove();
+            // Order has been resolved
+            if order.is_filled() {
+                if pos.is_closed() {
+                    pos_entry.remove();
+                }
+                self.repo.update_vars(self)?;
             }
-            self.remove_lock(&pos_key)?;
-            self.repo.update_vars(self)?;
+            if order.is_filled() || order.is_bad_request() || order.is_rejected() {
+                self.remove_lock(&pos_key)?;
+            }
         }
         Ok(())
     }
@@ -205,6 +216,13 @@ impl Portfolio {
 
     /// True if there are any open positions
     pub fn has_any_open_position(&self) -> bool { !self.open_positions.is_empty() }
+
+    /// True if there are any positions with a failed order
+    pub fn has_any_failed_position(&self) -> bool {
+        self.open_positions
+            .iter()
+            .any(|(_, p)| p.is_failed_open() || p.is_failed_close())
+    }
 
     /// Unlock a previously locked position
     pub fn unlock_position(&mut self, xch: Exchange, pair: Pair) -> Result<()> {
@@ -236,7 +254,11 @@ impl Portfolio {
         }
     }
 
+    /// If a lock exists for a [`PositionKey`]
     pub fn is_locked(&self, key: &PositionKey) -> bool { self.locks.get(key).is_some() }
+
+    /// Current position locks
+    pub fn locks(&self) -> &BTreeMap<PositionKey, PositionLock> { &self.locks }
 
     fn remove_lock(&mut self, key: &PositionKey) -> Result<()> {
         self.locks.remove(key);

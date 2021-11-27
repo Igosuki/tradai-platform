@@ -231,7 +231,19 @@ impl Position {
     /// appropriately calculated.
     pub fn calculate_profit_loss_return(&self) -> f64 { self.result_profit_loss / self.open_quote_value() }
 
-    pub fn is_failed_open(&self) -> bool { self.open_order.as_ref().map(|o| o.is_rejected()).unwrap_or(false) }
+    pub fn is_failed_open(&self) -> bool {
+        self.open_order
+            .as_ref()
+            .map(|o| o.is_rejected() || o.is_bad_request())
+            .unwrap_or(false)
+    }
+
+    pub fn is_failed_close(&self) -> bool {
+        self.close_order
+            .as_ref()
+            .map(|o| o.is_rejected() || o.is_bad_request())
+            .unwrap_or(false)
+    }
 
     pub fn is_opened(&self) -> bool { self.open_order.as_ref().map(|o| o.is_filled()).unwrap_or(false) }
 

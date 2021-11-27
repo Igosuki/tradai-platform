@@ -16,6 +16,8 @@ pub enum Error {
     BadSideForPosition(&'static str, PositionKind, TradeType),
     #[error("failed to parse uuid")]
     UuidParse(#[from] uuid::Error),
+    #[error("no more lock existed for order")]
+    NoLockForOrder,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
