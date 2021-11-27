@@ -44,6 +44,7 @@ struct StrategyContext<C> {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PortfolioOptions {
     initial_quote_cash: f64,
+    fees_rate: f64,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -71,6 +72,7 @@ impl GenericDriver {
         let portfolio_options = &driver_options.portfolio;
         let portfolio = Portfolio::try_new(
             portfolio_options.initial_quote_cash,
+            portfolio_options.fees_rate,
             strat.key(),
             Arc::new(PortfolioRepoImpl::new(db)),
             Arc::new(DefaultMarketRiskEvaluator::default()),
