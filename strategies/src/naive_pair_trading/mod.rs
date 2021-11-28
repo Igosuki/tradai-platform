@@ -370,13 +370,16 @@ impl StrategyDriver for NaiveTradingStrategy {
 
     fn data(&mut self, q: DataQuery) -> Result<DataResult> {
         match q {
-            DataQuery::OperationHistory => Ok(DataResult::NaiveOperations(self.get_operations())),
-            DataQuery::OpenOperations => Ok(DataResult::NaiveOperation(Box::new(self.get_ongoing_op().cloned()))),
-            DataQuery::CancelOngoingOp => Ok(DataResult::Success(self.cancel_ongoing_op())),
-            DataQuery::State => Ok(DataResult::State(serde_json::to_string(&self.state).unwrap())),
+            // DataQuery::OperationHistory => Ok(DataResult::NaiveOperations(self.get_operations())),
+            // DataQuery::OpenOperations => Ok(DataResult::NaiveOperation(Box::new(self.get_ongoing_op().cloned()))),
+            // DataQuery::CancelOngoingOp => Ok(DataResult::Success(self.cancel_ongoing_op())),
+            // DataQuery::State => Ok(DataResult::State(serde_json::to_string(&self.state).unwrap())),
             DataQuery::Status => Ok(DataResult::Status(StrategyStatus::Running)),
             DataQuery::Models => Err(Error::FeatureNotImplemented),
             DataQuery::Indicators => Ok(DataResult::Indicators(StrategyIndicators::default())),
+            DataQuery::PositionHistory => unimplemented!(),
+            DataQuery::OpenPositions => unimplemented!(),
+            DataQuery::CancelOngoingOp => unimplemented!(),
         }
     }
 

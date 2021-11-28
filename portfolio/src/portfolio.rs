@@ -3,9 +3,7 @@ use coinnect_rt::prelude::{Exchange, TradeType};
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
-use std::future::Future;
 use std::ops::Deref;
-use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -118,12 +116,12 @@ impl Portfolio {
             return Ok(None);
         }
         let request: AddOrderRequest = if let Some(p) = self.open_positions.get(&pos_key) {
-            if signal.operation_kind.is_close() && p.is_opened() {
+            if signal.op_kind.is_close() && p.is_opened() {
                 signal.into()
             } else {
                 return Ok(None);
             }
-        } else if signal.operation_kind.is_open() {
+        } else if signal.op_kind.is_open() {
             signal.into()
         } else {
             return Ok(None);
@@ -207,7 +205,7 @@ impl Portfolio {
     }
 
     /// Update the corresponding position with the latest event (typically the price)
-    pub async fn update_from_market(&mut self, event: MarketEventEnvelope) -> Result<()> {
+    pub async fn update_from_market(&mut self, event: &MarketEventEnvelope) -> Result<()> {
         if let Some(p) = self.open_positions.get_mut(&(event.xch, event.pair.clone())) {
             // let interests = self.interest_fees_since_open(p.open_order.as_ref()).await?;
             p.update(event, self.fees_rate, 0.0);
@@ -287,12 +285,28 @@ impl Portfolio {
 
     pub fn pnl(&self) -> f64 { self.value }
 
+    pub fn set_value(&mut self, value: f64) -> Result<()> {
+        self.value = value;
+        self.repo.update_vars(self)
+    }
+
+    pub fn set_pnl(&mut self, pnl: f64) -> Result<()> {
+        self.pnl = pnl;
+        self.repo.update_vars(self)
+    }
+
+    pub fn open_position(&self, xch: Exchange, pair: Pair) -> Option<&Position> {
+        self.open_positions.get(&(xch, pair))
+    }
+
     pub fn returns(&self) -> Vec<(PositionKey, f64)> {
         self.open_positions
             .iter()
             .map(|(k, pos)| (k.clone(), pos.unreal_profit_loss))
             .collect()
     }
+
+    pub fn positions_history(&self) -> Result<Vec<Position>> { self.repo.all_positions() }
 }
 
 /// Repository to handle portoflio persistence
@@ -591,8 +605,8 @@ mod portfolio_test {
 
     #[test(tokio::test)]
     async fn convert_open_signal() {
-        let portfolio = make_test_portfolio();
-        let signal = TradeSignal {
+        let _portfolio = make_test_portfolio();
+        let _signal = TradeSignal {
             ..TradeSignal::default()
         };
     }

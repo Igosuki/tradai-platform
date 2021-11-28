@@ -47,7 +47,7 @@ impl OperationKind {
 
 /// Metadata detailing the trace UUIDs & timestamps associated with entering, updating & exiting
 /// a [Position].
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, juniper::GraphQLObject)]
 pub struct PositionMeta {
     /// Trace UUID of the MarketEvent that triggered the entering of this [Position].
     pub enter_trace_id: Uuid,
@@ -118,6 +118,32 @@ pub struct Position {
 
     /// Realised PnL after the [Position] has closed.
     pub result_profit_loss: f64,
+
+    /// Accrued Interest
+    pub interests: f64,
+}
+
+#[juniper::graphql_object]
+impl Position {
+    fn id(&self) -> String { self.id.to_string() }
+
+    fn exchange(&self) -> String { self.exchange.to_string() }
+
+    fn symbol(&self) -> String { self.symbol.to_string() }
+
+    fn kind(&self) -> PositionKind { self.kind }
+
+    fn qty(&self) -> f64 { self.quantity }
+
+    fn open_order(&self) -> Option<String> { self.open_order.as_ref().map(|o| o.id.clone()) }
+
+    fn close_order(&self) -> Option<String> { self.close_order.as_ref().map(|o| o.id.clone()) }
+
+    fn current_price(&self) -> f64 { self.current_symbol_price }
+
+    fn pnl(&self) -> f64 { self.unreal_profit_loss }
+
+    fn result(&self) -> f64 { self.result_profit_loss }
 }
 
 impl Default for Position {
@@ -134,6 +160,7 @@ impl Default for Position {
             current_symbol_price: 0.0,
             unreal_profit_loss: 0.0,
             result_profit_loss: 0.0,
+            interests: 0.0,
         }
     }
 }
@@ -181,7 +208,7 @@ impl Position {
         self.unreal_profit_loss = self.result_profit_loss;
     }
 
-    pub fn update(&mut self, event: MarketEventEnvelope, fees_rate: f64, interests: f64) {
+    pub fn update(&mut self, event: &MarketEventEnvelope, fees_rate: f64, interests: f64) {
         let price = match event.e {
             MarketEvent::Trade(ref t) => t.price,
             MarketEvent::Orderbook(ref o) => o.avg_price().unwrap_or(0.0),
@@ -192,6 +219,7 @@ impl Position {
         self.meta.last_update = event.e.time();
         self.current_symbol_price = price;
         self.unreal_profit_loss = self.calculate_unreal_profit_loss();
+        self.interests = interests;
     }
 
     pub fn current_value_gross(&self) -> f64 {
@@ -250,10 +278,14 @@ impl Position {
     pub fn is_closed(&self) -> bool { self.close_order.as_ref().map(|o| o.is_filled()).unwrap_or(false) }
 
     pub fn quantity(&self) -> f64 { self.open_order.as_ref().map(|o| o.total_executed_qty).unwrap_or(0.0) }
+
+    pub fn is_short(&self) -> bool { self.kind == PositionKind::Short }
+
+    pub fn is_long(&self) -> bool { self.kind == PositionKind::Long }
 }
 
 /// Equity value at a point in time.
-#[derive(Debug, Clone, PartialOrd, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Serialize, Deserialize, juniper::GraphQLObject)]
 pub struct EquityPoint {
     pub equity: f64,
     pub timestamp: DateTime<Utc>,

@@ -1,15 +1,18 @@
 use std::collections::HashMap;
 
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::types::Pair;
 use prometheus::{CounterVec, GaugeVec, Registry};
 
 use metrics::store::MetricStore;
+use portfolio::portfolio::Portfolio;
 use stats::indicators::macd_apo::MACDApo;
 use trading::book::BookPosition;
-use trading::position::OperationKind;
+use trading::position::{OperationKind, Position, PositionKind};
 
-use crate::mean_reverting::state::{MeanRevertingState, Position};
+type PortfolioIndicatorFn = (String, fn(&Portfolio) -> f64);
 
-type StateIndicatorFn = (String, fn(&MeanRevertingState) -> f64);
+type PositionIndicatorFn = (String, fn(&Position) -> f64);
 
 type ModelIndicatorFn = (String, fn(&MACDApo) -> f64);
 
@@ -25,7 +28,8 @@ pub fn metric_store() -> &'static MetricStore<String, MeanRevertingStrategyMetri
 #[derive(Clone)]
 pub struct MeanRevertingStrategyMetrics {
     common_gauges: HashMap<String, GaugeVec>,
-    state_indicator_fns: Vec<StateIndicatorFn>,
+    portfolio_indicator_fns: Vec<PortfolioIndicatorFn>,
+    position_indicator_fns: Vec<PositionIndicatorFn>,
     model_indicator_fns: Vec<ModelIndicatorFn>,
     error_counter: CounterVec,
     status_gauge: GaugeVec,
@@ -62,18 +66,25 @@ impl MeanRevertingStrategyMetrics {
         let model_gauges: Vec<ModelIndicatorFn> = vec![("apo".to_string(), |x| x.apo)];
 
         let threshold_gauges: Vec<String> = vec!["mr_threshold_short".to_string(), "mr_threshold_long".to_string()];
-        let state_gauges: Vec<StateIndicatorFn> = vec![
-            ("value_strat".to_string(), |x| x.value_strat()),
-            ("return".to_string(), |x| x.position_return()),
-            ("traded_price".to_string(), |x| x.traded_price()),
+        let portfolio_gauges: Vec<PortfolioIndicatorFn> = vec![
+            ("value_strat".to_string(), |x| x.value()),
             ("pnl".to_string(), |x| x.pnl()),
-            ("nominal_position".to_string(), |x| x.nominal_position()),
+        ];
+        let position_gauges: Vec<PositionIndicatorFn> = vec![
+            ("return".to_string(), |x| x.result_profit_loss),
+            ("traded_price".to_string(), |x| {
+                x.open_order.as_ref().and_then(|o| o.price).unwrap_or(0.0)
+            }),
+            ("nominal_position".to_string(), |x| {
+                x.open_order.as_ref().and_then(|o| o.base_qty).unwrap_or(0.0)
+            }),
         ];
         {
-            for gauge_name in state_gauges
+            for gauge_name in portfolio_gauges
                 .iter()
                 .map(|g| &g.0)
                 .chain(threshold_gauges.iter())
+                .chain(position_gauges.iter().map(|g| &g.0))
                 .chain(model_gauges.iter().map(|g| &g.0))
             {
                 let gauge_vec = register_gauge_vec!(
@@ -98,20 +109,21 @@ impl MeanRevertingStrategyMetrics {
 
         MeanRevertingStrategyMetrics {
             common_gauges: gauges,
-            state_indicator_fns: state_gauges.clone(),
+            portfolio_indicator_fns: portfolio_gauges.clone(),
             model_indicator_fns: model_gauges.clone(),
+            position_indicator_fns: position_gauges.clone(),
             error_counter,
             status_gauge,
         }
     }
 
-    pub(super) fn log_position(&self, pos: &Position, op: &OperationKind) {
+    pub(super) fn log_position(&self, pos_kind: PositionKind, op_kind: OperationKind, price: f64) {
         if let Some(g) = self.common_gauges.get("mr_position") {
-            g.with_label_values(&[pos.kind.as_ref(), op.as_ref()]).set(pos.price);
+            g.with_label_values(&[pos_kind.as_ref(), op_kind.as_ref()]).set(price);
         }
     }
 
-    fn log_all_with_state(&self, gauges: &[StateIndicatorFn], state: &MeanRevertingState) {
+    fn log_all_with_portfolio(&self, gauges: &[PortfolioIndicatorFn], state: &Portfolio) {
         for (state_gauge_name, state_gauge_fn) in gauges {
             if let Some(g) = self.common_gauges.get(state_gauge_name) {
                 g.with_label_values(&[]).set(state_gauge_fn(state))
@@ -119,8 +131,19 @@ impl MeanRevertingStrategyMetrics {
         }
     }
 
-    pub(super) fn log_state(&self, state: &MeanRevertingState) {
-        self.log_all_with_state(&self.state_indicator_fns, state);
+    fn log_all_with_position(&self, gauges: &[PositionIndicatorFn], state: &Position) {
+        for (state_gauge_name, state_gauge_fn) in gauges {
+            if let Some(g) = self.common_gauges.get(state_gauge_name) {
+                g.with_label_values(&[]).set(state_gauge_fn(state))
+            }
+        }
+    }
+
+    pub(super) fn log_portfolio(&self, xch: Exchange, pair: Pair, portfolio: &Portfolio) {
+        self.log_all_with_portfolio(&self.portfolio_indicator_fns, portfolio);
+        if let Some(pos) = portfolio.open_position(xch, pair) {
+            self.log_all_with_position(&self.position_indicator_fns, pos);
+        }
     }
 
     pub(super) fn log_thresholds(&self, threshold_short: f64, threshold_long: f64) {

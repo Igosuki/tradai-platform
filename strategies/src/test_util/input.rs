@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 #[cfg(feature = "dialog_cli")]
 use glob::glob;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use coinnect_rt::types::Orderbook;
 use trading::book::BookPosition;
@@ -101,7 +102,8 @@ impl CsvRecord {
         }
     }
 
-    pub fn to_bp(&self) -> BookPosition { BookPosition::new(self.event_ms, &self.asks(), &self.bids()) }
+    #[cfg(test)]
+    pub fn to_bp(&self) -> BookPosition { BookPosition::new(Uuid::new_v4(), self.event_ms, &self.asks(), &self.bids()) }
 }
 
 pub fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
