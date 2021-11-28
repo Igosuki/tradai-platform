@@ -3,6 +3,7 @@ use coinnect_rt::types::Orderbook;
 use itertools::Itertools;
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "python", pyclass)]
@@ -18,10 +19,12 @@ pub struct BookPosition {
     pub bid_q: f64,
     // crypto_b_q
     pub event_time: DateTime<Utc>,
+    // trade_id
+    pub trace_id: Uuid,
 }
 
 impl BookPosition {
-    pub fn new(event_time: DateTime<Utc>, asks: &[(f64, f64)], bids: &[(f64, f64)]) -> Self {
+    pub fn new(trace_id: Uuid, event_time: DateTime<Utc>, asks: &[(f64, f64)], bids: &[(f64, f64)]) -> Self {
         let first_ask = asks[0];
         let first_bid = bids[0];
         Self {
@@ -31,6 +34,7 @@ impl BookPosition {
             bid_q: first_bid.1,
             mid: Self::mid(asks, bids),
             event_time,
+            trace_id,
         }
     }
 
@@ -53,7 +57,8 @@ impl TryFrom<Orderbook> for BookPosition {
             return Err(BookError::MissingBids);
         }
         let event_time = Utc.timestamp_millis(t.timestamp);
-        Ok(BookPosition::new(event_time, &t.asks, &t.bids))
+        // TODO: trace_id should come from event envelope
+        Ok(BookPosition::new(Uuid::new_v4(), event_time, &t.asks, &t.bids))
     }
 }
 
@@ -68,7 +73,8 @@ impl<'a> TryFrom<&'a Orderbook> for BookPosition {
             return Err(BookError::MissingBids);
         }
         let event_time = Utc.timestamp_millis(t.timestamp);
-        Ok(BookPosition::new(event_time, &t.asks, &t.bids))
+        // TODO: trace_id should come from event envelope
+        Ok(BookPosition::new(Uuid::new_v4(), event_time, &t.asks, &t.bids))
     }
 }
 
@@ -76,6 +82,7 @@ impl<'a> TryFrom<&'a Orderbook> for BookPosition {
 mod test {
     use fake::Fake;
     use quickcheck::{Arbitrary, Gen};
+    use uuid::Uuid;
 
     use super::BookPosition;
 
@@ -96,6 +103,7 @@ mod test {
                 bid_q: zero_if_nan(f64::arbitrary(g)),
                 mid: zero_if_nan(f64::arbitrary(g)),
                 event_time: fake::faker::chrono::en::DateTime().fake(),
+                trace_id: Uuid::new_v4(),
             }
         }
     }

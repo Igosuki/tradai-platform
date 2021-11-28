@@ -12,6 +12,15 @@ pub enum TradeKind {
     Sell,
 }
 
+impl From<TradeType> for TradeKind {
+    fn from(tk: TradeType) -> TradeKind {
+        match tk {
+            TradeType::Buy => TradeKind::Buy,
+            TradeType::Sell => TradeKind::Sell,
+        }
+    }
+}
+
 impl From<TradeKind> for TradeType {
     fn from(tk: TradeKind) -> TradeType {
         match tk {

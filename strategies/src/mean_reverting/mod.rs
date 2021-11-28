@@ -3,9 +3,13 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, TimeZone, Utc};
+use uuid::Uuid;
 
 use coinnect_rt::prelude::*;
+use coinnect_rt::types::MarginSideEffect;
 use db::Storage;
+use portfolio::portfolio::{Portfolio, PortfolioRepoImpl};
+use portfolio::risk::DefaultMarketRiskEvaluator;
 #[cfg(test)]
 use stats::indicators::macd_apo::MACDApo;
 use trading::book::BookPosition;
@@ -17,14 +21,15 @@ use crate::generic::Strategy;
 use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
 use crate::mean_reverting::model::MeanRevertingModel;
 use crate::mean_reverting::options::Options;
-use crate::mean_reverting::state::{MeanRevertingState, Operation, Position};
 use crate::models::io::IterativeModel;
 use crate::models::Sampler;
 use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, StrategyIndicators};
 use crate::{Channel, StratEvent, StratEventLogger, StrategyStatus};
-use trading::position::PositionKind;
+use trading::position::{OperationKind, PositionKind};
 use trading::signal::TradeSignal;
 use trading::stop::Stopper;
+use trading::types::{OrderMode, TradeKind};
+use util::time::now;
 
 mod metrics;
 pub mod model;
@@ -32,6 +37,13 @@ pub mod options;
 pub mod state;
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug)]
+pub struct OrderConf {
+    dry_mode: bool,
+    order_mode: OrderMode,
+    asset_type: AssetType,
+}
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -42,7 +54,6 @@ pub struct MeanRevertingStrategy {
     fees_rate: f64,
     sample_freq: Duration,
     last_sample_time: DateTime<Utc>,
-    state: MeanRevertingState,
     model: MeanRevertingModel,
     #[derivative(Debug = "ignore")]
     metrics: Arc<MeanRevertingStrategyMetrics>,
@@ -52,6 +63,10 @@ pub struct MeanRevertingStrategy {
     sampler: Sampler,
     last_book_pos: Option<BookPosition>,
     logger: Option<Arc<dyn StratEventLogger>>,
+    portfolio: Portfolio,
+    is_trading: bool,
+    order_conf: OrderConf,
+    engine: Arc<TradingEngine>,
 }
 
 impl MeanRevertingStrategy {
@@ -64,8 +79,16 @@ impl MeanRevertingStrategy {
         logger: Option<Arc<dyn StratEventLogger>>,
     ) -> Self {
         let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
-        let state = MeanRevertingState::new(n, fees_rate, db.clone(), engine).unwrap();
         let model = MeanRevertingModel::new(n, db.clone());
+        let portfolio = Portfolio::try_new(
+            n.initial_cap,
+            fees_rate,
+            strat_key.clone(),
+            Arc::new(PortfolioRepoImpl::new(db)),
+            Arc::new(DefaultMarketRiskEvaluator::default()),
+            engine.interest_rate_provider.clone(),
+        )
+        .unwrap();
         let mut strat = Self {
             key: strat_key,
             exchange: n.exchange,
@@ -73,7 +96,6 @@ impl MeanRevertingStrategy {
             fees_rate,
             sample_freq: n.sample_freq(),
             last_sample_time: Utc.timestamp_millis(0),
-            state,
             model,
             threshold_eval_freq: n.threshold_eval_freq,
             last_threshold_time: Utc.timestamp_millis(0),
@@ -82,6 +104,14 @@ impl MeanRevertingStrategy {
             sampler: Sampler::new(n.sample_freq(), Utc.timestamp_millis(0)),
             last_book_pos: None,
             logger,
+            portfolio,
+            is_trading: true,
+            order_conf: OrderConf {
+                dry_mode: n.dry_mode(),
+                order_mode: n.order_mode(),
+                asset_type: n.order_asset_type(),
+            },
+            engine,
         };
         if let Err(e) = strat.load() {
             error!("{}", e);
@@ -101,89 +131,174 @@ impl MeanRevertingStrategy {
         }
     }
 
+    fn is_trading(&self) -> bool { self.is_trading }
+
     #[cfg(test)]
     fn model_value(&self) -> Option<MACDApo> { self.model.apo_value() }
 
-    fn log_state(&self) { self.metrics.log_state(&self.state); }
+    fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> {
+        match field {
+            MutableField::ValueStrat => self.portfolio.set_value(v)?,
+            MutableField::Pnl => self.portfolio.set_pnl(v)?,
+        }
+        Ok(())
+    }
 
-    fn get_operations(&self) -> Vec<Operation> { self.state.get_operations() }
-
-    fn get_ongoing_op(&self) -> Option<&Operation> { self.state.ongoing_op() }
-
-    fn cancel_ongoing_op(&mut self) -> Result<bool> { self.state.cancel_ongoing_op() }
-
-    fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> { self.state.change_state(field, v) }
-
-    fn short_position(&self, price: f64, time: DateTime<Utc>) -> Position {
-        Position {
-            kind: PositionKind::Short,
+    #[allow(clippy::too_many_arguments)]
+    fn trade_signal(
+        pair: Pair,
+        exchange: Exchange,
+        order_conf: &OrderConf,
+        event_time: DateTime<Utc>,
+        trace_id: Uuid,
+        op_kind: OperationKind,
+        pos_kind: PositionKind,
+        price: f64,
+        qty: f64,
+    ) -> TradeSignal {
+        let trade_kind = match (pos_kind, op_kind) {
+            (PositionKind::Short, OperationKind::Open) | (PositionKind::Long, OperationKind::Close) => TradeKind::Sell,
+            (PositionKind::Long, OperationKind::Open) | (PositionKind::Short, OperationKind::Close) => TradeKind::Buy,
+        };
+        let margin_side_effect = if order_conf.asset_type.is_margin() && pos_kind == PositionKind::Short {
+            if op_kind == OperationKind::Open {
+                Some(MarginSideEffect::MarginBuy)
+            } else {
+                Some(MarginSideEffect::AutoRepay)
+            }
+        } else {
+            None
+        };
+        let (order_type, enforcement) = match order_conf.order_mode {
+            OrderMode::Limit => (OrderType::Limit, Some(OrderEnforcement::FOK)),
+            OrderMode::Market => (OrderType::Market, None),
+        };
+        TradeSignal {
+            trace_id,
+            pos_kind,
+            op_kind,
+            trade_kind,
+            event_time,
+            signal_time: now(),
             price,
-            time,
-            pair: self.pair.to_string(),
+            qty,
+            pair,
+            exchange,
+            instructions: None,
+            dry_mode: order_conf.dry_mode,
+            order_type,
+            enforcement,
+            asset_type: Some(order_conf.asset_type),
+            side_effect: margin_side_effect,
         }
     }
 
-    fn long_position(&self, price: f64, time: DateTime<Utc>) -> Position {
-        Position {
-            kind: PositionKind::Long,
+    fn make_signal(
+        &self,
+        trace_id: Uuid,
+        event_time: DateTime<Utc>,
+        operation_kind: OperationKind,
+        position_kind: PositionKind,
+        price: f64,
+        qty: f64,
+    ) -> TradeSignal {
+        Self::trade_signal(
+            self.pair.clone(),
+            self.exchange,
+            &self.order_conf,
+            event_time,
+            trace_id,
+            operation_kind,
+            position_kind,
             price,
-            time,
-            pair: self.pair.to_string(),
+            qty,
+        )
+    }
+
+    /// Returns the order qty for the wanted position
+    pub(super) fn open_signal_qty(&self, position_kind: PositionKind, bp: &BookPosition) -> Option<f64> {
+        match position_kind {
+            PositionKind::Short if bp.ask > 0.0 => Some(self.portfolio.value() / bp.ask),
+            PositionKind::Long if bp.bid > 0.0 => Some(self.portfolio.value() / bp.bid),
+            _ => None,
         }
     }
 
     #[tracing::instrument(skip(self), level = "trace")]
-    async fn eval_latest(&mut self, lr: &BookPosition) -> Result<Option<&Operation>> {
-        if self.state.ongoing_op().is_some() {
-            return Ok(None);
-        }
-
-        if self.state.no_position_taken() {
-            self.state.update_units(lr);
-        }
-
+    async fn eval_latest(&mut self, lr: &BookPosition) -> Result<Option<TradeSignal>> {
         let apo = self.model.apo().expect("model required");
 
-        // Possibly open a short position
         let thresholds = self.model.thresholds();
         let threshold_short = thresholds.0;
         let threshold_long = thresholds.1;
-        if (apo > threshold_short) && self.state.no_position_taken() {
-            info!("Entering short position with threshold {}", threshold_short);
-            let position = self.short_position(lr.bid, lr.event_time);
-            self.state.open(position).await?;
-        }
-        // Possibly close a short position
-        else if self.state.is_short() {
-            self.state.set_position_return(lr.ask).await?;
-            let maybe_stop = self.stopper.should_stop(self.state.position_return());
-            if apo < 0.0 || maybe_stop.is_some() {
+
+        let signal = match self.portfolio.open_position(self.exchange, self.pair.clone()) {
+            Some(pos) => {
+                let maybe_stop = self.stopper.should_stop(pos.result_profit_loss);
                 if let Some(logger) = &self.logger {
-                    logger.maybe_log(maybe_stop.map(|e| StratEvent::Stop { stop: e })).await;
+                    logger
+                        .maybe_log(maybe_stop.as_ref().map(|e| StratEvent::Stop { stop: *e }))
+                        .await;
                 }
-                let position = self.short_position(lr.ask, lr.event_time);
-                self.state.close(position).await?;
-            }
-        }
-        // Possibly open a long position
-        else if (apo < threshold_long) && self.state.no_position_taken() {
-            info!("Entering long position with threshold {}", threshold_long);
-            let position = self.long_position(lr.ask, lr.event_time);
-            self.state.open(position).await?;
-        }
-        // Possibly close a long position
-        else if self.state.is_long() {
-            self.state.set_position_return(lr.bid).await?;
-            let maybe_stop = self.stopper.should_stop(self.state.position_return());
-            if apo > 0.0 || maybe_stop.is_some() {
-                if let Some(logger) = &self.logger {
-                    logger.maybe_log(maybe_stop.map(|e| StratEvent::Stop { stop: e })).await;
+                let last_open_order = pos.open_order.as_ref().unwrap();
+                // Possibly close a short position
+                if (pos.is_short() && apo < 0.0) || maybe_stop.is_some() {
+                    //let interest_fees = self.interest_fees_since_open().await?;
+                    let interest_fees = 0.0;
+                    let qty = (last_open_order.total_executed_qty / (1.0 - self.fees_rate)) + interest_fees;
+                    Some(self.make_signal(
+                        lr.trace_id,
+                        lr.event_time,
+                        OperationKind::Close,
+                        PositionKind::Short,
+                        lr.ask,
+                        qty,
+                    ))
                 }
-                let position = self.long_position(lr.bid, lr.event_time);
-                self.state.close(position).await?;
+                // Possibly close a long position
+                else if (pos.is_long() && apo > 0.0) || maybe_stop.is_some() {
+                    let qty = last_open_order.total_executed_qty - last_open_order.base_fees();
+                    Some(self.make_signal(
+                        lr.trace_id,
+                        lr.event_time,
+                        OperationKind::Close,
+                        PositionKind::Long,
+                        lr.bid,
+                        qty,
+                    ))
+                } else {
+                    None
+                }
             }
-        }
-        Ok(self.state.ongoing_op())
+            None if (apo > threshold_short) => {
+                // Possibly open a short position
+                info!("Entering short position with threshold {}", threshold_short);
+                let qty = self.open_signal_qty(PositionKind::Short, lr);
+                Some(self.make_signal(
+                    lr.trace_id,
+                    lr.event_time,
+                    OperationKind::Open,
+                    PositionKind::Short,
+                    lr.bid,
+                    qty.unwrap(),
+                ))
+            }
+            None if (apo < threshold_long) => {
+                // Possibly open a long position
+                info!("Entering long position with threshold {}", threshold_long);
+                let qty = self.open_signal_qty(PositionKind::Long, lr);
+                Some(self.make_signal(
+                    lr.trace_id,
+                    lr.event_time,
+                    OperationKind::Open,
+                    PositionKind::Long,
+                    lr.ask,
+                    qty.unwrap(),
+                ))
+            }
+            None => None,
+        };
+        Ok(signal)
     }
 
     fn can_eval(&self) -> bool { self.model.is_loaded() }
@@ -207,20 +322,24 @@ impl MeanRevertingStrategy {
         }
         let pos = pos.unwrap();
         self.last_book_pos = Some(pos.clone());
+        if let Err(_e) = self.portfolio.update_from_market(event).await {
+            // TODO: log err
+        }
         if self.can_eval() {
-            if self.state.is_trading() {
+            if self.is_trading() {
                 match self.eval_latest(&pos).await {
-                    Ok(Some(op)) => {
-                        let op = op.clone();
-                        self.metrics.log_position(&op.pos, &op.kind);
+                    Ok(Some(_signal)) => {
+                        // TODO : execute the order
+                        //self.metrics.log_position(signal., &op.kind);
                     }
                     Err(e) => self.metrics.log_error(e.short_name()),
                     _ => {}
                 }
             }
-            self.log_state();
+            self.metrics
+                .log_portfolio(self.exchange, self.pair.clone(), &self.portfolio);
         }
-        self.metrics.log_is_trading(self.state.is_trading());
+        self.metrics.log_is_trading(self.is_trading());
         self.metrics.log_pos(&pos);
     }
 
@@ -233,7 +352,7 @@ impl MeanRevertingStrategy {
     }
 
     pub(crate) fn status(&self) -> StrategyStatus {
-        if self.state.is_trading() {
+        if self.is_trading {
             StrategyStatus::Running
         } else {
             StrategyStatus::NotTrading
@@ -242,9 +361,9 @@ impl MeanRevertingStrategy {
 
     pub(crate) fn indicators(&self) -> StrategyIndicators {
         StrategyIndicators {
-            current_return: self.state.position_return(),
-            pnl: self.state.pnl(),
-            value: self.state.value_strat(),
+            value: self.portfolio.value(),
+            pnl: self.portfolio.pnl(),
+            current_return: self.portfolio.returns().last().map(|l| l.1).unwrap_or(0.0),
         }
     }
 }
@@ -265,15 +384,24 @@ impl StrategyDriver for MeanRevertingStrategy {
 
     fn data(&mut self, q: DataQuery) -> Result<DataResult> {
         match q {
-            DataQuery::OperationHistory => Ok(DataResult::MeanRevertingOperations(self.get_operations())),
-            DataQuery::OpenOperations => Ok(DataResult::MeanRevertingOperation(Box::new(
-                self.get_ongoing_op().cloned(),
-            ))),
-            DataQuery::CancelOngoingOp => Ok(DataResult::Success(self.cancel_ongoing_op()?)),
-            DataQuery::State => Ok(DataResult::State(serde_json::to_string(&self.state.vars).unwrap())),
+            // DataQuery::OperationHistory => Ok(DataResult::MeanRevertingOperations(self.get_operations())),
+            // DataQuery::OpenOperations => Ok(DataResult::MeanRevertingOperation(Box::new(
+            //     self.get_ongoing_op().cloned(),
+            // ))),
+            //DataQuery::CancelOngoingOp => Ok(DataResult::Success(self.cancel_ongoing_op()?)),
+            //DataQuery::State => Ok(DataResult::State(serde_json::to_string(&self.state.vars).unwrap())),
             DataQuery::Status => Ok(DataResult::Status(self.status())),
             DataQuery::Models => Ok(DataResult::Models(self.model.values())),
             DataQuery::Indicators => Ok(DataResult::Indicators(self.indicators())),
+            DataQuery::PositionHistory => {
+                unimplemented!()
+            }
+            DataQuery::OpenPositions => {
+                unimplemented!()
+            }
+            DataQuery::CancelOngoingOp => {
+                unimplemented!()
+            }
         }
     }
 
@@ -291,33 +419,55 @@ impl StrategyDriver for MeanRevertingStrategy {
         }]
     }
 
-    fn stop_trading(&mut self) { self.state.stop_trading().unwrap(); }
+    fn stop_trading(&mut self) { self.is_trading = false; }
 
-    fn resume_trading(&mut self) { self.state.resume_trading().unwrap(); }
+    fn resume_trading(&mut self) { self.is_trading = true; }
 
     async fn resolve_orders(&mut self) {
-        // If a position is taken, resolve pending operations
-        // In case of error return immediately as no trades can be made until the position is resolved
-        if let Some(operation) = self.state.ongoing_op().cloned() {
-            match self.state.resolve_pending_operations(&operation).await {
-                Ok(resolution) => {
-                    self.metrics.log_error(resolution.as_ref());
-                    trace!("pending operation resolution {}", resolution.as_ref());
-                }
-                Err(e) => {
-                    self.metrics.log_error(e.short_name());
-                    trace!("pending operation resolution error {}", e.short_name());
-                }
-            }
-            if self.state.ongoing_op().is_none() && self.state.is_trading() {
-                if let Some(bp) = self.last_book_pos.clone() {
-                    if let Err(e) = self.eval_latest(&bp).await {
-                        self.metrics.log_error(e.short_name());
+        // TODO : probably bad performance
+        let locked_ids: Vec<String> = self
+            .portfolio
+            .locks()
+            .iter()
+            .map(|(_k, v)| v.order_id.clone())
+            .collect();
+        for lock in locked_ids {
+            match self.engine.order_executor.get_order(lock.as_str()).await {
+                Ok((order, _)) => {
+                    if let Err(_e) = self.portfolio.update_position(order) {
+                        // log err
                     }
+                }
+                Err(_e) => {
+                    //log err
                 }
             }
         }
     }
+    //
+    // async fn resolve_orders(&mut self) {
+    //     // If a position is taken, resolve pending operations
+    //     // In case of error return immediately as no trades can be made until the position is resolved
+    //     if let Some(operation) = self.state.ongoing_op().cloned() {
+    //         match self.state.resolve_pending_operations(&operation).await {
+    //             Ok(resolution) => {
+    //                 self.metrics.log_error(resolution.as_ref());
+    //                 trace!("pending operation resolution {}", resolution.as_ref());
+    //             }
+    //             Err(e) => {
+    //                 self.metrics.log_error(e.short_name());
+    //                 trace!("pending operation resolution error {}", e.short_name());
+    //             }
+    //         }
+    //         if self.state.ongoing_op().is_none() && self.state.is_trading() {
+    //             if let Some(bp) = self.last_book_pos.clone() {
+    //                 if let Err(e) = self.eval_latest(&bp).await {
+    //                     self.metrics.log_error(e.short_name());
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 #[async_trait]
@@ -335,33 +485,19 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
         if book_pos.is_none() {
             return Ok(vec![]);
         };
-        if self.state.is_trading() {
+        self.last_book_pos = book_pos.clone();
+        if self.is_trading() {
             match self.eval_latest(&book_pos.unwrap()).await {
-                Ok(Some(op)) => {
-                    let op = op.clone();
-                    self.metrics.log_position(&op.pos, &op.kind);
-                    signals.push(TradeSignal {
-                        trace_id: Default::default(),
-                        position_kind: op.pos.kind,
-                        operation_kind: op.kind,
-                        trade_kind: op.trade.kind,
-                        price: op.trade.price,
-                        qty: op.trade.qty,
-                        pair: self.pair.clone(),
-                        exchange: self.exchange,
-                        instructions: op.instructions,
-                        dry_mode: op.trade.dry_mode,
-                        order_type: OrderType::Market,
-                        enforcement: None,
-                        asset_type: Some(AssetType::Spot),
-                        side_effect: None,
-                    });
+                Ok(Some(signal)) => {
+                    self.metrics.log_position(signal.pos_kind, signal.op_kind, signal.price);
+                    signals.push(signal);
                 }
                 Err(e) => self.metrics.log_error(e.short_name()),
                 _ => {}
             }
         }
-        self.log_state();
+        self.metrics
+            .log_portfolio(self.exchange, self.pair.clone(), &self.portfolio);
         Ok(signals)
     }
 

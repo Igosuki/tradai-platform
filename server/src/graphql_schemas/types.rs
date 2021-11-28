@@ -4,11 +4,12 @@ use chrono::{DateTime, Utc};
 use juniper::FieldResult;
 
 use coinnect_rt::prelude::*;
-use strategies::query::DataQuery;
+use strategies::query::{DataQuery, DataResult, StrategyIndicators};
 use trading::position::{OperationKind, PositionKind};
 use trading::types::TradeOperation;
 
 use crate::graphql_schemas::context::Context;
+use crate::graphql_schemas::unhandled_data_result;
 
 pub(crate) struct StrategyState {
     pub t: String,
@@ -29,11 +30,21 @@ impl StrategyState {
     #[graphql(name = "type")]
     pub fn t(&self) -> &str { &self.t }
     pub fn id(&self) -> &str { &self.id }
-    pub async fn state(&self, context: &Context) -> FieldResult<String> {
-        context.data_query_as_string(self.as_input(), DataQuery::State).await
+    pub async fn indicators(&self, context: &Context) -> FieldResult<StrategyIndicators> {
+        context
+            .with_strat(self.as_input(), DataQuery::Indicators, |dr| match dr {
+                DataResult::Indicators(indicators) => Ok(indicators),
+                _ => unhandled_data_result(),
+            })
+            .await
     }
     pub async fn status(&self, context: &Context) -> FieldResult<String> {
-        context.data_query_as_string(self.as_input(), DataQuery::Status).await
+        context
+            .with_strat(self.as_input(), DataQuery::Status, |dr| match dr {
+                DataResult::Status(status) => Ok(status.as_ref().to_string()),
+                _ => unhandled_data_result(),
+            })
+            .await
     }
 }
 

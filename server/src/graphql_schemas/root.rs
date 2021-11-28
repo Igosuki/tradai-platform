@@ -5,11 +5,11 @@ use itertools::Itertools;
 use juniper::{FieldError, FieldResult, RootNode};
 
 use coinnect_rt::prelude::*;
-use ext::MapInto;
-use strategies::query::{DataQuery, DataResult, ModelReset, StateFieldMutation};
+use strategies::query::{DataQuery, DataResult, ModelReset, StateFieldMutation, StrategyIndicators};
 use strategies::{StrategyKey, StrategyLifecycleCmd, StrategyStatus};
 use trading::order_manager;
 use trading::order_manager::types::PassOrder;
+use trading::position::Position;
 
 use crate::graphql_schemas::unhandled_data_result;
 
@@ -32,12 +32,12 @@ impl QueryRoot {
             .collect())
     }
 
-    #[graphql(description = "Dump the current in memory state for a strategy")]
-    async fn strat_state(context: &Context, tk: TypeAndKeyInput) -> FieldResult<String> {
+    #[graphql(description = "Dump the current portfolio indicators for a strategy")]
+    async fn strat_indicators(context: &Context, tk: TypeAndKeyInput) -> FieldResult<StrategyIndicators> {
         context
-            .with_strat(tk, DataQuery::State, |dr| {
-                if let DataResult::State(state_str) = dr {
-                    Ok(state_str)
+            .with_strat(tk, DataQuery::Indicators, |dr| {
+                if let DataResult::Indicators(indicators) = dr {
+                    Ok(indicators)
                 } else {
                     unhandled_data_result()
                 }
@@ -58,28 +58,30 @@ impl QueryRoot {
             .await
     }
 
-    #[graphql(description = "Get all operations for this strat")]
-    async fn operations(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<OperationHistory>> {
+    #[graphql(description = "Get all positions for this strat")]
+    async fn positions(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<Position>> {
         context
-            .with_strat(tk, DataQuery::OperationHistory, |dr| {
+            .with_strat(tk, DataQuery::PositionHistory, |dr| {
                 match dr {
-                    DataResult::NaiveOperations(pos_vec) => Ok(pos_vec.map_into()),
-                    DataResult::MeanRevertingOperations(pos_vec) => Ok(pos_vec.map_into()),
+                    DataResult::PositionHistory(pos_vec) => Ok(pos_vec),
                     _ => unhandled_data_result(),
                 }
-                .map(|operations: Vec<OperationHistory>| {
-                    operations.into_iter().sorted_by(|a, b| a.ts.cmp(&b.ts)).rev().collect()
+                .map(|positions: Vec<Position>| {
+                    positions
+                        .into_iter()
+                        .sorted_by(|a, b| a.meta.open_at.cmp(&b.meta.open_at))
+                        .rev()
+                        .collect()
                 })
             })
             .await
     }
 
     #[graphql(description = "Get the ongoing operation for the strat")]
-    async fn current_operation(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Option<OperationHistory>> {
+    async fn open_positions(context: &Context, tk: TypeAndKeyInput) -> FieldResult<Vec<Position>> {
         context
-            .with_strat(tk, DataQuery::OpenOperations, |dr| match dr {
-                DataResult::NaiveOperation(o) => Ok(o.map_into()),
-                DataResult::MeanRevertingOperation(o) => Ok(o.map_into()),
+            .with_strat(tk, DataQuery::OpenPositions, |dr| match dr {
+                DataResult::OpenPositions(o) => Ok(o),
                 _ => unhandled_data_result(),
             })
             .await

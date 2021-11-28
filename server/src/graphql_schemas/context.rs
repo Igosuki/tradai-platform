@@ -15,8 +15,6 @@ use strategies::query::{DataQuery, DataResult};
 use strategies::{StrategyKey, Trader};
 use trading::order_manager::OrderManager;
 
-use crate::graphql_schemas::unhandled_data_result;
-
 use super::types::TypeAndKeyInput;
 
 pub(crate) struct Context {
@@ -122,14 +120,5 @@ impl Context {
                 }
             },
         }
-    }
-
-    pub async fn data_query_as_string(&self, tk: TypeAndKeyInput, query: DataQuery) -> FieldResult<String> {
-        self.with_strat(tk, query, |dr| match dr {
-            DataResult::Status(status) => Ok(status.as_ref().to_string()),
-            DataResult::State(state) => Ok(state),
-            _ => unhandled_data_result(),
-        })
-        .await
     }
 }

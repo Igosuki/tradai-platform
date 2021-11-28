@@ -19,12 +19,15 @@ pub fn test_db() -> Arc<dyn Storage> {
     get_or_create(&DbOptions::new(path), "", vec![])
 }
 
+#[cfg(test)]
 pub fn test_db_with_path<S: AsRef<Path>>(path: S) -> Arc<dyn Storage> {
     let options = DbOptions::new(path);
     get_or_create(&options, "", vec![])
 }
 
 pub mod fixtures {
+    #![allow(dead_code)]
+
     use coinnect_rt::exchange::Exchange;
     use coinnect_rt::prelude::MarketEventEnvelope;
     use coinnect_rt::types::{MarketEvent, Orderbook};
