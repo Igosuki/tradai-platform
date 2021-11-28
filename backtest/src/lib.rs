@@ -354,16 +354,14 @@ impl BacktestRunner {
                 if tries > 5 {
                     break;
                 }
-                let open_ops = strategy.data(DataQuery::OpenOperations);
-                if matches!(
-                    open_ops,
-                    Ok(DataResult::NaiveOperation(box Some(_))) | Ok(DataResult::MeanRevertingOperation(box Some(_)))
-                ) {
-                    strategy.resolve_orders().await;
-                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                    tries += 1;
-                } else {
-                    break;
+                let open_ops = strategy.data(DataQuery::OpenPositions);
+                match open_ops {
+                    Ok(DataResult::OpenPositions(positions)) if !positions.is_empty() => {
+                        strategy.resolve_orders().await;
+                        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                        tries += 1;
+                    }
+                    _ => break,
                 }
             }
             if let MarketEvent::Orderbook(ob) = &live_event.e {

@@ -42,6 +42,8 @@ impl Options {
 
     pub(super) fn order_asset_type(&self) -> AssetType { self.order_asset_type.unwrap_or(AssetType::Spot) }
 
+    pub(super) fn order_mode(&self) -> OrderMode { self.order_mode.unwrap_or(OrderMode::Limit) }
+
     #[cfg(test)]
     pub(crate) fn new_test_default(pair: &str, exchange: Exchange) -> Self {
         Self {

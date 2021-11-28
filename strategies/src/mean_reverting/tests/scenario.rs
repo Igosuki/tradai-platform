@@ -6,16 +6,18 @@ use itertools::Itertools;
 use tokio::time::Duration;
 
 use coinnect_rt::prelude::*;
+use portfolio::portfolio::Portfolio;
 use stats::indicators::macd_apo::MACDApo;
 use trading::book::BookPosition;
 use trading::engine::mock_engine;
+use trading::position::Position;
 use trading::types::OrderMode;
 use util::test::test_results_dir;
 
 use crate::driver::StrategyDriver;
+use crate::event::{close_events, open_events};
 use crate::mean_reverting::model::ema_indicator_model;
 use crate::mean_reverting::options::Options;
-use crate::mean_reverting::state::{MeanRevertingState, Operation};
 use crate::mean_reverting::MeanRevertingStrategy;
 use crate::test_util::draw::{draw_line_plot, StrategyEntry, TimedEntry};
 use crate::test_util::fs::copy_file;
@@ -38,9 +40,11 @@ struct StrategyLog {
 }
 
 impl StrategyLog {
-    fn from_state(
+    fn new(
+        xch: Exchange,
+        pair: Pair,
         time: DateTime<Utc>,
-        state: &MeanRevertingState,
+        portfolio: &Portfolio,
         ob: &Orderbook,
         value: MACDApo,
         thresholds: (f64, f64),
@@ -51,10 +55,10 @@ impl StrategyLog {
             threshold_short: thresholds.0,
             threshold_long: thresholds.1,
             apo: value.apo,
-            pnl: state.pnl(),
-            position_return: state.position_return(),
+            pnl: portfolio.pnl(),
+            position_return: portfolio.returns().first().map(|r| r.1).unwrap_or(0.0),
             value,
-            nominal_position: state.nominal_position(),
+            nominal_position: portfolio.open_position(xch, pair).map(|p| p.quantity).unwrap_or(0.0),
         }
     }
 }
@@ -90,11 +94,11 @@ async fn spot_backtest() {
     assert!(last_position.is_some(), "No position found in operations");
     assert_eq!(
         Some("44015.99".to_string()),
-        last_position.map(|p| format!("{:.2}", p.pos.price))
+        last_position.map(|p| format!("{:.2}", p.current_symbol_price))
     );
     assert_eq!(
         Some("87.87".to_string()),
-        last_position.map(|p| format!("{:.2}", p.value()))
+        last_position.map(|p| format!("{:.2}", p.current_symbol_price))
     );
 }
 
@@ -111,15 +115,15 @@ async fn margin_backtest() {
     assert!(last_position.is_some(), "No position found in operations");
     assert_eq!(
         Some("44015.99".to_string()),
-        last_position.map(|p| format!("{:.2}", p.pos.price))
+        last_position.map(|p| format!("{:.2}", p.current_symbol_price))
     );
     assert_eq!(
         Some("83.27".to_string()),
-        last_position.map(|p| format!("{:.2}", p.value()))
+        last_position.map(|p| format!("{:.2}", p.current_value_gross()))
     );
 }
 
-async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
+async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Position> {
     init();
     //setup_opentelemetry();
     let path = util::test::test_dir();
@@ -138,14 +142,12 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
     let mut model_values: Vec<(DateTime<Utc>, MACDApo, f64)> = Vec::new();
     let mut trade_events: Vec<(OperationEvent, TradeEvent)> = Vec::new();
 
+    let exchange = Exchange::from(EXCHANGE.to_string());
+    let pair: Pair = PAIR.into();
     let before_evals = Instant::now();
-    for row in pair_csv_records.map(|csvr| {
-        MarketEventEnvelope::new(
-            Exchange::from(EXCHANGE.to_string()),
-            PAIR.into(),
-            MarketEvent::Orderbook(csvr.to_orderbook(PAIR)),
-        )
-    }) {
+    for row in pair_csv_records
+        .map(|csvr| MarketEventEnvelope::new(exchange, pair.clone(), MarketEvent::Orderbook(csvr.to_orderbook(PAIR))))
+    {
         let now = Instant::now();
         util::time::set_current_time(row.e.time());
         strat.add_event(&row).await.unwrap();
@@ -154,7 +156,7 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
             if tries > 5 {
                 break;
             }
-            if strat.state.ongoing_op().is_some() {
+            if strat.portfolio.is_locked(&(exchange, pair.clone())) {
                 strat.resolve_orders().await;
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 tries += 1;
@@ -164,11 +166,13 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
         }
         let value = strat.model_value().unwrap();
         let row_time = row.e.time();
-        model_values.push((row_time, value.clone(), strat.state.value_strat()));
+        model_values.push((row_time, value.clone(), strat.portfolio.value()));
         if let MarketEvent::Orderbook(ob) = row.e {
-            strategy_logs.push(StrategyLog::from_state(
+            strategy_logs.push(StrategyLog::new(
+                exchange,
+                pair.clone(),
                 row_time,
-                &strat.state,
+                &strat.portfolio,
                 &ob,
                 value,
                 strat.model.thresholds(),
@@ -182,8 +186,19 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
         before_evals.elapsed().as_millis(),
         elapsed / num_records as u128
     );
-    for op in strat.get_operations().iter().sorted_by_key(|o| o.pos.time) {
-        trade_events.push((op.operation_event().clone(), op.trade_event()))
+    for pos in strat
+        .portfolio
+        .positions_history()
+        .unwrap()
+        .into_iter()
+        .sorted_by_key(|o| o.meta.open_at)
+    {
+        if let Some((op, event)) = open_events(&pos) {
+            trade_events.push((op, event));
+        }
+        if let Some((op, event)) = close_events(&pos) {
+            trade_events.push((op, event));
+        }
     }
     write_ema_values(&test_results_dir, &model_values);
     crate::test_util::log::write_trade_events(&test_results_dir, &trade_events);
@@ -206,8 +221,8 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Operation> {
     );
 
     // Find that latest operations are correct
-    let mut positions = strat.get_operations();
-    positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
+    let mut positions = strat.portfolio.positions_history().unwrap();
+    positions.sort_by(|p1, p2| p1.meta.open_at.cmp(&p2.meta.open_at));
     insta::assert_debug_snapshot!(positions.last());
     positions
 }

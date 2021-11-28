@@ -57,6 +57,7 @@ use trading::engine::TradingEngine;
 pub mod actor;
 pub mod driver;
 pub mod error;
+mod event;
 mod generic;
 pub mod mean_reverting;
 mod models;

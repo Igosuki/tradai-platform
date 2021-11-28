@@ -174,14 +174,17 @@ impl StrategyDriver for GenericDriver {
 
     fn data(&mut self, q: DataQuery) -> Result<DataResult> {
         match q {
-            DataQuery::OperationHistory => Ok(DataResult::Operations(vec![])),
-            DataQuery::OpenOperations => Ok(DataResult::Operations(vec![])),
             DataQuery::CancelOngoingOp => Ok(DataResult::Success(false)),
-            DataQuery::State => Ok(DataResult::State("".to_string())),
             //self.inner.read().await.model().to_owned()
             DataQuery::Models => Ok(DataResult::Models(vec![])),
             DataQuery::Status => Ok(DataResult::Status(StrategyStatus::NotTrading)),
             DataQuery::Indicators => Ok(DataResult::Indicators(self.indicators())),
+            DataQuery::PositionHistory => {
+                unimplemented!()
+            }
+            DataQuery::OpenPositions => {
+                unimplemented!()
+            }
         }
     }
 
@@ -207,7 +210,12 @@ impl StrategyDriver for GenericDriver {
 
     async fn resolve_orders(&mut self) {
         // TODO : probably bad performance
-        let locked_ids: Vec<String> = self.portfolio.locks().iter().map(|(k, v)| v.order_id.clone()).collect();
+        let locked_ids: Vec<String> = self
+            .portfolio
+            .locks()
+            .iter()
+            .map(|(_k, v)| v.order_id.clone())
+            .collect();
         for lock in locked_ids {
             match self.engine.order_executor.get_order(lock.as_str()).await {
                 Ok((order, _)) => {

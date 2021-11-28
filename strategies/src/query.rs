@@ -1,23 +1,19 @@
 use actix::Message;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use trading::position::Position;
 use trading::types::TradeOperation;
 
 use crate::error::*;
-use crate::mean_reverting::state::Operation as MeanRevertingOperation;
-use crate::naive_pair_trading::state::Operation as NaiveOperation;
 use crate::StrategyStatus;
 
 // TODO: Use GraphQLUnion to refactor this ugly bit of code
 #[derive(Debug, Deserialize, Serialize, PartialEq, actix_derive::MessageResponse)]
 #[serde(tag = "type")]
 pub enum DataResult {
-    NaiveOperations(Vec<NaiveOperation>),
-    MeanRevertingOperations(Vec<MeanRevertingOperation>),
-    NaiveOperation(Box<Option<NaiveOperation>>),
-    MeanRevertingOperation(Box<Option<MeanRevertingOperation>>),
+    OpenPositions(Vec<Position>),
+    PositionHistory(Vec<Position>),
     Success(bool),
-    State(String),
     Models(Vec<(String, Option<Value>)>),
     Status(StrategyStatus),
     Operations(Vec<TradeOperation>),
@@ -27,14 +23,12 @@ pub enum DataResult {
 #[derive(Deserialize, Serialize, actix::Message)]
 #[rtype(result = "Result<Option<DataResult>>")]
 pub enum DataQuery {
-    /// All operations history
-    OperationHistory,
-    /// Currently ongoing operation
-    OpenOperations,
+    /// All positions history
+    PositionHistory,
+    /// All open positions
+    OpenPositions,
     /// Cancel the ongoing operation
     CancelOngoingOp,
-    /// Latest state
-    State,
     /// Latest models
     Models,
     /// Status
