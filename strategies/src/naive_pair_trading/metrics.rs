@@ -1,13 +1,17 @@
 use std::collections::HashMap;
 
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::types::Pair;
+use metrics::{MetricGaugeProvider, MetricProviderFn};
 use prometheus::{CounterVec, GaugeVec, Opts, Registry};
 
+use crate::naive_pair_trading::covar_model::LinearModelValue;
 use metrics::store::MetricStore;
-use trading::position::OperationKind;
+use portfolio::portfolio::Portfolio;
+use trading::position::Position;
+use trading::signal::TradeSignal;
 
 use super::covar_model::DualBookPosition;
-use super::state::MovingState;
-use super::state::Position;
 
 lazy_static! {
     static ref METRIC_STORE: MetricStore<(String, String), NaiveStrategyMetrics> = { MetricStore::new() };
@@ -18,12 +22,22 @@ pub fn metric_store() -> &'static MetricStore<(String, String), NaiveStrategyMet
     &METRIC_STORE
 }
 
-type StateGauge = (String, fn(&MovingState) -> f64);
+type PortfolioIndicatorFn = MetricProviderFn<Portfolio>;
+type PositionIndicatorFn = MetricProviderFn<Position>;
+type ModelIndicatorFn = MetricProviderFn<LinearModelValue>;
+
+static RELATIVE_SPREAD: &str = "relative_spread";
+static SPREAD_RATIO: &str = "spread_ratio";
+static PREDICTED_RIGHT: &str = "predicted_right";
+static LEFT_MID: &str = "left_mid";
+static RIGHT_MID: &str = "right_mid";
 
 #[derive(Clone)]
 pub struct NaiveStrategyMetrics {
     gauges: HashMap<String, GaugeVec>,
-    state_gauges: Vec<StateGauge>,
+    portfolio_indicator_fns: Vec<PortfolioIndicatorFn>,
+    position_indicator_fns: Vec<PositionIndicatorFn>,
+    model_indicator_fns: Vec<ModelIndicatorFn>,
     error_counter: CounterVec,
 }
 
@@ -53,7 +67,7 @@ impl NaiveStrategyMetrics {
         }
         {
             let pos_labels = &[];
-            let right_mid_names = vec!["left_mid", "right_mid"];
+            let right_mid_names = vec![LEFT_MID, RIGHT_MID, RELATIVE_SPREAD, PREDICTED_RIGHT, SPREAD_RATIO];
             for gauge_name in right_mid_names {
                 let gauge_vec_opts = Opts::new(gauge_name, &format!("gauge for {}", gauge_name))
                     .namespace("naive_pair_trading")
@@ -63,26 +77,36 @@ impl NaiveStrategyMetrics {
                 registry.register(Box::new(gauge_vec.clone())).unwrap();
             }
         }
-        let state_gauges: Vec<StateGauge> = vec![
-            ("return".to_string(), |x| {
-                x.short_position_return() + x.long_position_return()
-            }),
-            ("predicted_right".to_string(), |x| x.predicted_right()),
-            ("relative_spread".to_string(), |x| x.res()),
+        let portfolio_gauges: Vec<PortfolioIndicatorFn> = vec![
+            ("value_strat".to_string(), |x| x.value()),
             ("pnl".to_string(), |x| x.pnl()),
-            ("nominal_position".to_string(), |x| x.nominal_position()),
-            ("beta".to_string(), |x| x.beta_lr()),
         ];
+        let position_gauges: Vec<PositionIndicatorFn> = vec![
+            ("return".to_string(), |x| x.unreal_profit_loss),
+            ("traded_price".to_string(), |x| {
+                x.open_order.as_ref().and_then(|o| o.price).unwrap_or(0.0)
+            }),
+            ("nominal_position".to_string(), |x| {
+                x.open_order.as_ref().and_then(|o| o.base_qty).unwrap_or(0.0)
+            }),
+        ];
+        let model_gauges: Vec<ModelIndicatorFn> =
+            vec![("beta".to_string(), |x| x.beta), ("alpha".to_string(), |x| x.alpha)];
         {
             let pos_labels = &[];
-            for (gauge_name, _) in state_gauges.clone() {
+            for gauge_name in portfolio_gauges
+                .iter()
+                .map(|v| v.0.as_str())
+                .chain(position_gauges.iter().map(|v| v.0.as_str()))
+                .chain(model_gauges.iter().map(|v| v.0.as_str()))
+            {
                 let string = format!("state gauge for {}", gauge_name.clone());
-                let gauge_vec_opts = Opts::new(&gauge_name, &string)
+                let gauge_vec_opts = Opts::new(gauge_name, &string)
                     .namespace("naive_pair_trading")
                     .const_label("left_pair", left_pair)
                     .const_label("right_pair", right_pair);
                 let gauge_vec = GaugeVec::new(gauge_vec_opts, pos_labels).unwrap();
-                gauges.insert(gauge_name.clone(), gauge_vec.clone());
+                gauges.insert(gauge_name.to_string(), gauge_vec.clone());
                 registry.register(Box::new(gauge_vec.clone())).unwrap();
             }
         }
@@ -95,36 +119,68 @@ impl NaiveStrategyMetrics {
 
         NaiveStrategyMetrics {
             gauges,
-            state_gauges: state_gauges.clone(),
+            portfolio_indicator_fns: portfolio_gauges.clone(),
+            position_indicator_fns: position_gauges.clone(),
+            model_indicator_fns: model_gauges.clone(),
             error_counter,
         }
     }
 
-    pub(super) fn log_position(&self, pos: &Position, op: &OperationKind) {
-        if let Some(g) = self.gauges.get("position") {
-            g.with_label_values(&[&pos.left_pair, "left", pos.kind.as_ref(), op.as_ref()])
-                .set(pos.left_price);
-            g.with_label_values(&[&pos.right_pair, "right", pos.kind.as_ref(), op.as_ref()])
-                .set(pos.right_price);
+    pub(super) fn log_signals(&self, left: &TradeSignal, right: &TradeSignal) {
+        if let Some(g) = self.gauges.get("nv_position") {
+            g.with_label_values(&[&left.pair, "left", left.pos_kind.as_ref(), left.op_kind.as_ref()])
+                .set(left.price);
+            g.with_label_values(&[&right.pair, "right", right.pos_kind.as_ref(), right.op_kind.as_ref()])
+                .set(right.price);
         }
     }
 
-    pub(super) fn log_state(&self, state: &MovingState) {
-        for (state_gauge_name, state_gauge_fn) in &self.state_gauges {
-            if let Some(g) = self.gauges.get(state_gauge_name) {
-                g.with_label_values(&[]).set(state_gauge_fn(state))
-            }
+    pub(super) fn log_portfolio(&self, xch: Exchange, left: Pair, right: Pair, portfolio: &Portfolio) {
+        self.log_all_with_providers(&self.portfolio_indicator_fns, portfolio);
+        if let Some(pos) = portfolio.open_position(xch, left) {
+            self.log_all_with_providers(&self.position_indicator_fns, pos);
+        }
+        if let Some(pos) = portfolio.open_position(xch, right) {
+            self.log_all_with_providers(&self.position_indicator_fns, pos);
         }
     }
 
-    pub(super) fn log_row(&self, lr: &DualBookPosition) {
-        if let Some(g) = self.gauges.get("left_mid") {
+    pub(super) fn log_mid_price(&self, lr: &DualBookPosition) {
+        if let Some(g) = self.gauges.get(LEFT_MID) {
             g.with_label_values(&[]).set(lr.left.mid)
         };
-        if let Some(g) = self.gauges.get("right_mid") {
+        if let Some(g) = self.gauges.get(RIGHT_MID) {
             g.with_label_values(&[]).set(lr.right.mid)
         };
     }
 
+    pub(super) fn log_ratio(&self, spread: f64) {
+        if let Some(g) = self.gauges.get(SPREAD_RATIO) {
+            g.with_label_values(&[]).set(spread)
+        };
+    }
+
+    pub(super) fn relative_spread(&self, spread: f64) {
+        if let Some(g) = self.gauges.get(RELATIVE_SPREAD) {
+            g.with_label_values(&[]).set(spread)
+        };
+    }
+
+    pub(super) fn log_model(&self, model: &LinearModelValue) {
+        self.log_all_with_providers(&self.model_indicator_fns, model);
+    }
+
     pub(super) fn log_error(&self, label: &str) { self.error_counter.with_label_values(&[label]).inc(); }
+}
+
+impl MetricGaugeProvider<Portfolio> for NaiveStrategyMetrics {
+    fn gauges(&self) -> &HashMap<String, GaugeVec> { &self.gauges }
+}
+
+impl MetricGaugeProvider<Position> for NaiveStrategyMetrics {
+    fn gauges(&self) -> &HashMap<String, GaugeVec> { &self.gauges }
+}
+
+impl MetricGaugeProvider<LinearModelValue> for NaiveStrategyMetrics {
+    fn gauges(&self) -> &HashMap<String, GaugeVec> { &self.gauges }
 }

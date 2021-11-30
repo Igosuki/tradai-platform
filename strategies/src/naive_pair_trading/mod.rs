@@ -1,36 +1,37 @@
 use std::convert::TryInto;
-use std::ops::{Add, Mul, Sub};
 use std::sync::Arc;
 
-use chrono::{DateTime, Duration, TimeZone, Utc};
-
+use chrono::{DateTime, Utc};
 use coinnect_rt::prelude::*;
 use db::Storage;
 use options::Options;
-use state::{MovingState, Position};
+use portfolio::portfolio::{Portfolio, PortfolioRepoImpl};
+use portfolio::risk::DefaultMarketRiskEvaluator;
+use stats::Next;
 use trading::book::BookPosition;
 use trading::engine::TradingEngine;
-use trading::position::PositionKind;
+use trading::order_manager::types::StagedOrder;
+use trading::position::{OperationKind, PositionKind};
+use trading::signal::{new_trade_signal, TradeSignal};
+use trading::stop::Stopper;
+use trading::types::OrderConf;
+use util::time::now;
+use uuid::Uuid;
 
 use crate::driver::StrategyDriver;
 use crate::error::*;
-use crate::models::{Model, PersistentWindowedModel, WindowedModel};
-use crate::naive_pair_trading::covar_model::{DualBookPosition, LinearModelValue};
-use crate::naive_pair_trading::state::Operation;
+use crate::naive_pair_trading::covar_model::{DualBookPosition, LinearModelValue, LinearSpreadModel};
 use crate::query::{ModelReset, MutableField, Mutation, StrategyIndicators};
-use crate::{Channel, DataQuery, DataResult, StrategyStatus};
+use crate::{Channel, DataQuery, DataResult, StratEvent, StratEventLogger, StrategyStatus};
 
 use self::metrics::NaiveStrategyMetrics;
 
 pub mod covar_model;
 pub mod metrics;
 pub mod options;
-pub mod state;
 
 #[cfg(test)]
 mod tests;
-
-const LM_AGE_CUTOFF_RATIO: f64 = 0.0013;
 
 pub struct NaiveTradingStrategy {
     key: String,
@@ -38,20 +39,18 @@ pub struct NaiveTradingStrategy {
     fees_rate: f64,
     res_threshold_long: f64,
     res_threshold_short: f64,
-    stop_loss: f64,
-    stop_gain: f64,
-    beta_eval_freq: i32,
-    beta_sample_freq: Duration,
-    state: MovingState,
-    data_table: PersistentWindowedModel<DualBookPosition, LinearModelValue>,
-    pub right_pair: String,
-    pub left_pair: String,
+    model: LinearSpreadModel,
+    right_pair: Pair,
+    left_pair: Pair,
     metrics: Arc<NaiveStrategyMetrics>,
-    last_row_process_time: DateTime<Utc>,
-    last_sample_time: DateTime<Utc>,
-    last_row_time_at_eval: DateTime<Utc>,
     last_left: Option<BookPosition>,
     last_right: Option<BookPosition>,
+    portfolio: Portfolio,
+    is_trading: bool,
+    order_conf: OrderConf,
+    engine: Arc<TradingEngine>,
+    stopper: Stopper<f64>,
+    logger: Option<Arc<dyn StratEventLogger>>,
 }
 
 impl NaiveTradingStrategy {
@@ -61,281 +60,295 @@ impl NaiveTradingStrategy {
         fees_rate: f64,
         n: &Options,
         engine: Arc<TradingEngine>,
+        logger: Option<Arc<dyn StratEventLogger>>,
     ) -> Self {
         let metrics = NaiveStrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
-        let mut strat = Self {
+        let portfolio = Portfolio::try_new(
+            n.initial_cap,
+            fees_rate,
+            strat_key.clone(),
+            Arc::new(PortfolioRepoImpl::new(db.clone())),
+            Arc::new(DefaultMarketRiskEvaluator::default()),
+            engine.interest_rate_provider.clone(),
+        )
+        .unwrap();
+        let mut model = LinearSpreadModel::new(
+            db,
+            &format!("{}_{}", &n.left, &n.right),
+            n.window_size as usize,
+            n.beta_sample_freq(),
+            n.beta_eval_freq,
+        );
+        if let Err(e) = model.try_load() {
+            error!("{}", e);
+            panic!("Could not load naive strategy model");
+        }
+        Self {
             key: strat_key,
             exchange: n.exchange,
             fees_rate,
             res_threshold_long: n.threshold_long,
             res_threshold_short: n.threshold_short,
-            stop_loss: n.stop_loss,
-            stop_gain: n.stop_gain,
-            beta_eval_freq: n.beta_eval_freq,
-            state: MovingState::new(n, db.clone(), engine),
-            data_table: Self::make_lm_table(&n.left, &n.right, db, n.window_size as usize),
-            right_pair: n.right.to_string(),
-            left_pair: n.left.to_string(),
-            last_row_process_time: Utc.timestamp_millis(0),
-            last_sample_time: Utc.timestamp_millis(0),
-            last_row_time_at_eval: Utc.timestamp_millis(0),
+            model,
+            stopper: Stopper::new(n.stop_gain, n.stop_loss),
+            right_pair: n.right.clone(),
+            left_pair: n.left.clone(),
             metrics: Arc::new(metrics),
             last_left: None,
             last_right: None,
-            beta_sample_freq: n.beta_sample_freq(),
-        };
-        if let Err(e) = strat.load() {
-            error!("{}", e);
-            panic!("Could not load models");
-        }
-        strat
-    }
-
-    pub fn load(&mut self) -> crate::error::Result<()> {
-        self.data_table.try_load()?;
-        self.set_model_from_table();
-        self.last_row_time_at_eval = self
-            .data_table
-            .last_model_time()
-            .unwrap_or_else(|| Utc.timestamp_millis(0));
-        debug!("Loaded model time at {}", self.last_row_time_at_eval);
-        if !self.data_table.is_loaded() {
-            Err(crate::error::Error::ModelLoadError(
-                "models not loaded for unknown reasons".to_string(),
-            ))
-        } else {
-            Ok(())
+            portfolio,
+            is_trading: true,
+            order_conf: n.order_conf.clone(),
+            engine,
+            logger,
         }
     }
 
-    pub fn make_lm_table(
-        left_pair: &str,
-        right_pair: &str,
-        db: Arc<dyn Storage>,
-        window_size: usize,
-    ) -> PersistentWindowedModel<DualBookPosition, LinearModelValue> {
-        PersistentWindowedModel::new(
-            &format!("{}_{}", left_pair, right_pair),
-            db,
-            window_size,
-            None,
-            covar_model::linear_model,
-            None,
+    fn make_signal(
+        &self,
+        pair: Pair,
+        trace_id: Uuid,
+        event_time: DateTime<Utc>,
+        operation_kind: OperationKind,
+        position_kind: PositionKind,
+        price: f64,
+        qty: Option<f64>,
+    ) -> TradeSignal {
+        new_trade_signal(
+            pair.clone(),
+            self.exchange,
+            &self.order_conf,
+            event_time,
+            trace_id,
+            operation_kind,
+            position_kind,
+            price,
+            qty,
         )
     }
 
-    fn maybe_log_stop_loss(&self, pk: PositionKind) {
-        if self.should_stop(&pk) {
-            let ret = self.return_value(&pk);
-            let expr = if ret > self.stop_gain {
-                "gain"
-            } else if ret < self.stop_loss {
-                "loss"
-            } else {
-                "n/a"
-            };
-            info!("---- Stop-{} executed ({} position) ----", expr, match pk {
-                PositionKind::Short => "short",
-                PositionKind::Long => "long",
-            },)
+    async fn eval_latest(&mut self, lr: &DualBookPosition) -> Result<Option<[TradeSignal; 2]>> {
+        if !self.portfolio.has_any_open_position() {
+            if self.model.should_eval(lr.time) {
+                self.model.update()?;
+            }
         }
-    }
 
-    fn should_eval(&self, event_time: DateTime<Utc>) -> bool {
-        let model_time = self.last_row_time_at_eval;
-        let mt_obsolescence = if self.state.beta_lr() < 0.0 {
-            // When beta is negative the evaluation frequency is ten times lower
-            model_time.add(self.beta_sample_freq.mul(self.beta_eval_freq / 10))
-        } else {
-            // Model obsolescence is defined here as event time being greater than the sample window
-            model_time.add(self.beta_sample_freq.mul(self.beta_eval_freq))
+        let beta = self.model.beta().unwrap();
+        if beta <= 0.0 {
+            return Ok(None);
+        }
+        let ratio = match self.calc_pred_ratio(lr) {
+            None => return Ok(None),
+            Some(ratio) => ratio,
         };
-        let should_eval_model = event_time.ge(&mt_obsolescence);
-        if should_eval_model {
-            debug!(
-                "model obsolete, eval time reached : {} > {} with model_time = {}, beta_val = {}",
-                event_time,
-                mt_obsolescence,
-                model_time,
-                self.state.beta_lr()
-            );
-        }
-        should_eval_model
-    }
+        self.metrics.log_ratio(ratio);
 
-    fn set_model_from_table(&mut self) {
-        if let Some(lm) = self.data_table.value() {
-            self.state.set_beta(lm.beta);
-            self.state.set_alpha(lm.alpha);
-        }
-    }
-
-    fn eval_linear_model(&mut self) {
-        if let Err(e) = self.data_table.update() {
-            error!("Error saving model : {:?}", e);
-        }
-        self.set_model_from_table();
-        self.last_row_time_at_eval = self.last_sample_time;
-    }
-
-    fn predict(&self, bp: &BookPosition) -> f64 { covar_model::predict(self.state.alpha(), self.state.beta(), bp.mid) }
-
-    fn short_position(&self, right_price: f64, left_price: f64, time: DateTime<Utc>) -> Position {
-        Position {
-            kind: PositionKind::Short,
-            right_price,
-            left_price,
-            time,
-            right_pair: self.right_pair.to_string(),
-            left_pair: self.left_pair.to_string(),
-        }
-    }
-
-    fn long_position(&self, right_price: f64, left_price: f64, time: DateTime<Utc>) -> Position {
-        Position {
-            kind: PositionKind::Long,
-            right_price,
-            left_price,
-            time,
-            right_pair: self.right_pair.to_string(),
-            left_pair: self.left_pair.to_string(),
-        }
-    }
-
-    fn should_stop(&self, pk: &PositionKind) -> bool {
-        let ret = self.return_value(pk);
-        ret > self.stop_gain || ret < self.stop_loss
-    }
-
-    fn return_value(&self, pk: &PositionKind) -> f64 {
-        match pk {
-            PositionKind::Short => self.state.short_position_return(),
-            PositionKind::Long => self.state.long_position_return(),
-        }
-    }
-
-    async fn eval_latest(&mut self, lr: &DualBookPosition) {
-        if self.state.ongoing_op().is_some() {
-            return;
-        }
-
-        if self.state.no_position_taken() {
-            if self.should_eval(lr.time) {
-                self.eval_linear_model();
+        let left_pos = self.portfolio.open_position(self.exchange, self.left_pair.clone());
+        let right_pos = self.portfolio.open_position(self.exchange, self.right_pair.clone());
+        let signals: Option<[TradeSignal; 2]> = match (left_pos, right_pos) {
+            (None, None) => {
+                // Possibly open a short position for the right and long for the left
+                if ratio > self.res_threshold_short {
+                    let spread = self.portfolio.value() / (lr.left.ask * beta);
+                    self.metrics.relative_spread(spread);
+                    Some([
+                        self.make_signal(
+                            self.left_pair.clone(),
+                            lr.left.trace_id,
+                            lr.left.event_time,
+                            OperationKind::Open,
+                            PositionKind::Long,
+                            lr.left.ask,
+                            Some(spread * beta),
+                        ),
+                        self.make_signal(
+                            self.right_pair.clone(),
+                            lr.right.trace_id,
+                            lr.right.event_time,
+                            OperationKind::Open,
+                            PositionKind::Short,
+                            lr.right.bid,
+                            Some(spread),
+                        ),
+                    ])
+                }
+                // Possibly open a long position for the right and short for the left
+                else if ratio <= self.res_threshold_long {
+                    let spread = self.portfolio.value() / lr.right.ask;
+                    self.metrics.relative_spread(spread);
+                    Some([
+                        self.make_signal(
+                            self.left_pair.clone(),
+                            lr.left.trace_id,
+                            lr.left.event_time,
+                            OperationKind::Open,
+                            PositionKind::Short,
+                            lr.left.bid,
+                            Some(spread * beta),
+                        ),
+                        self.make_signal(
+                            self.right_pair.clone(),
+                            lr.right.trace_id,
+                            lr.right.event_time,
+                            OperationKind::Open,
+                            PositionKind::Long,
+                            lr.right.ask,
+                            Some(spread),
+                        ),
+                    ])
+                } else {
+                    None
+                }
             }
-            self.state.update_spread(lr);
-        }
-
-        self.state.set_beta_lr();
-        self.state.set_predicted_right(self.predict(&lr.left));
-        self.state
-            .set_res((lr.right.mid - self.state.predicted_right()) / lr.right.mid);
-
-        if self.state.beta_lr() <= 0.0 {
-            return;
-        }
-
-        // Possibly open a short position
-        if (self.state.res() > self.res_threshold_short) && self.state.no_position_taken() {
-            let position = self.short_position(lr.right.bid, lr.left.ask, lr.time);
-            let op = self.state.open(position, self.fees_rate).await;
-            self.metrics.log_position(&op.pos, &op.kind);
-        }
-
-        // Possibly close a short position
-        if self.state.is_short() {
-            self.state
-                .set_short_position_return(self.fees_rate, lr.right.ask, lr.left.bid);
-            if (self.state.res() <= self.res_threshold_short && self.state.res() < 0.0)
-                || self.should_stop(&PositionKind::Short)
-            {
-                self.maybe_log_stop_loss(PositionKind::Short);
-                let position = self.short_position(lr.right.ask, lr.left.bid, lr.time);
-                let op = self.state.close(position, self.fees_rate).await;
-                self.metrics.log_position(&op.pos, &op.kind);
-                self.eval_linear_model();
+            (Some(left_pos), Some(right_pos)) => {
+                let ret = self.portfolio.current_return();
+                let maybe_stop = self.stopper.should_stop(ret);
+                if let Some(logger) = &self.logger {
+                    logger
+                        .maybe_log(maybe_stop.as_ref().map(|e| StratEvent::Stop { stop: *e }))
+                        .await;
+                }
+                // Possibly close a short position
+                if right_pos.is_short()
+                    && left_pos.is_long()
+                    && ((ratio <= self.res_threshold_short && ratio < 0.0) || maybe_stop.is_some())
+                {
+                    self.model.update()?;
+                    Some([
+                        self.make_signal(
+                            self.left_pair.clone(),
+                            lr.left.trace_id,
+                            lr.left.event_time,
+                            OperationKind::Close,
+                            PositionKind::Long,
+                            lr.left.bid,
+                            None,
+                        ),
+                        self.make_signal(
+                            self.right_pair.clone(),
+                            lr.right.trace_id,
+                            lr.right.event_time,
+                            OperationKind::Close,
+                            PositionKind::Short,
+                            lr.right.ask,
+                            None,
+                        ),
+                    ])
+                }
+                // Possibly close a long position
+                else if right_pos.is_long()
+                    && left_pos.is_short()
+                    && ((ratio >= self.res_threshold_long && ratio > 0.0) || maybe_stop.is_some())
+                {
+                    self.model.update()?;
+                    Some([
+                        self.make_signal(
+                            self.left_pair.clone(),
+                            lr.left.trace_id,
+                            lr.left.event_time,
+                            OperationKind::Close,
+                            PositionKind::Short,
+                            lr.left.ask,
+                            None,
+                        ),
+                        self.make_signal(
+                            self.right_pair.clone(),
+                            lr.right.trace_id,
+                            lr.right.event_time,
+                            OperationKind::Close,
+                            PositionKind::Long,
+                            lr.right.bid,
+                            None,
+                        ),
+                    ])
+                } else {
+                    None
+                }
             }
-        }
+            _ => None,
+        };
 
-        // Possibly open a long position
-        if self.state.res() <= self.res_threshold_long && self.state.no_position_taken() {
-            let position = self.long_position(lr.right.ask, lr.left.bid, lr.time);
-            let op = self.state.open(position, self.fees_rate).await;
-            self.metrics.log_position(&op.pos, &op.kind);
-        }
-
-        // Possibly close a long position
-        if self.state.is_long() {
-            self.state
-                .set_long_position_return(self.fees_rate, lr.right.bid, lr.left.ask);
-            if (self.state.res() >= self.res_threshold_long && self.state.res() > 0.0)
-                || self.should_stop(&PositionKind::Long)
-            {
-                self.maybe_log_stop_loss(PositionKind::Long);
-                let position = self.long_position(lr.right.bid, lr.left.ask, lr.time);
-                let op = self.state.close(position, self.fees_rate).await;
-                self.metrics.log_position(&op.pos, &op.kind);
-                self.eval_linear_model();
-            }
-        }
+        Ok(signals)
     }
+
+    /// Ratio of prediction vs mid price
+    fn calc_pred_ratio(&mut self, lr: &DualBookPosition) -> Option<f64> {
+        self.predict_right(lr)
+            .map(|predicted_right| (lr.right.mid - predicted_right) / lr.right.mid)
+    }
+
+    /// Predict the value of right price
+    fn predict_right(&self, lr: &DualBookPosition) -> Option<f64> { self.model.predict(lr.left.mid) }
 
     fn can_eval(&self) -> bool {
-        let has_model = self.data_table.has_model() && self.data_table.is_loaded();
-        let has_position = !self.state.no_position_taken();
-        // Check that model is more recent than sample freq * (eval frequency + CUTOFF_RATIO%)
-        let is_model_obsolete = self
-            .data_table
-            .last_model_time()
-            .map(|at| {
-                at.gt(&Utc::now().sub(
-                    self.beta_sample_freq
-                        .mul((self.beta_eval_freq as f64 * (1.0 + LM_AGE_CUTOFF_RATIO)) as i32),
-                ))
-            })
-            .unwrap_or(false);
-        has_model && (has_position || is_model_obsolete)
+        let has_position = self.portfolio.has_any_open_position();
+        self.model.has_model() && (has_position || self.model.is_obsolete())
     }
 
     #[tracing::instrument(skip(self), level = "trace")]
-    async fn process_row(&mut self, row: &DualBookPosition) {
-        let time = self.last_sample_time.add(self.beta_sample_freq);
-        let should_sample = row.time.ge(&time);
-        // A model is available
-        let mut can_eval = self.can_eval();
-        if should_sample {
-            self.last_sample_time = row.time;
+    async fn process_dual_bp(&mut self, dual_bp: &DualBookPosition) {
+        if self.can_eval() {
+            match self.eval_latest(dual_bp).await {
+                Ok(Some(signals)) => {
+                    self.metrics.log_signals(&signals[0], &signals[1]);
+                    let mut orders = vec![];
+                    for signal in signals {
+                        let order = self.portfolio.maybe_convert(&signal).await;
+                        if let Ok(Some(order)) = order {
+                            orders.push(order);
+                        }
+                    }
+                    if orders.len() != 2 {
+                        return;
+                    }
+                    for order in orders {
+                        let exchange = order.xch;
+                        let pair = order.pair.clone();
+                        if let Err(e) = self
+                            .engine
+                            .order_executor
+                            .stage_order(StagedOrder { request: order })
+                            .await
+                        {
+                            // TODO : keep result and immediatly try to close (or retry) failed orders
+                            self.metrics.log_error(e.short_name());
+                            error!(err = %e, "failed to stage order");
+                            if let Err(e) = self.portfolio.unlock_position(exchange, pair) {
+                                self.metrics.log_error(e.short_name());
+                                error!(err = %e, "failed to unlock position");
+                            }
+                        }
+                    }
+                }
+                Err(e) => self.metrics.log_error(e.short_name()),
+                _ => {}
+            }
+            self.metrics.log_portfolio(
+                self.exchange,
+                self.left_pair.clone(),
+                self.right_pair.clone(),
+                &self.portfolio,
+            );
         }
-        // No model and there are enough samples
-        if !can_eval && self.data_table.is_filled() {
-            self.eval_linear_model();
-            self.state.update_spread(row);
-            can_eval = self.can_eval();
-        }
-        if can_eval {
-            self.eval_latest(row).await;
-            self.log_state();
-        }
-        self.metrics.log_row(row);
-        if should_sample {
-            debug!("Sample at {} ({} rows)", row.time, self.data_table.len());
-            self.data_table.push(row);
+        self.metrics.log_mid_price(dual_bp);
+        match self.model.next(dual_bp) {
+            Err(e) => self.metrics.log_error(e.short_name()),
+            Ok(Some(lm)) => self.metrics.log_model(&lm),
+            _ => {}
         }
     }
 
-    #[cfg(test)]
     #[allow(dead_code)]
-    fn model_value(&self) -> Option<LinearModelValue> { self.data_table.value() }
+    fn model_value(&self) -> Option<LinearModelValue> { self.model.value() }
 
-    fn log_state(&self) { self.metrics.log_state(&self.state); }
-
-    fn get_operations(&self) -> Vec<Operation> { self.state.get_operations() }
-
-    fn get_ongoing_op(&self) -> Option<&Operation> { self.state.ongoing_op() }
-
-    fn cancel_ongoing_op(&mut self) -> bool { self.state.cancel_ongoing_op() }
-
-    fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> { self.state.change_state(field, v) }
+    fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> {
+        match field {
+            MutableField::ValueStrat => self.portfolio.set_value(v)?,
+            MutableField::Pnl => self.portfolio.set_pnl(v)?,
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -353,27 +366,22 @@ impl StrategyDriver for NaiveTradingStrategy {
         } else {
             return Ok(());
         }
-        let now = Utc::now();
-        if now.gt(&self.last_row_process_time.add(chrono::Duration::milliseconds(200))) {
-            if let (Some(l), Some(r)) = (self.last_left.clone(), self.last_right.clone()) {
-                let x = DualBookPosition {
-                    left: l,
-                    right: r,
-                    time: now,
-                };
-                self.process_row(&x).await;
-                self.last_row_process_time = now;
-            }
+        if let Err(_e) = self.portfolio.update_from_market(le).await {
+            // TODO: log err
+        }
+        if let (Some(l), Some(r)) = (self.last_left.clone(), self.last_right.clone()) {
+            let x = DualBookPosition {
+                left: l,
+                right: r,
+                time: now(),
+            };
+            self.process_dual_bp(&x).await;
         }
         Ok(())
     }
 
     fn data(&mut self, q: DataQuery) -> Result<DataResult> {
         match q {
-            // DataQuery::OperationHistory => Ok(DataResult::NaiveOperations(self.get_operations())),
-            // DataQuery::OpenOperations => Ok(DataResult::NaiveOperation(Box::new(self.get_ongoing_op().cloned()))),
-            // DataQuery::CancelOngoingOp => Ok(DataResult::Success(self.cancel_ongoing_op())),
-            // DataQuery::State => Ok(DataResult::State(serde_json::to_string(&self.state).unwrap())),
             DataQuery::Status => Ok(DataResult::Status(StrategyStatus::Running)),
             DataQuery::Models => Err(Error::FeatureNotImplemented),
             DataQuery::Indicators => Ok(DataResult::Indicators(StrategyIndicators::default())),
@@ -385,14 +393,14 @@ impl StrategyDriver for NaiveTradingStrategy {
 
     fn mutate(&mut self, m: Mutation) -> Result<()> {
         match m {
-            Mutation::State(m) => self.change_state(m.field, m.value)?,
-            Mutation::Model(ModelReset { name, .. }) => {
-                if name == Some("lm".to_string()) || name.is_none() {
-                    self.data_table.wipe()?
-                }
+            Mutation::State(m) => self.change_state(m.field, m.value),
+            Mutation::Model(ModelReset { name, .. }) if name.is_none() || name == Some("lm".to_string()) => {
+                self.model.reset()
+            }
+            _ => {
+                unreachable!()
             }
         }
-        Ok(())
     }
 
     fn channels(&self) -> Vec<Channel> {
@@ -408,29 +416,40 @@ impl StrategyDriver for NaiveTradingStrategy {
         ]
     }
 
-    fn stop_trading(&mut self) { self.state.stop_trading(); }
+    fn stop_trading(&mut self) { self.is_trading = false; }
 
-    fn resume_trading(&mut self) { self.state.resume_trading(); }
+    fn resume_trading(&mut self) { self.is_trading = true; }
 
     async fn resolve_orders(&mut self) {
-        // If a position is taken, resolve pending operations
-        // In case of error return immediately as no trades can be made until the position is resolved
-        if let Some(operation) = self.state.ongoing_op().cloned() {
-            match self.state.resolve_pending_operations(&operation).await {
-                Ok(resolution) => self.metrics.log_error(resolution.as_ref()),
-                Err(e) => self.metrics.log_error(e.short_name()),
+        // TODO : probably bad performance
+        let locked_ids: Vec<String> = self
+            .portfolio
+            .locks()
+            .iter()
+            .map(|(_k, v)| v.order_id.clone())
+            .collect();
+        for lock in &locked_ids {
+            match self.engine.order_executor.get_order(lock).await {
+                Ok((order, _)) => {
+                    if let Err(_e) = self.portfolio.update_position(order) {
+                        // log err
+                    }
+                }
+                Err(_e) => {
+                    //log err
+                }
             }
-            if self.state.ongoing_op().is_none()
-                && self.state.is_trading()
-                && self.last_right.is_some()
-                && self.last_left.is_some()
-            {
-                self.eval_latest(&DualBookPosition {
-                    left: self.last_left.as_ref().unwrap().clone(),
-                    right: self.last_right.as_ref().unwrap().clone(),
-                    time: Utc::now(),
-                })
-                .await;
+        }
+        if !locked_ids.is_empty() {
+            if let (Some(l), Some(r)) = (self.last_left.as_ref(), self.last_right.as_ref()) {
+                let dbp = DualBookPosition {
+                    time: now(),
+                    left: *l,
+                    right: *r,
+                };
+                if let Err(_e) = self.eval_latest(&dbp).await {
+                    // log  err
+                }
             }
         }
     }

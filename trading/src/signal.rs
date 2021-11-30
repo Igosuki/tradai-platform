@@ -8,7 +8,7 @@ use coinnect_rt::types::MarginSideEffect;
 use util::time::now;
 
 use crate::position::{OperationKind, PositionKind};
-use crate::types::TradeKind;
+use crate::types::{OrderConf, OrderMode, TradeKind};
 
 #[cfg_attr(feature = "python", pyclass)]
 pub struct TradeSignal {
@@ -27,7 +27,7 @@ pub struct TradeSignal {
     /// Price
     pub price: f64,
     /// Base quantity
-    pub qty: f64,
+    pub qty: Option<f64>,
     /// Target market pair
     pub pair: Pair,
     /// Target exchange
@@ -56,7 +56,7 @@ impl Default for TradeSignal {
             event_time: now(),
             signal_time: now(),
             price: 0.0,
-            qty: 0.0,
+            qty: Some(0.0),
             pair: "BTC_USDT".into(),
             exchange: Exchange::Binance,
             instructions: None,
@@ -84,7 +84,7 @@ impl<'a> From<&'a TradeSignal> for AddOrderRequest {
             side,
             order_type: t.order_type,
             enforcement: t.enforcement,
-            quantity: Some(t.qty),
+            quantity: t.qty,
             price: Some(t.price),
             order_id: Uuid::new_v4().to_string(),
             dry_run: t.dry_mode,
@@ -102,4 +102,53 @@ pub enum ExecutionInstruction {
     DoNotIncrease,
     DoNotReduce,
     LastPrice,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn new_trade_signal(
+    pair: Pair,
+    exchange: Exchange,
+    order_conf: &OrderConf,
+    event_time: DateTime<Utc>,
+    trace_id: Uuid,
+    op_kind: OperationKind,
+    pos_kind: PositionKind,
+    price: f64,
+    qty: Option<f64>,
+) -> TradeSignal {
+    let trade_kind = match (pos_kind, op_kind) {
+        (PositionKind::Short, OperationKind::Open) | (PositionKind::Long, OperationKind::Close) => TradeKind::Sell,
+        (PositionKind::Long, OperationKind::Open) | (PositionKind::Short, OperationKind::Close) => TradeKind::Buy,
+    };
+    let margin_side_effect = if order_conf.asset_type.is_margin() && pos_kind == PositionKind::Short {
+        if op_kind == OperationKind::Open {
+            Some(MarginSideEffect::MarginBuy)
+        } else {
+            Some(MarginSideEffect::AutoRepay)
+        }
+    } else {
+        None
+    };
+    let (order_type, enforcement) = match order_conf.order_mode {
+        OrderMode::Limit => (OrderType::Limit, Some(OrderEnforcement::FOK)),
+        OrderMode::Market => (OrderType::Market, None),
+    };
+    TradeSignal {
+        trace_id,
+        pos_kind,
+        op_kind,
+        trade_kind,
+        event_time,
+        signal_time: now(),
+        price,
+        qty,
+        pair,
+        exchange,
+        instructions: None,
+        dry_mode: order_conf.dry_mode,
+        order_type,
+        enforcement,
+        asset_type: Some(order_conf.asset_type),
+        side_effect: margin_side_effect,
+    }
 }
