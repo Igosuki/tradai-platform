@@ -120,6 +120,7 @@ pub fn from_settings<S: AsRef<Path>>(
             exchange_conf.fees,
             n,
             engine,
+            logger,
         )),
         StrategySettings::MeanReverting(n) => Box::new(crate::mean_reverting::MeanRevertingStrategy::new(
             db,

@@ -3,9 +3,10 @@ use coinnect_rt::types::Orderbook;
 use itertools::Itertools;
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
+use std::collections::HashMap;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Copy, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "python", pyclass)]
 pub struct BookPosition {
     pub mid: f64,
@@ -76,6 +77,12 @@ impl<'a> TryFrom<&'a Orderbook> for BookPosition {
         // TODO: trace_id should come from event envelope
         Ok(BookPosition::new(Uuid::new_v4(), event_time, &t.asks, &t.bids))
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BookPositions {
+    pub time: DateTime<Utc>,
+    pub positions: HashMap<String, BookPosition>,
 }
 
 #[cfg(any(test, feature = "test_util"))]

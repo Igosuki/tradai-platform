@@ -2,15 +2,13 @@ use chrono::Duration;
 use parse_duration::parse;
 
 use coinnect_rt::prelude::*;
-use trading::signal::ExecutionInstruction;
-use trading::types::OrderMode;
+use trading::types::OrderConf;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Options {
     pub pair: Pair,
     pub short_window_size: u32,
     pub long_window_size: u32,
-    pub dry_mode: Option<bool>,
     pub sample_freq: String,
     pub initial_cap: f64,
     pub threshold_short: f64,
@@ -21,28 +19,17 @@ pub struct Options {
     pub stop_loss: f64,
     pub stop_gain: f64,
     pub exchange: Exchange,
-    /// Default is `OrderMode::Limit`
-    pub order_mode: Option<OrderMode>,
-    /// Default is None
-    pub execution_instruction: Option<ExecutionInstruction>,
-    /// Default is `AssetType::Spot`
-    pub order_asset_type: Option<AssetType>,
     /// Start trading after first start
     pub start_trading: Option<bool>,
+    pub order_conf: OrderConf,
 }
 
 impl Options {
     pub fn strat_key(&self) -> String { format!("{}_{}.{}", "mean_reverting", self.exchange, self.pair) }
 
-    pub(super) fn dry_mode(&self) -> bool { self.dry_mode.unwrap_or(true) }
-
     pub(crate) fn dynamic_threshold(&self) -> bool { self.dynamic_threshold.unwrap_or(true) }
 
     pub(crate) fn sample_freq(&self) -> Duration { Duration::from_std(parse(&self.sample_freq).unwrap()).unwrap() }
-
-    pub(super) fn order_asset_type(&self) -> AssetType { self.order_asset_type.unwrap_or(AssetType::Spot) }
-
-    pub(super) fn order_mode(&self) -> OrderMode { self.order_mode.unwrap_or(OrderMode::Limit) }
 
     #[cfg(test)]
     pub(crate) fn new_test_default(pair: &str, exchange: Exchange) -> Self {
@@ -56,14 +43,11 @@ impl Options {
             stop_loss: -0.1,
             stop_gain: 0.075,
             initial_cap: 100.0,
-            dry_mode: Some(true),
             short_window_size: 100,
             long_window_size: 1000,
             sample_freq: "1min".to_string(),
             exchange,
-            order_mode: None,
-            execution_instruction: None,
-            order_asset_type: None,
+            order_conf: OrderConf::default(),
             start_trading: Some(true),
         }
     }

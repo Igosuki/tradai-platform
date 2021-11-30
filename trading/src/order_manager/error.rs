@@ -14,4 +14,16 @@ pub enum Error {
     Coinnect(#[from] coinnect_rt::error::Error),
 }
 
+impl Error {
+    pub fn short_name(&self) -> &'static str {
+        match self {
+            Error::Coinnect(_) => "coinnect",
+            Error::Db(_) => "db",
+            Error::OrderNotFound(_) => "order_not_found",
+            Error::OrderManagerMailboxError => "order_mailbox",
+            Error::StagedOrderRequired => "staged_order_required",
+        }
+    }
+}
+
 pub type Result<T> = std::result::Result<T, Error>;

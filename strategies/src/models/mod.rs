@@ -66,8 +66,12 @@ impl Sampler {
         should_sample
     }
 
+    pub fn last_sample_time(&self) -> DateTime<Utc> { self.last_time }
+
     #[allow(dead_code)]
     pub fn set_last_time(&mut self, last_time: DateTime<Utc>) { self.last_time = last_time; }
+
+    pub fn freq(&self) -> Duration { self.sample_freq }
 }
 
 /// Time obsolescence is defined by last_time + (sample_freq * eval_freq) > current_time
