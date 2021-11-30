@@ -36,7 +36,6 @@ mod tests;
 pub struct NaiveTradingStrategy {
     key: String,
     exchange: Exchange,
-    fees_rate: f64,
     res_threshold_long: f64,
     res_threshold_short: f64,
     model: LinearSpreadModel,
@@ -86,7 +85,6 @@ impl NaiveTradingStrategy {
         Self {
             key: strat_key,
             exchange: n.exchange,
-            fees_rate,
             res_threshold_long: n.threshold_long,
             res_threshold_short: n.threshold_short,
             model,
@@ -104,6 +102,7 @@ impl NaiveTradingStrategy {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn make_signal(
         &self,
         pair: Pair,
@@ -115,7 +114,7 @@ impl NaiveTradingStrategy {
         qty: Option<f64>,
     ) -> TradeSignal {
         new_trade_signal(
-            pair.clone(),
+            pair,
             self.exchange,
             &self.order_conf,
             event_time,
@@ -128,10 +127,8 @@ impl NaiveTradingStrategy {
     }
 
     async fn eval_latest(&mut self, lr: &DualBookPosition) -> Result<Option<[TradeSignal; 2]>> {
-        if !self.portfolio.has_any_open_position() {
-            if self.model.should_eval(lr.time) {
-                self.model.update()?;
-            }
+        if !self.portfolio.has_any_open_position() && self.model.should_eval(lr.time) {
+            self.model.update()?;
         }
 
         let beta = self.model.beta().unwrap();
@@ -369,7 +366,7 @@ impl StrategyDriver for NaiveTradingStrategy {
         if let Err(_e) = self.portfolio.update_from_market(le).await {
             // TODO: log err
         }
-        if let (Some(l), Some(r)) = (self.last_left.clone(), self.last_right.clone()) {
+        if let (Some(l), Some(r)) = (self.last_left, self.last_right) {
             let x = DualBookPosition {
                 left: l,
                 right: r,
@@ -407,11 +404,11 @@ impl StrategyDriver for NaiveTradingStrategy {
         vec![
             Channel::Orderbooks {
                 xch: self.exchange,
-                pair: self.left_pair.clone().into(),
+                pair: self.left_pair.clone(),
             },
             Channel::Orderbooks {
                 xch: self.exchange,
-                pair: self.right_pair.clone().into(),
+                pair: self.right_pair.clone(),
             },
         ]
     }
