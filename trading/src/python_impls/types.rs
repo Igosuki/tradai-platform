@@ -48,7 +48,7 @@ impl TradeSignal {
             trade_kind: TradeKind::from_str(side)
                 .map_err(|_| PyBaseException::new_err(format!("unknown side '{}'", side)))?,
             price,
-            qty,
+            qty: Some(qty),
             pair: pair.into(),
             exchange: Exchange::from_str(exchange)
                 .map_err(|_| PyBaseException::new_err(format!("unknown exchange '{}'", exchange)))?,

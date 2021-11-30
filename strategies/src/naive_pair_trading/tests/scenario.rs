@@ -44,6 +44,7 @@ struct StrategyLog {
 }
 
 impl StrategyLog {
+    #[allow(clippy::too_many_arguments)]
     fn from_state(
         time: DateTime<Utc>,
         portfolio: &Portfolio,

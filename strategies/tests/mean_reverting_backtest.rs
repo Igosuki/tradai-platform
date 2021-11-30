@@ -1,4 +1,5 @@
 use chrono::Duration;
+use trading::types::OrderConf;
 
 #[cfg(feature = "backtests")]
 #[actix::test]
@@ -30,14 +31,11 @@ async fn complete_backtest_backtest() -> backtest::Result<()> {
             stop_loss: -0.1,
             stop_gain: 0.075,
             initial_cap: 100.0,
-            dry_mode: Some(true),
             short_window_size: 100,
             long_window_size: 1000,
             sample_freq: "1min".to_string(),
             exchange: Exchange::Binance,
-            order_mode: None,
-            execution_instruction: None,
-            order_asset_type: None,
+            order_conf: OrderConf::default(),
             start_trading: None,
         })])
         .fees(0.001)

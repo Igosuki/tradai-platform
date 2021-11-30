@@ -174,6 +174,6 @@ impl Next<&DualBookPosition> for LinearSpreadModel {
         if self.linear_model.value().is_none() && self.linear_model.is_filled() {
             self.update()?;
         }
-        return Ok(self.linear_model.value());
+        Ok(self.linear_model.value())
     }
 }
