@@ -41,6 +41,7 @@ impl Subject for MarketEventEnvelope {
             Channel::Orderbooks { xch, pair } => format!("live_event.{}.{}.obs", xch, pair),
             Channel::Orders { xch, pair } => format!("live_event.{}.{}.orders", xch, pair),
             Channel::Trades { xch, pair } => format!("live_event.{}.{}.trades", xch, pair),
+            Channel::Candles { xch, pair } => format!("live_event.{}.{}.candles", xch, pair),
         }
     }
 }

@@ -100,7 +100,7 @@ impl NaiveStrategyMetrics {
                 .chain(position_gauges.iter().map(|v| v.0.as_str()))
                 .chain(model_gauges.iter().map(|v| v.0.as_str()))
             {
-                let string = format!("state gauge for {}", gauge_name.clone());
+                let string = format!("state gauge for {}", gauge_name);
                 let gauge_vec_opts = Opts::new(gauge_name, &string)
                     .namespace("naive_pair_trading")
                     .const_label("left_pair", left_pair)

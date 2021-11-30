@@ -252,7 +252,7 @@ impl MeanRevertingStrategy {
             return;
         }
         let pos = pos.unwrap();
-        self.last_book_pos = Some(pos.clone());
+        self.last_book_pos = Some(pos);
         if let Err(_e) = self.portfolio.update_from_market(event).await {
             // TODO: log err
         }
@@ -422,7 +422,7 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
         if book_pos.is_none() {
             return Ok(vec![]);
         };
-        self.last_book_pos = book_pos.clone();
+        self.last_book_pos = book_pos;
         if let Err(_e) = self.portfolio.update_from_market(e).await {
             // TODO: log err
         }
