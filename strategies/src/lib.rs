@@ -57,6 +57,7 @@ use trading::engine::TradingEngine;
 pub mod actor;
 pub mod driver;
 pub mod error;
+#[cfg(test)]
 mod event;
 mod generic;
 pub mod mean_reverting;
@@ -64,7 +65,6 @@ mod models;
 pub mod naive_pair_trading;
 mod python_wrapper;
 pub mod query;
-mod repos;
 pub mod settings;
 #[cfg(test)]
 mod test_util;
@@ -75,6 +75,7 @@ pub enum Channel {
     Orders { xch: Exchange, pair: Pair },
     Trades { xch: Exchange, pair: Pair },
     Orderbooks { xch: Exchange, pair: Pair },
+    Candles { xch: Exchange, pair: Pair },
 }
 
 impl Channel {
@@ -83,6 +84,7 @@ impl Channel {
             Channel::Orders { xch, .. } => *xch,
             Channel::Trades { xch, .. } => *xch,
             Channel::Orderbooks { xch, .. } => *xch,
+            Channel::Candles { xch, .. } => *xch,
         }
     }
 
@@ -91,6 +93,7 @@ impl Channel {
             Channel::Orders { pair, .. } => pair.clone(),
             Channel::Trades { pair, .. } => pair.clone(),
             Channel::Orderbooks { pair, .. } => pair.clone(),
+            Channel::Candles { pair, .. } => pair.clone(),
         }
     }
 }

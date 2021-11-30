@@ -19,7 +19,7 @@ pub use storage::mem::MemoryKVStore;
 #[cfg(feature = "rkv-lmdb")]
 pub use storage::rkv;
 pub use storage::rocksdb::{RocksDbOptions, RocksDbStorage};
-pub use storage::{get_or_create, DbEngineOptions, DbOptions, Storage, StorageExt};
+pub use storage::{get_or_create, repo::DefaultRepository, DbEngineOptions, DbOptions, Storage, StorageExt};
 
 mod error;
 mod storage;

@@ -1,8 +1,5 @@
 use chrono::{DateTime, Utc};
 
-use coinnect_rt::prelude::*;
-use std::collections::BTreeMap;
-use trading::book::BookPosition;
 use trading::position::{OperationKind, PositionKind};
 use trading::stop::StopEvent;
 use trading::types::TradeKind;
@@ -45,12 +42,4 @@ impl StratEvent {
 
 impl From<StopEvent> for StratEvent {
     fn from(stop: StopEvent) -> Self { Self::Stop { stop } }
-}
-
-type BookPositions = BTreeMap<Pair, BookPosition>;
-
-#[derive(Debug)]
-pub enum InputEvent {
-    BookPosition(BookPosition),
-    BookPositions(BookPositions),
 }

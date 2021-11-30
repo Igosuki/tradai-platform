@@ -115,7 +115,7 @@ impl GenericDriver {
     // async fn get_status(&self) -> StrategyStatus;
     async fn process_signals(&mut self, signals: &[TradeSignal]) -> Result<()> {
         for signal in signals {
-            let order = self.portfolio.maybe_convert(signal)?;
+            let order = self.portfolio.maybe_convert(signal).await?;
             if let Some(order) = order {
                 self.engine
                     .order_executor
@@ -123,6 +123,35 @@ impl GenericDriver {
                     .await?;
             }
         }
+        // let orders = futures::stream::iter(signals)
+        //     .map(|signal| self.portfolio.maybe_convert(&signal).map(|r| r.ok()))
+        //     .buffered(2)
+        //     .filter_map(futures::future::ready)
+        //     .filter_map(futures::future::ready)
+        //     .collect::<Vec<AddOrderRequest>>()
+        //     .await;
+        // if orders.len() != signals.len() {
+        //     return;
+        // }
+        // futures::stream::iter(orders)
+        //     .for_each_concurrent(2, |order: AddOrderRequest| async {
+        //         let exchange = order.xch;
+        //         let pair = order.pair.clone();
+        //         if let Err(e) = self
+        //             .engine
+        //             .order_executor
+        //             .stage_order(StagedOrder { request: order })
+        //             .await
+        //         {
+        //             self.metrics.log_error(e.short_name());
+        //             error!(err = %e, "failed to stage order");
+        //             if let Err(e) = self.portfolio.unlock_position(exchange, pair) {
+        //                 self.metrics.log_error(e.short_name());
+        //                 error!(err = %e, "failed to unlock position");
+        //             }
+        //         }
+        //     })
+        //     .await;
         Ok(())
     }
 
@@ -130,7 +159,7 @@ impl GenericDriver {
         StrategyIndicators {
             value: self.portfolio.value(),
             pnl: self.portfolio.pnl(),
-            current_return: self.portfolio.returns().last().map(|l| l.1).unwrap_or(0.0),
+            current_return: self.portfolio.current_return(),
         }
     }
 

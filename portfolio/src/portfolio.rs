@@ -109,7 +109,7 @@ impl Portfolio {
 
     /// Convert the signal to a request if it passes checks and no locks exist for the target market
     /// Sets a lock for the market, which can be removed by filling the order
-    pub fn maybe_convert(&mut self, signal: &TradeSignal) -> Result<Option<AddOrderRequest>> {
+    pub async fn maybe_convert(&mut self, signal: &TradeSignal) -> Result<Option<AddOrderRequest>> {
         // Determine whether position can be opened or closed
         let pos_key = signal.xch_and_pair();
         if self.is_locked(&pos_key) {
@@ -117,7 +117,11 @@ impl Portfolio {
         }
         let request: AddOrderRequest = if let Some(p) = self.open_positions.get(&pos_key) {
             if signal.op_kind.is_close() && p.is_opened() {
-                signal.into()
+                let interests = self.interest_fees_since_open(p.open_order.as_ref()).await?;
+                AddOrderRequest {
+                    quantity: p.close_qty(self.fees_rate, interests),
+                    ..signal.into()
+                }
             } else {
                 return Ok(None);
             }
@@ -126,7 +130,9 @@ impl Portfolio {
         } else {
             return Ok(None);
         };
-        // TODO : integrate interest fees for closing order
+        if request.quantity.is_none() || request.quantity.unwrap() <= 0.0 {
+            return Err(Error::ZeroOrNegativeOrderQty);
+        }
         // TODO: Check that cash can be provisionned for pair, this should be compatible with margin trading multiplers
         if self.risk.evaluate(self, &request) > self.risk_threshold {
             return Ok(None);
@@ -135,8 +141,7 @@ impl Portfolio {
             at: Utc::now(),
             order_id: request.order_id.clone(),
         };
-        self.repo.set_lock(&pos_key, &lock)?;
-        self.locks.insert(pos_key, lock);
+        self.lock_position(pos_key, lock)?;
         Ok(Some(request))
     }
 
@@ -207,8 +212,16 @@ impl Portfolio {
     /// Update the corresponding position with the latest event (typically the price)
     pub async fn update_from_market(&mut self, event: &MarketEventEnvelope) -> Result<()> {
         if let Some(p) = self.open_positions.get_mut(&(event.xch, event.pair.clone())) {
-            // let interests = self.interest_fees_since_open(p.open_order.as_ref()).await?;
-            p.update(event, self.fees_rate, 0.0);
+            let interests = match p.open_order.as_ref() {
+                None => 0.0,
+                Some(o) => self
+                    .interest_rates
+                    .interest_fees_since(Exchange::from_str(&o.exchange).unwrap(), o)
+                    .await
+                    .err_into::<Error>()?,
+            };
+            //let interests = self.interest_fees_since_open(p.open_order.as_ref()).await?;
+            p.update(event, self.fees_rate, interests);
         }
         Ok(())
     }
@@ -281,6 +294,12 @@ impl Portfolio {
         self.repo.release_lock(key)
     }
 
+    fn lock_position(&mut self, pos_key: PositionKey, lock: PositionLock) -> Result<()> {
+        self.repo.set_lock(&pos_key, &lock)?;
+        self.locks.insert(pos_key, lock);
+        Ok(())
+    }
+
     pub fn value(&self) -> f64 { self.value }
 
     pub fn pnl(&self) -> f64 { self.value }
@@ -299,11 +318,12 @@ impl Portfolio {
         self.open_positions.get(&(xch, pair))
     }
 
-    pub fn returns(&self) -> Vec<(PositionKey, f64)> {
+    pub fn current_return(&self) -> f64 {
         self.open_positions
             .iter()
-            .map(|(k, pos)| (k.clone(), pos.unreal_profit_loss))
-            .collect()
+            .map(|(_, pos)| pos.unreal_profit_loss)
+            .sum::<f64>()
+            / self.pnl
     }
 
     pub fn positions_history(&self) -> Result<Vec<Position>> { self.repo.all_positions() }

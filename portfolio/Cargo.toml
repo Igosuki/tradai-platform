@@ -33,6 +33,7 @@ uuid = { version = "0.8", features = ["v4", "serde"] }
 # async
 futures = "0.3"
 async-trait = "0.1"
+tokio = "1"
 
 [dev-dependencies]
 env_logger = "0.9"

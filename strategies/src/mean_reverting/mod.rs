@@ -6,7 +6,6 @@ use chrono::{DateTime, Duration, TimeZone, Utc};
 use uuid::Uuid;
 
 use coinnect_rt::prelude::*;
-use coinnect_rt::types::MarginSideEffect;
 use db::Storage;
 use portfolio::portfolio::{Portfolio, PortfolioRepoImpl};
 use portfolio::risk::DefaultMarketRiskEvaluator;
@@ -14,6 +13,7 @@ use portfolio::risk::DefaultMarketRiskEvaluator;
 use stats::indicators::macd_apo::MACDApo;
 use trading::book::BookPosition;
 use trading::engine::TradingEngine;
+use trading::order_manager::types::StagedOrder;
 
 use crate::driver::StrategyDriver;
 use crate::error::Result;
@@ -26,24 +26,15 @@ use crate::models::Sampler;
 use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, StrategyIndicators};
 use crate::{Channel, StratEvent, StratEventLogger, StrategyStatus};
 use trading::position::{OperationKind, PositionKind};
-use trading::signal::TradeSignal;
+use trading::signal::{new_trade_signal, TradeSignal};
 use trading::stop::Stopper;
-use trading::types::{OrderMode, TradeKind};
-use util::time::now;
+use trading::types::OrderConf;
 
 mod metrics;
 pub mod model;
 pub mod options;
-pub mod state;
 #[cfg(test)]
 mod tests;
-
-#[derive(Debug)]
-pub struct OrderConf {
-    dry_mode: bool,
-    order_mode: OrderMode,
-    asset_type: AssetType,
-}
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -106,11 +97,7 @@ impl MeanRevertingStrategy {
             logger,
             portfolio,
             is_trading: true,
-            order_conf: OrderConf {
-                dry_mode: n.dry_mode(),
-                order_mode: n.order_mode(),
-                asset_type: n.order_asset_type(),
-            },
+            order_conf: n.order_conf.clone(),
             engine,
         };
         if let Err(e) = strat.load() {
@@ -144,55 +131,6 @@ impl MeanRevertingStrategy {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn trade_signal(
-        pair: Pair,
-        exchange: Exchange,
-        order_conf: &OrderConf,
-        event_time: DateTime<Utc>,
-        trace_id: Uuid,
-        op_kind: OperationKind,
-        pos_kind: PositionKind,
-        price: f64,
-        qty: f64,
-    ) -> TradeSignal {
-        let trade_kind = match (pos_kind, op_kind) {
-            (PositionKind::Short, OperationKind::Open) | (PositionKind::Long, OperationKind::Close) => TradeKind::Sell,
-            (PositionKind::Long, OperationKind::Open) | (PositionKind::Short, OperationKind::Close) => TradeKind::Buy,
-        };
-        let margin_side_effect = if order_conf.asset_type.is_margin() && pos_kind == PositionKind::Short {
-            if op_kind == OperationKind::Open {
-                Some(MarginSideEffect::MarginBuy)
-            } else {
-                Some(MarginSideEffect::AutoRepay)
-            }
-        } else {
-            None
-        };
-        let (order_type, enforcement) = match order_conf.order_mode {
-            OrderMode::Limit => (OrderType::Limit, Some(OrderEnforcement::FOK)),
-            OrderMode::Market => (OrderType::Market, None),
-        };
-        TradeSignal {
-            trace_id,
-            pos_kind,
-            op_kind,
-            trade_kind,
-            event_time,
-            signal_time: now(),
-            price,
-            qty,
-            pair,
-            exchange,
-            instructions: None,
-            dry_mode: order_conf.dry_mode,
-            order_type,
-            enforcement,
-            asset_type: Some(order_conf.asset_type),
-            side_effect: margin_side_effect,
-        }
-    }
-
     fn make_signal(
         &self,
         trace_id: Uuid,
@@ -200,9 +138,9 @@ impl MeanRevertingStrategy {
         operation_kind: OperationKind,
         position_kind: PositionKind,
         price: f64,
-        qty: f64,
+        qty: Option<f64>,
     ) -> TradeSignal {
-        Self::trade_signal(
+        new_trade_signal(
             self.pair.clone(),
             self.exchange,
             &self.order_conf,
@@ -234,37 +172,32 @@ impl MeanRevertingStrategy {
 
         let signal = match self.portfolio.open_position(self.exchange, self.pair.clone()) {
             Some(pos) => {
-                let maybe_stop = self.stopper.should_stop(pos.result_profit_loss);
+                let maybe_stop = self.stopper.should_stop(pos.unreal_profit_loss);
                 if let Some(logger) = &self.logger {
                     logger
                         .maybe_log(maybe_stop.as_ref().map(|e| StratEvent::Stop { stop: *e }))
                         .await;
                 }
-                let last_open_order = pos.open_order.as_ref().unwrap();
                 // Possibly close a short position
                 if (pos.is_short() && apo < 0.0) || maybe_stop.is_some() {
-                    //let interest_fees = self.interest_fees_since_open().await?;
-                    let interest_fees = 0.0;
-                    let qty = (last_open_order.total_executed_qty / (1.0 - self.fees_rate)) + interest_fees;
                     Some(self.make_signal(
                         lr.trace_id,
                         lr.event_time,
                         OperationKind::Close,
                         PositionKind::Short,
                         lr.ask,
-                        qty,
+                        None,
                     ))
                 }
                 // Possibly close a long position
                 else if (pos.is_long() && apo > 0.0) || maybe_stop.is_some() {
-                    let qty = last_open_order.total_executed_qty - last_open_order.base_fees();
                     Some(self.make_signal(
                         lr.trace_id,
                         lr.event_time,
                         OperationKind::Close,
                         PositionKind::Long,
                         lr.bid,
-                        qty,
+                        None,
                     ))
                 } else {
                     None
@@ -272,7 +205,6 @@ impl MeanRevertingStrategy {
             }
             None if (apo > threshold_short) => {
                 // Possibly open a short position
-                info!("Entering short position with threshold {}", threshold_short);
                 let qty = self.open_signal_qty(PositionKind::Short, lr);
                 Some(self.make_signal(
                     lr.trace_id,
@@ -280,12 +212,11 @@ impl MeanRevertingStrategy {
                     OperationKind::Open,
                     PositionKind::Short,
                     lr.bid,
-                    qty.unwrap(),
+                    qty,
                 ))
             }
             None if (apo < threshold_long) => {
                 // Possibly open a long position
-                info!("Entering long position with threshold {}", threshold_long);
                 let qty = self.open_signal_qty(PositionKind::Long, lr);
                 Some(self.make_signal(
                     lr.trace_id,
@@ -293,10 +224,10 @@ impl MeanRevertingStrategy {
                     OperationKind::Open,
                     PositionKind::Long,
                     lr.ask,
-                    qty.unwrap(),
+                    qty,
                 ))
             }
-            None => None,
+            _ => None,
         };
         Ok(signal)
     }
@@ -328,8 +259,20 @@ impl MeanRevertingStrategy {
         if self.can_eval() {
             if self.is_trading() {
                 match self.eval_latest(&pos).await {
-                    Ok(Some(_signal)) => {
-                        // TODO : execute the order
+                    Ok(Some(signal)) => {
+                        if let Ok(Some(order)) = self.portfolio.maybe_convert(&signal).await {
+                            if let Err(e) = self
+                                .engine
+                                .order_executor
+                                .stage_order(StagedOrder { request: order })
+                                .await
+                            {
+                                error!(err = %e, "failed to stage order");
+                                if let Err(e) = self.portfolio.unlock_position(signal.exchange, signal.pair) {
+                                    error!(err = %e, "failed to unlock position");
+                                }
+                            }
+                        }
                         //self.metrics.log_position(signal., &op.kind);
                     }
                     Err(e) => self.metrics.log_error(e.short_name()),
@@ -363,7 +306,7 @@ impl MeanRevertingStrategy {
         StrategyIndicators {
             value: self.portfolio.value(),
             pnl: self.portfolio.pnl(),
-            current_return: self.portfolio.returns().last().map(|l| l.1).unwrap_or(0.0),
+            current_return: self.portfolio.current_return(),
         }
     }
 }
@@ -384,12 +327,6 @@ impl StrategyDriver for MeanRevertingStrategy {
 
     fn data(&mut self, q: DataQuery) -> Result<DataResult> {
         match q {
-            // DataQuery::OperationHistory => Ok(DataResult::MeanRevertingOperations(self.get_operations())),
-            // DataQuery::OpenOperations => Ok(DataResult::MeanRevertingOperation(Box::new(
-            //     self.get_ongoing_op().cloned(),
-            // ))),
-            //DataQuery::CancelOngoingOp => Ok(DataResult::Success(self.cancel_ongoing_op()?)),
-            //DataQuery::State => Ok(DataResult::State(serde_json::to_string(&self.state.vars).unwrap())),
             DataQuery::Status => Ok(DataResult::Status(self.status())),
             DataQuery::Models => Ok(DataResult::Models(self.model.values())),
             DataQuery::Indicators => Ok(DataResult::Indicators(self.indicators())),
@@ -486,6 +423,9 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
             return Ok(vec![]);
         };
         self.last_book_pos = book_pos.clone();
+        if let Err(_e) = self.portfolio.update_from_market(e).await {
+            // TODO: log err
+        }
         if self.is_trading() {
             match self.eval_latest(&book_pos.unwrap()).await {
                 Ok(Some(signal)) => {

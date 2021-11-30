@@ -12,6 +12,7 @@ use crate::storage::rocksdb::RocksDbOptions;
 use crate::{MemoryKVStore, RocksDbStorage};
 
 pub mod mem;
+pub(crate) mod repo;
 #[cfg(feature = "rkv-lmdb")]
 pub mod rkv;
 pub mod rocksdb;

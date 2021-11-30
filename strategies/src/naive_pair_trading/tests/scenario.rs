@@ -1,25 +1,26 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Duration, TimeZone, Utc};
 use itertools::Itertools;
 use serde::Serialize;
 
-use crate::models::WindowedModel;
+use crate::driver::StrategyDriver;
+use crate::event::trades_history;
 use coinnect_rt::exchange::Exchange;
+use coinnect_rt::types::Pair;
+use portfolio::portfolio::Portfolio;
 use trading::engine::mock_engine;
-use trading::types::OrderMode;
+use trading::position::Position;
 use util::test::test_results_dir;
 
-use crate::naive_pair_trading::covar_model::LinearModelValue;
+use crate::naive_pair_trading::covar_model::{LinearModelValue, LinearSpreadModel};
 use crate::naive_pair_trading::options::Options;
-use crate::naive_pair_trading::state::MovingState;
-use crate::naive_pair_trading::{covar_model, DualBookPosition, NaiveTradingStrategy};
+use crate::naive_pair_trading::{DualBookPosition, NaiveTradingStrategy};
 use crate::test_util::draw::{draw_line_plot, StrategyEntry, TimedEntry};
 use crate::test_util::fs::copy_file;
 use crate::test_util::test_db;
 use crate::test_util::{input, test_db_with_path};
-use crate::types::{OperationEvent, TradeEvent};
 
 static LEFT_PAIR: &str = "LTC_USDT";
 static RIGHT_PAIR: &str = "BTC_USDT";
@@ -30,40 +31,52 @@ struct StrategyLog {
     right_mid: f64,
     left_mid: f64,
     predicted_right: f64,
-    short_position_return: f64,
-    long_position_return: f64,
     pnl: f64,
-    nominal_position: f64,
-    beta_lr: f64,
     res: f64,
-    traded_price_left: f64,
-    traded_price_right: f64,
     alpha: f64,
-    value_strat: f64,
+    pos_return: f64,
+    beta: f64,
+    left_qty: f64,
+    right_qty: f64,
+    left_price: f64,
+    right_price: f64,
+    value: f64,
 }
 
 impl StrategyLog {
     fn from_state(
         time: DateTime<Utc>,
-        state: &MovingState,
-        last_row: &DualBookPosition,
-        _model_value: Option<LinearModelValue>,
+        portfolio: &Portfolio,
+        left_pos: Option<&Position>,
+        right_pos: Option<&Position>,
+        last_pos: &DualBookPosition,
+        res: f64,
+        predicted_right: f64,
+        model_value: Option<LinearModelValue>,
     ) -> StrategyLog {
         StrategyLog {
             time,
-            right_mid: last_row.right.mid,
-            left_mid: last_row.left.mid,
-            predicted_right: state.predicted_right(),
-            short_position_return: state.short_position_return(),
-            long_position_return: state.long_position_return(),
-            pnl: state.pnl(),
-            nominal_position: state.nominal_position(),
-            beta_lr: state.beta_lr(),
-            res: state.res(),
-            traded_price_left: state.traded_price_left(),
-            traded_price_right: state.traded_price_right(),
-            alpha: state.alpha(),
-            value_strat: state.value_strat(),
+            right_mid: last_pos.right.mid,
+            left_mid: last_pos.left.mid,
+            pos_return: portfolio.current_return(),
+            pnl: portfolio.pnl(),
+            beta: model_value.as_ref().map(|lm| lm.beta).unwrap_or(0.0),
+            alpha: model_value.as_ref().map(|lm| lm.alpha).unwrap_or(0.0),
+            predicted_right,
+            res,
+            left_qty: left_pos.as_ref().map(|p| p.quantity).unwrap_or(0.0),
+            right_qty: right_pos.as_ref().map(|p| p.quantity).unwrap_or(0.0),
+            left_price: left_pos
+                .as_ref()
+                .and_then(|p| p.open_order.as_ref())
+                .and_then(|o| o.price)
+                .unwrap_or(0.0),
+            right_price: right_pos
+                .as_ref()
+                .and_then(|p| p.open_order.as_ref())
+                .and_then(|o| o.price)
+                .unwrap_or(0.0),
+            value: portfolio.value(),
         }
     }
 }
@@ -81,7 +94,7 @@ static CHANNEL: &str = "order_books";
 async fn model_backtest() {
     init();
     let db = test_db();
-    let mut dt = NaiveTradingStrategy::make_lm_table("BTC_USDT", "ETH_USDT", db, 500);
+    let mut model = LinearSpreadModel::new(db, "BTC_USDT_ETH_USDT", 500, Duration::milliseconds(200), 500);
     // Read downsampled streams
     let records = input::load_csv_records(
         Utc.ymd(2020, 3, 25),
@@ -93,49 +106,51 @@ async fn model_backtest() {
     .await;
     // align data
     records[0].iter().zip(records[1].iter()).take(500).for_each(|(l, r)| {
-        dt.push(&DualBookPosition {
+        model.push(&DualBookPosition {
             time: l.event_ms,
             left: l.to_bp(),
             right: r.to_bp(),
         })
     });
-
-    let beta = covar_model::beta(dt.window());
-    assert!(beta > 0.0, "beta {:?} should be positive", beta);
+    let lm = model.value().unwrap();
+    assert!(lm.beta > 0.0, "beta {:?} should be positive", lm.beta);
 }
 
 #[actix::test]
 async fn complete_backtest() {
     init();
     let path = util::test::test_dir();
-    let engine = Arc::new(mock_engine(path.as_ref(), &[Exchange::Binance]));
+    let exchange = Exchange::Binance;
+    let engine = Arc::new(mock_engine(path.as_ref(), &[exchange]));
     let test_results_dir = test_results_dir(module_path!());
     let db = test_db_with_path(path);
+    let left_pair: Pair = LEFT_PAIR.into();
+    let right_pair: Pair = RIGHT_PAIR.into();
     let mut strat = NaiveTradingStrategy::new(
         db,
         "naive_strat_test".to_string(),
         0.001,
         &Options {
-            left: LEFT_PAIR.into(),
-            right: RIGHT_PAIR.into(),
+            left: left_pair.clone(),
+            right: right_pair.clone(),
             beta_eval_freq: 1000,
             beta_sample_freq: "1min".to_string(),
             window_size: 2000,
-            exchange: Exchange::Binance,
+            exchange,
             threshold_long: -0.03,
             threshold_short: 0.03,
             stop_loss: -0.1,
             stop_gain: 0.075,
             initial_cap: 100.0,
-            dry_mode: Some(true),
-            order_mode: OrderMode::Limit,
+            order_conf: Default::default(),
         },
         engine,
+        None,
     );
     // Read downsampled streams
     let records = input::load_csv_records(
-        Utc.ymd(2021, 8, 2),
-        Utc.ymd(2021, 8, 6),
+        Utc.ymd(2021, 8, 1),
+        Utc.ymd(2021, 8, 9),
         vec![LEFT_PAIR, RIGHT_PAIR],
         EXCHANGE,
         CHANNEL,
@@ -152,39 +167,48 @@ async fn complete_backtest() {
     assert_eq!(left.len(), right.len(), "data should be aligned");
     let mut logs: Vec<StrategyLog> = Vec::new();
     let mut model_values: Vec<(DateTime<Utc>, LinearModelValue, f64, f64, f64)> = Vec::new();
-    let mut trade_events: Vec<(OperationEvent, TradeEvent)> = Vec::new();
     let before_evals = Instant::now();
     let num_records = zip.len();
 
     for (l, r) in zip {
         let now = Instant::now();
         let row_time = l.event_ms;
-        let row = DualBookPosition {
+        let dual_bp = DualBookPosition {
             time: row_time,
             left: l.to_bp(),
             right: r.to_bp(),
         };
-        strat.process_row(&row).await;
+        strat.process_dual_bp(&dual_bp).await;
+        let mut tries = 0;
+        loop {
+            if tries > 5 {
+                break;
+            }
+            if strat.portfolio.is_locked(&(exchange, left_pair.clone()))
+                || strat.portfolio.is_locked(&(exchange, right_pair.clone()))
+            {
+                strat.resolve_orders().await;
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                tries += 1;
+            } else {
+                break;
+            }
+        }
+        let res = strat.calc_pred_ratio(&dual_bp).unwrap_or(0.0);
+        let predicted_right = strat.predict_right(&dual_bp).unwrap_or(0.0);
         if let Some(value) = strat.model_value() {
-            model_values.push((
-                row_time,
-                value.clone(),
-                strat.state.predicted_right(),
-                strat.state.res(),
-                strat.state.value_strat(),
-            ));
+            model_values.push((row_time, value.clone(), predicted_right, res, strat.portfolio.value()));
         }
         logs.push(StrategyLog::from_state(
             row_time,
-            &strat.state,
-            &row,
+            &strat.portfolio,
+            strat.portfolio.open_position(exchange, left_pair.clone()),
+            strat.portfolio.open_position(exchange, right_pair.clone()),
+            &dual_bp,
+            res,
+            predicted_right,
             strat.model_value(),
         ));
-        if let Some(op) = strat.state.ongoing_op() {
-            for trade_event in op.trade_events() {
-                trade_events.push((op.operation_event(), trade_event))
-            }
-        }
         elapsed += now.elapsed().as_nanos();
     }
     info!(
@@ -195,26 +219,34 @@ async fn complete_backtest() {
     );
 
     write_model_values(&test_results_dir, &model_values);
+    let trade_events = trades_history(&strat.portfolio);
     crate::test_util::log::write_trade_events(&test_results_dir, &trade_events);
 
-    // Find that latest operations are correct
-    let mut positions = strat.get_operations();
-    positions.sort_by(|p1, p2| p1.pos.time.cmp(&p2.pos.time));
-    let last_position = positions.last();
-    assert_eq!(Some(162.130004882813), last_position.map(|p| p.pos.left_price));
-    assert_eq!(Some(33.33032942489664), last_position.map(|p| p.left_value()));
+    let mut positions = strat.portfolio.positions_history().unwrap();
+    positions.sort_by(|p1, p2| p1.meta.close_at.cmp(&p2.meta.close_at));
+    let left_positions = positions.iter().filter(|p| p.symbol == left_pair);
+    let last_position = left_positions.last();
+    assert_eq!(
+        Some(162.130004882813),
+        last_position.and_then(|p| p.open_order.as_ref().and_then(|o| o.price))
+    );
+    assert_eq!(
+        Some(33.33032942489664),
+        last_position.and_then(|p| p.open_order.as_ref().map(|o| o.realized_quote_value()))
+    );
 
     let draw_entries: Vec<StrategyEntry<'_, StrategyLog>> = vec![
         ("value", vec![|x| x.right_mid, |x| x.predicted_right]),
-        ("return", vec![|x| x.short_position_return + x.long_position_return]),
+        ("return", vec![|x| x.pos_return]),
         ("PnL", vec![|x| x.pnl]),
-        ("Nominal Position", vec![|x| x.nominal_position]),
-        ("Beta", vec![|x| x.beta_lr]),
+        ("Nominal Position", vec![|x| x.left_qty]),
+        ("Beta", vec![|x| x.beta]),
         ("res", vec![|x| x.res]),
-        ("traded_price_left", vec![|x| x.traded_price_left]),
-        ("traded_price_right", vec![|x| x.traded_price_right]),
+        ("traded_price_left", vec![|x| x.left_price]),
+        ("traded_price_right", vec![|x| x.right_price]),
         ("alpha_val", vec![|x| x.alpha]),
-        ("value_strat", vec![|x| x.value_strat]),
+        ("value_strat", vec![|x| x.value]),
+        ("predicted_right_price", vec![|x| x.predicted_right]),
     ];
     let out_file = draw_line_plot(logs, draw_entries).expect("Should have drawn plots from strategy logs");
     copy_file(

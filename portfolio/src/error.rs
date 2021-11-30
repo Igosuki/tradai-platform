@@ -20,6 +20,24 @@ pub enum Error {
     NoLockForOrder,
     #[error("trading error")]
     Trading(#[from] trading::error::Error),
+    #[error("order quantity was zero or negative")]
+    ZeroOrNegativeOrderQty,
+}
+
+impl Error {
+    pub fn short_name(&self) -> &'static str {
+        match self {
+            Error::Coinnect(_) => "coinnect",
+            Error::Db(_) => "db",
+            Error::Trading(_) => "trading",
+            Error::NoPositionFound => "no_position_found",
+            Error::PositionLocked => "position_locked",
+            Error::BadSideForPosition(_, _, _) => "bad_side_for_pos",
+            Error::UuidParse(_) => "uuid_parse",
+            Error::NoLockForOrder => "no_lock_for_order",
+            Error::ZeroOrNegativeOrderQty => "zero_or_negative_qty",
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

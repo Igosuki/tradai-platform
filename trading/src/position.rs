@@ -2,7 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use coinnect_rt::prelude::{Exchange, MarketEvent, MarketEventEnvelope, TradeType};
-use coinnect_rt::types::Pair;
+use coinnect_rt::types::{AssetType, Pair};
 use std::str::FromStr;
 use util::time::now;
 use uuid::Uuid;
@@ -141,9 +141,9 @@ impl Position {
 
     fn current_price(&self) -> f64 { self.current_symbol_price }
 
-    fn pnl(&self) -> f64 { self.unreal_profit_loss }
+    fn pnl(&self) -> f64 { self.result_profit_loss }
 
-    fn result(&self) -> f64 { self.result_profit_loss }
+    fn unreal_pnl(&self) -> f64 { self.unreal_profit_loss }
 }
 
 impl Default for Position {
@@ -218,7 +218,7 @@ impl Position {
         self.meta.last_update_trace_id = event.trace_id;
         self.meta.last_update = event.e.time();
         self.current_symbol_price = price;
-        self.unreal_profit_loss = self.calculate_unreal_profit_loss();
+        self.unreal_profit_loss = self.calculate_unreal_profit_loss(fees_rate, interests);
         self.interests = interests;
     }
 
@@ -232,12 +232,14 @@ impl Position {
     }
 
     /// Calculate the approximate [Position::unreal_profit_loss] of a [Position].
-    pub fn calculate_unreal_profit_loss(&self) -> f64 {
+    pub fn calculate_unreal_profit_loss(&self, fees_rate: f64, interests: f64) -> f64 {
+        // (open_qty * price) - fees
         let enter_value = self.open_quote_value();
-        // missing interests and exit fees
+        // (open_qty * current_price)
+        let current_value = self.current_value_gross();
         match self.kind {
-            PositionKind::Long => self.current_value_gross() - enter_value,
-            PositionKind::Short => enter_value - self.current_value_gross(),
+            PositionKind::Long => ((current_value * (1.0 - fees_rate)) - enter_value - interests) / enter_value,
+            PositionKind::Short => (enter_value - (current_value * (1.0 + fees_rate)) - interests) / enter_value,
         }
     }
 
@@ -282,6 +284,16 @@ impl Position {
     pub fn is_short(&self) -> bool { self.kind == PositionKind::Short }
 
     pub fn is_long(&self) -> bool { self.kind == PositionKind::Long }
+
+    pub fn close_qty(&self, fees_rate: f64, interests: f64) -> Option<f64> {
+        self.open_order.as_ref().map(|o| match self.kind {
+            PositionKind::Short => match o.asset_type {
+                AssetType::IsolatedMargin | AssetType::Margin => (o.total_executed_qty / (1.0 - fees_rate)) + interests,
+                _ => o.total_executed_qty + o.base_fees(),
+            },
+            PositionKind::Long => o.total_executed_qty - o.base_fees(),
+        })
+    }
 }
 
 /// Equity value at a point in time.

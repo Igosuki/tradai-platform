@@ -1,5 +1,6 @@
 // --------- Event Types ---------
 
+use crate::signal::ExecutionInstruction;
 use coinnect_rt::types::{AddOrderRequest, AssetType, MarginSideEffect, OrderEnforcement, OrderType, TradeType};
 use uuid::Uuid;
 
@@ -123,4 +124,34 @@ pub struct Fees {
 
 impl Fees {
     pub fn total(&self) -> f64 { self.exchange + self.slippage + self.network }
+}
+
+fn default_dry_mode() -> bool { true }
+
+/// Order execution instructions for a market
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OrderConf {
+    /// dry mode means orders won't be sent to the exchange but rather considered executed on the spot
+    #[serde(default = "default_dry_mode")]
+    pub dry_mode: bool,
+    /// preference between limit and market orders, default is `OrderMode::Limit`
+    #[serde(default)]
+    pub order_mode: OrderMode,
+    /// asset type to use for trading, this can change which api and account gets used, default is `AssetType::Spot`
+    #[serde(default)]
+    pub asset_type: AssetType,
+    /// execution instructions for the portfolio, default is None
+    #[allow(dead_code)]
+    pub execution_instruction: Option<ExecutionInstruction>,
+}
+
+impl Default for OrderConf {
+    fn default() -> Self {
+        Self {
+            dry_mode: true,
+            order_mode: OrderMode::Limit,
+            asset_type: AssetType::Spot,
+            execution_instruction: None,
+        }
+    }
 }
