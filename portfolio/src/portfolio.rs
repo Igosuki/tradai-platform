@@ -162,16 +162,17 @@ impl Portfolio {
                     (PositionKind::Short, TradeType::Buy) | (PositionKind::Long, TradeType::Sell)
                 ) && pos.is_opened()
                 {
+                    let value_strat_before = self.value;
+                    let kind = pos.kind;
+                    let qty = pos.quantity;
                     pos.close(self.value, &order);
                     if order.is_filled() {
                         match pos.kind {
                             PositionKind::Short => self.value -= order.quote_value(),
                             PositionKind::Long => self.value += order.realized_quote_value(),
                         }
-                        if pos.is_closed() {
-                            self.pnl = self.value;
-                        }
                     }
+                    Self::log_position(&order, value_strat_before, self.value, kind, qty);
                 } else {
                     return Err(Error::BadSideForPosition("close", pos.kind, order.side));
                 }
@@ -186,20 +187,12 @@ impl Portfolio {
                         (kind, order.side),
                         (PositionKind::Short, TradeType::Sell) | (PositionKind::Long, TradeType::Buy)
                     ) {
-                        trace!(
-                            pos_knd = %kind,
-                            pair = %order.pair,
-                            fees = order.quote_fees(),
-                            realized_quote_value = order.realized_quote_value(),
-                            quote_value = order.quote_value(),
-                            pos_qty = qty,
-                            open_price = order.price.unwrap_or(0.0),
-                            value = qty * order.price.unwrap_or(0.0)
-                        );
+                        let value_strat_before = self.value;
                         match kind {
                             PositionKind::Short => self.value += order.realized_quote_value(),
                             PositionKind::Long => self.value -= order.quote_value(),
                         }
+                        Self::log_position(&order, value_strat_before, self.value, kind, qty);
                     } else {
                         return Err(Error::BadSideForPosition("open", kind, order.side));
                     }
@@ -213,6 +206,9 @@ impl Portfolio {
             if order.is_filled() {
                 if pos.is_closed() {
                     pos_entry.remove();
+                    if self.open_positions.is_empty() {
+                        self.pnl = self.value;
+                    }
                 }
                 self.repo.update_vars(self)?;
             }
@@ -221,6 +217,27 @@ impl Portfolio {
             }
         }
         Ok(None)
+    }
+
+    fn log_position(
+        order: &OrderDetail,
+        value_strat_before: f64,
+        value_strat_after: f64,
+        kind: PositionKind,
+        qty: f64,
+    ) {
+        debug!(
+            pos_knd = %kind,
+            pair = %order.pair,
+            fees = order.quote_fees(),
+            realized_quote_value = order.realized_quote_value(),
+            quote_value = order.quote_value(),
+            pos_qty = qty,
+            open_price = order.price.unwrap_or(0.0),
+            value = qty * order.price.unwrap_or(0.0),
+            value_strat_before = format!("{:.2}", value_strat_before).as_str(),
+            value_strat_after = format!("{:.2}", value_strat_after).as_str(),
+        );
     }
 
     /// Update the corresponding position with the latest event (typically the price)
@@ -291,6 +308,12 @@ impl Portfolio {
         match self.open_positions.get(&position_key) {
             Some(pos) if !self.is_locked(&position_key) && pos.is_opened() && !pos.is_closed() => {
                 unimplemented!();
+                // if let Some(pos) = self.open_positions.get(&position_key) {
+                //     if pos.is_failed_open() {
+                //         self.repo.close_position(pos)?;
+                //         self.open_positions.remove(&position_key);
+                //     }
+                // }
             }
             None => Err(Error::NoPositionFound),
             _ => Err(Error::PositionLocked),
@@ -333,11 +356,15 @@ impl Portfolio {
     }
 
     pub fn current_return(&self) -> f64 {
-        self.open_positions
-            .iter()
-            .map(|(_, pos)| pos.unreal_profit_loss)
-            .sum::<f64>()
-            / self.pnl
+        if self.open_positions.is_empty() {
+            0.0
+        } else {
+            self.open_positions
+                .iter()
+                .map(|(_, pos)| pos.unreal_profit_loss)
+                .sum::<f64>()
+                / self.pnl
+        }
     }
 
     pub fn positions_history(&self) -> Result<Vec<Position>> { self.repo.all_positions() }

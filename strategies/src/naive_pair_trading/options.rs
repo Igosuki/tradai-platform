@@ -17,10 +17,18 @@ pub struct Options {
     pub stop_gain: f64,
     pub initial_cap: f64,
     pub order_conf: OrderConf,
+    pub max_pos_duration: Option<String>,
 }
 
 impl Options {
     pub(super) fn beta_sample_freq(&self) -> Duration {
-        Duration::from_std(parse(&self.beta_sample_freq).unwrap()).unwrap()
+        Duration::from_std(parse(&self.beta_sample_freq).unwrap()).unwrap_or_else(|_| Duration::minutes(1))
+    }
+
+    pub(super) fn max_pos_duration(&self) -> Duration {
+        self.max_pos_duration
+            .as_ref()
+            .and_then(|s| Duration::from_std(parse(s).unwrap()).ok())
+            .unwrap_or_else(|| Duration::days(3))
     }
 }
