@@ -10,6 +10,7 @@ use stats::Next;
 use std::ops::{Add, Mul, Sub};
 use std::sync::Arc;
 use trading::book::BookPosition;
+use util::time::now;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DualBookPosition {
@@ -104,9 +105,16 @@ impl LinearSpreadModel {
     }
 
     pub(super) fn predict(&self, current_price: f64) -> Option<f64> {
-        self.linear_model
-            .value()
-            .map(|lm| covar_model::predict(lm.alpha, lm.beta, current_price))
+        self.linear_model.value().map(|lm| {
+            let predicted = covar_model::predict(lm.alpha, lm.beta, current_price);
+            trace!(
+                alpha = lm.alpha,
+                beta = lm.beta,
+                current_price = current_price,
+                predicted = predicted
+            );
+            predicted
+        })
     }
 
     pub(super) fn beta(&self) -> Option<f64> { self.linear_model.value().map(|lm| lm.beta) }
@@ -140,7 +148,7 @@ impl LinearSpreadModel {
         self.linear_model
             .last_model_time()
             .map(|at| {
-                at.gt(&Utc::now().sub(
+                at.gt(&now().sub(
                     self.sampler
                         .freq()
                         .mul((self.beta_eval_freq as f64 * (1.0 + LM_AGE_CUTOFF_RATIO)) as i32),
