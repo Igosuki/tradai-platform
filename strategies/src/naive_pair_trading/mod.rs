@@ -1,7 +1,8 @@
+use std::cmp::max;
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use coinnect_rt::prelude::*;
 use db::Storage;
 use options::Options;
@@ -38,6 +39,7 @@ pub struct NaiveTradingStrategy {
     exchange: Exchange,
     res_threshold_long: f64,
     res_threshold_short: f64,
+    max_pos_duration: Duration,
     model: LinearSpreadModel,
     right_pair: Pair,
     left_pair: Pair,
@@ -87,6 +89,7 @@ impl NaiveTradingStrategy {
             exchange: n.exchange,
             res_threshold_long: n.threshold_long,
             res_threshold_short: n.threshold_short,
+            max_pos_duration: n.max_pos_duration(),
             model,
             stopper: Stopper::new(n.stop_gain, n.stop_loss),
             right_pair: n.right.clone(),
@@ -206,10 +209,14 @@ impl NaiveTradingStrategy {
                         .maybe_log(maybe_stop.as_ref().map(|e| StratEvent::Stop { stop: *e }))
                         .await;
                 }
+                let max_open_time_reached =
+                    now() - max(left_pos.meta.open_at, right_pos.meta.open_at) > self.max_pos_duration;
                 // Possibly close a short position
                 if right_pos.is_short()
                     && left_pos.is_long()
-                    && ((ratio <= self.res_threshold_short && ratio < 0.0) || maybe_stop.is_some())
+                    && ((ratio <= self.res_threshold_short && ratio < 0.0)
+                        || maybe_stop.is_some()
+                        || max_open_time_reached)
                 {
                     self.model.update()?;
                     Some([
@@ -236,7 +243,9 @@ impl NaiveTradingStrategy {
                 // Possibly close a long position
                 else if right_pos.is_long()
                     && left_pos.is_short()
-                    && ((ratio >= self.res_threshold_long && ratio > 0.0) || maybe_stop.is_some())
+                    && ((ratio >= self.res_threshold_long && ratio > 0.0)
+                        || maybe_stop.is_some()
+                        || max_open_time_reached)
                 {
                     self.model.update()?;
                     Some([

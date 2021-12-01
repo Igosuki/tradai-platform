@@ -149,6 +149,7 @@ async fn complete_backtest() {
             stop_gain: 0.075,
             initial_cap: 100.0,
             order_conf: Default::default(),
+            max_pos_duration: None,
         },
         engine,
         None,
