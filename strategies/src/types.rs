@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 
-use trading::position::{OperationKind, PositionKind};
+use trading::position::{OperationKind, Position, PositionKind};
 use trading::stop::StopEvent;
 use trading::types::TradeKind;
 
@@ -15,7 +15,7 @@ pub struct OperationEvent {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TradeEvent {
-    pub(crate) op: TradeKind,
+    pub(crate) side: TradeKind,
     pub(crate) qty: f64,
     pub(crate) pair: String,
     pub(crate) price: f64,
@@ -32,6 +32,8 @@ pub enum StratEvent {
     Stop { stop: StopEvent },
     Operation(OperationEvent),
     Trade(TradeEvent),
+    OpenPosition(Position),
+    ClosePosition(Position),
 }
 
 impl StratEvent {
@@ -42,4 +44,18 @@ impl StratEvent {
 
 impl From<StopEvent> for StratEvent {
     fn from(stop: StopEvent) -> Self { Self::Stop { stop } }
+}
+
+impl TryFrom<Position> for StratEvent {
+    type Error = crate::error::Error;
+
+    fn try_from(pos: Position) -> Result<Self, Self::Error> {
+        if pos.is_closed() {
+            Ok(Self::ClosePosition(pos))
+        } else if pos.is_opened() {
+            Ok(Self::OpenPosition(pos))
+        } else {
+            Err(Self::Error::InvalidPosition)
+        }
+    }
 }

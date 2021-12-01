@@ -224,5 +224,5 @@ pub async fn load_csv_events(
             })
         })
         .flatten()
-        .sorted_by(|e1, e2| e1.ts.cmp(&e2.ts))
+        .sorted_by(|e1, e2| e1.e.time().cmp(&e2.e.time()))
 }

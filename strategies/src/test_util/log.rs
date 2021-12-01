@@ -6,6 +6,7 @@ pub fn write_trade_events(test_results_dir: &str, trade_events: &[(OperationEven
         format!("{}/trade_events.csv", test_results_dir),
         &[
             "ts",
+            "pair",
             "op",
             "pos",
             "trade_kind",
@@ -18,9 +19,10 @@ pub fn write_trade_events(test_results_dir: &str, trade_events: &[(OperationEven
         trade_events.iter().map(|(o, t)| {
             vec![
                 t.at.format(util::time::TIMESTAMP_FORMAT).to_string(),
+                t.pair.clone(),
                 o.op.as_ref().to_string(),
                 o.pos.as_ref().to_string(),
-                t.op.as_ref().to_string(),
+                t.side.as_ref().to_string(),
                 t.price.to_string(),
                 t.qty.to_string(),
                 t.strat_value.to_string(),

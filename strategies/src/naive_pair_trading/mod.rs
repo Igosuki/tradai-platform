@@ -378,12 +378,12 @@ impl StrategyDriver for NaiveTradingStrategy {
             error!(err = %e, "failed to update portfolio from market");
         }
         if let (Some(l), Some(r)) = (self.last_left, self.last_right) {
-            let x = DualBookPosition {
+            let dbp = DualBookPosition {
                 left: l,
                 right: r,
                 time: now(),
             };
-            self.process_dual_bp(&x).await;
+            self.process_dual_bp(&dbp).await;
         }
         Ok(())
     }
