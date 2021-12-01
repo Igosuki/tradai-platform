@@ -245,17 +245,25 @@ impl StrategyDriver for GenericDriver {
             .iter()
             .map(|(_k, v)| v.order_id.clone())
             .collect();
-        for lock in locked_ids {
+        for lock in &locked_ids {
             match self.engine.order_executor.get_order(lock.as_str()).await {
                 Ok((order, _)) => {
-                    if let Err(_e) = self.portfolio.update_position(order) {
-                        // log err
+                    if let Err(e) = self.portfolio.update_position(order) {
+                        // TODO: in metrics
+                        error!(err = %e, "failed to update portfolio position");
                     }
                 }
-                Err(_e) => {
-                    //log err
+                Err(e) => {
+                    // TODO: in metrics
+                    error!(err = %e, "failed to query locked order");
                 }
             }
+        }
+        if !locked_ids.is_empty() && self.portfolio.locks().is_empty() {
+            // if let Err(e) = self.inner.eval_after_unlock().await {
+            //     // TODO: in metrics
+            //     error!(err = %e, "failed to eval after unlocking portfolio");
+            // }
         }
     }
 }
