@@ -28,8 +28,8 @@ pub fn draw_line_plot<T: TimedEntry>(
             let y: Vec<f64> = skipped_data.clone().map(line_spec).collect();
             let trace = Scatter::new(time, y)
                 .name(line_specs.0)
-                .x_axis(&format!("x{}", i))
-                .y_axis(&format!("y{}", i));
+                .x_axis(&format!("x{}", i + 1))
+                .y_axis(&format!("y{}", i + 1));
             plot.add_trace(trace);
         }
     }

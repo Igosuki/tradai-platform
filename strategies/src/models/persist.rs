@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use db::Storage;
 use db::StorageExt;
+use util::time::now;
 
 use crate::error::Result;
 use crate::models::{TimedValue, TimedWindow, Window};
@@ -23,7 +24,7 @@ pub struct ModelValue<T> {
 }
 
 impl<T> ModelValue<T> {
-    pub fn new(value: T) -> Self { Self { value, at: Utc::now() } }
+    pub fn new(value: T) -> Self { Self { value, at: now() } }
 }
 
 #[derive(Debug)]

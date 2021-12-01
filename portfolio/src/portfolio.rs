@@ -160,14 +160,17 @@ impl Portfolio {
                 if matches!(
                     (pos.kind, order.side),
                     (PositionKind::Short, TradeType::Buy) | (PositionKind::Long, TradeType::Sell)
-                ) {
+                ) && pos.is_opened()
+                {
                     pos.close(self.value, &order);
                     if order.is_filled() {
                         match pos.kind {
                             PositionKind::Short => self.value -= order.quote_value(),
                             PositionKind::Long => self.value += order.realized_quote_value(),
                         }
-                        self.pnl = self.value;
+                        if pos.is_closed() {
+                            self.pnl = self.value;
+                        }
                     }
                 } else {
                     return Err(Error::BadSideForPosition("close", pos.kind, order.side));
@@ -176,12 +179,23 @@ impl Portfolio {
                 // Open
                 if order.is_filled() {
                     let pos = Position::open(&order);
+                    let qty = pos.quantity;
                     let kind = pos.kind;
                     self.open_positions.insert(pos_key.clone(), pos);
                     if matches!(
                         (kind, order.side),
                         (PositionKind::Short, TradeType::Sell) | (PositionKind::Long, TradeType::Buy)
                     ) {
+                        trace!(
+                            pos_knd = %kind,
+                            pair = %order.pair,
+                            fees = order.quote_fees(),
+                            realized_quote_value = order.realized_quote_value(),
+                            quote_value = order.quote_value(),
+                            pos_qty = qty,
+                            open_price = order.price.unwrap_or(0.0),
+                            value = qty * order.price.unwrap_or(0.0)
+                        );
                         match kind {
                             PositionKind::Short => self.value += order.realized_quote_value(),
                             PositionKind::Long => self.value -= order.quote_value(),
@@ -302,7 +316,7 @@ impl Portfolio {
 
     pub fn value(&self) -> f64 { self.value }
 
-    pub fn pnl(&self) -> f64 { self.value }
+    pub fn pnl(&self) -> f64 { self.pnl }
 
     pub fn set_value(&mut self, value: f64) -> Result<()> {
         self.value = value;

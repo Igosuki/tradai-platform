@@ -170,7 +170,8 @@ async fn complete_backtest() {
     let num_records = count.count();
     for event in events {
         let now = Instant::now();
-        util::time::set_current_time(event.e.time());
+        let event_time = event.e.time();
+        util::time::set_current_time(event_time);
         strat.add_event(&event).await.unwrap();
         let mut tries = 0;
         loop {
@@ -191,10 +192,10 @@ async fn complete_backtest() {
             let res = strat.calc_pred_ratio(&dual_bp).unwrap_or(0.0);
             let predicted_right = strat.predict_right(&dual_bp).unwrap_or(0.0);
             if let Some(value) = strat.model_value() {
-                model_values.push((event.ts, value.clone(), predicted_right, res, strat.portfolio.value()));
+                model_values.push((event_time, value.clone(), predicted_right, res, strat.portfolio.value()));
             }
             logs.push(StrategyLog::from_state(
-                event.ts,
+                event_time,
                 &strat.portfolio,
                 strat.portfolio.open_position(exchange, left_pair.clone()),
                 strat.portfolio.open_position(exchange, right_pair.clone()),
@@ -218,17 +219,18 @@ async fn complete_backtest() {
     crate::test_util::log::write_trade_events(&test_results_dir, &trade_events);
 
     let draw_entries: Vec<StrategyEntry<'_, StrategyLog>> = vec![
-        ("value", vec![|x| x.right_mid, |x| x.predicted_right]),
-        ("return", vec![|x| x.pos_return]),
-        ("PnL", vec![|x| x.pnl]),
-        ("Nominal Position", vec![|x| x.left_qty]),
-        ("Beta", vec![|x| x.beta]),
-        ("res", vec![|x| x.res]),
-        ("traded_price_left", vec![|x| x.left_price]),
+        ("right_price", vec![|x| x.right_mid, |x| x.predicted_right]),
         ("traded_price_right", vec![|x| x.right_price]),
-        ("alpha_val", vec![|x| x.alpha]),
+        ("predicted_right", vec![|x| x.predicted_right]),
+        ("return", vec![|x| x.pos_return]),
+        ("pnl", vec![|x| x.pnl]),
         ("value_strat", vec![|x| x.value]),
-        ("predicted_right_price", vec![|x| x.predicted_right]),
+        ("left_qty", vec![|x| x.left_qty]),
+        ("right_qty", vec![|x| x.right_qty]),
+        ("traded_price_left", vec![|x| x.left_price]),
+        ("beta", vec![|x| x.beta]),
+        ("alpha", vec![|x| x.alpha]),
+        ("res", vec![|x| x.res]),
     ];
     let out_file =
         draw_line_plot(module_path!(), logs, draw_entries).expect("Should have drawn plots from strategy logs");

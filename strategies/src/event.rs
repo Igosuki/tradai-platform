@@ -5,12 +5,7 @@ use trading::position::{OperationKind, Position};
 
 pub fn trades_history(portfolio: &Portfolio) -> Vec<(OperationEvent, TradeEvent)> {
     let mut trade_events: Vec<(OperationEvent, TradeEvent)> = Vec::new();
-    for pos in portfolio
-        .positions_history()
-        .unwrap()
-        .into_iter()
-        .sorted_by_key(|o| o.meta.open_at)
-    {
+    for pos in portfolio.positions_history().unwrap() {
         if let Some((op, event)) = open_events(&pos) {
             trade_events.push((op, event));
         }
@@ -18,7 +13,7 @@ pub fn trades_history(portfolio: &Portfolio) -> Vec<(OperationEvent, TradeEvent)
             trade_events.push((op, event));
         }
     }
-    trade_events
+    trade_events.into_iter().sorted_by_key(|o| o.1.at).collect()
 }
 
 pub fn open_events(pos: &Position) -> Option<(OperationEvent, TradeEvent)> {
@@ -30,7 +25,7 @@ pub fn open_events(pos: &Position) -> Option<(OperationEvent, TradeEvent)> {
                 at: order.closed_at.unwrap(),
             },
             TradeEvent {
-                op: order.side.into(),
+                side: order.side.into(),
                 qty: order.base_qty.unwrap_or(0.0),
                 pair: pos.symbol.to_string(),
                 price: order.price.unwrap_or(0.0),
@@ -52,7 +47,7 @@ pub fn close_events(pos: &Position) -> Option<(OperationEvent, TradeEvent)> {
                 at: order.closed_at.unwrap(),
             },
             TradeEvent {
-                op: order.side.into(),
+                side: order.side.into(),
                 qty: order.base_qty.unwrap_or(0.0),
                 pair: pos.symbol.to_string(),
                 price: order.price.unwrap_or(0.0),
