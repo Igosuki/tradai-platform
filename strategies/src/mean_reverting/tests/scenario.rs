@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use chrono::{DateTime, TimeZone, Utc};
+use itertools::Itertools;
 use tokio::time::Duration;
 
 use coinnect_rt::prelude::*;
@@ -76,7 +77,7 @@ async fn moving_average_model_backtest() {
     let mut model = ema_indicator_model(PAIR, db, 100, 1000);
     let csv_records =
         input::load_csv_records(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 9), vec![PAIR], EXCHANGE, CHANNEL).await;
-    csv_records[0].iter().take(500).for_each(|l| {
+    csv_records[0].1.iter().take(500).for_each(|l| {
         let pos: BookPosition = l.to_bp();
         model.update(pos.mid).unwrap();
     });
@@ -134,23 +135,20 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Position> {
     let db = test_db_with_path(path);
     let mut strat = MeanRevertingStrategy::new(db, "mean_reverting_test".to_string(), 0.001, conf, engine, None);
     let mut elapsed = 0_u128;
-    let csv_records =
-        input::load_csv_records(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 9), vec![PAIR], EXCHANGE, CHANNEL).await;
-    let num_records = csv_records[0].len();
+    let events = input::load_csv_events(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 9), vec![PAIR], EXCHANGE, CHANNEL).await;
+    let (events, count) = events.tee();
+    let num_records = count.count();
     // align data
-    let pair_csv_records = csv_records[0].iter();
     let mut strategy_logs: Vec<StrategyLog> = Vec::new();
     let mut model_values: Vec<(DateTime<Utc>, MACDApo, f64)> = Vec::new();
 
     let exchange = Exchange::from(EXCHANGE.to_string());
     let pair: Pair = PAIR.into();
     let before_evals = Instant::now();
-    for row in pair_csv_records
-        .map(|csvr| MarketEventEnvelope::new(exchange, pair.clone(), MarketEvent::Orderbook(csvr.to_orderbook(PAIR))))
-    {
+    for event in events {
         let now = Instant::now();
-        util::time::set_current_time(row.e.time());
-        strat.add_event(&row).await.unwrap();
+        util::time::set_current_time(event.e.time());
+        strat.add_event(&event).await.unwrap();
         let mut tries = 0;
         loop {
             if tries > 5 {
@@ -165,9 +163,9 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Position> {
             }
         }
         let value = strat.model_value().unwrap();
-        let row_time = row.e.time();
+        let row_time = event.e.time();
         model_values.push((row_time, value.clone(), strat.portfolio.value()));
-        if let MarketEvent::Orderbook(ob) = row.e {
+        if let MarketEvent::Orderbook(ob) = event.e {
             strategy_logs.push(StrategyLog::new(
                 exchange,
                 pair.clone(),
@@ -201,7 +199,8 @@ async fn complete_backtest(test_name: &str, conf: &Options) -> Vec<Position> {
         ("PnL", vec![|x| x.pnl]),
         ("Nominal (units)", vec![|x| x.nominal_position]),
     ];
-    let out_file = draw_line_plot(strategy_logs, draw_entries).expect("Should have drawn plots from strategy logs");
+    let out_file = draw_line_plot(module_path!(), strategy_logs, draw_entries)
+        .expect("Should have drawn plots from strategy logs");
     copy_file(
         &out_file,
         &format!("{}/mean_reverting_plot_{}_latest.html", &test_results_dir, test_name),

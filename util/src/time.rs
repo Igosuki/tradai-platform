@@ -40,6 +40,13 @@ pub fn now_str() -> String {
     now.format(TIMESTAMP_FORMAT).to_string()
 }
 
+pub const FILES_TIMESTAMP_FORMAT: &str = "%Y%m%d_%H:%M:%S";
+
+pub fn now_str_files() -> String {
+    let now = Utc::now();
+    now.format(FILES_TIMESTAMP_FORMAT).to_string()
+}
+
 #[cfg(feature = "mock_time")]
 pub fn now() -> DateTime<Utc> { Utc.timestamp_millis(MockClock::time().as_millis() as i64) }
 

@@ -22,7 +22,7 @@ use crate::test_util::fs::copy_file;
 use crate::test_util::test_db;
 use crate::test_util::{input, test_db_with_path};
 
-static LEFT_PAIR: &str = "LTC_USDT";
+static LEFT_PAIR: &str = "ETH_USDT";
 static RIGHT_PAIR: &str = "BTC_USDT";
 
 #[derive(Debug, Serialize)]
@@ -106,13 +106,18 @@ async fn model_backtest() {
     )
     .await;
     // align data
-    records[0].iter().zip(records[1].iter()).take(500).for_each(|(l, r)| {
-        model.push(&DualBookPosition {
-            time: l.event_ms,
-            left: l.to_bp(),
-            right: r.to_bp(),
-        })
-    });
+    records[0]
+        .1
+        .iter()
+        .zip(records[1].1.iter())
+        .take(500)
+        .for_each(|(l, r)| {
+            model.push(&DualBookPosition {
+                time: l.event_ms,
+                left: l.to_bp(),
+                right: r.to_bp(),
+            })
+        });
     let lm = model.value().unwrap();
     assert!(lm.beta > 0.0, "beta {:?} should be positive", lm.beta);
 }
@@ -149,37 +154,24 @@ async fn complete_backtest() {
         None,
     );
     // Read downsampled streams
-    let records = input::load_csv_records(
-        Utc.ymd(2021, 8, 1),
-        Utc.ymd(2021, 8, 9),
+    let mut elapsed = 0_u128;
+    let events = input::load_csv_events(
+        Utc.ymd(2020, 3, 25),
+        Utc.ymd(2020, 4, 8),
         vec![LEFT_PAIR, RIGHT_PAIR],
         EXCHANGE,
         CHANNEL,
     )
     .await;
-
-    let mut elapsed = 0_u128;
-    let left_records = records[0].clone();
-    let right_records = records[1].clone();
-    assert!(!left_records.is_empty(), "no left pair records in dataset");
-    assert!(!right_records.is_empty(), "no right pair records in dataset");
-    let (zip, other) = left_records.iter().zip(right_records.iter()).tee();
-    let (left, right) = other.tee();
-    assert_eq!(left.len(), right.len(), "data should be aligned");
+    let (count, events) = events.tee();
     let mut logs: Vec<StrategyLog> = Vec::new();
     let mut model_values: Vec<(DateTime<Utc>, LinearModelValue, f64, f64, f64)> = Vec::new();
     let before_evals = Instant::now();
-    let num_records = zip.len();
-
-    for (l, r) in zip {
+    let num_records = count.count();
+    for event in events {
         let now = Instant::now();
-        let row_time = l.event_ms;
-        let dual_bp = DualBookPosition {
-            time: row_time,
-            left: l.to_bp(),
-            right: r.to_bp(),
-        };
-        strat.process_dual_bp(&dual_bp).await;
+        util::time::set_current_time(event.e.time());
+        strat.add_event(&event).await.unwrap();
         let mut tries = 0;
         loop {
             if tries > 5 {
@@ -195,21 +187,23 @@ async fn complete_backtest() {
                 break;
             }
         }
-        let res = strat.calc_pred_ratio(&dual_bp).unwrap_or(0.0);
-        let predicted_right = strat.predict_right(&dual_bp).unwrap_or(0.0);
-        if let Some(value) = strat.model_value() {
-            model_values.push((row_time, value.clone(), predicted_right, res, strat.portfolio.value()));
+        if let Some(dual_bp) = strat.last_dual_bp() {
+            let res = strat.calc_pred_ratio(&dual_bp).unwrap_or(0.0);
+            let predicted_right = strat.predict_right(&dual_bp).unwrap_or(0.0);
+            if let Some(value) = strat.model_value() {
+                model_values.push((event.ts, value.clone(), predicted_right, res, strat.portfolio.value()));
+            }
+            logs.push(StrategyLog::from_state(
+                event.ts,
+                &strat.portfolio,
+                strat.portfolio.open_position(exchange, left_pair.clone()),
+                strat.portfolio.open_position(exchange, right_pair.clone()),
+                &dual_bp,
+                res,
+                predicted_right,
+                strat.model_value(),
+            ));
         }
-        logs.push(StrategyLog::from_state(
-            row_time,
-            &strat.portfolio,
-            strat.portfolio.open_position(exchange, left_pair.clone()),
-            strat.portfolio.open_position(exchange, right_pair.clone()),
-            &dual_bp,
-            res,
-            predicted_right,
-            strat.model_value(),
-        ));
         elapsed += now.elapsed().as_nanos();
     }
     info!(
@@ -222,19 +216,6 @@ async fn complete_backtest() {
     write_model_values(&test_results_dir, &model_values);
     let trade_events = trades_history(&strat.portfolio);
     crate::test_util::log::write_trade_events(&test_results_dir, &trade_events);
-
-    let mut positions = strat.portfolio.positions_history().unwrap();
-    positions.sort_by(|p1, p2| p1.meta.close_at.cmp(&p2.meta.close_at));
-    let left_positions = positions.iter().filter(|p| p.symbol == left_pair);
-    let last_position = left_positions.last();
-    assert_eq!(
-        Some(162.130004882813),
-        last_position.and_then(|p| p.open_order.as_ref().and_then(|o| o.price))
-    );
-    assert_eq!(
-        Some(33.33032942489664),
-        last_position.and_then(|p| p.open_order.as_ref().map(|o| o.realized_quote_value()))
-    );
 
     let draw_entries: Vec<StrategyEntry<'_, StrategyLog>> = vec![
         ("value", vec![|x| x.right_mid, |x| x.predicted_right]),
@@ -249,10 +230,24 @@ async fn complete_backtest() {
         ("value_strat", vec![|x| x.value]),
         ("predicted_right_price", vec![|x| x.predicted_right]),
     ];
-    let out_file = draw_line_plot(logs, draw_entries).expect("Should have drawn plots from strategy logs");
+    let out_file =
+        draw_line_plot(module_path!(), logs, draw_entries).expect("Should have drawn plots from strategy logs");
     copy_file(
         &out_file,
         &format!("{}/naive_pair_trading_plot_{}_latest.html", &test_results_dir, "spot"),
+    );
+
+    let mut positions = strat.portfolio.positions_history().unwrap();
+    positions.sort_by(|p1, p2| p1.meta.close_at.cmp(&p2.meta.close_at));
+    let left_positions = positions.iter().filter(|p| p.symbol == left_pair);
+    let last_position = left_positions.last();
+    assert_eq!(
+        Some(162.130004882813),
+        last_position.and_then(|p| p.open_order.as_ref().and_then(|o| o.price))
+    );
+    assert_eq!(
+        Some(33.33032942489664),
+        last_position.and_then(|p| p.open_order.as_ref().map(|o| o.realized_quote_value()))
     );
 }
 

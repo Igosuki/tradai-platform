@@ -34,7 +34,6 @@ mod test {
     use chrono::{TimeZone, Utc};
 
     use coinnect_rt::exchange::Exchange;
-    use coinnect_rt::types::MarketEvent;
     use db::MemoryKVStore;
     use util::serde::write_as_seq;
     use util::test::test_results_dir;
@@ -51,7 +50,7 @@ mod test {
     #[tokio::test]
     async fn test_lodable_model_round_trip() -> Result<()> {
         init();
-        let csv_records = input::load_csv_records(
+        let events = input::load_csv_events(
             Utc.ymd(2021, 8, 1),
             Utc.ymd(2021, 8, 9),
             vec![PAIR],
@@ -59,23 +58,14 @@ mod test {
             "order_books",
         )
         .await;
-        let _num_records = csv_records.len();
         // align data
-        let pair_csv_records = csv_records[0].iter();
         let options = Options::new_test_default(PAIR, Exchange::Binance);
         let memory_store = Arc::new(MemoryKVStore::new());
         let mut model = MeanRevertingModel::new(&options, memory_store);
         let mut model_values = vec![];
 
-        for csvr in pair_csv_records {
-            // let event = MarketEventEnvelope {
-            //     trace_id: Uuid::new_v4(),
-            //     pair: PAIR.into(),
-            //     xch: Exchange::Binance,
-            //     ts: csvr.event_ms,
-            //     e: ,
-            // };
-            model.next(&MarketEvent::Orderbook(csvr.to_orderbook(PAIR))).unwrap();
+        for event in events {
+            model.next(&event.e).unwrap();
             model_values.push(model.export_values().unwrap());
         }
         let results_dir = PathBuf::from(test_results_dir(module_path!()));
