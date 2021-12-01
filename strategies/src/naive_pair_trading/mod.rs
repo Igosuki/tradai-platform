@@ -346,6 +346,16 @@ impl NaiveTradingStrategy {
         }
         Ok(())
     }
+
+    fn last_dual_bp(&self) -> Option<DualBookPosition> {
+        self.last_left.as_ref().and_then(|l| {
+            self.last_right.as_ref().map(|r| DualBookPosition {
+                time: now(),
+                left: *l,
+                right: *r,
+            })
+        })
+    }
 }
 
 #[async_trait]
@@ -363,8 +373,9 @@ impl StrategyDriver for NaiveTradingStrategy {
         } else {
             return Ok(());
         }
-        if let Err(_e) = self.portfolio.update_from_market(le).await {
-            // TODO: log err
+        if let Err(e) = self.portfolio.update_from_market(le).await {
+            // TODO: in metrics
+            error!(err = %e, "failed to update portfolio from market");
         }
         if let (Some(l), Some(r)) = (self.last_left, self.last_right) {
             let x = DualBookPosition {
@@ -428,24 +439,22 @@ impl StrategyDriver for NaiveTradingStrategy {
         for lock in &locked_ids {
             match self.engine.order_executor.get_order(lock).await {
                 Ok((order, _)) => {
-                    if let Err(_e) = self.portfolio.update_position(order) {
-                        // log err
+                    if let Err(e) = self.portfolio.update_position(order) {
+                        // TODO: in metrics
+                        error!(err = %e, "failed to update portfolio position from order");
                     }
                 }
-                Err(_e) => {
-                    //log err
+                Err(e) => {
+                    // TODO: in metrics
+                    error!(err = %e, "failed to query order");
                 }
             }
         }
-        if !locked_ids.is_empty() {
-            if let (Some(l), Some(r)) = (self.last_left.as_ref(), self.last_right.as_ref()) {
-                let dbp = DualBookPosition {
-                    time: now(),
-                    left: *l,
-                    right: *r,
-                };
-                if let Err(_e) = self.eval_latest(&dbp).await {
-                    // log  err
+        if !locked_ids.is_empty() && self.portfolio.locks().is_empty() {
+            if let Some(dbp) = self.last_dual_bp() {
+                if let Err(e) = self.eval_latest(&dbp).await {
+                    // TODO: in metrics
+                    error!(err = %e, "failed to eval after unlocking portfolio");
                 }
             }
         }

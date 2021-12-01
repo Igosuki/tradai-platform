@@ -147,7 +147,7 @@ impl Portfolio {
 
     /// Update the position from an order, closing or opening with the wrong side and kind will
     /// result in error. The lock will be released if the order is filled
-    pub fn update_position(&mut self, order: OrderDetail) -> Result<()> {
+    pub fn update_position(&mut self, order: OrderDetail) -> Result<Option<Position>> {
         let pos_key: PositionKey = pos_key_from_order(&order)?;
         if let Some(PositionLock { order_id, .. }) = self.locks.get(&pos_key) {
             if order_id != &order.id {
@@ -206,7 +206,7 @@ impl Portfolio {
                 self.remove_lock(&pos_key)?;
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     /// Update the corresponding position with the latest event (typically the price)

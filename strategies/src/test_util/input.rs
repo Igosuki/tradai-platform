@@ -3,16 +3,19 @@ use std::io::{BufReader, Result};
 use std::iter::FromIterator;
 use std::path::Path;
 use std::process::Command;
+use std::str::FromStr;
 use std::time::Instant;
 
 use chrono::prelude::*;
 use chrono::{DateTime, Utc};
+use coinnect_rt::exchange::Exchange;
 #[cfg(feature = "dialog_cli")]
 use glob::glob;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use coinnect_rt::types::Orderbook;
+use coinnect_rt::types::{MarketEvent, MarketEventEnvelope, Orderbook, Pair};
 use trading::book::BookPosition;
 use util::serde::date_time_format;
 use util::test::test_data_dir;
@@ -92,10 +95,10 @@ impl CsvRecord {
         ]
     }
 
-    pub fn to_orderbook(&self, pair: &str) -> Orderbook {
+    pub fn to_orderbook(&self, pair: Pair) -> Orderbook {
         Orderbook {
             timestamp: self.event_ms.timestamp_millis(),
-            pair: pair.into(),
+            pair,
             asks: self.asks().into(),
             bids: self.bids().into(),
             last_order_id: None,
@@ -113,16 +116,21 @@ pub fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
     Ok(vec)
 }
 
-pub fn load_records_from_csv<R>(dr: &DateRange, base_path: &Path, pairs: Vec<String>, glob_str: &str) -> Vec<Vec<R>>
+pub fn load_records_from_csv<R>(
+    dr: &DateRange,
+    base_path: &Path,
+    pairs: Vec<String>,
+    glob_str: &str,
+) -> Vec<(String, Vec<R>)>
 where
     Vec<R>: FromIterator<CsvRecord>,
 {
-    let get_records = move |p: String| {
+    let get_records = move |pair: String| {
         dr.clone()
             .flat_map(|dt| {
                 let date = dt;
                 let buf = base_path
-                    .join(format!("pr={}", p.clone()))
+                    .join(format!("pr={}", pair.clone()))
                     .join(format!("dt={}", date.format("%Y-%m-%d")));
                 let glob_string = format!("{}{}", buf.to_str().unwrap(), glob_str);
                 trace!("Loading csv records from : {:?}", glob_string);
@@ -131,11 +139,14 @@ where
                     trace!("no files found !");
                 }
                 let files = glob::glob(&glob_string).unwrap();
-                files.flat_map(|p| load_records(p.unwrap().to_str().unwrap()))
+                files.flat_map(|glob_result| load_records(glob_result.unwrap().to_str().unwrap()))
             })
             .collect()
     };
-    pairs.iter().map(|p| get_records(p.to_string())).collect()
+    pairs
+        .iter()
+        .map(|pair| (pair.clone(), get_records(pair.to_string())))
+        .collect()
 }
 
 fn load_records(path: &str) -> Vec<CsvRecord> { read_csv(path).unwrap() }
@@ -148,18 +159,18 @@ pub async fn load_csv_dataset(
     pairs: Vec<String>,
     exchange: &str,
     channel: &str,
-) -> Vec<Vec<CsvRecord>> {
+) -> Vec<(String, Vec<CsvRecord>)> {
     let base_path = test_data_dir().join(exchange).join(channel);
-    for s in pairs.clone() {
-        let pair_path = base_path.join(&format!("pr={}", s));
+    for pair_string in pairs.clone() {
+        let pair_path = base_path.join(&format!("pr={}", pair_string));
         if !base_path.exists() || !pair_path.exists() {
             info!(
                 "downloading dataset from spaces because {} does not exist",
                 pair_path.to_str().unwrap_or("")
             );
             std::fs::create_dir_all(&base_path).unwrap();
-            crate::test_util::input::dl_test_data(test_data_dir().as_path().to_str().unwrap(), exchange, channel, s)
-                .await;
+            let dest_dir = test_data_dir().as_path().to_str().unwrap().to_string();
+            crate::test_util::input::dl_test_data(&dest_dir, exchange, channel, pair_string).await;
         }
     }
     load_records_from_csv(dr, &base_path, pairs, "*csv")
@@ -171,7 +182,7 @@ pub async fn load_csv_records(
     pairs: Vec<&str>,
     exchange: &str,
     channel: &str,
-) -> Vec<Vec<CsvRecord>> {
+) -> Vec<(String, Vec<CsvRecord>)> {
     let now = Instant::now();
     let csv_records = load_csv_dataset(
         &DateRange(from, to, DurationRangeType::Days, 1),
@@ -180,7 +191,7 @@ pub async fn load_csv_records(
         channel,
     )
     .await;
-    let num_records = csv_records[0].len();
+    let num_records = csv_records[0].1.len();
     assert!(num_records > 0, "no csv records could be read");
     info!(
         "Loaded {} csv records in {:.6} ms",
@@ -188,4 +199,30 @@ pub async fn load_csv_records(
         now.elapsed().as_millis()
     );
     csv_records
+}
+
+/// Loads events from csv data, sorted by time
+pub async fn load_csv_events(
+    from: Date<Utc>,
+    to: Date<Utc>,
+    pairs: Vec<&str>,
+    exchange: &str,
+    channel: &str,
+) -> impl Iterator<Item = MarketEventEnvelope> {
+    let records = load_csv_records(from, to, pairs, exchange, channel).await;
+    let exchange = Exchange::from_str(exchange).unwrap();
+    records
+        .iter()
+        .map(|(pair, csv_records)| {
+            let pair: Pair = pair.as_str().into();
+            csv_records.iter().map(move |csvr| {
+                MarketEventEnvelope::new(
+                    exchange,
+                    pair.clone(),
+                    MarketEvent::Orderbook(csvr.to_orderbook(pair.clone())),
+                )
+            })
+        })
+        .flatten()
+        .sorted_by(|e1, e2| e1.ts.cmp(&e2.ts))
 }

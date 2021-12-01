@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use plotly::layout::{GridPattern, Layout, LayoutGrid};
 use plotly::{Plot, Scatter};
 
-use util::time::now_str;
+use util::time::now_str_files;
 
 pub type StrategyEntry<'a, T> = (&'a str, Vec<fn(&T) -> f64>);
 
@@ -13,12 +13,13 @@ pub trait TimedEntry {
 }
 
 pub fn draw_line_plot<T: TimedEntry>(
+    module_path: &str,
     data: Vec<T>,
     entries: Vec<StrategyEntry<'_, T>>,
 ) -> std::result::Result<String, Box<dyn Error>> {
-    let graph_dir = format!("{}/graphs", util::test::test_results_dir(module_path!()),);
+    let graph_dir = format!("{}/graphs", util::test::test_results_dir(module_path),);
     std::fs::create_dir_all(&graph_dir).unwrap();
-    let out_file = format!("{}/mean_reverting_plot_{}.html", graph_dir, now_str());
+    let out_file = format!("{}/plot_{}.html", graph_dir, now_str_files());
     let mut plot = Plot::new();
     let skipped_data = data.iter();
     for (i, line_specs) in entries.iter().enumerate() {

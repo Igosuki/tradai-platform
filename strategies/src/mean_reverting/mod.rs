@@ -253,8 +253,9 @@ impl MeanRevertingStrategy {
         }
         let pos = pos.unwrap();
         self.last_book_pos = Some(pos);
-        if let Err(_e) = self.portfolio.update_from_market(event).await {
-            // TODO: log err
+        if let Err(e) = self.portfolio.update_from_market(event).await {
+            // TODO: in metrics
+            error!(err = %e, "failed to update portfolio from market");
         }
         if self.can_eval() {
             if self.is_trading() {
@@ -368,15 +369,25 @@ impl StrategyDriver for MeanRevertingStrategy {
             .iter()
             .map(|(_k, v)| v.order_id.clone())
             .collect();
-        for lock in locked_ids {
+        for lock in &locked_ids {
             match self.engine.order_executor.get_order(lock.as_str()).await {
                 Ok((order, _)) => {
-                    if let Err(_e) = self.portfolio.update_position(order) {
-                        // log err
+                    if let Err(e) = self.portfolio.update_position(order) {
+                        // TODO: in metrics
+                        error!(err = %e, "failed to update portfolio position");
                     }
                 }
-                Err(_e) => {
-                    //log err
+                Err(e) => {
+                    // TODO: in metrics
+                    error!(err = %e, "failed to query order");
+                }
+            }
+        }
+        if !locked_ids.is_empty() && self.portfolio.locks().is_empty() {
+            if let Some(bp) = self.last_book_pos {
+                if let Err(e) = self.eval_latest(&bp).await {
+                    // TODO: in metrics
+                    error!(err = %e, "failed to eval after unlocking portfolio");
                 }
             }
         }
@@ -423,8 +434,9 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
             return Ok(vec![]);
         };
         self.last_book_pos = book_pos;
-        if let Err(_e) = self.portfolio.update_from_market(e).await {
-            // TODO: log err
+        if let Err(e) = self.portfolio.update_from_market(e).await {
+            // TODO: in metrics
+            error!(err = %e, "failed to update portfolio from market");
         }
         if self.is_trading() {
             match self.eval_latest(&book_pos.unwrap()).await {
