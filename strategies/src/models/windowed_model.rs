@@ -1,3 +1,5 @@
+use std::ops::Index;
+use std::slice::SliceIndex;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
@@ -102,6 +104,17 @@ impl<R: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
     fn value(&self) -> Option<M> { self.model.value() }
 }
 
+impl<
+        R: Serialize + DeserializeOwned + Clone,
+        M: Serialize + DeserializeOwned + Clone + Default,
+        I: SliceIndex<[TimedValue<R>]>,
+    > Index<I> for PersistentWindowedModel<R, M>
+{
+    type Output = I::Output;
+
+    fn index(&self, index: I) -> &Self::Output { &self.rows[index] }
+}
+
 #[cfg(test)]
 mod test {
     extern crate test;
@@ -111,6 +124,7 @@ mod test {
     use chrono::{DateTime, Utc};
     use fake::Fake;
     use quickcheck::{Arbitrary, Gen};
+
     use trading::book::BookPosition;
 
     use crate::models::{Model, Window};

@@ -1,4 +1,5 @@
-use std::ops::Deref;
+use std::ops::{Deref, Index};
+use std::slice::SliceIndex;
 use std::sync::Arc;
 
 use chrono::{DateTime, TimeZone, Utc};
@@ -110,6 +111,12 @@ pub struct PersistentVec<T> {
     key: String,
     last_load_attempt: Option<DateTime<Utc>>,
     is_loaded: bool,
+}
+
+impl<T, I: SliceIndex<[TimedValue<T>]>> Index<I> for PersistentVec<T> {
+    type Output = I::Output;
+
+    fn index(&self, index: I) -> &Self::Output { &self.rows[index] }
 }
 
 /// Values are written and sorted by time
