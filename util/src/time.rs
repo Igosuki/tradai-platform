@@ -47,13 +47,18 @@ pub fn now_str_files() -> String {
     now.format(FILES_TIMESTAMP_FORMAT).to_string()
 }
 
+/// Now simply returns the last clock if previously set
 #[cfg(feature = "mock_time")]
-pub fn now() -> DateTime<Utc> { Utc.timestamp_millis(MockClock::time().as_millis() as i64) }
+pub fn now() -> DateTime<Utc> {
+    // TODO : this should use the mock clock as an offset so we can still simulate passing nanoseconds
+    Utc.timestamp_millis(MockClock::time().as_millis() as i64)
+}
+
+/// Uses chrono as the default if not mocking time
+#[cfg(not(feature = "mock_time"))]
+pub fn now() -> DateTime<Utc> { Utc::now() }
 
 pub fn set_current_time(t: DateTime<Utc>) {
     let d = std::time::Duration::from_millis(t.timestamp_millis() as u64);
     mock_instant::MockClock::set_time(d);
 }
-
-#[cfg(not(feature = "mock_time"))]
-pub fn now() -> DateTime<Utc> { Utc::now() }
