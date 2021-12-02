@@ -43,7 +43,7 @@ impl BacktestRunner {
                 if tries > 5 {
                     break;
                 }
-                let open_ops = strategy.data(DataQuery::OpenPositions);
+                let open_ops = strategy.data(DataQuery::OpenPositions).await;
                 match open_ops {
                     Ok(DataResult::OpenPositions(positions)) if !positions.is_empty() => {
                         strategy.resolve_orders().await;
@@ -59,7 +59,7 @@ impl BacktestRunner {
                     report.book_positions.push(TimedData::new(live_event.e.time(), bp));
                 }
             }
-            match strategy.data(DataQuery::Models) {
+            match strategy.data(DataQuery::Models).await {
                 Ok(DataResult::Models(models)) => report
                     .models
                     .push(TimedData::new(live_event.e.time(), models.into_iter().collect())),
@@ -67,7 +67,7 @@ impl BacktestRunner {
                     report.model_failures += 1;
                 }
             }
-            match strategy.data(DataQuery::Indicators) {
+            match strategy.data(DataQuery::Indicators).await {
                 Ok(DataResult::Indicators(i)) => report.indicators.push(TimedData::new(live_event.e.time(), i)),
                 _ => {
                     report.indicator_failures += 1;

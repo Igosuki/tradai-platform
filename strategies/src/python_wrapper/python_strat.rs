@@ -128,14 +128,14 @@ impl Strategy for PythonStratWrapper {
             .err_into()
     }
 
-    async fn eval(&mut self, e: &MarketEventEnvelope) -> crate::error::Result<Vec<TradeSignal>> {
+    async fn eval(&mut self, e: &MarketEventEnvelope) -> crate::error::Result<Option<Vec<TradeSignal>>> {
         let inner = self.strat();
         let val = Python::with_gil(|py| {
             let py_event = PyMarketEventEnvelope::from(e);
             inner.call_method1(py, "eval", (py_event,))
         });
         eprintln!("val = {:?}", val);
-        val.map(|_v| vec![]).err_into()
+        val.map(|_v| Some(vec![])).err_into()
     }
 
     async fn update_model(&mut self, e: &MarketEventEnvelope) -> crate::error::Result<()> {

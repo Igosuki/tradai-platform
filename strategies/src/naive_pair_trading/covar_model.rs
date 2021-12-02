@@ -1,16 +1,19 @@
+use std::ops::{Add, Mul, Sub};
+use std::sync::Arc;
+
+use chrono::{DateTime, Duration, TimeZone, Utc};
+use itertools::Itertools;
+
+use db::Storage;
+use stats::iter::{CovarianceExt, MeanExt, VarianceExt};
+use stats::Next;
+use trading::book::BookPosition;
+use util::time::now;
+
 use crate::error::*;
 use crate::models::{PersistentWindowedModel, Sampler, Window, WindowedModel};
 use crate::naive_pair_trading::covar_model;
 use crate::Model;
-use chrono::{DateTime, Duration, TimeZone, Utc};
-use db::Storage;
-use itertools::Itertools;
-use stats::iter::{CovarianceExt, MeanExt, VarianceExt};
-use stats::Next;
-use std::ops::{Add, Mul, Sub};
-use std::sync::Arc;
-use trading::book::BookPosition;
-use util::time::now;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DualBookPosition {
@@ -164,6 +167,23 @@ impl LinearSpreadModel {
     pub(super) fn reset(&mut self) -> Result<()> { self.linear_model.wipe() }
 
     pub(super) fn push(&mut self, input: &DualBookPosition) { self.linear_model.push(input); }
+
+    pub(crate) fn serialized(&self) -> Vec<(String, Option<serde_json::Value>)> {
+        vec![
+            (
+                "beta".to_string(),
+                self.linear_model
+                    .value()
+                    .and_then(|v| serde_json::to_value(v.beta).ok()),
+            ),
+            (
+                "alpha".to_string(),
+                self.linear_model
+                    .value()
+                    .and_then(|v| serde_json::to_value(v.alpha).ok()),
+            ),
+        ]
+    }
 }
 
 impl Next<&DualBookPosition> for LinearSpreadModel {

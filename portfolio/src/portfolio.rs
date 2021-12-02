@@ -1,13 +1,14 @@
-use chrono::{DateTime, Utc};
-use coinnect_rt::prelude::{Exchange, TradeType};
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
+
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+use coinnect_rt::prelude::{Exchange, TradeType};
 use coinnect_rt::types::{AddOrderRequest, MarketEventEnvelope, Pair};
 use db::{Storage, StorageExt};
 use ext::ResultExt;
@@ -355,6 +356,8 @@ impl Portfolio {
         self.open_positions.get(&(xch, pair))
     }
 
+    pub fn open_positions(&self) -> &BTreeMap<PositionKey, Position> { &self.open_positions }
+
     pub fn current_return(&self) -> f64 {
         if self.open_positions.is_empty() {
             0.0
@@ -513,18 +516,21 @@ impl PortfolioRepo for PortfolioRepoImpl {
 
 #[cfg(test)]
 mod repository_test {
-    use crate::portfolio::{pos_key_from_position, Portfolio, PortfolioRepo, PortfolioRepoImpl, PositionLock};
-    use crate::risk::DefaultMarketRiskEvaluator;
-    use crate::test_util::test_db;
-    use chrono::Utc;
-    use coinnect_rt::types::AddOrderRequest;
     use std::assert_matches::assert_matches;
     use std::collections::BTreeMap;
     use std::sync::Arc;
+
+    use chrono::Utc;
     use test_log::test;
+
+    use coinnect_rt::types::AddOrderRequest;
     use trading::interest::FlatInterestRateProvider;
     use trading::order_manager::types::OrderDetail;
     use trading::position::Position;
+
+    use crate::portfolio::{pos_key_from_position, Portfolio, PortfolioRepo, PortfolioRepoImpl, PositionLock};
+    use crate::risk::DefaultMarketRiskEvaluator;
+    use crate::test_util::test_db;
 
     fn make_test_repo() -> PortfolioRepoImpl {
         let db = test_db();
@@ -641,13 +647,16 @@ mod repository_test {
 
 #[cfg(test)]
 mod portfolio_test {
+    use std::sync::Arc;
+
+    use test_log::test;
+
+    use trading::interest::FlatInterestRateProvider;
+    use trading::signal::TradeSignal;
+
     use crate::portfolio::{Portfolio, PortfolioRepoImpl};
     use crate::risk::DefaultMarketRiskEvaluator;
     use crate::test_util::test_db;
-    use std::sync::Arc;
-    use test_log::test;
-    use trading::interest::FlatInterestRateProvider;
-    use trading::signal::TradeSignal;
 
     fn make_test_portfolio() -> Portfolio {
         let db = test_db();
