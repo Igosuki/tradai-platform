@@ -1,8 +1,12 @@
 use std::cmp::max;
+use std::collections::HashSet;
 use std::convert::TryInto;
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
+use serde_json::Value;
+use uuid::Uuid;
+
 use coinnect_rt::prelude::*;
 use db::Storage;
 use options::Options;
@@ -17,10 +21,10 @@ use trading::signal::{new_trade_signal, TradeSignal};
 use trading::stop::Stopper;
 use trading::types::OrderConf;
 use util::time::now;
-use uuid::Uuid;
 
 use crate::driver::StrategyDriver;
 use crate::error::*;
+use crate::generic::Strategy;
 use crate::naive_pair_trading::covar_model::{DualBookPosition, LinearModelValue, LinearSpreadModel};
 use crate::query::{ModelReset, MutableField, Mutation, StrategyIndicators};
 use crate::{Channel, DataQuery, DataResult, StratEvent, StratEventLogger, StrategyStatus};
@@ -73,17 +77,14 @@ impl NaiveTradingStrategy {
             engine.interest_rate_provider.clone(),
         )
         .unwrap();
-        let mut model = LinearSpreadModel::new(
+        let model = LinearSpreadModel::new(
             db,
             &format!("{}_{}", &n.left, &n.right),
             n.window_size as usize,
             n.beta_sample_freq(),
             n.beta_eval_freq,
         );
-        if let Err(e) = model.try_load() {
-            error!("{}", e);
-            panic!("Could not load naive strategy model");
-        }
+
         Self {
             key: strat_key,
             exchange: n.exchange,
@@ -397,7 +398,7 @@ impl StrategyDriver for NaiveTradingStrategy {
         Ok(())
     }
 
-    fn data(&mut self, q: DataQuery) -> Result<DataResult> {
+    async fn data(&mut self, q: DataQuery) -> Result<DataResult> {
         match q {
             DataQuery::Status => Ok(DataResult::Status(StrategyStatus::Running)),
             DataQuery::Models => Err(Error::FeatureNotImplemented),
@@ -467,5 +468,78 @@ impl StrategyDriver for NaiveTradingStrategy {
                 }
             }
         }
+    }
+}
+
+#[async_trait]
+impl Strategy for NaiveTradingStrategy {
+    fn key(&self) -> String { self.key.to_owned() }
+
+    fn init(&mut self) -> Result<()> {
+        self.model.try_load().map_err(|e| {
+            error!("{}", e);
+            e
+        })
+    }
+
+    async fn eval(&mut self, le: &MarketEventEnvelope) -> Result<Option<Vec<TradeSignal>>> {
+        if let MarketEvent::Orderbook(ob) = &le.e {
+            let string = ob.pair.clone();
+            if string == self.left_pair {
+                self.last_left = ob.try_into().ok();
+            } else if string == self.right_pair {
+                self.last_right = ob.try_into().ok();
+            }
+        } else {
+            return Ok(None);
+        }
+        if let (Some(l), Some(r)) = (self.last_left, self.last_right) {
+            let dbp = DualBookPosition {
+                left: l,
+                right: r,
+                time: now(),
+            };
+            if self.can_eval() {
+                if let Some(signals) = self.eval_latest(&dbp).await? {
+                    return Ok(Some(signals.into()));
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    async fn update_model(&mut self, le: &MarketEventEnvelope) -> Result<()> {
+        if let MarketEvent::Orderbook(ob) = &le.e {
+            let string = ob.pair.clone();
+            if string == self.left_pair {
+                self.last_left = ob.try_into().ok();
+            } else if string == self.right_pair {
+                self.last_right = ob.try_into().ok();
+            }
+        } else {
+            return Ok(());
+        }
+        if let (Some(l), Some(r)) = (self.last_left, self.last_right) {
+            let dbp = DualBookPosition {
+                left: l,
+                right: r,
+                time: now(),
+            };
+            self.metrics.log_mid_price(&dbp);
+            match self.model.next(&dbp) {
+                Err(e) => self.metrics.log_error(e.short_name()),
+                Ok(Some(lm)) => self.metrics.log_model(&lm),
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn model(&self) -> Vec<(String, Option<Value>)> { self.model.serialized() }
+
+    fn channels(&self) -> HashSet<Channel> {
+        let mut hs = HashSet::new();
+        hs.extend((self as &dyn StrategyDriver).channels());
+        hs
     }
 }

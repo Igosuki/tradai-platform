@@ -14,6 +14,10 @@ use stats::indicators::macd_apo::MACDApo;
 use trading::book::BookPosition;
 use trading::engine::TradingEngine;
 use trading::order_manager::types::StagedOrder;
+use trading::position::{OperationKind, PositionKind};
+use trading::signal::{new_trade_signal, TradeSignal};
+use trading::stop::Stopper;
+use trading::types::OrderConf;
 
 use crate::driver::StrategyDriver;
 use crate::error::Result;
@@ -25,10 +29,6 @@ use crate::models::io::IterativeModel;
 use crate::models::Sampler;
 use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, StrategyIndicators};
 use crate::{Channel, StratEvent, StratEventLogger, StrategyStatus};
-use trading::position::{OperationKind, PositionKind};
-use trading::signal::{new_trade_signal, TradeSignal};
-use trading::stop::Stopper;
-use trading::types::OrderConf;
 
 mod metrics;
 pub mod model;
@@ -326,7 +326,7 @@ impl StrategyDriver for MeanRevertingStrategy {
         Ok(())
     }
 
-    fn data(&mut self, q: DataQuery) -> Result<DataResult> {
+    async fn data(&mut self, q: DataQuery) -> Result<DataResult> {
         match q {
             DataQuery::Status => Ok(DataResult::Status(self.status())),
             DataQuery::Models => Ok(DataResult::Models(self.model.values())),
@@ -424,20 +424,16 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
 
     fn init(&mut self) -> Result<()> { self.load() }
 
-    async fn eval(&mut self, e: &MarketEventEnvelope) -> Result<Vec<TradeSignal>> {
+    async fn eval(&mut self, e: &MarketEventEnvelope) -> Result<Option<Vec<TradeSignal>>> {
         let mut signals = vec![];
         if !self.can_eval() {
-            return Ok(signals);
+            return Ok(None);
         }
         let book_pos = self.parse_book_position(e);
         if book_pos.is_none() {
-            return Ok(vec![]);
+            return Ok(None);
         };
         self.last_book_pos = book_pos;
-        if let Err(e) = self.portfolio.update_from_market(e).await {
-            // TODO: in metrics
-            error!(err = %e, "failed to update portfolio from market");
-        }
         if self.is_trading() {
             match self.eval_latest(&book_pos.unwrap()).await {
                 Ok(Some(signal)) => {
@@ -450,7 +446,7 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
         }
         self.metrics
             .log_portfolio(self.exchange, self.pair.clone(), &self.portfolio);
-        Ok(signals)
+        Ok(Some(signals))
     }
 
     #[tracing::instrument(skip(self), level = "trace")]

@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::Pair;
-use metrics::{MetricGaugeProvider, MetricProviderFn};
 use prometheus::{CounterVec, GaugeVec, Opts, Registry};
 
-use crate::naive_pair_trading::covar_model::LinearModelValue;
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::types::Pair;
 use metrics::store::MetricStore;
+use metrics::{MetricGaugeProvider, MetricProviderFn};
 use portfolio::portfolio::Portfolio;
 use trading::position::Position;
 use trading::signal::TradeSignal;
+
+use crate::naive_pair_trading::covar_model::LinearModelValue;
 
 use super::covar_model::DualBookPosition;
 
@@ -136,12 +137,12 @@ impl NaiveStrategyMetrics {
     }
 
     pub(super) fn log_portfolio(&self, xch: Exchange, left: Pair, right: Pair, portfolio: &Portfolio) {
-        self.log_all_with_providers(&self.portfolio_indicator_fns, portfolio);
+        self.log_all_with_providers(&self.portfolio_indicator_fns, portfolio, &[]);
         if let Some(pos) = portfolio.open_position(xch, left) {
-            self.log_all_with_providers(&self.position_indicator_fns, pos);
+            self.log_all_with_providers(&self.position_indicator_fns, pos, &[]);
         }
         if let Some(pos) = portfolio.open_position(xch, right) {
-            self.log_all_with_providers(&self.position_indicator_fns, pos);
+            self.log_all_with_providers(&self.position_indicator_fns, pos, &[]);
         }
     }
 
@@ -167,7 +168,7 @@ impl NaiveStrategyMetrics {
     }
 
     pub(super) fn log_model(&self, model: &LinearModelValue) {
-        self.log_all_with_providers(&self.model_indicator_fns, model);
+        self.log_all_with_providers(&self.model_indicator_fns, model, &[]);
     }
 
     pub(super) fn log_error(&self, label: &str) { self.error_counter.with_label_values(&[label]).inc(); }
