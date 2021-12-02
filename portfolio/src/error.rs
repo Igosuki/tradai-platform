@@ -1,6 +1,7 @@
-use coinnect_rt::types::TradeType;
 use thiserror::Error;
-use trading::position::PositionKind;
+
+use coinnect_rt::types::TradeType;
+use trading::position::{OperationKind, PositionKind};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -14,6 +15,10 @@ pub enum Error {
     PositionLocked,
     #[error("wrong order side ({2}) when trying to {0} {1} position")]
     BadSideForPosition(&'static str, PositionKind, TradeType),
+    #[error("tried to close a {0} position that was not opened")]
+    BadCloseSignal(PositionKind),
+    #[error("tried to {1} a {0} position that already existed")]
+    BadOpenSignal(PositionKind, OperationKind),
     #[error("failed to parse uuid")]
     UuidParse(#[from] uuid::Error),
     #[error("no more lock existed for order")]
@@ -36,6 +41,8 @@ impl Error {
             Error::UuidParse(_) => "uuid_parse",
             Error::NoLockForOrder => "no_lock_for_order",
             Error::ZeroOrNegativeOrderQty => "zero_or_negative_qty",
+            Error::BadCloseSignal(_) => "bad_close_signal",
+            Error::BadOpenSignal(_, _) => "bad_open_signal",
         }
     }
 }

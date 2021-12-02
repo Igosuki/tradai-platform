@@ -1,4 +1,5 @@
 use thiserror::Error;
+
 use trading::book::BookError;
 use trading::order_manager;
 
@@ -14,7 +15,7 @@ pub enum Error {
     Trading(#[from] trading::error::Error),
     #[error("db {0}")]
     Db(#[from] db::Error),
-    #[error("portfolio")]
+    #[error("portfolio {0}")]
     Portfolio(#[from] portfolio::Error),
     #[error("model not loaded : {0}")]
     ModelLoadError(String),

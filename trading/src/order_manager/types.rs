@@ -237,6 +237,13 @@ impl OrderDetail {
         self.is_rejected() && matches!(self.rejection_reason, Some(Rejection::Cancelled(_)))
     }
 
+    pub fn is_resolved(&self) -> bool {
+        matches!(
+            self.status,
+            OrderStatus::Filled | OrderStatus::Rejected | OrderStatus::Canceled
+        )
+    }
+
     pub fn from_query(transaction_id: Option<String>, add_order: AddOrderRequest) -> Self {
         let pair_string = add_order.pair.to_string();
         let (base_asset, quote_asset) = pair_string.split_once('_').expect("pair string should be BASE_QUOTE");
