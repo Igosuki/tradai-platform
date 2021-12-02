@@ -28,6 +28,7 @@ pub struct GenericDriverMetrics {
     portfolio_gauges: HashMap<String, GaugeVec>,
     position_fns: Vec<PositionIndicatorFn>,
     position_gauges: HashMap<String, GaugeVec>,
+    status_gauge: GaugeVec,
 }
 
 impl GenericDriverMetrics {
@@ -70,23 +71,29 @@ impl GenericDriverMetrics {
         let signal_gauges = make_gauges(const_labels.clone(), &["skey", "xch", "mkt", "pos", "op"], &signal_fns);
 
         let portfolio_fns: Vec<PortfolioIndicatorFn> = vec![
-            ("value_strat".to_string(), |x| x.value()),
-            ("pnl".to_string(), |x| x.pnl()),
-            ("current_return".to_string(), |x| x.current_return()),
+            ("ptf_value".to_string(), |x| x.value()),
+            ("ptf_pnl".to_string(), |x| x.pnl()),
+            ("ptf_current_return".to_string(), |x| x.current_return()),
         ];
         let portfolio_gauges = make_gauges(const_labels.clone(), &["skey"], &portfolio_fns);
 
         let position_fns: Vec<PositionIndicatorFn> = vec![
-            ("return".to_string(), |x| x.unreal_profit_loss),
-            ("traded_price".to_string(), |x| {
+            ("pos_return".to_string(), |x| x.unreal_profit_loss),
+            ("pos_traded_price".to_string(), |x| {
                 x.open_order.as_ref().and_then(|o| o.price).unwrap_or(0.0)
             }),
-            ("nominal_position".to_string(), |x| {
+            ("pos_nominal_position".to_string(), |x| {
                 x.open_order.as_ref().and_then(|o| o.base_qty).unwrap_or(0.0)
             }),
         ];
 
-        let position_gauges = make_gauges(const_labels, &["skey", "xch", "mkt"], &portfolio_fns);
+        let position_gauges = make_gauges(const_labels.clone(), &["skey", "xch", "mkt"], &position_fns);
+
+        let status_gauge = register_gauge_vec!(
+            opts!("is_trading", "Whether the strategy is trading or not.", const_labels),
+            &["skey"]
+        )
+        .unwrap();
 
         Self {
             lock_counters,
@@ -98,6 +105,7 @@ impl GenericDriverMetrics {
             portfolio_gauges,
             position_fns,
             position_gauges,
+            status_gauge,
         }
     }
 
@@ -137,6 +145,12 @@ impl GenericDriverMetrics {
             ]);
         }
     }
+
+    pub(super) fn log_is_trading(&self, strat_key: &str, trading: bool) {
+        self.status_gauge
+            .with_label_values(&[strat_key])
+            .set(if trading { 1.0 } else { 0.0 });
+    }
 }
 
 impl MetricGaugeProvider<Portfolio> for GenericDriverMetrics {
@@ -151,4 +165,7 @@ impl MetricGaugeProvider<Position> for GenericDriverMetrics {
     fn gauges(&self) -> &HashMap<String, GaugeVec> { &self.position_gauges }
 }
 
-pub fn get() -> &'static GenericDriverMetrics { &METRICS }
+pub fn get() -> &'static GenericDriverMetrics {
+    lazy_static::initialize(&METRICS);
+    &METRICS
+}

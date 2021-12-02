@@ -114,22 +114,26 @@ impl Portfolio {
         // Determine whether position can be opened or closed
         let pos_key = signal.xch_and_pair();
         if self.is_locked(&pos_key) {
-            return Ok(None);
+            return Err(Error::PositionLocked);
         }
         let request: AddOrderRequest = if let Some(p) = self.open_positions.get(&pos_key) {
-            if signal.op_kind.is_close() && p.is_opened() {
-                let interests = self.interest_fees_since_open(p.open_order.as_ref()).await?;
-                AddOrderRequest {
-                    quantity: p.close_qty(self.fees_rate, interests),
-                    ..signal.into()
+            if signal.op_kind.is_close() {
+                if p.is_opened() {
+                    let interests = self.interest_fees_since_open(p.open_order.as_ref()).await?;
+                    AddOrderRequest {
+                        quantity: p.close_qty(self.fees_rate, interests),
+                        ..signal.into()
+                    }
+                } else {
+                    return Err(Error::BadCloseSignal(p.kind));
                 }
             } else {
-                return Ok(None);
+                return Err(Error::BadOpenSignal(p.kind, signal.op_kind));
             }
         } else if signal.op_kind.is_open() {
             signal.into()
         } else {
-            return Ok(None);
+            return Err(Error::BadOpenSignal(signal.pos_kind, signal.op_kind));
         };
         if request.quantity.is_none() || request.quantity.unwrap() <= 0.0 {
             return Err(Error::ZeroOrNegativeOrderQty);
@@ -150,60 +154,56 @@ impl Portfolio {
     /// result in error. The lock will be released if the order is filled
     pub fn update_position(&mut self, order: OrderDetail) -> Result<Option<Position>> {
         let pos_key: PositionKey = pos_key_from_order(&order)?;
+        // TODO: Using SQL could get rid of this, if performance allows
         if let Some(PositionLock { order_id, .. }) = self.locks.get(&pos_key) {
             if order_id != &order.id {
                 return Err(Error::NoLockForOrder);
             }
         }
-        {
-            if let Some(pos) = self.open_positions.get_mut(&pos_key) {
-                // Close
+        if let Some(pos) = self.open_positions.get_mut(&pos_key) {
+            // Close
+            if matches!(
+                (pos.kind, order.side),
+                (PositionKind::Short, TradeType::Buy) | (PositionKind::Long, TradeType::Sell)
+            ) && pos.is_opened()
+            {
+                let value_strat_before = self.value;
+                pos.close(self.value, &order);
+                if order.is_filled() {
+                    match pos.kind {
+                        PositionKind::Short => self.value -= order.quote_value(),
+                        PositionKind::Long => self.value += order.realized_quote_value(),
+                    }
+                }
+                Self::log_position(&order, value_strat_before, self.value, pos.kind, pos.quantity);
+            } else {
+                return Err(Error::BadSideForPosition("close", pos.kind, order.side));
+            }
+        } else {
+            // Open
+            if order.is_filled() {
+                let pos = Position::open(&order);
+                let qty = pos.quantity;
+                let kind = pos.kind;
+                self.open_positions.insert(pos_key.clone(), pos);
                 if matches!(
-                    (pos.kind, order.side),
-                    (PositionKind::Short, TradeType::Buy) | (PositionKind::Long, TradeType::Sell)
-                ) && pos.is_opened()
-                {
+                    (kind, order.side),
+                    (PositionKind::Short, TradeType::Sell) | (PositionKind::Long, TradeType::Buy)
+                ) {
                     let value_strat_before = self.value;
-                    let kind = pos.kind;
-                    let qty = pos.quantity;
-                    pos.close(self.value, &order);
-                    if order.is_filled() {
-                        match pos.kind {
-                            PositionKind::Short => self.value -= order.quote_value(),
-                            PositionKind::Long => self.value += order.realized_quote_value(),
-                        }
+                    match kind {
+                        PositionKind::Short => self.value += order.realized_quote_value(),
+                        PositionKind::Long => self.value -= order.quote_value(),
                     }
                     Self::log_position(&order, value_strat_before, self.value, kind, qty);
                 } else {
-                    return Err(Error::BadSideForPosition("close", pos.kind, order.side));
-                }
-            } else {
-                // Open
-                if order.is_filled() {
-                    let pos = Position::open(&order);
-                    let qty = pos.quantity;
-                    let kind = pos.kind;
-                    self.open_positions.insert(pos_key.clone(), pos);
-                    if matches!(
-                        (kind, order.side),
-                        (PositionKind::Short, TradeType::Sell) | (PositionKind::Long, TradeType::Buy)
-                    ) {
-                        let value_strat_before = self.value;
-                        match kind {
-                            PositionKind::Short => self.value += order.realized_quote_value(),
-                            PositionKind::Long => self.value -= order.quote_value(),
-                        }
-                        Self::log_position(&order, value_strat_before, self.value, kind, qty);
-                    } else {
-                        return Err(Error::BadSideForPosition("open", kind, order.side));
-                    }
+                    return Err(Error::BadSideForPosition("open", kind, order.side));
                 }
             }
         }
         if let Entry::Occupied(pos_entry) = self.open_positions.entry(pos_key.clone()) {
             let pos = pos_entry.get();
             self.repo.put_position(pos)?;
-            // Order has been resolved
             if order.is_filled() {
                 if pos.is_closed() {
                     pos_entry.remove();
@@ -213,7 +213,7 @@ impl Portfolio {
                 }
                 self.repo.update_vars(self)?;
             }
-            if order.is_filled() || order.is_bad_request() || order.is_rejected() {
+            if order.is_resolved() {
                 self.remove_lock(&pos_key)?;
             }
         }
