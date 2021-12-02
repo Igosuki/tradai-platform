@@ -1,11 +1,13 @@
 // --------- Data Types ---------
 
+use std::str::FromStr;
+
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
+
 use coinnect_rt::prelude::{Exchange, MarketEvent, MarketEventEnvelope, TradeType};
 use coinnect_rt::types::{AssetType, Pair};
-use std::str::FromStr;
 use util::time::now;
-use uuid::Uuid;
 
 use crate::order_manager::types::OrderDetail;
 
@@ -30,7 +32,9 @@ impl PositionKind {
     pub fn is_long(&self) -> bool { matches!(self, PositionKind::Long) }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
+#[derive(
+    Display, Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum,
+)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum OperationKind {
     #[strum(serialize = "open")]

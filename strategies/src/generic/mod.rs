@@ -14,7 +14,7 @@ use trading::signal::TradeSignal;
 
 use crate::driver::StrategyDriver;
 use crate::error::Result;
-use crate::query::{DataQuery, DataResult, Mutation, StrategyIndicators};
+use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, StrategyIndicators};
 use crate::{Channel, StrategyStatus};
 
 mod metrics;
@@ -63,6 +63,7 @@ pub struct GenericDriver {
     pub(crate) portfolio: Portfolio,
     engine: Arc<TradingEngine>,
     strat_key: String,
+    last_event: Option<MarketEventEnvelope>,
 }
 
 impl GenericDriver {
@@ -91,6 +92,7 @@ impl GenericDriver {
             portfolio,
             engine,
             strat_key,
+            last_event: None,
         })
     }
 
@@ -111,13 +113,7 @@ impl GenericDriver {
             _ => false,
         })
     }
-    //
-    // async fn get_operations(&self) -> Vec<TradeOperation>;
-    //
-    // async fn cancel_ongoing_operations(&self) -> bool;
-    //
-    // async fn get_state(&self) -> String;
-    //
+
     pub(crate) fn status(&self) -> StrategyStatus {
         if self.is_trading {
             StrategyStatus::Running
@@ -139,12 +135,14 @@ impl GenericDriver {
         }
         let mut orders = vec![];
         for signal in signals {
-            let order = self.portfolio.maybe_convert(signal).await;
-            if let Ok(Some(order)) = order {
-                orders.push(order);
+            let conversion = self.portfolio.maybe_convert(signal).await;
+            match conversion {
+                Ok(Some(order)) => orders.push(order),
+                Err(e) => error!(err = %e, "failed to convert order"),
+                _ => error!(signal = ?signal, "did not convert to an order"),
             }
         }
-        if orders.len() != 2 {
+        if orders.len() != signals.len() {
             return Ok(());
         }
         for order in orders {
@@ -182,26 +180,37 @@ impl GenericDriver {
             self.init().await.unwrap();
             self.initialized = true;
         }
-        if !self.handles(le) {
-            return Ok(());
+        if let Err(e) = self.portfolio.update_from_market(le).await {
+            metrics::get().log_error(e.short_name());
+            error!(err = %e, "failed to update portfolio from market");
         }
-        let signals = {
+        {
             let mut inner = self.inner.write().await;
             inner.update_model(le).await?;
-            if let Err(e) = self.portfolio.update_from_market(le).await {
-                // TODO: in metrics
-                error!(err = %e, "failed to update portfolio from market");
-            }
-            inner.eval(le).await?
-        };
-        if let Some(signals) = signals {
-            if !self.portfolio.is_locked(&(le.xch, le.pair.clone())) && !self.portfolio.has_any_failed_position() {
-                if let Err(e) = self.process_signals(signals.as_slice()).await {
-                    metrics::get().signal_error(&le.xch, &le.pair);
-                    metrics::get().log_error(e.short_name());
+        }
+        metrics::get().log_is_trading(self.strat_key.as_str(), self.is_trading);
+        if self.portfolio.has_any_failed_position() {
+            error!(xch = %le.xch, pair = %le.pair, "failed position remaining");
+            return Ok(());
+        }
+        if !self.portfolio.locks().is_empty() {
+            error!(xch = %le.xch, pair = %le.pair, "portfolio locked");
+            metrics::get().log_lock(&le.xch, &le.pair);
+            return Ok(());
+        }
+        if self.is_trading {
+            let signals = {
+                let mut inner = self.inner.write().await;
+                inner.eval(le).await?
+            };
+            if let Some(signals) = signals {
+                if !signals.is_empty() {
+                    if let Err(e) = self.process_signals(signals.as_slice()).await {
+                        metrics::get().signal_error(&le.xch, &le.pair);
+                        metrics::get().log_error(e.short_name());
+                        error!(err = %e, "error processing signals");
+                    }
                 }
-            } else {
-                metrics::get().log_lock(&le.xch, &le.pair)
             }
         }
         Ok(())
@@ -216,6 +225,10 @@ impl StrategyDriver for GenericDriver {
     }
 
     async fn add_event(&mut self, le: &MarketEventEnvelope) -> Result<()> {
+        if !self.handles(le) {
+            return Ok(());
+        }
+        self.last_event = Some(le.clone());
         self.process_event(le).await.map_err(|e| {
             metrics::get().log_error(e.short_name());
             e
@@ -241,7 +254,20 @@ impl StrategyDriver for GenericDriver {
         }
     }
 
-    fn mutate(&mut self, _m: Mutation) -> Result<()> { Ok(()) }
+    fn mutate(&mut self, m: Mutation) -> Result<()> {
+        match m {
+            Mutation::State(m) => {
+                match m.field {
+                    MutableField::ValueStrat => self.portfolio.set_value(m.value)?,
+                    MutableField::Pnl => self.portfolio.set_pnl(m.value)?,
+                }
+                Ok(())
+            }
+            Mutation::Model(ModelReset { name, .. }) => {
+                unimplemented!()
+            }
+        }
+    }
 
     fn channels(&self) -> Vec<Channel> {
         // self.exchanges
@@ -262,13 +288,11 @@ impl StrategyDriver for GenericDriver {
     fn resume_trading(&mut self) { self.is_trading = true; }
 
     async fn resolve_orders(&mut self) {
-        // TODO : probably bad performance
-        let locked_ids: Vec<String> = self
-            .portfolio
-            .locks()
-            .iter()
-            .map(|(_k, v)| v.order_id.clone())
-            .collect();
+        if self.portfolio.locks().is_empty() {
+            return;
+        }
+        // TODO : bad performance overall
+        let locked_ids: Vec<String> = self.portfolio.locks().values().map(|v| v.order_id.clone()).collect();
         for lock in &locked_ids {
             match self.engine.order_executor.get_order(lock.as_str()).await {
                 Ok((order, _)) => {
@@ -284,10 +308,13 @@ impl StrategyDriver for GenericDriver {
             }
         }
         if !locked_ids.is_empty() && self.portfolio.locks().is_empty() {
-            // if let Err(e) = self.inner.eval_after_unlock().await {
-            //     // TODO: in metrics
-            //     error!(err = %e, "failed to eval after unlocking portfolio");
-            // }
+            let mut inner_w = self.inner.write().await;
+            if let Some(event) = self.last_event.as_ref() {
+                if let Err(e) = inner_w.eval(event).await {
+                    metrics::get().log_error(e.short_name());
+                    error!(err = %e, "failed to eval after unlocking portfolio");
+                }
+            }
         }
     }
 }

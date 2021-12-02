@@ -164,6 +164,8 @@ impl MeanRevertingStrategy {
 
     #[tracing::instrument(skip(self), level = "trace")]
     async fn eval_latest(&mut self, lr: &BookPosition) -> Result<Option<TradeSignal>> {
+        self.metrics.log_pos(lr);
+
         let apo = self.model.apo().expect("model required");
 
         let thresholds = self.model.thresholds();
@@ -444,8 +446,6 @@ impl crate::generic::Strategy for MeanRevertingStrategy {
                 _ => {}
             }
         }
-        self.metrics
-            .log_portfolio(self.exchange, self.pair.clone(), &self.portfolio);
         Ok(Some(signals))
     }
 

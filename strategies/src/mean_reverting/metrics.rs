@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::Pair;
 use prometheus::{CounterVec, GaugeVec, Registry};
 
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::types::Pair;
 use metrics::store::MetricStore;
 use portfolio::portfolio::Portfolio;
 use stats::indicators::macd_apo::MACDApo;
@@ -102,7 +102,7 @@ impl MeanRevertingStrategyMetrics {
         .unwrap();
 
         let status_gauge = register_gauge_vec!(
-            opts!("is_trading", "Whether the strategy is trading or not.", const_labels),
+            opts!("mr_is_trading", "Whether the strategy is trading or not.", const_labels),
             &[]
         )
         .unwrap();

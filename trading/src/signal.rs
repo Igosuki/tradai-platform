@@ -10,6 +10,7 @@ use util::time::now;
 use crate::position::{OperationKind, PositionKind};
 use crate::types::{OrderConf, OrderMode, TradeKind};
 
+#[derive(Debug)]
 #[cfg_attr(feature = "python", pyclass)]
 pub struct TradeSignal {
     /// Trace of the event that triggered the signal
