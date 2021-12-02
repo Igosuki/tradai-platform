@@ -1,8 +1,7 @@
-mod metrics;
-
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use serde_json::Value;
 use tokio::sync::RwLock;
 
 use coinnect_rt::prelude::*;
@@ -10,13 +9,17 @@ use db::Storage;
 use portfolio::portfolio::{Portfolio, PortfolioRepoImpl};
 use portfolio::risk::DefaultMarketRiskEvaluator;
 use trading::engine::TradingEngine;
+use trading::order_manager::types::StagedOrder;
+use trading::signal::TradeSignal;
 
 use crate::driver::StrategyDriver;
 use crate::error::Result;
 use crate::query::{DataQuery, DataResult, Mutation, StrategyIndicators};
 use crate::{Channel, StrategyStatus};
-use trading::order_manager::types::StagedOrder;
-use trading::signal::TradeSignal;
+
+mod metrics;
+
+pub type SerializedModel = Vec<(String, Option<Value>)>;
 
 #[async_trait]
 pub(crate) trait Strategy: Sync + Send {
@@ -26,11 +29,11 @@ pub(crate) trait Strategy: Sync + Send {
 
     fn init(&mut self) -> Result<()>;
 
-    async fn eval(&mut self, e: &MarketEventEnvelope) -> Result<Vec<TradeSignal>>;
+    async fn eval(&mut self, e: &MarketEventEnvelope) -> Result<Option<Vec<TradeSignal>>>;
 
     async fn update_model(&mut self, e: &MarketEventEnvelope) -> Result<()>;
 
-    fn model(&self) -> Vec<(String, Option<serde_json::Value>)>;
+    fn model(&self) -> SerializedModel;
 
     fn channels(&self) -> HashSet<Channel>;
 }
@@ -43,22 +46,23 @@ struct StrategyContext<C> {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PortfolioOptions {
-    initial_quote_cash: f64,
-    fees_rate: f64,
+    pub initial_quote_cash: f64,
+    pub fees_rate: f64,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct GenericDriverOptions {
-    portfolio: PortfolioOptions,
+    pub portfolio: PortfolioOptions,
 }
 
 pub struct GenericDriver {
     channels: HashSet<Channel>,
-    inner: RwLock<Box<dyn Strategy>>,
+    pub(crate) inner: RwLock<Box<dyn Strategy>>,
     initialized: bool,
     is_trading: bool,
-    portfolio: Portfolio,
+    pub(crate) portfolio: Portfolio,
     engine: Arc<TradingEngine>,
+    strat_key: String,
 }
 
 impl GenericDriver {
@@ -70,10 +74,11 @@ impl GenericDriver {
         engine: Arc<TradingEngine>,
     ) -> Result<Self> {
         let portfolio_options = &driver_options.portfolio;
+        let strat_key = strat.key();
         let portfolio = Portfolio::try_new(
             portfolio_options.initial_quote_cash,
             portfolio_options.fees_rate,
-            strat.key(),
+            strat_key.clone(),
             Arc::new(PortfolioRepoImpl::new(db)),
             Arc::new(DefaultMarketRiskEvaluator::default()),
             engine.interest_rate_provider.clone(),
@@ -85,6 +90,7 @@ impl GenericDriver {
             is_trading: true,
             portfolio,
             engine,
+            strat_key,
         })
     }
 
@@ -112,8 +118,16 @@ impl GenericDriver {
     //
     // async fn get_state(&self) -> String;
     //
-    // async fn get_status(&self) -> StrategyStatus;
+    pub(crate) fn status(&self) -> StrategyStatus {
+        if self.is_trading {
+            StrategyStatus::Running
+        } else {
+            StrategyStatus::NotTrading
+        }
+    }
+
     async fn process_signals(&mut self, signals: &[TradeSignal]) -> Result<()> {
+        metrics::get().log_signals(self.strat_key.as_str(), signals);
         for signal in signals {
             let order = self.portfolio.maybe_convert(signal).await?;
             if let Some(order) = order {
@@ -123,35 +137,35 @@ impl GenericDriver {
                     .await?;
             }
         }
-        // let orders = futures::stream::iter(signals)
-        //     .map(|signal| self.portfolio.maybe_convert(&signal).map(|r| r.ok()))
-        //     .buffered(2)
-        //     .filter_map(futures::future::ready)
-        //     .filter_map(futures::future::ready)
-        //     .collect::<Vec<AddOrderRequest>>()
-        //     .await;
-        // if orders.len() != signals.len() {
-        //     return;
-        // }
-        // futures::stream::iter(orders)
-        //     .for_each_concurrent(2, |order: AddOrderRequest| async {
-        //         let exchange = order.xch;
-        //         let pair = order.pair.clone();
-        //         if let Err(e) = self
-        //             .engine
-        //             .order_executor
-        //             .stage_order(StagedOrder { request: order })
-        //             .await
-        //         {
-        //             self.metrics.log_error(e.short_name());
-        //             error!(err = %e, "failed to stage order");
-        //             if let Err(e) = self.portfolio.unlock_position(exchange, pair) {
-        //                 self.metrics.log_error(e.short_name());
-        //                 error!(err = %e, "failed to unlock position");
-        //             }
-        //         }
-        //     })
-        //     .await;
+        let mut orders = vec![];
+        for signal in signals {
+            let order = self.portfolio.maybe_convert(signal).await;
+            if let Ok(Some(order)) = order {
+                orders.push(order);
+            }
+        }
+        if orders.len() != 2 {
+            return Ok(());
+        }
+        for order in orders {
+            let exchange = order.xch;
+            let pair = order.pair.clone();
+            if let Err(e) = self
+                .engine
+                .order_executor
+                .stage_order(StagedOrder { request: order })
+                .await
+            {
+                // TODO : keep result and immediatly try to close (or retry) failed orders
+                metrics::get().log_error(e.short_name());
+                error!(err = %e, "failed to stage order");
+                if let Err(e) = self.portfolio.unlock_position(exchange, pair) {
+                    metrics::get().log_error(e.short_name());
+                    error!(err = %e, "failed to unlock position");
+                }
+            }
+        }
+        metrics::get().log_portfolio(self.strat_key.as_str(), &self.portfolio);
         Ok(())
     }
 
@@ -174,14 +188,21 @@ impl GenericDriver {
         let signals = {
             let mut inner = self.inner.write().await;
             inner.update_model(le).await?;
+            if let Err(e) = self.portfolio.update_from_market(le).await {
+                // TODO: in metrics
+                error!(err = %e, "failed to update portfolio from market");
+            }
             inner.eval(le).await?
         };
-        if !self.portfolio.is_locked(&(le.xch, le.pair.clone())) && !self.portfolio.has_any_failed_position() {
-            if let Err(_e) = self.process_signals(signals.as_slice()).await {
-                metrics::get().signal_error(&le.xch, &le.pair);
+        if let Some(signals) = signals {
+            if !self.portfolio.is_locked(&(le.xch, le.pair.clone())) && !self.portfolio.has_any_failed_position() {
+                if let Err(e) = self.process_signals(signals.as_slice()).await {
+                    metrics::get().signal_error(&le.xch, &le.pair);
+                    metrics::get().log_error(e.short_name());
+                }
+            } else {
+                metrics::get().log_lock(&le.xch, &le.pair)
             }
-        } else {
-            metrics::get().log_lock(&le.xch, &le.pair)
         }
         Ok(())
     }
@@ -201,12 +222,15 @@ impl StrategyDriver for GenericDriver {
         })
     }
 
-    fn data(&mut self, q: DataQuery) -> Result<DataResult> {
+    async fn data(&mut self, q: DataQuery) -> Result<DataResult> {
         match q {
             DataQuery::CancelOngoingOp => Ok(DataResult::Success(false)),
             //self.inner.read().await.model().to_owned()
-            DataQuery::Models => Ok(DataResult::Models(vec![])),
-            DataQuery::Status => Ok(DataResult::Status(StrategyStatus::NotTrading)),
+            DataQuery::Models => {
+                let inner = self.inner.read().await;
+                Ok(DataResult::Models(inner.model()))
+            }
+            DataQuery::Status => Ok(DataResult::Status(self.status())),
             DataQuery::Indicators => Ok(DataResult::Indicators(self.indicators())),
             DataQuery::PositionHistory => {
                 unimplemented!()

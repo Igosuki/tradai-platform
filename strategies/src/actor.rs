@@ -139,6 +139,7 @@ impl Handler<DataQuery> for StrategyActor {
                 let mut inner = lock.write().await;
                 Ok(inner
                     .data(msg)
+                    .await
                     .map_err(|e| {
                         error!("{}", e);
                         e

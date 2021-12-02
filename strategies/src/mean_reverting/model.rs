@@ -4,12 +4,12 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::sync::Arc;
 
 use chrono::{TimeZone, Utc};
-use coinnect_rt::types::{MarketEvent, MarketEventEnvelope};
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use serde::ser::SerializeStruct;
 use serde::ser::Serializer;
 
+use coinnect_rt::types::{MarketEvent, MarketEventEnvelope};
 use db::Storage;
 use ext::ResultExt;
 use stats::indicators::macd_apo::MACDApo;
@@ -170,6 +170,18 @@ impl MeanRevertingModel {
             (
                 "apo".to_string(),
                 self.apo.value().and_then(|v| serde_json::to_value(v.apo).ok()),
+            ),
+            (
+                "short_ema".to_string(),
+                self.apo
+                    .value()
+                    .and_then(|v| serde_json::to_value(v.short_ema.current).ok()),
+            ),
+            (
+                "long_ema".to_string(),
+                self.apo
+                    .value()
+                    .and_then(|v| serde_json::to_value(v.long_ema.current).ok()),
             ),
             (
                 "thresholds".to_string(),
