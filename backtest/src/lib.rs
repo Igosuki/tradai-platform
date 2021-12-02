@@ -5,112 +5,43 @@
 #[macro_use]
 extern crate async_trait;
 #[macro_use]
-extern crate tracing;
-#[macro_use]
 extern crate serde_derive;
+#[macro_use]
+extern crate tracing;
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use chrono::{Duration, TimeZone, Utc};
-use futures::StreamExt;
+use chrono::Duration;
+use futures::{stream, StreamExt};
 use itertools::Itertools;
 use tokio::sync::Mutex;
 
 use db::{DbEngineOptions, RocksDbOptions};
-use ext::ResultExt;
-use strategies::driver::StrategyDriver;
-use strategies::query::{DataQuery, DataResult};
-use strategies::types::StratEvent;
-use strategies::{Channel, Coinnect, DbOptions, Exchange, ExchangeApi, ExchangeSettings, MarketEvent,
-                 MarketEventEnvelope, Pair, StratEventLogger};
-use trading::book::BookPosition;
+use strategies::{Channel, Coinnect, DbOptions, Exchange, ExchangeApi, ExchangeSettings, MarketEventEnvelope, Pair};
 use trading::engine::mock_engine;
 use util::test::test_dir;
-use util::time::{now, DateRange};
+use util::time::DateRange;
 
 use crate::datasources::orderbook::convert::events_from_orderbooks;
 use crate::datasources::orderbook::csv_source::{csv_orderbooks_df, events_from_csv_orderbooks};
 use crate::datasources::orderbook::raw_source::raw_orderbooks_df;
 use crate::datasources::orderbook::sampled_source::sampled_orderbooks_df;
-use crate::report::{BacktestReport, GlobalReport, TimedData, TimedVec};
-pub use crate::{config::*, error::*};
+use crate::report::{BacktestReport, GlobalReport, TimedData, VecEventLogger};
+use crate::runner::BacktestRunner;
+pub use crate::{config::*,
+                dataset::{Dataset, DatasetInputFormat},
+                error::*};
 
 mod config;
 mod datafusion_util;
+mod dataset;
 mod datasources;
 mod error;
 mod report;
-
-#[derive(Deserialize, Copy, Clone)]
-#[serde(rename_all = "snake_case")]
-pub enum Dataset {
-    OrderbooksByMinute,
-    OrderbooksBySecond,
-    OrderbooksRaw,
-    Trades,
-}
-
-impl Dataset {
-    fn partitions(&self, data_dir: PathBuf, period: DateRange, xch: Exchange, pair: &Pair) -> HashSet<String> {
-        let mut partitions = HashSet::new();
-        for date in period {
-            let ts = date.and_hms_milli(0, 0, 0, 0).timestamp_millis();
-            let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d");
-            let sub_partition = match self {
-                Dataset::OrderbooksByMinute => vec![
-                    format!("xch={}", xch),
-                    format!("chan={}", "1mn_order_books"),
-                    format!("dt={}", dt_par),
-                ],
-                Dataset::OrderbooksBySecond => vec![
-                    format!("xch={}", xch),
-                    format!("chan={}", "1s_order_books"),
-                    format!("dt={}", dt_par),
-                ],
-                Dataset::OrderbooksRaw => vec![
-                    xch.to_string(),
-                    "order_books".to_string(),
-                    format!("pr={}", pair),
-                    format!("dt={}", dt_par),
-                ],
-                Dataset::Trades => vec![
-                    xch.to_string(),
-                    "trades".to_string(),
-                    format!("pr={}", pair),
-                    format!("dt={}", dt_par),
-                ],
-            };
-            let mut partition_file = data_dir.clone();
-            for part in sub_partition {
-                partition_file.push(part);
-            }
-            partitions.insert(partition_file.as_path().to_string_lossy().to_string());
-        }
-        partitions
-    }
-}
-
-#[derive(Deserialize, Clone)]
-#[serde(rename_all = "snake_case")]
-pub enum DatasetInputFormat {
-    Avro,
-    Parquet,
-    Csv,
-}
-
-impl ToString for DatasetInputFormat {
-    fn to_string(&self) -> String {
-        match self {
-            DatasetInputFormat::Avro => "AVRO",
-            DatasetInputFormat::Parquet => "PARQUET",
-            DatasetInputFormat::Csv => "CSV",
-        }
-        .to_string()
-    }
-}
+mod runner;
 
 pub struct Backtest {
     period: DateRange,
@@ -161,10 +92,7 @@ impl Backtest {
                     Some(logger.clone()),
                 );
                 info!("Creating strategy : {:?}", settings.key());
-                BacktestRunner {
-                    strategy_events_logger: logger,
-                    strategy: Arc::new(Mutex::new(strategy_driver)),
-                }
+                BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger)
             })
             .collect();
         info!("Created {} strategy runners", runners.len());
@@ -180,19 +108,17 @@ impl Backtest {
     }
 
     pub async fn run(&self) -> Result<()> {
-        let chans = {
-            futures::future::join_all(self.runners.iter().map(|r| async {
-                let reader = r.strategy.lock().await;
-                reader.channels()
-            }))
+        let all_chans = stream::iter(&self.runners)
+            .map(BacktestRunner::channels)
+            .buffer_unordered(10)
+            .collect::<Vec<Vec<Channel>>>()
             .await
-        }
-        .into_iter()
-        .flatten()
-        .collect();
+            .into_iter()
+            .flatten()
+            .collect();
 
         let before_read = Instant::now();
-        let live_events = self.read_channels(chans).await?;
+        let live_events = self.read_channels(all_chans).await?;
         let elapsed = before_read.elapsed();
         info!(
             "read {} events in {}.{}s",
@@ -201,10 +127,7 @@ impl Backtest {
             elapsed.subsec_millis()
         );
         let futs = self.runners.iter().map(|r| async {
-            let strat_chans = {
-                let strat = r.strategy.lock().await;
-                strat.channels()
-            };
+            let strat_chans = r.channels().await;
             let events: Vec<MarketEventEnvelope> = strat_chans
                 .into_iter()
                 .map(|c| live_events.get(&(c.exchange(), c.pair())))
@@ -304,90 +227,6 @@ impl Backtest {
             global_report.add_report(report);
         }
         global_report.write_global_report(output_dir.as_path()).unwrap();
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct VecEventLogger {
-    events: Arc<Mutex<TimedVec<StratEvent>>>,
-}
-
-impl Default for VecEventLogger {
-    fn default() -> Self {
-        Self {
-            events: Arc::new(Mutex::new(vec![])),
-        }
-    }
-}
-impl VecEventLogger {
-    pub async fn get_events(&self) -> TimedVec<StratEvent> {
-        let read = self.events.lock().await;
-        read.clone()
-    }
-}
-
-#[async_trait]
-impl StratEventLogger for VecEventLogger {
-    async fn maybe_log(&self, event: Option<StratEvent>) {
-        if let Some(e) = event {
-            let mut write = self.events.lock().await;
-            write.push(TimedData::new(now(), e));
-        }
-    }
-}
-
-struct BacktestRunner {
-    strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
-    strategy_events_logger: Arc<VecEventLogger>,
-}
-
-impl BacktestRunner {
-    async fn run(&self, live_events: &[MarketEventEnvelope]) -> BacktestReport {
-        let mut strategy = self.strategy.lock().await;
-        let mut report = BacktestReport::new(strategy.key().await);
-        for live_event in live_events.iter().sorted_by_key(|le| le.e.time().timestamp_millis()) {
-            util::time::set_current_time(live_event.e.time());
-            strategy.add_event(live_event).await.unwrap();
-            // If there is an ongoing operation, resolve orders
-            let mut tries = 0;
-            loop {
-                if tries > 5 {
-                    break;
-                }
-                let open_ops = strategy.data(DataQuery::OpenPositions);
-                match open_ops {
-                    Ok(DataResult::OpenPositions(positions)) if !positions.is_empty() => {
-                        strategy.resolve_orders().await;
-                        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                        tries += 1;
-                    }
-                    _ => break,
-                }
-            }
-            if let MarketEvent::Orderbook(ob) = &live_event.e {
-                let bp_try: Result<BookPosition> = ob.try_into().err_into();
-                if let Ok(bp) = bp_try {
-                    report.book_positions.push(TimedData::new(live_event.e.time(), bp));
-                }
-            }
-            match strategy.data(DataQuery::Models) {
-                Ok(DataResult::Models(models)) => report
-                    .models
-                    .push(TimedData::new(live_event.e.time(), models.into_iter().collect())),
-                _ => {
-                    report.model_failures += 1;
-                }
-            }
-            match strategy.data(DataQuery::Indicators) {
-                Ok(DataResult::Indicators(i)) => report.indicators.push(TimedData::new(live_event.e.time(), i)),
-                _ => {
-                    report.indicator_failures += 1;
-                }
-            }
-        }
-        let read = self.strategy_events_logger.get_events().await;
-        report.events = read;
-        report
     }
 }
 

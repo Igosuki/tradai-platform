@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
@@ -9,13 +10,15 @@ use plotly::common::Font;
 use plotly::layout::{GridPattern, LayoutGrid, Legend, RowOrder};
 use plotly::{Layout, Plot, Scatter};
 use serde::de::DeserializeOwned;
+use tokio::sync::Mutex;
 
 use stats::Next;
 use strategies::query::StrategyIndicators;
 use strategies::types::StratEvent;
+use strategies::StratEventLogger;
 use trading::book::BookPosition;
 use util::serde::write_as_seq;
-use util::time::now_str;
+use util::time::{now, now_str};
 
 use crate::error::Result;
 
@@ -30,6 +33,35 @@ pub struct TimedData<T> {
 
 impl<T> TimedData<T> {
     pub fn new(ts: DateTime<Utc>, value: T) -> Self { Self { ts, value } }
+}
+
+#[derive(Clone, Debug)]
+pub struct VecEventLogger {
+    events: Arc<Mutex<TimedVec<StratEvent>>>,
+}
+
+impl Default for VecEventLogger {
+    fn default() -> Self {
+        Self {
+            events: Arc::new(Mutex::new(vec![])),
+        }
+    }
+}
+impl VecEventLogger {
+    pub async fn get_events(&self) -> TimedVec<StratEvent> {
+        let read = self.events.lock().await;
+        read.clone()
+    }
+}
+
+#[async_trait]
+impl StratEventLogger for VecEventLogger {
+    async fn maybe_log(&self, event: Option<StratEvent>) {
+        if let Some(e) = event {
+            let mut write = self.events.lock().await;
+            write.push(TimedData::new(now(), e));
+        }
+    }
 }
 
 pub(crate) struct GlobalReport {
