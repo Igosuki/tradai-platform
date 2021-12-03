@@ -10,6 +10,8 @@
 #![feature(fn_traits)]
 #![feature(result_cloned)]
 #![feature(generic_associated_types)]
+#![feature(const_fn_fn_ptr_basics)]
+#![feature(const_fn_trait_bound)]
 
 #[macro_use]
 extern crate anyhow;
@@ -73,6 +75,7 @@ pub mod error;
 mod generic;
 pub mod models;
 pub mod plugin;
+pub mod plugin_flag;
 mod python_wrapper;
 pub mod query;
 pub mod settings;

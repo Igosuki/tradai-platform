@@ -36,7 +36,7 @@ pub struct StrategyPlugin {
 }
 
 impl StrategyPlugin {
-    pub fn new(name: &'static str, key_provider: OptionsProvider, provider: StratProvider) -> Self {
+    pub const fn new(name: &'static str, key_provider: OptionsProvider, provider: StratProvider) -> Self {
         Self {
             name,
             provider,
@@ -52,18 +52,6 @@ impl StrategyPlugin {
 }
 
 inventory::collect!(StrategyPlugin);
-
-pub struct Flag {
-    short: char,
-    name: &'static str,
-    /* ... */
-}
-
-impl Flag {
-    pub fn new(short: char, name: &'static str) -> Self { Flag { short, name } }
-}
-
-inventory::collect!(Flag);
 
 pub type StrategyPluginRegistry<'a> = HashMap<&'a str, &'a StrategyPlugin>;
 
