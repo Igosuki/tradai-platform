@@ -10,7 +10,7 @@ use db::DbOptions;
 use metrics::prom::PrometheusOptions;
 use portfolio::balance::BalanceReporterOptions;
 use portfolio::margin::MarginAccountReporterOptions;
-use strategies::actor::StrategyActorOptions;
+use strategy::actor::StrategyActorOptions;
 use strategy::prelude::*;
 use util::serde::{decode_duration, decode_duration_str, decode_file_size};
 

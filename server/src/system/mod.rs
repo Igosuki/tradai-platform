@@ -23,10 +23,8 @@ use logging::prelude::*;
 use metrics::prom::PrometheusPushActor;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use portfolio::margin::{MarginAccountReporter, MarginAccountReporterOptions};
-use strategies::{self, StrategyKey, Trader};
 use strategy::plugin::plugin_registry;
-use strategy::settings::gather_plugins;
-use strategy::Trader;
+use strategy::{self, StrategyKey, Trader};
 use trading::engine::{new_trading_engine, TradingEngine};
 use trading::interest::MarginInterestRateProvider;
 use trading::order_manager::OrderManager;
@@ -265,27 +263,23 @@ fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<MarketEven
 #[tracing::instrument(skip(settings, engine), level = "info")]
 async fn strategies(settings: Arc<RwLock<Settings>>, engine: Arc<TradingEngine>) -> Vec<Trader> {
     let settings_v = settings.read().await;
-    let exchanges = Arc::new(settings_v.exchanges.clone());
     let mut strategies = settings_v.strategies.clone();
     strategies.extend(settings_v.strategies_copy.iter().map(|sc| sc.all()).flatten().flatten());
     let storage = Arc::new(settings_v.storage.clone());
     let strats = futures::future::join_all(strategies.into_iter().map(move |strategy_settings| {
-        let exchanges_conf = exchanges.clone();
-        let exchange = strategy_settings.exchange();
-        let exchange_conf = exchanges_conf.get(&exchange).unwrap().clone();
         let db = storage.clone();
         let actor_options = settings_v.strat_actor.clone();
         let arc = engine.clone();
         async move {
-            Trader::new(
+            Trader::try_new(
                 plugin_registry(),
                 db.as_ref(),
-                &exchange_conf,
                 &actor_options,
                 &strategy_settings,
                 arc,
                 None,
             )
+            .unwrap()
         }
     }))
     .await;

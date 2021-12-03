@@ -54,11 +54,13 @@ impl StrategyPlugin {
 inventory::collect!(StrategyPlugin);
 
 pub struct Flag {
+    short: char,
     name: &'static str,
+    /* ... */
 }
 
 impl Flag {
-    pub fn new(name: &'static str) -> Self { Flag { name } }
+    pub fn new(short: char, name: &'static str) -> Self { Flag { short, name } }
 }
 
 inventory::collect!(Flag);
