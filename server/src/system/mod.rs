@@ -174,7 +174,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                         .map(<MarketEventEnvelope as Subject>::from_channel)
                         .collect();
                     let consumer = NatsConsumer::start(
-                        NatsConsumer::new::<Arc<MarketEventEnvelope>>(
+                        NatsConsumer::new::<MarketEventEnvelope>(
                             &nats_settings.host,
                             &nats_settings.username,
                             &nats_settings.username,
