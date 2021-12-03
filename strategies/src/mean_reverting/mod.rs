@@ -36,7 +36,6 @@ pub struct MeanRevertingStrategy {
     key: String,
     exchange: Exchange,
     pair: Pair,
-    fees_rate: f64,
     sample_freq: Duration,
     last_sample_time: DateTime<Utc>,
     model: MeanRevertingModel,
@@ -56,7 +55,6 @@ impl MeanRevertingStrategy {
     pub fn new(
         db: Arc<dyn Storage>,
         strat_key: String,
-        fees_rate: f64,
         n: &Options,
         engine: Arc<TradingEngine>,
         logger: Option<Arc<dyn StratEventLogger>>,
@@ -67,7 +65,6 @@ impl MeanRevertingStrategy {
             key: strat_key,
             exchange: n.exchange,
             pair: n.pair.clone(),
-            fees_rate,
             sample_freq: n.sample_freq(),
             last_sample_time: Utc.timestamp_millis(0),
             model,

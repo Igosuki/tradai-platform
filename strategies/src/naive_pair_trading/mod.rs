@@ -10,23 +10,20 @@ use uuid::Uuid;
 use coinnect_rt::prelude::*;
 use db::Storage;
 use options::Options;
-use portfolio::portfolio::{Portfolio, PortfolioRepoImpl};
-use portfolio::risk::DefaultMarketRiskEvaluator;
+use portfolio::portfolio::Portfolio;
 use stats::Next;
 use trading::book::BookPosition;
 use trading::engine::TradingEngine;
-use trading::order_manager::types::StagedOrder;
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};
 use trading::stop::Stopper;
 use trading::types::OrderConf;
 use util::time::now;
 
-use crate::driver::{DefaultStrategyContext, Strategy, StrategyDriver};
+use crate::driver::{DefaultStrategyContext, Strategy};
 use crate::error::*;
 use crate::naive_pair_trading::covar_model::{DualBookPosition, LinearModelValue, LinearSpreadModel};
-use crate::query::{ModelReset, MutableField, Mutation, PortfolioSnapshot};
-use crate::{Channel, DataQuery, DataResult, StratEvent, StratEventLogger, StrategyStatus};
+use crate::{Channel, StratEvent, StratEventLogger};
 
 use self::metrics::NaiveStrategyMetrics;
 
@@ -49,9 +46,8 @@ pub struct NaiveTradingStrategy {
     metrics: Arc<NaiveStrategyMetrics>,
     last_left: Option<BookPosition>,
     last_right: Option<BookPosition>,
-    portfolio: Portfolio,
-    is_trading: bool,
     order_conf: OrderConf,
+    #[allow(dead_code)]
     engine: Arc<TradingEngine>,
     stopper: Stopper<f64>,
     logger: Option<Arc<dyn StratEventLogger>>,
@@ -61,21 +57,11 @@ impl NaiveTradingStrategy {
     pub fn new(
         db: Arc<dyn Storage>,
         strat_key: String,
-        fees_rate: f64,
         n: &Options,
         engine: Arc<TradingEngine>,
         logger: Option<Arc<dyn StratEventLogger>>,
     ) -> Self {
         let metrics = NaiveStrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
-        let portfolio = Portfolio::try_new(
-            n.initial_cap,
-            fees_rate,
-            strat_key.clone(),
-            Arc::new(PortfolioRepoImpl::new(db.clone())),
-            Arc::new(DefaultMarketRiskEvaluator::default()),
-            engine.interest_rate_provider.clone(),
-        )
-        .unwrap();
         let model = LinearSpreadModel::new(
             db,
             &format!("{}_{}", &n.left, &n.right),
@@ -97,8 +83,6 @@ impl NaiveTradingStrategy {
             metrics: Arc::new(metrics),
             last_left: None,
             last_right: None,
-            portfolio,
-            is_trading: true,
             order_conf: n.order_conf.clone(),
             engine,
             logger,
@@ -129,11 +113,7 @@ impl NaiveTradingStrategy {
         )
     }
 
-    async fn eval_latest(&mut self, lr: &DualBookPosition) -> Result<Option<[TradeSignal; 2]>> {
-        if !self.portfolio.has_any_open_position() && self.model.should_eval(lr.time) {
-            self.model.update()?;
-        }
-
+    async fn eval_latest(&self, lr: &DualBookPosition, portfolio: &Portfolio) -> Result<Option<[TradeSignal; 2]>> {
         let beta = self.model.beta().unwrap();
         if beta <= 0.0 {
             return Ok(None);
@@ -144,13 +124,13 @@ impl NaiveTradingStrategy {
         };
         self.metrics.log_ratio(ratio);
 
-        let left_pos = self.portfolio.open_position(self.exchange, self.left_pair.clone());
-        let right_pos = self.portfolio.open_position(self.exchange, self.right_pair.clone());
+        let left_pos = portfolio.open_position(self.exchange, self.left_pair.clone());
+        let right_pos = portfolio.open_position(self.exchange, self.right_pair.clone());
         let signals: Option<[TradeSignal; 2]> = match (left_pos, right_pos) {
             (None, None) => {
                 // Possibly open a short position for the right and long for the left
                 if ratio > self.res_threshold_short {
-                    let spread = self.portfolio.value() / (lr.left.ask * beta);
+                    let spread = portfolio.value() / (lr.left.ask * beta);
                     self.metrics.relative_spread(spread);
                     Some([
                         self.make_signal(
@@ -175,7 +155,7 @@ impl NaiveTradingStrategy {
                 }
                 // Possibly open a long position for the right and short for the left
                 else if ratio <= self.res_threshold_long {
-                    let spread = self.portfolio.value() / lr.right.ask;
+                    let spread = portfolio.value() / lr.right.ask;
                     self.metrics.relative_spread(spread);
                     Some([
                         self.make_signal(
@@ -202,7 +182,7 @@ impl NaiveTradingStrategy {
                 }
             }
             (Some(left_pos), Some(right_pos)) => {
-                let ret = self.portfolio.current_return();
+                let ret = portfolio.current_return();
                 let maybe_stop = self.stopper.should_stop(ret);
                 if let Some(logger) = &self.logger {
                     logger
@@ -218,7 +198,6 @@ impl NaiveTradingStrategy {
                         || maybe_stop.is_some()
                         || max_open_time_reached)
                 {
-                    self.model.update()?;
                     Some([
                         self.make_signal(
                             self.left_pair.clone(),
@@ -247,7 +226,6 @@ impl NaiveTradingStrategy {
                         || maybe_stop.is_some()
                         || max_open_time_reached)
                 {
-                    self.model.update()?;
                     Some([
                         self.make_signal(
                             self.left_pair.clone(),
@@ -279,7 +257,7 @@ impl NaiveTradingStrategy {
     }
 
     /// Ratio of prediction vs mid price
-    fn calc_pred_ratio(&mut self, left_price: f64, right_price: f64) -> Option<f64> {
+    fn calc_pred_ratio(&self, left_price: f64, right_price: f64) -> Option<f64> {
         self.predict_right(left_price)
             .map(|predicted_right| (right_price - predicted_right) / right_price)
     }
@@ -287,187 +265,13 @@ impl NaiveTradingStrategy {
     /// Predict the value of right price
     fn predict_right(&self, price: f64) -> Option<f64> { self.model.predict(price) }
 
-    fn can_eval(&self) -> bool {
-        let has_position = self.portfolio.has_any_open_position();
+    fn can_eval(&self, portfolio: &Portfolio) -> bool {
+        let has_position = portfolio.has_any_open_position();
         self.model.has_model() && (has_position || self.model.is_obsolete())
-    }
-
-    #[tracing::instrument(skip(self), level = "trace")]
-    async fn process_dual_bp(&mut self, dual_bp: &DualBookPosition) {
-        if self.can_eval() {
-            match self.eval_latest(dual_bp).await {
-                Ok(Some(signals)) => {
-                    self.metrics.log_signals(&signals[0], &signals[1]);
-                    let mut orders = vec![];
-                    for signal in signals {
-                        let order = self.portfolio.maybe_convert(&signal).await;
-                        if let Ok(Some(order)) = order {
-                            orders.push(order);
-                        }
-                    }
-                    if orders.len() != 2 {
-                        return;
-                    }
-                    for order in orders {
-                        let exchange = order.xch;
-                        let pair = order.pair.clone();
-                        if let Err(e) = self
-                            .engine
-                            .order_executor
-                            .stage_order(StagedOrder { request: order })
-                            .await
-                        {
-                            // TODO : keep result and immediatly try to close (or retry) failed orders
-                            self.metrics.log_error(e.short_name());
-                            error!(err = %e, "failed to stage order");
-                            if let Err(e) = self.portfolio.unlock_position(exchange, pair) {
-                                self.metrics.log_error(e.short_name());
-                                error!(err = %e, "failed to unlock position");
-                            }
-                        }
-                    }
-                }
-                Err(e) => self.metrics.log_error(e.short_name()),
-                _ => {}
-            }
-            self.metrics.log_portfolio(
-                self.exchange,
-                self.left_pair.clone(),
-                self.right_pair.clone(),
-                &self.portfolio,
-            );
-        }
-        self.metrics.log_mid_price(dual_bp);
-        match self.model.next(dual_bp) {
-            Err(e) => self.metrics.log_error(e.short_name()),
-            Ok(Some(lm)) => self.metrics.log_model(&lm),
-            _ => {}
-        }
     }
 
     #[allow(dead_code)]
     fn model_value(&self) -> Option<LinearModelValue> { self.model.value() }
-
-    fn change_state(&mut self, field: MutableField, v: f64) -> Result<()> {
-        match field {
-            MutableField::ValueStrat => self.portfolio.set_value(v)?,
-            MutableField::Pnl => self.portfolio.set_pnl(v)?,
-        }
-        Ok(())
-    }
-
-    fn last_dual_bp(&self) -> Option<DualBookPosition> {
-        self.last_left.as_ref().and_then(|l| {
-            self.last_right.as_ref().map(|r| DualBookPosition {
-                time: now(),
-                left: *l,
-                right: *r,
-            })
-        })
-    }
-}
-
-#[async_trait]
-impl StrategyDriver for NaiveTradingStrategy {
-    async fn key(&self) -> String { self.key.to_owned() }
-
-    async fn add_event(&mut self, le: &MarketEventEnvelope) -> Result<()> {
-        if let MarketEvent::Orderbook(ob) = &le.e {
-            let string = ob.pair.clone();
-            if string == self.left_pair {
-                self.last_left = ob.try_into().ok();
-            } else if string == self.right_pair {
-                self.last_right = ob.try_into().ok();
-            }
-        } else {
-            return Ok(());
-        }
-        if let Err(e) = self.portfolio.update_from_market(le).await {
-            // TODO: in metrics
-            error!(err = %e, "failed to update portfolio from market");
-        }
-        if let (Some(l), Some(r)) = (self.last_left, self.last_right) {
-            let dbp = DualBookPosition {
-                left: l,
-                right: r,
-                time: now(),
-            };
-            self.process_dual_bp(&dbp).await;
-        }
-        Ok(())
-    }
-
-    async fn data(&mut self, q: DataQuery) -> Result<DataResult> {
-        match q {
-            DataQuery::Status => Ok(DataResult::Status(StrategyStatus::Running)),
-            DataQuery::Models => Err(Error::FeatureNotImplemented),
-            DataQuery::Indicators => Ok(DataResult::Indicators(PortfolioSnapshot::default())),
-            DataQuery::PositionHistory => unimplemented!(),
-            DataQuery::OpenPositions => unimplemented!(),
-            DataQuery::CancelOngoingOp => unimplemented!(),
-        }
-    }
-
-    fn mutate(&mut self, m: Mutation) -> Result<()> {
-        match m {
-            Mutation::State(m) => self.change_state(m.field, m.value),
-            Mutation::Model(ModelReset { name, .. }) if name.is_none() || name == Some("lm".to_string()) => {
-                self.model.reset()
-            }
-            _ => {
-                unreachable!()
-            }
-        }
-    }
-
-    fn channels(&self) -> Vec<Channel> {
-        vec![
-            Channel::Orderbooks {
-                xch: self.exchange,
-                pair: self.left_pair.clone(),
-            },
-            Channel::Orderbooks {
-                xch: self.exchange,
-                pair: self.right_pair.clone(),
-            },
-        ]
-    }
-
-    fn stop_trading(&mut self) { self.is_trading = false; }
-
-    fn resume_trading(&mut self) { self.is_trading = true; }
-
-    async fn resolve_orders(&mut self) {
-        // TODO : probably bad performance
-        let locked_ids: Vec<String> = self
-            .portfolio
-            .locks()
-            .iter()
-            .map(|(_k, v)| v.order_id.clone())
-            .collect();
-        for lock in &locked_ids {
-            match self.engine.order_executor.get_order(lock).await {
-                Ok((order, _)) => {
-                    if let Err(e) = self.portfolio.update_position(order) {
-                        // TODO: in metrics
-                        error!(err = %e, "failed to update portfolio position from order");
-                    }
-                }
-                Err(e) => {
-                    // TODO: in metrics
-                    error!(err = %e, "failed to query order");
-                }
-            }
-        }
-        if !locked_ids.is_empty() && self.portfolio.locks().is_empty() {
-            if let Some(dbp) = self.last_dual_bp() {
-                if let Err(e) = self.eval_latest(&dbp).await {
-                    // TODO: in metrics
-                    error!(err = %e, "failed to eval after unlocking portfolio");
-                }
-            }
-        }
-    }
 }
 
 #[async_trait]
@@ -484,7 +288,7 @@ impl Strategy for NaiveTradingStrategy {
     async fn eval(
         &mut self,
         le: &MarketEventEnvelope,
-        _ctx: &DefaultStrategyContext,
+        ctx: &DefaultStrategyContext,
     ) -> Result<Option<Vec<TradeSignal>>> {
         if let MarketEvent::Orderbook(ob) = &le.e {
             let string = ob.pair.clone();
@@ -502,8 +306,11 @@ impl Strategy for NaiveTradingStrategy {
                 right: r,
                 time: now(),
             };
-            if self.can_eval() {
-                if let Some(signals) = self.eval_latest(&dbp).await? {
+            if !ctx.portfolio.has_any_open_position() && self.model.should_eval(dbp.time) {
+                self.model.update()?;
+            }
+            if self.can_eval(ctx.portfolio) {
+                if let Some(signals) = self.eval_latest(&dbp, ctx.portfolio).await? {
                     return Ok(Some(signals.into()));
                 }
             }
@@ -541,8 +348,18 @@ impl Strategy for NaiveTradingStrategy {
     fn model(&self) -> Vec<(String, Option<Value>)> { self.model.serialized() }
 
     fn channels(&self) -> HashSet<Channel> {
+        let channels = vec![
+            Channel::Orderbooks {
+                xch: self.exchange,
+                pair: self.left_pair.clone(),
+            },
+            Channel::Orderbooks {
+                xch: self.exchange,
+                pair: self.right_pair.clone(),
+            },
+        ];
         let mut hs = HashSet::new();
-        hs.extend((self as &dyn StrategyDriver).channels());
+        hs.extend(channels);
         hs
     }
 }

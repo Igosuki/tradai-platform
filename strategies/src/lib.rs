@@ -21,6 +21,7 @@ extern crate derivative;
 extern crate lazy_static;
 #[macro_use]
 #[cfg(test)]
+#[cfg(feature = "backtests")]
 extern crate maplit;
 #[macro_use]
 extern crate prometheus;
@@ -57,15 +58,12 @@ pub use settings::{StrategyCopySettings, StrategySettings};
 use trading::engine::TradingEngine;
 
 use crate::actor::StrategyActorOptions;
-use crate::query::{DataQuery, DataResult};
 use crate::settings::StrategyDriverSettings;
 use crate::types::StratEvent;
 
 pub mod actor;
 pub mod driver;
 pub mod error;
-#[cfg(test)]
-mod event;
 mod generic;
 pub mod mean_reverting;
 mod models;
@@ -224,7 +222,7 @@ mod test {
     use coinnect_rt::prelude::*;
 
     use crate::driver::StrategyDriver;
-    use crate::query::{ModelReset, Mutation};
+    use crate::query::{DataQuery, DataResult, ModelReset, Mutation};
 
     use super::*;
 

@@ -109,27 +109,16 @@ impl StrategyCopySettings {
 pub(crate) fn from_settings(
     strat_key: String,
     db: Arc<dyn Storage>,
-    exchange_conf: &ExchangeSettings,
     s: &StrategySettings,
     engine: Arc<TradingEngine>,
     logger: Option<Arc<dyn StratEventLogger>>,
 ) -> Box<dyn Strategy> {
     match s {
         StrategySettings::Naive(n) => Box::new(crate::naive_pair_trading::NaiveTradingStrategy::new(
-            db,
-            strat_key,
-            exchange_conf.fees,
-            n,
-            engine,
-            logger,
+            db, strat_key, n, engine, logger,
         )),
         StrategySettings::MeanReverting(n) => Box::new(crate::mean_reverting::MeanRevertingStrategy::new(
-            db,
-            strat_key,
-            exchange_conf.fees,
-            n,
-            engine,
-            logger,
+            db, strat_key, n, engine, logger,
         )),
     }
 }
@@ -159,21 +148,15 @@ impl StrategyDriverSettings {
 
 pub fn from_driver_settings<S: AsRef<Path>>(
     db_opts: &DbOptions<S>,
-    exchange_conf: &ExchangeSettings,
+    _exchange_conf: &ExchangeSettings,
     s: &StrategyDriverSettings,
     engine: Arc<TradingEngine>,
     logger: Option<Arc<dyn StratEventLogger>>,
 ) -> Box<dyn StrategyDriver> {
     let strat_key = s.strat.key().to_string();
     let db = get_or_create(db_opts, strat_key.clone(), vec![]);
-    let inner: Box<dyn crate::driver::Strategy> = from_settings(
-        strat_key,
-        db.clone(),
-        exchange_conf,
-        s.strat.as_ref(),
-        engine.clone(),
-        logger,
-    );
+    let inner: Box<dyn crate::driver::Strategy> =
+        from_settings(strat_key, db.clone(), s.strat.as_ref(), engine.clone(), logger);
     match &s.driver {
         StrategyDriverOptions::Generic(options) => Box::new(
             crate::generic::GenericDriver::try_new(inner.channels().into_iter().collect(), db, options, inner, engine)

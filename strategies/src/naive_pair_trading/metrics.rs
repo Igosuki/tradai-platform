@@ -2,13 +2,10 @@ use std::collections::HashMap;
 
 use prometheus::{CounterVec, GaugeVec, Opts, Registry};
 
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::Pair;
 use metrics::store::MetricStore;
 use metrics::{MetricGaugeProvider, MetricProviderFn};
 use portfolio::portfolio::Portfolio;
 use trading::position::Position;
-use trading::signal::TradeSignal;
 
 use crate::naive_pair_trading::covar_model::LinearModelValue;
 
@@ -36,8 +33,6 @@ static RIGHT_MID: &str = "right_mid";
 #[derive(Clone)]
 pub struct NaiveStrategyMetrics {
     gauges: HashMap<String, GaugeVec>,
-    portfolio_indicator_fns: Vec<PortfolioIndicatorFn>,
-    position_indicator_fns: Vec<PositionIndicatorFn>,
     model_indicator_fns: Vec<ModelIndicatorFn>,
     error_counter: CounterVec,
 }
@@ -120,29 +115,8 @@ impl NaiveStrategyMetrics {
 
         NaiveStrategyMetrics {
             gauges,
-            portfolio_indicator_fns: portfolio_gauges.clone(),
-            position_indicator_fns: position_gauges.clone(),
             model_indicator_fns: model_gauges.clone(),
             error_counter,
-        }
-    }
-
-    pub(super) fn log_signals(&self, left: &TradeSignal, right: &TradeSignal) {
-        if let Some(g) = self.gauges.get("nv_position") {
-            g.with_label_values(&[&left.pair, "left", left.pos_kind.as_ref(), left.op_kind.as_ref()])
-                .set(left.price);
-            g.with_label_values(&[&right.pair, "right", right.pos_kind.as_ref(), right.op_kind.as_ref()])
-                .set(right.price);
-        }
-    }
-
-    pub(super) fn log_portfolio(&self, xch: Exchange, left: Pair, right: Pair, portfolio: &Portfolio) {
-        self.log_all_with_providers(&self.portfolio_indicator_fns, portfolio, &[]);
-        if let Some(pos) = portfolio.open_position(xch, left) {
-            self.log_all_with_providers(&self.position_indicator_fns, pos, &[]);
-        }
-        if let Some(pos) = portfolio.open_position(xch, right) {
-            self.log_all_with_providers(&self.position_indicator_fns, pos, &[]);
         }
     }
 

@@ -12,15 +12,14 @@ use trading::position::Position;
 use util::test::test_results_dir;
 
 use crate::driver::{Strategy, StrategyDriver};
-use crate::event::trades_history;
 use crate::generic::{GenericDriver, GenericDriverOptions, PortfolioOptions};
-use crate::query::PortfolioSnapshot;
+use crate::query::{DataQuery, DataResult, PortfolioSnapshot};
 use crate::test_util::draw::{draw_line_plot, StrategyEntry};
+use crate::test_util::event::trades_history;
 use crate::test_util::fs::copy_file;
 use crate::test_util::init;
 use crate::test_util::log::{write_models, write_trade_events, StrategyLog};
 use crate::test_util::{input, test_db_with_path};
-use crate::{DataQuery, DataResult};
 
 pub(crate) struct GenericTestContext {
     pub engine: Arc<TradingEngine>,
