@@ -7,22 +7,22 @@ use avro_rs::Schema;
 use chrono::{Duration, TimeZone, Utc};
 
 use coinnect_rt::prelude::*;
-use models::avro_gen::{self,
-                       models::{LiveTrade as LT, Orderbook as OB}};
 
-use super::file_actor::{AvroFileActor, Error, ToAvroSchema};
-use super::{Partition, Partitioner};
+use crate::avro_gen::{self,
+                      models::{LiveTrade as LT, Orderbook as OB}};
+use crate::file::file_actor::{AvroFileActor, Error, ToAvroSchema};
+use crate::file::{Partition, Partitioner};
 
 #[derive(Clone)]
-pub struct LiveEventPartitioner {
+pub struct MarketEventPartitioner {
     grace_period: Duration,
 }
 
-impl LiveEventPartitioner {
+impl MarketEventPartitioner {
     pub fn new(grace_period: Duration) -> Self { Self { grace_period } }
 }
 
-impl Partitioner<MarketEventEnvelope> for LiveEventPartitioner {
+impl Partitioner<MarketEventEnvelope> for MarketEventPartitioner {
     /// Create a partition for this event
     /// each partition has a key and value formatted like hdfs does
     /// /k1=v1/k2=v2/...
@@ -99,7 +99,7 @@ impl Handler<Arc<MarketEventEnvelope>> for AvroFileActor<MarketEventEnvelope> {
             }
             _ => Ok(0),
         };
-        if let Err(e) = appended.and_then(|_| writer.flush().map_err(|_e| Error::WriterError)) {
+        if let Err(e) = appended.and_then(|_| writer.flush().map_err(|_e| Error::Writer)) {
             self.metrics.flush_failure();
             trace!("Failed to flush writer {:?}", e);
             return Err(anyhow!(e));

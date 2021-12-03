@@ -16,9 +16,9 @@ use serde::Serialize;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::logging::metrics::FileLoggerMetrics;
-use crate::logging::rotate::{RotatingFile, SizeAndExpirationPolicy};
-use crate::logging::{Partition, Partitioner};
+use crate::file::metrics::FileLoggerMetrics;
+use crate::file::rotate::{RotatingFile, SizeAndExpirationPolicy};
+use crate::file::{Partition, Partitioner};
 
 type RotatingWriter = Writer<'static, RotatingFile<SizeAndExpirationPolicy>>;
 
@@ -34,11 +34,11 @@ pub struct FileActorOptions<T> {
 
 #[derive(Debug, Display, Error)]
 pub enum Error {
-    NoWriterError,
-    WriterError,
-    NoPartitionError,
-    NoSchemaError,
-    IOError(std::io::Error),
+    NoWriter,
+    Writer,
+    NoPartition,
+    NoSchema,
+    IO(#[from] std::io::Error),
 }
 
 pub struct AvroFileActor<T> {
@@ -47,7 +47,7 @@ pub struct AvroFileActor<T> {
     writers: Rc<RefCell<HashMap<Partition, Rc<RefCell<RotatingWriter>>>>>,
     rotation_policy: SizeAndExpirationPolicy,
     session_uuid: Uuid,
-    pub(super) metrics: &'static FileLoggerMetrics,
+    pub(crate) metrics: &'static FileLoggerMetrics,
 }
 
 const AVRO_EXTENSION: &str = "avro";
@@ -91,15 +91,15 @@ where
     /// Returns (creating it if necessary) the current rotating file writer for the partition
     #[cfg_attr(feature = "flame_it", flame)]
     pub(crate) fn writer_for(&mut self, e: &T) -> Result<Rc<RefCell<RotatingWriter>>, Error> {
-        let partition = self.partitioner.partition(e).ok_or(Error::NoPartitionError)?;
+        let partition = self.partitioner.partition(e).ok_or(Error::NoPartition)?;
         let path = partition.path.clone();
         match self.writers.borrow_mut().entry(partition) {
             Entry::Vacant(v) => {
                 let buf = self.base_path.join(path);
                 // Create base directory for partition if necessary
-                fs::create_dir_all(&buf).map_err(Error::IOError)?;
+                fs::create_dir_all(&buf).map_err(Error::IO)?;
 
-                let schema = e.schema().ok_or(Error::NoSchemaError)?;
+                let schema = e.schema().ok_or(Error::NoSchema)?;
 
                 // Rotating file
                 let file_path = buf.join(format!("{}-{:04}.{}", self.session_uuid, 0, AVRO_EXTENSION));
@@ -115,7 +115,7 @@ where
                     AvroFileActor::<T>::next_file_part_name,
                     Some(avro_header(schema, marker.clone())?),
                 )
-                .map_err(Error::IOError)?;
+                .map_err(Error::IO)?;
 
                 // Schema based avro file writer
                 let mut writer = Writer::new(schema, file);
@@ -144,7 +144,7 @@ where
             Err(e) => {
                 self.metrics.write_append_failure();
                 trace!("Error writing avro bean {:?}", e);
-                Err(Error::WriterError)
+                Err(Error::Writer)
             }
             _ => Ok(0),
         }
@@ -190,7 +190,7 @@ const AVRO_OBJECT_HEADER: &[u8] = &[b'O', b'b', b'j', 1u8];
 /// Get a byte array of avro file header with byte encoded metadata
 fn avro_header(schema: &Schema, marker: Vec<u8>) -> Result<Vec<u8>, Error> {
     let schema_bytes = serde_json::to_string(schema)
-        .map_err(|_e| Error::NoSchemaError)?
+        .map_err(|_e| Error::NoSchema)?
         .into_bytes();
 
     let mut metadata = HashMap::with_capacity(2);
@@ -216,7 +216,7 @@ mod test {
 
     use coinnect_rt::prelude::*;
 
-    use crate::logging::live_event::LiveEventPartitioner;
+    use crate::market_event::MarketEventPartitioner;
 
     use super::*;
 
@@ -227,7 +227,7 @@ mod test {
             max_file_size: 100_000,
             max_file_time: Duration::seconds(1),
             base_dir: String::from(base_dir),
-            partitioner: Rc::new(LiveEventPartitioner::new(Duration::seconds(10))),
+            partitioner: Rc::new(MarketEventPartitioner::new(Duration::seconds(10))),
         })
     }
 

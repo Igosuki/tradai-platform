@@ -8,7 +8,7 @@ members = [
     "db",
     "ext",
     "stats",
-    "models",
+    "logging",
     "portfolio",
     "metrics",
     "server",
