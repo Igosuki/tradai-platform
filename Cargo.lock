@@ -231,7 +231,9 @@ dependencies = [
  "openssl",
  "pin-project-lite",
  "tokio-openssl",
+ "tokio-rustls",
  "tokio-util",
+ "webpki-roots 0.22.1",
 ]
 
 [[package]]
@@ -773,6 +775,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "rand 0.8.4",
+ "rustls 0.20.2",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -885,7 +888,6 @@ dependencies = [
  "tokio-test",
  "tokio-tungstenite",
  "tracing",
- "tungstenite 0.15.0",
  "url",
 ]
 
@@ -1347,6 +1349,7 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "regex",
+ "reqwest",
  "rust_decimal",
  "serde",
  "serde-aux",
@@ -2717,7 +2720,7 @@ dependencies = [
  "hyper",
  "rustls 0.20.2",
  "tokio",
- "tokio-rustls 0.23.1",
+ "tokio-rustls",
 ]
 
 [[package]]
@@ -4752,12 +4755,12 @@ dependencies = [
  "serde_urlencoded",
  "tokio",
  "tokio-native-tls",
- "tokio-rustls 0.23.1",
+ "tokio-rustls",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "webpki-roots",
+ "webpki-roots 0.21.1",
  "winreg",
 ]
 
@@ -5959,17 +5962,6 @@ dependencies = [
 
 [[package]]
 name = "tokio-rustls"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc6844de72e57df1980054b38be3a9f4702aba4858be64dd700181a8a6d0e1b6"
-dependencies = [
- "rustls 0.19.1",
- "tokio",
- "webpki 0.21.4",
-]
-
-[[package]]
-name = "tokio-rustls"
 version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4baa378e417d780beff82bf54ceb0d195193ea6a00c14e22359e7f39456b5689"
@@ -6005,21 +5997,20 @@ dependencies = [
 
 [[package]]
 name = "tokio-tungstenite"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "511de3f85caf1c98983545490c3d09685fa8eb634e57eec22bb4db271f46cbd8"
+checksum = "e057364a4dd37870b33bf8dc1885d29187d90770f488d599d3ee8d9e4916fbd3"
 dependencies = [
  "futures-util",
  "log",
  "native-tls",
- "pin-project",
- "rustls 0.19.1",
+ "rustls 0.20.2",
  "tokio",
  "tokio-native-tls",
- "tokio-rustls 0.22.0",
- "tungstenite 0.14.0",
- "webpki 0.21.4",
- "webpki-roots",
+ "tokio-rustls",
+ "tungstenite",
+ "webpki 0.22.0",
+ "webpki-roots 0.22.1",
 ]
 
 [[package]]
@@ -6294,9 +6285,9 @@ checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
 
 [[package]]
 name = "tungstenite"
-version = "0.14.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0b2d8558abd2e276b0a8df5c05a2ec762609344191e5fd23e292c910e9165b5"
+checksum = "6ad3713a14ae247f22a728a0456a545df14acf3867f905adff84be99e23b3ad1"
 dependencies = [
  "base64",
  "byteorder",
@@ -6306,36 +6297,12 @@ dependencies = [
  "log",
  "native-tls",
  "rand 0.8.4",
- "rustls 0.19.1",
- "rustls-native-certs",
+ "rustls 0.20.2",
  "sha-1 0.9.8",
  "thiserror",
  "url",
  "utf-8",
- "webpki 0.21.4",
-]
-
-[[package]]
-name = "tungstenite"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "983d40747bce878d2fb67d910dcb8bd3eca2b2358540c3cc1b98c027407a3ae3"
-dependencies = [
- "base64",
- "byteorder",
- "bytes",
- "http",
- "httparse",
- "log",
- "native-tls",
- "rand 0.8.4",
- "rustls 0.19.1",
- "sha-1 0.9.8",
- "thiserror",
- "url",
- "utf-8",
- "webpki 0.21.4",
- "webpki-roots",
+ "webpki 0.22.0",
 ]
 
 [[package]]
@@ -6743,6 +6710,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aabe153544e473b775453675851ecc86863d2a81d786d741f6b76778f2a48940"
 dependencies = [
  "webpki 0.21.4",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c475786c6f47219345717a043a37ec04cb4bc185e28853adcc4fa0a947eba630"
+dependencies = [
+ "webpki 0.22.0",
 ]
 
 [[package]]
