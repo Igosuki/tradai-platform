@@ -1,13 +1,13 @@
-use chrono::Duration;
-
-use backtest::Dataset;
-use strategies::settings::{StrategyDriverOptions, StrategyDriverSettings};
-use strategies::{GenericDriverOptions, PortfolioOptions};
-use trading::types::OrderConf;
-
 #[cfg(feature = "backtests")]
 #[actix::test]
 async fn complete_backtest_backtest() -> backtest::Result<()> {
+    use chrono::Duration;
+
+    use backtest::Dataset;
+    use strategies::settings::{StrategyDriverOptions, StrategyDriverSettings};
+    use strategies::{GenericDriverOptions, PortfolioOptions};
+    use trading::types::OrderConf;
+
     use chrono::{TimeZone, Utc};
 
     use backtest::BacktestConfig;

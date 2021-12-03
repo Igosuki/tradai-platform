@@ -8,15 +8,13 @@ use std::time::Instant;
 
 use chrono::prelude::*;
 use chrono::{DateTime, Utc};
-use coinnect_rt::exchange::Exchange;
 #[cfg(feature = "dialog_cli")]
 use glob::glob;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
+use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::{MarketEvent, MarketEventEnvelope, Orderbook, Pair};
-use trading::book::BookPosition;
 use util::serde::date_time_format;
 use util::test::test_data_dir;
 use util::time::{DateRange, DurationRangeType};
@@ -104,9 +102,6 @@ impl CsvRecord {
             last_order_id: None,
         }
     }
-
-    #[cfg(test)]
-    pub fn to_bp(&self) -> BookPosition { BookPosition::new(Uuid::new_v4(), self.event_ms, &self.asks(), &self.bids()) }
 }
 
 pub fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
