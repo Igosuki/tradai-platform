@@ -15,7 +15,7 @@ dependencies = [
  "db",
  "ext",
  "futures",
- "prometheus 0.12.0",
+ "prometheus",
  "serde",
  "thiserror",
  "tokio",
@@ -544,6 +544,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "canonical_json"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64f464b27d56e99fb36031754bb17fe97f1a69f66621628f002664cee6a4bcbf"
+dependencies = [
+ "hex",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "cc"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -628,7 +641,7 @@ dependencies = [
  "libc",
  "ordered-float 2.7.0",
  "pin-project",
- "prometheus 0.12.0",
+ "prometheus",
  "regex",
  "reqwest",
  "rust_decimal",
@@ -1250,6 +1263,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ghost"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a5bcf1bbeab73aa4cf2fde60a846858dc036163c7c33bec309f8d17de785479"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1460,6 +1484,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "inline-python"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2090a070ce14a62b0605bb08e545b28ff785b24b9fabfc56a402a5987e7a299"
+dependencies = [
+ "inline-python-macros",
+ "pyo3",
+]
+
+[[package]]
+name = "inline-python-macros"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f772582b7328d339524184f3980438daf380bf75edb05543356790192a17fafc"
+dependencies = [
+ "libc",
+ "proc-macro2",
+ "pyo3",
+ "quote",
+]
+
+[[package]]
 name = "instant"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1473,6 +1519,16 @@ name = "integer-encoding"
 version = "1.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48dc51180a9b377fd75814d0cc02199c20f8e99433d6762f650d39cdbbd3b56f"
+
+[[package]]
+name = "inventory"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1367fed6750ff2a5bcb967a631528303bb85631f167a75eb1bf7762d57eb7678"
+dependencies = [
+ "ctor",
+ "ghost",
+]
 
 [[package]]
 name = "ipnet"
@@ -1731,7 +1787,7 @@ dependencies = [
  "awc",
  "lazy_static",
  "libc",
- "prometheus 0.12.0",
+ "prometheus",
  "protobuf",
  "serde",
  "thiserror",
@@ -2288,9 +2344,9 @@ dependencies = [
 
 [[package]]
 name = "procfs"
-version = "0.9.1"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab8809e0c18450a2db0f236d2a44ec0b4c1412d0eb936233579f0990faa5d5cd"
+checksum = "95e344cafeaeefe487300c361654bcfc85db3ac53619eeccced29f5ea18c4c70"
 dependencies = [
  "bitflags",
  "byteorder",
@@ -2302,9 +2358,9 @@ dependencies = [
 
 [[package]]
 name = "prometheus"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5986aa8d62380092d2f50f8b1cdba9cb9b6731ffd4b25b51fd126b6c3e05b99c"
+checksum = "b7f64969ffd5dd8f39bd57a68ac53c163a095ed9d0fb707146da1b27025a3504"
 dependencies = [
  "cfg-if 1.0.0",
  "fnv",
@@ -2316,21 +2372,6 @@ dependencies = [
  "protobuf",
  "protobuf-codegen-pure",
  "reqwest",
- "thiserror",
-]
-
-[[package]]
-name = "prometheus"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7f64969ffd5dd8f39bd57a68ac53c163a095ed9d0fb707146da1b27025a3504"
-dependencies = [
- "cfg-if 1.0.0",
- "fnv",
- "lazy_static",
- "memchr",
- "parking_lot",
- "protobuf",
  "thiserror",
 ]
 
@@ -2431,7 +2472,7 @@ version = "0.1.0"
 dependencies = [
  "db",
  "pyo3",
- "strategies",
+ "strategy",
  "tracing",
 ]
 
@@ -3090,7 +3131,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "213701ba3370744dcd1a12960caa4843b3d68b4d1c0a5d575e0d65b2ee9d16c0"
 
 [[package]]
-name = "strategies"
+name = "strategy"
 version = "0.1.0"
 dependencies = [
  "account",
@@ -3099,6 +3140,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backoff",
+ "canonical_json",
  "chrono",
  "coinnect_rt",
  "csv",
@@ -3108,6 +3150,8 @@ dependencies = [
  "env_logger 0.9.0",
  "ext",
  "futures",
+ "inline-python",
+ "inventory",
  "itertools",
  "juniper",
  "lazy_static",
@@ -3116,7 +3160,7 @@ dependencies = [
  "opentelemetry-jaeger",
  "ordered-float 2.7.0",
  "parse_duration",
- "prometheus 0.12.0",
+ "prometheus",
  "pyo3",
  "pyo3-log",
  "serde",
@@ -3130,6 +3174,7 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "trading",
+ "typed-builder",
  "util",
  "uuid",
 ]
@@ -3590,7 +3635,7 @@ dependencies = [
  "itertools",
  "juniper",
  "lazy_static",
- "prometheus 0.13.0",
+ "prometheus",
  "pyo3",
  "serde",
  "serde_json",

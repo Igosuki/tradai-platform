@@ -170,7 +170,7 @@ pub struct PythonStratWrapperOptions {
 }
 
 impl StrategySettingsReplicator for PythonStratWrapperOptions {
-    fn replicate_for_pairs(&self, pairs: HashSet<Pair>) -> Vec<Value> { vec![] }
+    fn replicate_for_pairs(&self, _pairs: HashSet<Pair>) -> Vec<Value> { vec![] }
 }
 
 impl StrategyOptions for PythonStratWrapperOptions {
