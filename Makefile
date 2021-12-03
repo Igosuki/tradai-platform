@@ -219,5 +219,11 @@ check-bloat:
 check-deps:
 	readelf -d target/release/trader | grep 'NEEDED'
 
+.PHONY: check-unused-deps
+check-unused-deps:
+	cargo +nightly udeps
+
+### Database Management
+
 migrate_engine_db:
 	 diesel migration run --migration-dir strategies/migrations
