@@ -2,7 +2,7 @@ use datafusion::arrow::array::{Array, ListArray, PrimitiveArray, StringArray, St
 use datafusion::arrow::datatypes::Float64Type;
 use datafusion::arrow::record_batch::RecordBatch;
 
-use strategies::{Exchange, MarketEventEnvelope, Pair};
+use strategy::coinnect::prelude::{Exchange, MarketEventEnvelope, Pair};
 
 use crate::datafusion_util::{get_col_as, to_struct_array};
 

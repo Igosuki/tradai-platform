@@ -1,10 +1,14 @@
+use std::collections::HashSet;
+
 use chrono::Duration;
 use parse_duration::parse;
 
-use coinnect_rt::prelude::*;
+use strategy::coinnect::prelude::*;
+use strategy::settings::{StrategyOptions, StrategySettingsReplicator};
+use strategy::StrategyKey;
 use trading::types::OrderConf;
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Options {
     pub pair: Pair,
     pub short_window_size: u32,
@@ -46,4 +50,21 @@ impl Options {
             order_conf: OrderConf::default(),
         }
     }
+}
+
+impl StrategySettingsReplicator for Options {
+    fn replicate_for_pairs(&self, pairs: HashSet<Pair>) -> Vec<serde_json::Value> {
+        pairs
+            .into_iter()
+            .map(|pair| {
+                let mut new = self.clone();
+                new.pair = pair;
+                serde_json::to_value(new).unwrap()
+            })
+            .collect()
+    }
+}
+
+impl StrategyOptions for Options {
+    fn key(&self) -> StrategyKey { StrategyKey("mean_reverting".to_string(), self.pair.to_string()) }
 }

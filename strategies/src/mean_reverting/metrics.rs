@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use prometheus::{CounterVec, GaugeVec, Registry};
 
-use metrics::store::MetricStore;
+use metrics::prelude::*;
 use stats::indicators::macd_apo::MACDApo;
 use trading::book::BookPosition;
 use trading::position::{OperationKind, PositionKind};
@@ -10,7 +10,7 @@ use trading::position::{OperationKind, PositionKind};
 type ModelIndicatorFn = (String, fn(&MACDApo) -> f64);
 
 lazy_static! {
-    static ref METRIC_STORE: MetricStore<String, MeanRevertingStrategyMetrics> = { MetricStore::new() };
+    static ref METRIC_STORE: MetricStore<String, MeanRevertingStrategyMetrics> = MetricStore::new();
 }
 
 pub fn metric_store() -> &'static MetricStore<String, MeanRevertingStrategyMetrics> {

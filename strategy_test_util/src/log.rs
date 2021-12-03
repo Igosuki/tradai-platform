@@ -7,22 +7,23 @@ use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde_json::Value;
 
-use crate::driver::SerializedModel;
-use crate::query::PortfolioSnapshot;
-use crate::test_util::draw::TimedEntry;
-use crate::types::{OperationEvent, TradeEvent};
+use strategy::driver::SerializedModel;
+use strategy::query::PortfolioSnapshot;
+use strategy::types::{OperationEvent, TradeEvent};
+
+use crate::draw::TimedEntry;
 
 #[derive(Debug, Serialize, Clone, typed_builder::TypedBuilder)]
-pub(crate) struct StrategyLog {
-    pub(crate) event_time: DateTime<Utc>,
-    pub(crate) prices: HashMap<(String, String), f64>,
-    pub(crate) model: HashMap<String, Option<Value>>,
-    pub(crate) snapshot: PortfolioSnapshot,
-    pub(crate) nominal_positions: HashMap<(String, String), f64>,
+pub struct StrategyLog {
+    pub event_time: DateTime<Utc>,
+    pub prices: HashMap<(String, String), f64>,
+    pub model: HashMap<String, Option<Value>>,
+    pub snapshot: PortfolioSnapshot,
+    pub nominal_positions: HashMap<(String, String), f64>,
 }
 
 impl StrategyLog {
-    pub(crate) fn new(
+    pub fn new(
         event_time: DateTime<Utc>,
         prices: HashMap<(String, String), f64>,
         model: SerializedModel,
@@ -43,7 +44,7 @@ impl TimedEntry for StrategyLog {
     fn time(&self) -> DateTime<Utc> { self.event_time }
 }
 
-pub(crate) fn write_models(dest_dir: &str, log: &[StrategyLog]) {
+pub fn write_models(dest_dir: &str, log: &[StrategyLog]) {
     if let Some(last_model) = log.iter().last() {
         let model_keys = last_model
             .model
@@ -53,7 +54,7 @@ pub(crate) fn write_models(dest_dir: &str, log: &[StrategyLog]) {
             .collect::<Vec<String>>();
         let mut csv_keys = vec!["ts", "portfolio_value"];
         csv_keys.extend(model_keys.iter().map(|s| s.as_str()));
-        crate::test_util::log::write_csv(
+        write_csv(
             format!("{}/model_values.csv", dest_dir),
             &csv_keys,
             log.iter().map(|r| {

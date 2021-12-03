@@ -3,14 +3,14 @@ use std::collections::HashMap;
 use chrono::{TimeZone, Utc};
 use serde_json::Value;
 
-use coinnect_rt::prelude::*;
+use strategy::coinnect::prelude::*;
+use strategy_test_util::draw::StrategyEntry;
+use strategy_test_util::it_backtest::{generic_backtest, BacktestRange, BacktestStratProvider, GenericTestContext};
+use strategy_test_util::log::StrategyLog;
 use trading::types::{OrderConf, OrderMode};
 
-use crate::generic::it_backtest::{generic_backtest, BacktestRange, GenericTestContext, StratProvider};
 use crate::naive_pair_trading::options::Options;
 use crate::naive_pair_trading::{covar_model, NaiveTradingStrategy};
-use crate::test_util::draw::StrategyEntry;
-use crate::test_util::log::StrategyLog;
 
 static EXCHANGE: &str = "Binance";
 static LEFT_PAIR: &str = "ETH_USDT";
@@ -74,7 +74,7 @@ lazy_static! {
 
 #[actix::test]
 async fn spot_backtest() {
-    let provider: StratProvider = |ctx: GenericTestContext| {
+    let provider: BacktestStratProvider = |ctx: GenericTestContext| {
         let exchange = Exchange::Binance;
         let conf = Options::new_test_default(exchange, LEFT_PAIR.into(), RIGHT_PAIR.into());
         Box::new(NaiveTradingStrategy::new(
@@ -117,7 +117,7 @@ async fn spot_backtest() {
 
 #[actix::test]
 async fn margin_backtest() {
-    let provider: StratProvider = |ctx: GenericTestContext| {
+    let provider: BacktestStratProvider = |ctx: GenericTestContext| {
         let exchange = Exchange::Binance;
         let conf = Options {
             order_conf: OrderConf {

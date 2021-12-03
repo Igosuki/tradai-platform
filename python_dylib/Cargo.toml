@@ -14,8 +14,9 @@ name = "strategies"
 static = ["db/rocksdb-vendor"]
 
 [dependencies]
-strategies = { path = "../strategies", features = ["python"] }
+strategy = { path = "../strategy", features = ["python"] }
 db = { path = "../db" }
 #backtest = { path = "../backtest" }
 
 pyo3 = { version = "0.14", features = ["serde", "auto-initialize"] }
+tracing = "0.1"

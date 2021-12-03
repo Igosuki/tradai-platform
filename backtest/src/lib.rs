@@ -19,9 +19,11 @@ use futures::{stream, StreamExt};
 use itertools::Itertools;
 use tokio::sync::Mutex;
 
-use db::{DbEngineOptions, RocksDbOptions};
-use strategies::settings::StrategyDriverSettings;
-use strategies::{Channel, Coinnect, DbOptions, Exchange, ExchangeApi, ExchangeSettings, MarketEventEnvelope, Pair};
+use db::{DbEngineOptions, DbOptions, RocksDbOptions};
+use strategy::coinnect::prelude::*;
+use strategy::plugin::plugin_registry;
+use strategy::prelude::*;
+use strategy::Channel;
 use trading::engine::mock_engine;
 use util::test::test_dir;
 use util::time::DateRange;
@@ -64,10 +66,11 @@ impl Backtest {
         let mut all_strategy_settings: Vec<StrategyDriverSettings> = vec![];
         all_strategy_settings.extend_from_slice(conf.strats.as_slice());
         if let Some(copy) = conf.strat_copy.as_ref() {
-            init_coinnect(copy.exchange()).await;
+            init_coinnect(&copy.exchanges()).await;
             all_strategy_settings.extend_from_slice(copy.all().unwrap().as_slice());
         }
-        let exchanges: Vec<Exchange> = all_strategy_settings.iter().map(|s| s.exchange()).collect();
+        //let exchanges: Vec<Exchange> = all_strategy_settings.iter().map(|s| s.exchange()).collect();
+        let exchanges = vec![Exchange::Binance];
         let mock_engine = Arc::new(mock_engine(db_path.clone(), &exchanges));
         let runners: Vec<BacktestRunner> = all_strategy_settings
             .into_iter()
@@ -85,14 +88,16 @@ impl Backtest {
                 };
 
                 let logger: Arc<VecEventLogger> = Arc::new(VecEventLogger::default());
-                let strategy_driver = strategies::settings::from_driver_settings(
+                let plugin = plugin_registry().get(settings.strat.strat_type.as_str()).unwrap();
+                let strategy_driver = strategy::settings::from_driver_settings(
+                    plugin,
                     &db_conf,
                     &exchange_conf,
                     &settings,
                     mock_engine.clone(),
                     Some(logger.clone()),
-                );
-                info!("Creating strategy : {:?}", settings.key());
+                )
+                .unwrap();
                 BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger)
             })
             .collect();
@@ -231,10 +236,12 @@ impl Backtest {
     }
 }
 
-async fn init_coinnect(xch: Exchange) {
+async fn init_coinnect(xchs: &[Exchange]) {
     let mut exchange_apis: HashMap<Exchange, Arc<dyn ExchangeApi>> = HashMap::new();
     let manager = Coinnect::new_manager();
-    let api = manager.build_public_exchange_api(&xch, false).await.unwrap();
-    exchange_apis.insert(xch, api);
+    for xch in xchs {
+        let api = manager.build_public_exchange_api(xch, false).await.unwrap();
+        exchange_apis.insert(*xch, api);
+    }
     Coinnect::load_pair_registries(Arc::new(exchange_apis)).await.unwrap();
 }

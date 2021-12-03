@@ -4,9 +4,10 @@ use itertools::Itertools;
 use tokio::sync::Mutex;
 
 use ext::ResultExt;
-use strategies::driver::StrategyDriver;
-use strategies::query::{DataQuery, DataResult};
-use strategies::{Channel, MarketEvent, MarketEventEnvelope};
+use strategy::coinnect::prelude::{MarketEvent, MarketEventEnvelope};
+use strategy::driver::StrategyDriver;
+use strategy::query::{DataQuery, DataResult};
+use strategy::Channel;
 use trading::book::BookPosition;
 
 use crate::error::*;

@@ -6,8 +6,8 @@ use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use parse_duration::parse;
 use typed_builder::TypedBuilder;
 
-use strategies::settings::StrategyDriverSettings;
-use strategies::StrategyCopySettings;
+use strategy::settings::StrategyCopySettings;
+use strategy::settings::StrategyDriverSettings;
 use util::test::test_dir;
 use util::time::{DateRange, DurationRangeType};
 

@@ -230,12 +230,12 @@ impl Portfolio {
         debug!(
             pos_knd = %kind,
             pair = %order.pair,
-            fees = order.quote_fees(),
-            realized_quote_value = order.realized_quote_value(),
-            quote_value = order.quote_value(),
-            pos_qty = qty,
-            open_price = order.price.unwrap_or(0.0),
-            value = qty * order.price.unwrap_or(0.0),
+            fees = format!("{:.6}", order.quote_fees()).as_str(),
+            realized_quote_value = format!("{:.2}", order.realized_quote_value()).as_str(),
+            quote_value = format!("{:.2}", order.quote_value()).as_str(),
+            pos_qty = format!("{:.6}", qty).as_str(),
+            open_price = format!("{:.6}", order.price.unwrap_or(0.0)).as_str(),
+            value = format!("{:.6}", qty * order.price.unwrap_or(0.0)).as_str(),
             value_strat_before = format!("{:.2}", value_strat_before).as_str(),
             value_strat_after = format!("{:.2}", value_strat_after).as_str(),
         );
