@@ -12,6 +12,7 @@ members = [
     "portfolio",
     "metrics",
     "server",
+    "strategy",
     "strategies",
     "util",
     "backtest",

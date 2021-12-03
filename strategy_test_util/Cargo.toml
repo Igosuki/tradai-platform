@@ -1,0 +1,43 @@
+[package]
+name = "strategy_test_util"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+trading_test_util = ["trading/test_util"]
+
+[dependencies]
+strategy = { path = "../strategy" }
+coinnect_rt = { path = "../coinnect" }
+util = { path = "../util" }
+db = { path = "../db" }
+trading = { path = "../trading" }
+
+#async
+tokio = "1.14"
+
+#std
+chrono = "0.4"
+maplit = "1.0"
+multimap = "0.8"
+itertools = "0.10"
+tempfile = "3.2"
+glob = "0.3"
+
+# data
+csv = "1.1"
+
+# plots
+hdrhistogram = "7"
+plotly = { version = "0.6.0", features = ["kaleido"] }
+
+# logging
+env_logger = "0.9"
+tracing = "0.1"
+
+# derive
+serde = "1.0"
+serde_json = "1.0"
+typed-builder = "0.9"

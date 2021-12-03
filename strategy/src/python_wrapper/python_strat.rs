@@ -162,7 +162,7 @@ mod test {
     use pyo3::Python;
 
     use crate::driver::Strategy;
-    use crate::python_strat::PythonStratWrapper;
+    use crate::python_wrapper::python_strat::PythonStratWrapper;
     use crate::test_util::fixtures::default_order_book_event;
 
     fn python_script(name: &str) -> std::io::Result<String> {

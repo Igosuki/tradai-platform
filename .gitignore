@@ -5,7 +5,7 @@
 # trash files
 .DS_Store
 
-strategies/default
+strategy/default
 
 # ci stuff
 target

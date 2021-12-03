@@ -45,13 +45,15 @@ pub enum Error {
     FeatureNotImplemented,
     #[error("actor mailbox was full")]
     MailboxError(#[from] actix::MailboxError),
+    #[error("strategy plugin not found")]
+    StrategyPluginNotFound,
     #[cfg(feature = "python")]
     #[error("error running python code")]
     Python(#[from] pyo3::PyErr),
 }
 
 impl Error {
-    pub(crate) fn short_name(&self) -> &'static str {
+    pub fn short_name(&self) -> &'static str {
         match self {
             Error::IOError(_) => "io",
             Error::Coinnect(_) => "coinnect",
@@ -75,6 +77,7 @@ impl Error {
             Error::MailboxError(_) => "mailbox_error",
             Error::Portfolio(_) => "portfolio",
             Error::NoSignal => "no_signal",
+            Error::StrategyPluginNotFound => "strategy_plugin_not_found",
         }
     }
 }

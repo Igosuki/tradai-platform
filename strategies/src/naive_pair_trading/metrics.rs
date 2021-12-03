@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use prometheus::{CounterVec, GaugeVec, Opts, Registry};
 
-use metrics::store::MetricStore;
-use metrics::{MetricGaugeProvider, MetricProviderFn};
-use portfolio::portfolio::Portfolio;
+use metrics::prelude::*;
+use strategy::Portfolio;
 use trading::position::Position;
 
 use crate::naive_pair_trading::covar_model::LinearModelValue;
@@ -12,7 +11,7 @@ use crate::naive_pair_trading::covar_model::LinearModelValue;
 use super::covar_model::DualBookPosition;
 
 lazy_static! {
-    static ref METRIC_STORE: MetricStore<(String, String), NaiveStrategyMetrics> = { MetricStore::new() };
+    static ref METRIC_STORE: MetricStore<(String, String), NaiveStrategyMetrics> = MetricStore::new();
 }
 
 pub fn metric_store() -> &'static MetricStore<(String, String), NaiveStrategyMetrics> {
@@ -146,14 +145,6 @@ impl NaiveStrategyMetrics {
     }
 
     pub(super) fn log_error(&self, label: &str) { self.error_counter.with_label_values(&[label]).inc(); }
-}
-
-impl MetricGaugeProvider<Portfolio> for NaiveStrategyMetrics {
-    fn gauges(&self) -> &HashMap<String, GaugeVec> { &self.gauges }
-}
-
-impl MetricGaugeProvider<Position> for NaiveStrategyMetrics {
-    fn gauges(&self) -> &HashMap<String, GaugeVec> { &self.gauges }
 }
 
 impl MetricGaugeProvider<LinearModelValue> for NaiveStrategyMetrics {

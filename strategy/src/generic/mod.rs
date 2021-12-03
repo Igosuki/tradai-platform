@@ -16,8 +16,6 @@ use crate::error::Result;
 use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, PortfolioSnapshot};
 use crate::{Channel, StrategyStatus};
 
-#[cfg(all(test, feature = "backtests"))]
-pub mod it_backtest;
 mod metrics;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -45,7 +43,7 @@ pub struct GenericDriver {
 }
 
 impl GenericDriver {
-    pub(crate) fn try_new(
+    pub fn try_new(
         channels: HashSet<Channel>,
         db: Arc<dyn Storage>,
         driver_options: &GenericDriverOptions,
@@ -195,7 +193,7 @@ impl GenericDriver {
         Ok(())
     }
 
-    fn ctx(&self) -> DefaultStrategyContext {
+    pub fn ctx(&self) -> DefaultStrategyContext {
         DefaultStrategyContext {
             portfolio: &self.portfolio,
         }

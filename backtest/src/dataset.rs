@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use chrono::{TimeZone, Utc};
 
-use strategies::{Exchange, Pair};
+use strategy::coinnect::prelude::{Exchange, Pair};
 use util::time::DateRange;
 
 #[derive(Deserialize, Copy, Clone)]

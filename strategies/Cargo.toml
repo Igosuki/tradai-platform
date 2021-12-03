@@ -1,125 +1,53 @@
 [package]
 name = "strategies"
 version = "0.1.0"
-authors = ["Guillaume Balaine <igosuki@gmail.com>"]
 edition = "2021"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
 name = "strategies"
 path = "src/lib.rs"
 
-
 [features]
-zstd = ["awc/compress-zstd"]
-python = ["pyo3", "pyo3-log"]
-backtests = ["util/mock_time"]
-live_e2e_tests = []
-manual_e2e_tests = []
+backtests = []
 
 [dependencies]
-# trader
-db = { path = "../db" }
-ext = { path = "../ext" }
-util = { path = "../util" }
-metrics = { path = "../metrics" }
-#coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
-coinnect_rt = { path = "../coinnect" }
-stats = { path = "../stats" }
+
+strategy = { path = "../strategy" }
 trading = { path = "../trading" }
-account = { path = "../portfolio" }
-
-# actor
-actix = "0.12"
-actix_derive = "0.6"
-
-# io
-csv = "1.1"
-
-# std
-derivative = "2.2"
-derive_more = "0.99"
-env_logger = "0.9"
-itertools = "0.10"
-anyhow = "1.0"
-chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "0.8", features = ["v4"] }
-backoff = "0.3"
-lazy_static = "1.4"
-ordered-float = "2.1"
-parse_duration = "2.1"
-strum = "0.21"
-strum_macros = "0.21"
-thiserror = "1.0"
-
-# async
-futures = { version = "0.3", features = ["async-await", "alloc"] }
-async-trait = "0.1"
-tokio = { version = "1", features = ["full"] }
-
-# graph_ql
-juniper = { version = "0.15", features = ["expose-test-schema"] }
-
-# metrics and tracing
-opentelemetry = { version = "0.15", default-features = false, features = ["trace"] }
-opentelemetry-jaeger = "0.14"
-tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
-tracing-futures = "0.2"
-
-# metrics
-prometheus = { version = "0.12", features = ["nightly", "push", "process", "gen"] }
-
-# codec
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["float_roundtrip"] }
-snap = "1.0"
-
-# python
-#python = { path = "../python" }
-pyo3 = { version = "0.14", features = ["serde", "auto-initialize"], optional = true }
-pyo3-log = { version = "0.4", optional = true }
-
-[dev-dependencies]
-# ours
-backtest = { path = "../backtest" }
+stats = { path = "../stats" }
 util = { path = "../util" }
-binance-rs-async = { version = "1.1.4" }
-trading = { path = "../trading", features = ["test_util"] }
+ext = { path = "../ext" }
+metrics = { path = "../metrics" }
 
 # actix
-actix-codec = "0.4"
-actix-http = "3.0.0-beta.12"
-actix-http-test = "3.0.0-beta.6"
-actix-server = "2.0.0-beta.9"
-awc = { version = "3.0.0-beta.10", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
-
-# plots
-hdrhistogram = "7"
-plotly = { version = "0.6.0", features = ["kaleido"] }
-
-# test
-fake = { version = "2.4", features = ['chrono'] }
-tempdir = "0.3"
-test-env-log = "0.2"
-quickcheck = "1.0"
-pretty_assertions = "0.7"
-insta = "1.8"
+actix = "0.12"
 
 # std
-bytes = "1.0"
-bytestring = "1.0.0"
-rand = "0.8"
-tempfile = "3.2"
-glob = "0.3"
-typed-builder = "0.9"
-maplit = "1.0"
-multimap = "0.8"
+chrono = "0.4"
+inventory = { version = "0.2" }
+uuid = "0.8"
+itertools = "0.10"
+ordered-float = "2.1"
+lazy_static = "1.4"
+derivative = "2.2"
 
-# http
-http = "0.2"
-httpmock = { git = "https://github.com/Igosuki/httpmock.git" }
-wiremock = "0.5"
-socket2 = "0.4"
+# CLI
+parse_duration = "2.1"
 
 # Async
-tokio-stream = "0.1"
+async-trait = "0.1"
+tokio = "1.14"
+
+# Derive
+serde_json = "1.0"
+serde = "1.0"
+
+# Tracing / Logging / Monitoring
+prometheus = "0.13"
+tracing = "0.1"
+
+# codec
+snap = "1.0"
+
+[dev-dependencies]
+strategy_test_util = { path = "../strategy_test_util", features = ["trading_test_util"] }

@@ -8,21 +8,21 @@ use trading::types::TradeKind;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct OperationEvent {
-    pub(crate) op: OperationKind,
-    pub(crate) pos: PositionKind,
-    pub(crate) at: DateTime<Utc>,
+    pub op: OperationKind,
+    pub pos: PositionKind,
+    pub at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TradeEvent {
-    pub(crate) side: TradeKind,
-    pub(crate) qty: f64,
-    pub(crate) pair: String,
-    pub(crate) price: f64,
-    pub(crate) strat_value: f64,
-    pub(crate) at: DateTime<Utc>,
-    pub(crate) borrowed: Option<f64>,
-    pub(crate) interest: Option<f64>,
+    pub side: TradeKind,
+    pub qty: f64,
+    pub pair: String,
+    pub price: f64,
+    pub strat_value: f64,
+    pub at: DateTime<Utc>,
+    pub borrowed: Option<f64>,
+    pub interest: Option<f64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

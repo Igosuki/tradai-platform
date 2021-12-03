@@ -24,6 +24,9 @@ use metrics::prom::PrometheusPushActor;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use portfolio::margin::{MarginAccountReporter, MarginAccountReporterOptions};
 use strategies::{self, StrategyKey, Trader};
+use strategy::plugin::plugin_registry;
+use strategy::settings::gather_plugins;
+use strategy::Trader;
 use trading::engine::{new_trading_engine, TradingEngine};
 use trading::interest::MarginInterestRateProvider;
 use trading::order_manager::OrderManager;
@@ -275,6 +278,7 @@ async fn strategies(settings: Arc<RwLock<Settings>>, engine: Arc<TradingEngine>)
         let arc = engine.clone();
         async move {
             Trader::new(
+                plugin_registry(),
                 db.as_ref(),
                 &exchange_conf,
                 &actor_options,

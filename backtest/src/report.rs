@@ -13,9 +13,9 @@ use serde::de::DeserializeOwned;
 use tokio::sync::Mutex;
 
 use stats::Next;
-use strategies::query::PortfolioSnapshot;
-use strategies::types::StratEvent;
-use strategies::StratEventLogger;
+use strategy::query::PortfolioSnapshot;
+use strategy::types::StratEvent;
+use strategy::StratEventLogger;
 use trading::book::BookPosition;
 use util::serde::write_as_seq;
 use util::time::{now, now_str};

@@ -5,9 +5,18 @@ use std::sync::Arc;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use uuid::Uuid;
 
-use coinnect_rt::prelude::*;
-use db::Storage;
-use portfolio::portfolio::Portfolio;
+use model::MeanRevertingModel;
+use options::Options;
+use strategy::coinnect::prelude::*;
+use strategy::db::Storage;
+use strategy::driver::{DefaultStrategyContext, Strategy};
+use strategy::error::*;
+use strategy::models::io::IterativeModel;
+use strategy::models::Sampler;
+use strategy::plugin::{provide_options, Flag, StrategyPlugin, StrategyPluginContext};
+use strategy::prelude::*;
+use strategy::settings::StrategyOptions;
+use strategy::Channel;
 use trading::book::BookPosition;
 use trading::engine::TradingEngine;
 use trading::position::{OperationKind, PositionKind};
@@ -15,20 +24,37 @@ use trading::signal::{new_trade_signal, TradeSignal};
 use trading::stop::Stopper;
 use trading::types::OrderConf;
 
-use crate::driver::{DefaultStrategyContext, Strategy};
-use crate::error::Result;
-use crate::mean_reverting::metrics::MeanRevertingStrategyMetrics;
-use crate::mean_reverting::model::MeanRevertingModel;
-use crate::mean_reverting::options::Options;
-use crate::models::io::IterativeModel;
-use crate::models::Sampler;
-use crate::{Channel, StratEvent, StratEventLogger};
+use self::metrics::MeanRevertingStrategyMetrics;
 
 mod metrics;
 pub mod model;
 pub mod options;
 #[cfg(test)]
 mod tests;
+
+pub fn provide_strat(name: &str, ctx: StrategyPluginContext, conf: serde_json::Value) -> Result<Box<dyn Strategy>> {
+    let options: Options = serde_json::from_value(conf)?;
+    Ok(Box::new(MeanRevertingStrategy::new(
+        ctx.db,
+        name.to_string(),
+        &options,
+        ctx.engine,
+        ctx.logger,
+    )))
+}
+
+pub fn provide_option(conf: serde_json::Value) -> Result<Box<dyn StrategyOptions>> {
+    let options: Options = serde_json::from_value(conf)?;
+    Ok(Box::new(options))
+}
+
+// inventory::submit! {
+//     StrategyPlugin::new("mean_reverting", provide_option, provide_strat)
+// }
+
+inventory::submit! {
+    Flag::new("mean_reverting")
+}
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -85,10 +111,10 @@ impl MeanRevertingStrategy {
         strat
     }
 
-    fn load(&mut self) -> crate::error::Result<()> {
+    fn load(&mut self) -> strategy::error::Result<()> {
         self.model.try_load()?;
         if !self.model.is_loaded() {
-            Err(crate::error::Error::ModelLoadError(
+            Err(Error::ModelLoadError(
                 "models not loaded for unknown reasons".to_string(),
             ))
         } else {
@@ -119,7 +145,11 @@ impl MeanRevertingStrategy {
     }
 
     #[tracing::instrument(skip(self), level = "trace")]
-    async fn eval_latest(&self, lr: &BookPosition, portfolio: &Portfolio) -> Result<Option<TradeSignal>> {
+    async fn eval_latest(
+        &self,
+        lr: &BookPosition,
+        portfolio: &Portfolio,
+    ) -> strategy::error::Result<Option<TradeSignal>> {
         self.metrics.log_pos(lr);
 
         let apo = self.model.apo().expect("model required");
