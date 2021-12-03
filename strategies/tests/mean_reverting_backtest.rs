@@ -1,6 +1,8 @@
 use chrono::Duration;
 
 use backtest::Dataset;
+use strategies::settings::{StrategyDriverOptions, StrategyDriverSettings};
+use strategies::{GenericDriverOptions, PortfolioOptions};
 use trading::types::OrderConf;
 
 #[cfg(feature = "backtests")]
@@ -22,24 +24,31 @@ async fn complete_backtest_backtest() -> backtest::Result<()> {
     init();
     let conf = BacktestConfig::builder()
         .db_path(util::test::test_dir().into_path())
-        .strats(vec![StrategySettings::MeanReverting(Options {
-            pair: PAIR.into(),
-            threshold_long: -0.01,
-            threshold_short: 0.01,
-            threshold_eval_freq: Some(1),
-            dynamic_threshold: Some(true),
-            threshold_window_size: Some(10000),
-            stop_loss: -0.1,
-            stop_gain: 0.075,
-            initial_cap: 100.0,
-            short_window_size: 100,
-            long_window_size: 1000,
-            sample_freq: "1min".to_string(),
-            exchange: Exchange::Binance,
-            order_conf: OrderConf::default(),
-            start_trading: None,
-        })])
-        .fees(0.001)
+        .strats(vec![StrategyDriverSettings {
+            strat: Box::new(StrategySettings::MeanReverting(Options {
+                pair: PAIR.into(),
+                threshold_long: -0.01,
+                threshold_short: 0.01,
+                threshold_eval_freq: Some(1),
+                dynamic_threshold: Some(true),
+                threshold_window_size: Some(10000),
+                stop_loss: -0.1,
+                stop_gain: 0.075,
+                short_window_size: 100,
+                long_window_size: 1000,
+                sample_freq: "1min".to_string(),
+                exchange: Exchange::Binance,
+                order_conf: OrderConf::default(),
+            })),
+            driver: StrategyDriverOptions::Generic(GenericDriverOptions {
+                portfolio: PortfolioOptions {
+                    initial_quote_cash: 100.0,
+                    fees_rate: 0.001,
+                },
+                start_trading: None,
+            }),
+        }])
+        .fees(Exchange::Binance.default_fees())
         .period(::backtest::Period::Interval {
             from: Utc.ymd(2021, 8, 1).naive_utc(),
             to: Some(Utc.ymd(2021, 8, 9).naive_utc()),

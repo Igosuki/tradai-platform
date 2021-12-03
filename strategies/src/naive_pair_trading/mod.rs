@@ -22,11 +22,10 @@ use trading::stop::Stopper;
 use trading::types::OrderConf;
 use util::time::now;
 
-use crate::driver::StrategyDriver;
+use crate::driver::{DefaultStrategyContext, Strategy, StrategyDriver};
 use crate::error::*;
-use crate::generic::Strategy;
 use crate::naive_pair_trading::covar_model::{DualBookPosition, LinearModelValue, LinearSpreadModel};
-use crate::query::{ModelReset, MutableField, Mutation, StrategyIndicators};
+use crate::query::{ModelReset, MutableField, Mutation, PortfolioSnapshot};
 use crate::{Channel, DataQuery, DataResult, StratEvent, StratEventLogger, StrategyStatus};
 
 use self::metrics::NaiveStrategyMetrics;
@@ -139,7 +138,7 @@ impl NaiveTradingStrategy {
         if beta <= 0.0 {
             return Ok(None);
         }
-        let ratio = match self.calc_pred_ratio(lr) {
+        let ratio = match self.calc_pred_ratio(lr.left.mid, lr.right.mid) {
             None => return Ok(None),
             Some(ratio) => ratio,
         };
@@ -280,13 +279,13 @@ impl NaiveTradingStrategy {
     }
 
     /// Ratio of prediction vs mid price
-    fn calc_pred_ratio(&mut self, lr: &DualBookPosition) -> Option<f64> {
-        self.predict_right(lr)
-            .map(|predicted_right| (lr.right.mid - predicted_right) / lr.right.mid)
+    fn calc_pred_ratio(&mut self, left_price: f64, right_price: f64) -> Option<f64> {
+        self.predict_right(left_price)
+            .map(|predicted_right| (right_price - predicted_right) / right_price)
     }
 
     /// Predict the value of right price
-    fn predict_right(&self, lr: &DualBookPosition) -> Option<f64> { self.model.predict(lr.left.mid) }
+    fn predict_right(&self, price: f64) -> Option<f64> { self.model.predict(price) }
 
     fn can_eval(&self) -> bool {
         let has_position = self.portfolio.has_any_open_position();
@@ -402,7 +401,7 @@ impl StrategyDriver for NaiveTradingStrategy {
         match q {
             DataQuery::Status => Ok(DataResult::Status(StrategyStatus::Running)),
             DataQuery::Models => Err(Error::FeatureNotImplemented),
-            DataQuery::Indicators => Ok(DataResult::Indicators(StrategyIndicators::default())),
+            DataQuery::Indicators => Ok(DataResult::Indicators(PortfolioSnapshot::default())),
             DataQuery::PositionHistory => unimplemented!(),
             DataQuery::OpenPositions => unimplemented!(),
             DataQuery::CancelOngoingOp => unimplemented!(),
@@ -482,7 +481,11 @@ impl Strategy for NaiveTradingStrategy {
         })
     }
 
-    async fn eval(&mut self, le: &MarketEventEnvelope) -> Result<Option<Vec<TradeSignal>>> {
+    async fn eval(
+        &mut self,
+        le: &MarketEventEnvelope,
+        _ctx: &DefaultStrategyContext,
+    ) -> Result<Option<Vec<TradeSignal>>> {
         if let MarketEvent::Orderbook(ob) = &le.e {
             let string = ob.pair.clone();
             if string == self.left_pair {

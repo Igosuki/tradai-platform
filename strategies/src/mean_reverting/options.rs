@@ -10,7 +10,6 @@ pub struct Options {
     pub short_window_size: u32,
     pub long_window_size: u32,
     pub sample_freq: String,
-    pub initial_cap: f64,
     pub threshold_short: f64,
     pub threshold_long: f64,
     pub threshold_eval_freq: Option<i32>,
@@ -19,8 +18,6 @@ pub struct Options {
     pub stop_loss: f64,
     pub stop_gain: f64,
     pub exchange: Exchange,
-    /// Start trading after first start
-    pub start_trading: Option<bool>,
     pub order_conf: OrderConf,
 }
 
@@ -42,13 +39,11 @@ impl Options {
             threshold_window_size: Some(10000),
             stop_loss: -0.1,
             stop_gain: 0.075,
-            initial_cap: 100.0,
             short_window_size: 100,
             long_window_size: 1000,
             sample_freq: "1min".to_string(),
             exchange,
             order_conf: OrderConf::default(),
-            start_trading: Some(true),
         }
     }
 }

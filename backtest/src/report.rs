@@ -13,7 +13,7 @@ use serde::de::DeserializeOwned;
 use tokio::sync::Mutex;
 
 use stats::Next;
-use strategies::query::StrategyIndicators;
+use strategies::query::PortfolioSnapshot;
 use strategies::types::StratEvent;
 use strategies::StratEventLogger;
 use trading::book::BookPosition;
@@ -182,7 +182,7 @@ impl GlobalReport {
 #[derive(Serialize, Deserialize, Default)]
 pub(crate) struct ReportSnapshot {
     model: Option<BTreeMap<String, Option<serde_json::Value>>>,
-    indicators: Option<StrategyIndicators>,
+    indicators: Option<PortfolioSnapshot>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -191,7 +191,7 @@ pub(crate) struct BacktestReport {
     pub(crate) model_failures: u32,
     pub(crate) models: TimedVec<BTreeMap<String, Option<serde_json::Value>>>,
     pub(crate) indicator_failures: u32,
-    pub(crate) indicators: TimedVec<StrategyIndicators>,
+    pub(crate) indicators: TimedVec<PortfolioSnapshot>,
     pub(crate) book_positions: TimedVec<BookPosition>,
     pub(crate) events: TimedVec<StratEvent>,
 }
@@ -284,13 +284,13 @@ fn stop_event_ratio(events: &[StratEvent]) -> usize {
     events.len() / events.iter().filter(|e| matches!(e, StratEvent::Stop { .. })).count()
 }
 
-fn pnl_std_dev(indicators: &[TimedData<StrategyIndicators>]) -> f64 {
+fn pnl_std_dev(indicators: &[TimedData<PortfolioSnapshot>]) -> f64 {
     let pnls: Vec<f64> = indicators.iter().map(|v| v.value.pnl).dedup().collect();
     let mut std_dev = stats::StandardDeviation::new(10).unwrap();
     pnls.iter().fold(0.0, |_, pnl| std_dev.next(*pnl))
 }
 
-fn pnl_increase_ratio(indicators: &[TimedData<StrategyIndicators>]) -> f64 {
+fn pnl_increase_ratio(indicators: &[TimedData<PortfolioSnapshot>]) -> f64 {
     let pnls: Vec<f64> = indicators.iter().map(|v| v.value.pnl).dedup().collect();
     let count_losses = pnls
         .iter()

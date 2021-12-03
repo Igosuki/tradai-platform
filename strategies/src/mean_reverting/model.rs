@@ -155,6 +155,8 @@ impl MeanRevertingModel {
         self.apo.is_loaded() && self.thresholds.as_ref().map(|t| t.is_loaded()).unwrap_or(true)
     }
 
+    // TODO: use this in the new trait that will be returned to the driver
+    #[allow(dead_code)]
     pub(crate) fn reset(&mut self, name: Option<String>) -> Result<()> {
         if name == Some("apo".to_string()) || name.is_none() {
             self.apo.wipe()?;

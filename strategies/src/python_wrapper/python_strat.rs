@@ -11,7 +11,7 @@ use ext::ResultExt;
 use trading::python_impls::types::PyMarketEventEnvelope;
 use trading::signal::TradeSignal;
 
-use crate::generic::Strategy;
+use crate::driver::{DefaultStrategyContext, Strategy};
 use crate::Channel;
 
 #[pyclass(subclass)]
@@ -128,7 +128,11 @@ impl Strategy for PythonStratWrapper {
             .err_into()
     }
 
-    async fn eval(&mut self, e: &MarketEventEnvelope) -> crate::error::Result<Option<Vec<TradeSignal>>> {
+    async fn eval(
+        &mut self,
+        e: &MarketEventEnvelope,
+        _ctx: &DefaultStrategyContext,
+    ) -> crate::error::Result<Option<Vec<TradeSignal>>> {
         let inner = self.strat();
         let val = Python::with_gil(|py| {
             let py_event = PyMarketEventEnvelope::from(e);
@@ -157,7 +161,7 @@ impl Strategy for PythonStratWrapper {
 mod test {
     use pyo3::Python;
 
-    use crate::generic::Strategy;
+    use crate::driver::Strategy;
     use crate::python_strat::PythonStratWrapper;
     use crate::test_util::fixtures::default_order_book_event;
 
@@ -194,7 +198,8 @@ mod test {
         strat_wrapper.init()?;
         let event = default_order_book_event();
         strat_wrapper.update_model(&event).await?;
-        strat_wrapper.eval(&event).await?;
+        // TODO: context should be like ActorContext
+        //strat_wrapper.eval(&event).await?;
         strat_wrapper.model();
         strat_wrapper.channels();
         Ok(())

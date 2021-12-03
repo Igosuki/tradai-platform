@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use serde_json::Value;
 use tokio::sync::RwLock;
 
 use coinnect_rt::prelude::*;
@@ -12,37 +11,14 @@ use trading::engine::TradingEngine;
 use trading::order_manager::types::StagedOrder;
 use trading::signal::TradeSignal;
 
-use crate::driver::StrategyDriver;
+use crate::driver::{DefaultStrategyContext, Strategy, StrategyDriver};
 use crate::error::Result;
-use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, StrategyIndicators};
+use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, PortfolioSnapshot};
 use crate::{Channel, StrategyStatus};
 
+#[cfg(all(test, feature = "backtests"))]
+pub mod it_backtest;
 mod metrics;
-
-pub type SerializedModel = Vec<(String, Option<Value>)>;
-
-#[async_trait]
-pub(crate) trait Strategy: Sync + Send {
-    //async fn try_new(&self, conf: serde_json::Value) -> Self;
-
-    fn key(&self) -> String;
-
-    fn init(&mut self) -> Result<()>;
-
-    async fn eval(&mut self, e: &MarketEventEnvelope) -> Result<Option<Vec<TradeSignal>>>;
-
-    async fn update_model(&mut self, e: &MarketEventEnvelope) -> Result<()>;
-
-    fn model(&self) -> SerializedModel;
-
-    fn channels(&self) -> HashSet<Channel>;
-}
-
-#[allow(dead_code)]
-struct StrategyContext<C> {
-    db: Arc<dyn Strategy>,
-    conf: C,
-}
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PortfolioOptions {
@@ -53,6 +29,8 @@ pub struct PortfolioOptions {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct GenericDriverOptions {
     pub portfolio: PortfolioOptions,
+    /// Start trading after first start
+    pub start_trading: Option<bool>,
 }
 
 pub struct GenericDriver {
@@ -88,7 +66,7 @@ impl GenericDriver {
             channels,
             inner: RwLock::new(strat),
             initialized: false,
-            is_trading: true,
+            is_trading: driver_options.start_trading.unwrap_or(true),
             portfolio,
             engine,
             strat_key,
@@ -102,6 +80,7 @@ impl GenericDriver {
     }
 
     fn handles(&self, le: &MarketEventEnvelope) -> bool {
+        // TODO : replace this with a hashtable
         self.channels.iter().any(|c| match (c, le) {
             (
                 Channel::Orderbooks { pair, xch },
@@ -167,8 +146,8 @@ impl GenericDriver {
         Ok(())
     }
 
-    fn indicators(&self) -> StrategyIndicators {
-        StrategyIndicators {
+    fn indicators(&self) -> PortfolioSnapshot {
+        PortfolioSnapshot {
             value: self.portfolio.value(),
             pnl: self.portfolio.pnl(),
             current_return: self.portfolio.current_return(),
@@ -201,7 +180,7 @@ impl GenericDriver {
         if self.is_trading {
             let signals = {
                 let mut inner = self.inner.write().await;
-                inner.eval(le).await?
+                inner.eval(le, &self.ctx()).await?
             };
             if let Some(signals) = signals {
                 if !signals.is_empty() {
@@ -214,6 +193,12 @@ impl GenericDriver {
             }
         }
         Ok(())
+    }
+
+    fn ctx(&self) -> DefaultStrategyContext {
+        DefaultStrategyContext {
+            portfolio: &self.portfolio,
+        }
     }
 }
 
@@ -263,7 +248,7 @@ impl StrategyDriver for GenericDriver {
                 }
                 Ok(())
             }
-            Mutation::Model(ModelReset { name, .. }) => {
+            Mutation::Model(ModelReset { name: _, .. }) => {
                 unimplemented!()
             }
         }
@@ -310,7 +295,7 @@ impl StrategyDriver for GenericDriver {
         if !locked_ids.is_empty() && self.portfolio.locks().is_empty() {
             let mut inner_w = self.inner.write().await;
             if let Some(event) = self.last_event.as_ref() {
-                if let Err(e) = inner_w.eval(event).await {
+                if let Err(e) = inner_w.eval(event, &self.ctx()).await {
                     metrics::get().log_error(e.short_name());
                     error!(err = %e, "failed to eval after unlocking portfolio");
                 }
