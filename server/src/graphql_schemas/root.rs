@@ -5,7 +5,7 @@ use itertools::Itertools;
 use juniper::{FieldError, FieldResult, RootNode};
 
 use coinnect_rt::prelude::*;
-use strategies::query::{DataQuery, DataResult, ModelReset, StateFieldMutation, StrategyIndicators};
+use strategies::query::{DataQuery, DataResult, ModelReset, PortfolioSnapshot, StateFieldMutation};
 use strategies::{StrategyKey, StrategyLifecycleCmd, StrategyStatus};
 use trading::order_manager;
 use trading::order_manager::types::PassOrder;
@@ -33,7 +33,7 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Dump the current portfolio indicators for a strategy")]
-    async fn strat_indicators(context: &Context, tk: TypeAndKeyInput) -> FieldResult<StrategyIndicators> {
+    async fn strat_indicators(context: &Context, tk: TypeAndKeyInput) -> FieldResult<PortfolioSnapshot> {
         context
             .with_strat(tk, DataQuery::Indicators, |dr| {
                 if let DataResult::Indicators(indicators) = dr {

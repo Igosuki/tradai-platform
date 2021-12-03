@@ -1,18 +1,19 @@
-use actix::{Actor, Addr};
-use binance::rest_model::TimeInForce;
-use chrono::Utc;
-use coinnect_rt::exchange::MockExchangeApi;
-use ext::prelude::*;
-use httpmock::Method::POST;
-use httpmock::{Mock, MockServer};
-use rand::random;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
+use actix::{Actor, Addr};
+use chrono::Utc;
+use httpmock::Method::POST;
+use httpmock::{Mock, MockServer};
+use rand::random;
+
+use binance::rest_model::TimeInForce;
+use coinnect_rt::exchange::MockExchangeApi;
 use coinnect_rt::pair::register_pair_default;
 use coinnect_rt::prelude::*;
 use db::DbOptions;
+use ext::prelude::*;
 
 use crate::order_manager::types::OrderDetail;
 use crate::order_manager::{OrderManager, OrderManagerClient};
@@ -73,13 +74,13 @@ pub fn create_ok_order_mock(server: &MockServer, order: OrderDetail) -> Mock<'_>
             binance::rest_model::Fill {
                 price: price * 0.99,
                 qty: qty * 0.8,
-                commission: quote_qty * 0.001,
+                commission: quote_qty * Exchange::Binance.default_fees(),
                 commission_asset: "USDT".to_string(),
             },
             binance::rest_model::Fill {
                 price: price * 0.98,
                 qty: qty * 0.2,
-                commission: quote_qty * 0.001,
+                commission: quote_qty * Exchange::Binance.default_fees(),
                 commission_asset: "USDT".to_string(),
             },
         ],
@@ -121,13 +122,13 @@ pub fn create_ok_margin_order_mock(server: &MockServer, order: OrderDetail) -> M
             binance::rest_model::Fill {
                 price: price * 0.99,
                 qty: qty * 0.8,
-                commission: quote_qty * 0.001,
+                commission: quote_qty * Exchange::Binance.default_fees(),
                 commission_asset: "USDT".to_string(),
             },
             binance::rest_model::Fill {
                 price: price * 0.98,
                 qty: qty * 0.2,
-                commission: quote_qty * 0.001,
+                commission: quote_qty * Exchange::Binance.default_fees(),
                 commission_asset: "USDT".to_string(),
             },
         ],

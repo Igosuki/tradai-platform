@@ -11,7 +11,7 @@ use metrics::prom::PrometheusOptions;
 use portfolio::balance::BalanceReporterOptions;
 use portfolio::margin::MarginAccountReporterOptions;
 use strategies::actor::StrategyActorOptions;
-use strategies::settings::{StrategyCopySettings, StrategySettings};
+use strategies::settings::{StrategyCopySettings, StrategyDriverSettings};
 use util::serde::{decode_duration, decode_duration_str, decode_file_size};
 
 use crate::notify::DiscordNotifierOptions;
@@ -127,7 +127,7 @@ pub struct Settings {
     #[serde(default)]
     pub api: ApiSettings,
     #[serde(default)]
-    pub strategies: Vec<StrategySettings>,
+    pub strategies: Vec<StrategyDriverSettings>,
     #[serde(default)]
     pub strategies_copy: Vec<StrategyCopySettings>,
     pub storage: DbOptions<String>,

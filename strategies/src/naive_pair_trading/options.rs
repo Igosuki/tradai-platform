@@ -1,6 +1,7 @@
 use chrono::Duration;
-use coinnect_rt::prelude::*;
 use parse_duration::parse;
+
+use coinnect_rt::prelude::*;
 use trading::types::OrderConf;
 
 #[derive(Clone, Debug, Deserialize)]
@@ -30,5 +31,23 @@ impl Options {
             .as_ref()
             .and_then(|s| Duration::from_std(parse(s).unwrap()).ok())
             .unwrap_or_else(|| Duration::days(3))
+    }
+
+    pub fn new_test_default(exchange: Exchange, left_pair: Pair, right_pair: Pair) -> Self {
+        Self {
+            left: left_pair,
+            right: right_pair,
+            beta_eval_freq: 1000,
+            beta_sample_freq: "1min".to_string(),
+            window_size: 2000,
+            exchange,
+            threshold_long: -0.03,
+            threshold_short: 0.03,
+            stop_loss: -0.1,
+            stop_gain: 0.075,
+            initial_cap: 100.0,
+            order_conf: Default::default(),
+            max_pos_duration: None,
+        }
     }
 }

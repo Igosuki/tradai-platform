@@ -20,6 +20,7 @@ use itertools::Itertools;
 use tokio::sync::Mutex;
 
 use db::{DbEngineOptions, RocksDbOptions};
+use strategies::settings::StrategyDriverSettings;
 use strategies::{Channel, Coinnect, DbOptions, Exchange, ExchangeApi, ExchangeSettings, MarketEventEnvelope, Pair};
 use trading::engine::mock_engine;
 use util::test::test_dir;
@@ -60,7 +61,7 @@ impl Backtest {
             std::fs::remove_dir_all(db_path.clone()).unwrap();
         }
         let output_path = conf.output_dir();
-        let mut all_strategy_settings = vec![];
+        let mut all_strategy_settings: Vec<StrategyDriverSettings> = vec![];
         all_strategy_settings.extend_from_slice(conf.strats.as_slice());
         if let Some(copy) = conf.strat_copy.as_ref() {
             init_coinnect(copy.exchange()).await;
@@ -84,7 +85,7 @@ impl Backtest {
                 };
 
                 let logger: Arc<VecEventLogger> = Arc::new(VecEventLogger::default());
-                let strategy_driver = strategies::settings::from_settings(
+                let strategy_driver = strategies::settings::from_driver_settings(
                     &db_conf,
                     &exchange_conf,
                     &settings,

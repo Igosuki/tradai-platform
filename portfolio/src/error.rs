@@ -19,6 +19,8 @@ pub enum Error {
     BadCloseSignal(PositionKind),
     #[error("tried to {1} a {0} position that already existed")]
     BadOpenSignal(PositionKind, OperationKind),
+    #[error("tried to {3} a {2} position that was open?:{0}, close?:{1}")]
+    BadSignal(bool, bool, PositionKind, OperationKind),
     #[error("failed to parse uuid")]
     UuidParse(#[from] uuid::Error),
     #[error("no more lock existed for order")]
@@ -43,6 +45,7 @@ impl Error {
             Error::ZeroOrNegativeOrderQty => "zero_or_negative_qty",
             Error::BadCloseSignal(_) => "bad_close_signal",
             Error::BadOpenSignal(_, _) => "bad_open_signal",
+            Error::BadSignal(_, _, _, _) => "bad_signal",
         }
     }
 }
