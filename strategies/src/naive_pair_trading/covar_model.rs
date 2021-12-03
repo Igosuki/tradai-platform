@@ -164,6 +164,7 @@ impl LinearSpreadModel {
 
     pub(super) fn value(&self) -> Option<LinearModelValue> { self.linear_model.value() }
 
+    #[allow(dead_code)]
     pub(super) fn reset(&mut self) -> Result<()> { self.linear_model.wipe() }
 
     pub(super) fn push(&mut self, input: &DualBookPosition) { self.linear_model.push(input); }
@@ -193,11 +194,6 @@ impl Next<&DualBookPosition> for LinearSpreadModel {
         if !self.sampler.sample(input.time) {
             return Ok(None);
         }
-        trace!(
-            event_time = %input.time,
-            rows = self.linear_model.len(),
-            "linear model sample"
-        );
         self.push(input);
         if self.linear_model.value().is_none() && self.linear_model.is_filled() {
             self.update()?;

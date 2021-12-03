@@ -17,9 +17,12 @@ static LEFT_PAIR: &str = "ETH_USDT";
 static RIGHT_PAIR: &str = "BTC_USDT";
 
 fn get_f64(model: &HashMap<String, Option<Value>>, key: &str) -> f64 {
-    model.get(key).unwrap().as_ref().unwrap().as_f64().unwrap()
+    model
+        .get(key)
+        .and_then(|v| v.as_ref().and_then(|o| o.as_f64()))
+        .unwrap_or(f64::NAN)
 }
-//
+
 // ("traded_price_right", |x| vec![("traded_right_price", x.right_price)]),
 // ("traded_price_left", |x| vec![("traded_left_price", x.left_price)]),
 // ("res", |x| vec![("res", x.res)]),
@@ -77,7 +80,6 @@ async fn spot_backtest() {
         Box::new(NaiveTradingStrategy::new(
             ctx.db,
             "naive_trading_test".to_string(),
-            exchange.default_fees(),
             &conf,
             ctx.engine,
             None,
@@ -129,7 +131,6 @@ async fn margin_backtest() {
         Box::new(NaiveTradingStrategy::new(
             ctx.db,
             "naive_trading_test".to_string(),
-            exchange.default_fees(),
             &conf,
             ctx.engine,
             None,

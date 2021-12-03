@@ -58,7 +58,6 @@ async fn spot_backtest() {
         Box::new(MeanRevertingStrategy::new(
             ctx.db,
             "mean_reverting_test".to_string(),
-            exchange.default_fees(),
             &conf,
             ctx.engine,
             None,
@@ -110,7 +109,6 @@ async fn margin_backtest() {
         Box::new(MeanRevertingStrategy::new(
             ctx.db,
             "mean_reverting_test".to_string(),
-            exchange.default_fees(),
             &conf,
             ctx.engine,
             None,

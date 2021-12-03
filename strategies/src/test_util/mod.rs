@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::path::Path;
 use std::sync::Arc;
 
@@ -5,6 +7,8 @@ use db::{get_or_create, DbOptions, Storage};
 
 #[cfg(test)]
 pub mod draw;
+#[cfg(test)]
+pub mod event;
 #[cfg(test)]
 pub mod fs;
 #[cfg(test)]
