@@ -50,6 +50,8 @@ use db::DbOptions;
 use error::*;
 use ext::ResultExt;
 pub use portfolio::portfolio::Portfolio;
+#[cfg(feature = "python")]
+pub use python_wrapper::python_strat;
 pub use trading;
 use trading::engine::TradingEngine;
 
