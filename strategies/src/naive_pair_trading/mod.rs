@@ -13,7 +13,7 @@ use strategy::coinnect::prelude::*;
 use strategy::db::Storage;
 use strategy::driver::{DefaultStrategyContext, Strategy};
 use strategy::error::*;
-use strategy::plugin::StrategyPlugin;
+use strategy::plugin::{provide_options, StrategyPlugin};
 use strategy::prelude::*;
 use strategy::types::StratEvent;
 use strategy::Portfolio;
@@ -36,15 +36,12 @@ pub mod options;
 #[cfg(test)]
 mod tests;
 
-// inventory::submit! {
-//     StrategyPlugin::new("naive_spread", |conf| {
-//         let options: Options = serde_json::from_value(conf)?;
-//         Ok(Box::new(options))
-//     },|name, ctx, conf| {
-//         let options: Options = serde_json::from_value(conf)?;
-//         Ok(Box::new(NaiveTradingStrategy::new(ctx.db, name.to_string(), &options, ctx.engine, ctx.logger)))
-//     })
-// }
+inventory::submit! {
+    StrategyPlugin::new("naive_spread", provide_options::<Options>, |name, ctx, conf| {
+        let options: Options = serde_json::from_value(conf)?;
+        Ok(Box::new(NaiveTradingStrategy::new(ctx.db, name.to_string(), &options, ctx.engine, ctx.logger)))
+    })
+}
 
 pub struct NaiveTradingStrategy {
     key: String,
