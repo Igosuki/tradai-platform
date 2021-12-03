@@ -1155,6 +1155,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "631ae5198c9be5e753e5cc215e1bd73c2b466a3565173db433f52bb9d3e66dba"
 
 [[package]]
+name = "canonical_json"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64f464b27d56e99fb36031754bb17fe97f1a69f66621628f002664cee6a4bcbf"
+dependencies = [
+ "hex",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "castaway"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2816,6 +2829,28 @@ name = "infer"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64e9829a50b42bb782c1df523f78d332fe371b10c661e78b7a3c34b0198e9fac"
+
+[[package]]
+name = "inline-python"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2090a070ce14a62b0605bb08e545b28ff785b24b9fabfc56a402a5987e7a299"
+dependencies = [
+ "inline-python-macros",
+ "pyo3",
+]
+
+[[package]]
+name = "inline-python-macros"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f772582b7328d339524184f3980438daf380bf75edb05543356790192a17fafc"
+dependencies = [
+ "libc",
+ "proc-macro2",
+ "pyo3",
+ "quote",
+]
 
 [[package]]
 name = "inotify"
@@ -5516,6 +5551,7 @@ dependencies = [
  "binance-rs-async",
  "bytes",
  "bytestring",
+ "canonical_json",
  "chrono",
  "coinnect_rt",
  "csv",
@@ -5530,6 +5566,7 @@ dependencies = [
  "hdrhistogram",
  "http",
  "httpmock",
+ "inline-python",
  "insta",
  "inventory",
  "itertools",

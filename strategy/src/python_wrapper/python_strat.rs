@@ -1,18 +1,22 @@
 use std::collections::{HashMap, HashSet};
 
+use inline_python::Context;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 use pyo3::{wrap_pymodule, Python};
 use serde_json::Value;
 
 use coinnect_rt::exchange::Exchange;
-use coinnect_rt::prelude::MarketEventEnvelope;
+use coinnect_rt::prelude::{MarketEventEnvelope, Pair};
 use ext::ResultExt;
 use trading::python_impls::types::PyMarketEventEnvelope;
 use trading::signal::TradeSignal;
 
 use crate::driver::{DefaultStrategyContext, Strategy};
-use crate::Channel;
+use crate::error::Result;
+use crate::plugin::{provide_options, StrategyPluginContext};
+use crate::settings::{StrategyOptions, StrategySettingsReplicator};
+use crate::{Channel, StrategyKey, StrategyPlugin};
 
 #[pyclass(subclass)]
 struct PythonStrat {}
@@ -62,7 +66,9 @@ impl PythonStrat {
     fn channels(&self) -> PyResult<Vec<SubscriptionChannel>> { unimplemented!() }
 }
 
-struct PythonStratWrapper {}
+struct PythonStratWrapper {
+    context: Context,
+}
 
 create_exception!(strat, ModelError, pyo3::exceptions::PyException);
 create_exception!(strat, EvalError, pyo3::exceptions::PyException);
@@ -78,16 +84,15 @@ pub fn strat(py: Python, m: &PyModule) -> PyResult<()> {
 }
 
 impl PythonStratWrapper {
-    #[allow(dead_code)]
-    fn new(_conf: HashMap<String, serde_json::Value>, python_script: String) -> Self {
+    fn new(_key: &str, _conf: HashMap<String, serde_json::Value>, python_script: String) -> Self {
         let guard = Python::acquire_gil();
         let py = guard.python();
-        //let context = Context::new_with_gil(py);
+        let context = Context::new_with_gil(py);
         let m = wrap_pymodule!(strat)(py);
         Python::with_gil(|py| {
             let dict = PyDict::new(py);
             dict.set_item("m", m)?;
-            py.run(r#"import sys; sys.modules["strategies"] = m"#, None, Some(dict))?;
+            py.run(r#"import sys; sys.modules["strategy"] = m"#, None, Some(dict))?;
             PyModule::from_code(py, &python_script, "yourstrat.py", "yourstrat")?;
             py.run(r#"from yourstrat import Strat; strat = Strat({})"#, None, None)
         })
@@ -103,7 +108,7 @@ impl PythonStratWrapper {
         // });
         // let class = module.getattr("Strat").unwrap();
         // let instance = class.call1((py_conf,));
-        Self {}
+        Self { context }
     }
 
     fn strat(&self) -> PyObject {
@@ -157,6 +162,38 @@ impl Strategy for PythonStratWrapper {
     fn channels(&self) -> HashSet<Channel> { Default::default() }
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct PythonStratWrapperOptions {
+    conf: HashMap<String, serde_json::Value>,
+    script_path: String,
+    key: String,
+}
+
+impl StrategySettingsReplicator for PythonStratWrapperOptions {
+    fn replicate_for_pairs(&self, pairs: HashSet<Pair>) -> Vec<Value> { vec![] }
+}
+
+impl StrategyOptions for PythonStratWrapperOptions {
+    fn key(&self) -> StrategyKey { StrategyKey("python".to_string(), self.key.clone()) }
+}
+
+pub fn provide_python_strat(
+    name: &str,
+    _ctx: StrategyPluginContext,
+    conf: serde_json::Value,
+) -> Result<Box<dyn Strategy>> {
+    let options: PythonStratWrapperOptions = serde_json::from_value(conf)?;
+    Ok(Box::new(PythonStratWrapper::new(
+        name,
+        options.conf,
+        options.script_path,
+    )))
+}
+
+inventory::submit! {
+    StrategyPlugin::new("python", provide_options::<PythonStratWrapperOptions>, provide_python_strat)
+}
+
 #[cfg(test)]
 mod test {
     use pyo3::Python;
@@ -174,27 +211,27 @@ mod test {
     #[test]
     fn test_python_from_python() {
         let python_script = python_script("calls").unwrap();
-        let strat_wrapper = PythonStratWrapper::new(Default::default(), python_script);
+        let strat_wrapper = PythonStratWrapper::new("default_wrapper", Default::default(), python_script);
         let strat = strat_wrapper.strat();
         let whoami: String = Python::with_gil(|py| {
             let whoami = strat.call_method0(py, "whoami");
             whoami.unwrap().extract(py).unwrap()
         });
         assert_eq!(whoami, "PythonStrat");
-        // strat_wrapper.context.run(python! {
-        //     'strat.init()
-        //     'strat.update_model({})
-        //     'strat.eval({})
-        //     'strat.models()
-        //     'strat.channels()
-        //     import sys; sys.stdout.flush()
-        // })
+        strat_wrapper.context.run(python! {
+            'strat.init()
+            'strat.update_model({})
+            'strat.eval({})
+            'strat.models()
+            'strat.channels()
+            import sys; sys.stdout.flush()
+        })
     }
 
     #[tokio::test]
     async fn test_python_baseline_impl() -> crate::error::Result<()> {
         let python_script = python_script("calls").unwrap();
-        let mut strat_wrapper = PythonStratWrapper::new(Default::default(), python_script);
+        let mut strat_wrapper = PythonStratWrapper::new("default_wrapper", Default::default(), python_script);
         strat_wrapper.init()?;
         let event = default_order_book_event();
         strat_wrapper.update_model(&event).await?;
@@ -209,7 +246,7 @@ mod test {
     #[should_panic]
     fn test_fail_unimplemented() {
         let python_script = python_script("unimplemented").unwrap();
-        let strat_wrapper = PythonStratWrapper::new(Default::default(), python_script);
+        let strat_wrapper = PythonStratWrapper::new("default_wrapper", Default::default(), python_script);
         let strat = strat_wrapper.strat();
         let r = Python::with_gil(|py| strat.call_method0(py, "init"));
         assert!(r.is_ok())
