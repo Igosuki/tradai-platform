@@ -13,9 +13,8 @@ use strategy::driver::{DefaultStrategyContext, Strategy};
 use strategy::error::*;
 use strategy::models::io::IterativeModel;
 use strategy::models::Sampler;
-use strategy::plugin::{provide_options, Flag, StrategyPlugin, StrategyPluginContext};
+use strategy::plugin::{provide_options, StrategyPlugin, StrategyPluginContext};
 use strategy::prelude::*;
-use strategy::settings::StrategyOptions;
 use strategy::Channel;
 use trading::book::BookPosition;
 use trading::engine::TradingEngine;
@@ -43,18 +42,9 @@ pub fn provide_strat(name: &str, ctx: StrategyPluginContext, conf: serde_json::V
     )))
 }
 
-pub fn provide_option(conf: serde_json::Value) -> Result<Box<dyn StrategyOptions>> {
-    let options: Options = serde_json::from_value(conf)?;
-    Ok(Box::new(options))
+inventory::submit! {
+    StrategyPlugin::new("mean_reverting", provide_options::<Options>, provide_strat)
 }
-
-// inventory::submit! {
-//     StrategyPlugin::new("mean_reverting", provide_option, provide_strat)
-// }
-
-// inventory::submit! {
-//     Flag::new('m', "mean_reverting")
-// }
 
 #[derive(Derivative)]
 #[derivative(Debug)]
