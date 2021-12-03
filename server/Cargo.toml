@@ -21,6 +21,7 @@ gprof = ["gperftools"]
 zstd = ["awc/compress-zstd", "actix-web/compress-zstd"]
 checkers_alloc = ["checkers"]
 dialog_cli = ["dialoguer", "glob"]
+
 [dependencies]
 # Self crates
 models = { path = "../models" }
@@ -43,84 +44,70 @@ actix-web = { version = "4.0.0-beta.6", features = ["openssl", "compress-brotli"
 actix_derive = "0.6"
 awc = { version = "3.0.0-beta.7", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
 
+# API Server
+juniper = { version = "0.15", features = ["expose-test-schema"] }
+native-tls = "0.2"
+
 # Errors
 anyhow = "1.0"
+thiserror = "1.0"
 
-# Futures
+# Codecs
 avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "master_merge" }
 
-# Data structures
+# Async
+futures = { version = "0.3", features = ["thread-pool"] }
+futures-util = "0.3"
+tokio = { version = "1", features = ["full", "time"] }
+tokio-stream = "0.1"
+
+# Std
 byte-unit = "4.0"
 bytes = "1.0"
-
-# Std Utils
 chrono = { version = "0.4", features = ["serde"] }
+itertools = "0.10"
+lazy_static = "1.4"
+libc = "0.2"
+notify = "4.0"
+once_cell = "1.4"
+parse_duration = "2.1"
+rand = "0.8"
+uuid = { version = "0.8", features = ["v4"] }
+url = "2.2"
+glob = { version = "0.3", optional = true }
+
+# Derive
+derive_more = "0.99"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
 
 # CLI
+config = { version = "0.11", features = ["yaml", "toml", "json"], default-features = false }
 clap = "3.0.0-beta.1"
 dialoguer = { version = "0.8", optional = true }
+structopt = "0.3"
 
 # Crypto
-config = { version = "0.11", features = ["yaml", "toml", "json"], default-features = false }
 data-encoding = "2.2"
+sha2 = "0.9"
 
-derive_more = "0.99"
+# Log / Monitoring / Tracing
 env_logger = "0.9"
+tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
+prometheus = { version = "0.12", features = ["nightly", "push", "process", "gen"] }
+online = "3.0"
+measure_time = "0.7"
 
 # Profiling
 flame = { version = "0.2", optional = true }
 flamer = { version = "0.4", optional = true }
-futures = { version = "0.3", features = ["thread-pool"] }
-futures-util = "0.3"
 gperftools = { version = "0.2", optional = true, features = ["heap"] }
 checkers = { version = "0.6", optional = true, features = ["zeroed", "backtrace", "checkers-macros", "fxhash", "macros", "realloc"] }
 
-hmac = "0.11"
-itertools = "0.10"
-
-# Juniper
-juniper = { version = "0.15", features = ["expose-test-schema"] }
-
-# Rust lang extensions
-lazy_static = "1.4"
-libc = "0.2"
-
-# Logging
-tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
-
-# Nats
+# Queues
 nats = "0.10"
-notify = "4.0"
-once_cell = "1.4"
-parse_duration = "2.1"
-
-# Monitoring
-prometheus = { version = "0.12", features = ["nightly", "push", "process", "gen"] }
-rand = "0.8"
-online = "3.0"
-
-# DB
-serde = { version = "1.0", features = ["derive"] }
-
-# Codecs
-serde_json = { version = "1.0", features = ["float_roundtrip"] }
-
-# SSL
-sha2 = "0.9"
-structopt = "0.3"
-tempdir = "0.3"
-native-tls = "0.2"
-
-# Error
-thiserror = "1.0"
-tokio = { version = "1", features = ["full", "time"] }
-tokio-stream = "0.1"
-url = "2.2"
-
-uuid = { version = "0.8", features = ["v4"] }
-measure_time = "0.7"
-glob = {version="0.3",optional=true}
 
 [dev-dependencies]
 pretty_assertions = "0.7"
 fs_extra = "1.2"
+tempdir = "0.3"

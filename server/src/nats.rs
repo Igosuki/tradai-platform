@@ -67,7 +67,7 @@ impl Handler<Arc<MarketEventEnvelope>> for NatsProducer {
     type Result = <MarketEventEnvelope as Message>::Result;
 
     fn handle(&mut self, msg: Arc<MarketEventEnvelope>, _ctx: &mut Self::Context) -> Self::Result {
-        let string = serde_json::to_string(&msg).unwrap();
+        let string = serde_json::to_string(msg.as_ref()).unwrap();
         self.nats_conn.publish(&msg.subject(), string)?;
         Ok(())
     }
@@ -83,10 +83,10 @@ impl NatsConsumer {
         username: &str,
         password: &str,
         topics: Vec<String>,
-        recipients: Vec<Recipient<T>>,
+        recipients: Vec<Recipient<Arc<T>>>,
     ) -> Result<Self>
     where
-        T: DeserializeOwned + Message + Send + Clone,
+        T: DeserializeOwned + Message + Send + Sync,
         <T as Message>::Result: Send,
     {
         let connection = nats_conn(nats_host, username, password)?;
@@ -94,8 +94,9 @@ impl NatsConsumer {
             let recipients = Arc::new(recipients.clone());
             connection.subscribe(&topic)?.with_handler(move |msg| {
                 let v: T = serde_json::from_slice(msg.data.as_slice())?;
+                let av = Arc::new(v);
                 for recipient in recipients.as_ref() {
-                    recipient.do_send(v.clone()).unwrap();
+                    recipient.do_send(av.clone()).unwrap();
                 }
                 Ok(())
             });

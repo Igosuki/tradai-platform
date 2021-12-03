@@ -56,7 +56,6 @@ thiserror = "1.0"
 futures = { version = "0.3", features = ["async-await", "alloc"] }
 async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
-tokio-stream = "0.1"
 
 # graph_ql
 juniper = { version = "0.15", features = ["expose-test-schema"] }
@@ -122,3 +121,5 @@ httpmock = { git = "https://github.com/Igosuki/httpmock.git" }
 wiremock = "0.5"
 socket2 = "0.4"
 
+# Async
+tokio-stream = "0.1"
