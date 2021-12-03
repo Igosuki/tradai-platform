@@ -5,7 +5,7 @@ use nats::Connection;
 use serde::de::DeserializeOwned;
 
 use coinnect_rt::types::{MarketEvent, MarketEventEnvelope};
-use strategies::Channel;
+use strategy::Channel;
 
 type Result<T> = anyhow::Result<T>;
 

@@ -36,15 +36,15 @@ pub mod options;
 #[cfg(test)]
 mod tests;
 
-inventory::submit! {
-    StrategyPlugin::new("naive_spread", |conf| {
-        let options: Options = serde_json::from_value(conf)?;
-        Ok(Box::new(options))
-    },|name, ctx, conf| {
-        let options: Options = serde_json::from_value(conf)?;
-        Ok(Box::new(NaiveTradingStrategy::new(ctx.db, name.to_string(), &options, ctx.engine, ctx.logger)))
-    })
-}
+// inventory::submit! {
+//     StrategyPlugin::new("naive_spread", |conf| {
+//         let options: Options = serde_json::from_value(conf)?;
+//         Ok(Box::new(options))
+//     },|name, ctx, conf| {
+//         let options: Options = serde_json::from_value(conf)?;
+//         Ok(Box::new(NaiveTradingStrategy::new(ctx.db, name.to_string(), &options, ctx.engine, ctx.logger)))
+//     })
+// }
 
 pub struct NaiveTradingStrategy {
     key: String,

@@ -76,7 +76,6 @@ impl Backtest {
             .into_iter()
             .map(|settings| {
                 let local_db_path = db_path.clone();
-                let exchange_conf = ExchangeSettings::default_test(conf.fees);
                 let db_conf = DbOptions {
                     path: local_db_path,
                     engine: DbEngineOptions::RocksDb(
@@ -92,7 +91,6 @@ impl Backtest {
                 let strategy_driver = strategy::settings::from_driver_settings(
                     plugin,
                     &db_conf,
-                    &exchange_conf,
                     &settings,
                     mock_engine.clone(),
                     Some(logger.clone()),

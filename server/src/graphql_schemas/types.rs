@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use juniper::FieldResult;
 
 use coinnect_rt::prelude::*;
-use strategies::query::{DataQuery, DataResult, PortfolioSnapshot};
+use strategy::query::{DataQuery, DataResult, PortfolioSnapshot};
 use trading::position::{OperationKind, PositionKind};
 use trading::types::TradeOperation;
 

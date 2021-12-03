@@ -111,7 +111,6 @@ pub struct StrategyDriverSettings {
 pub fn from_driver_settings<S: AsRef<Path>>(
     plugin: &StrategyPlugin,
     db_opts: &DbOptions<S>,
-    _exchange_conf: &ExchangeSettings,
     s: &StrategyDriverSettings,
     engine: Arc<TradingEngine>,
     logger: Option<Arc<dyn StratEventLogger>>,

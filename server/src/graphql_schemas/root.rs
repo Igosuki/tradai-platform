@@ -5,8 +5,8 @@ use itertools::Itertools;
 use juniper::{FieldError, FieldResult, RootNode};
 
 use coinnect_rt::prelude::*;
-use strategies::query::{DataQuery, DataResult, ModelReset, PortfolioSnapshot, StateFieldMutation};
-use strategies::{StrategyKey, StrategyLifecycleCmd, StrategyStatus};
+use strategy::query::{DataQuery, DataResult, ModelReset, PortfolioSnapshot, StateFieldMutation};
+use strategy::{StrategyKey, StrategyLifecycleCmd, StrategyStatus};
 use trading::order_manager;
 use trading::order_manager::types::PassOrder;
 use trading::position::Position;
@@ -26,7 +26,7 @@ impl QueryRoot {
         Ok(keys
             .iter()
             .map(|&sk| StrategyState {
-                t: sk.0.as_ref().to_string(),
+                t: sk.0.clone(),
                 id: sk.1.clone(),
             })
             .collect())

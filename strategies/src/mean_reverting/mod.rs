@@ -52,9 +52,9 @@ pub fn provide_option(conf: serde_json::Value) -> Result<Box<dyn StrategyOptions
 //     StrategyPlugin::new("mean_reverting", provide_option, provide_strat)
 // }
 
-inventory::submit! {
-    Flag::new("mean_reverting")
-}
+// inventory::submit! {
+//     Flag::new('m', "mean_reverting")
+// }
 
 #[derive(Derivative)]
 #[derivative(Debug)]
