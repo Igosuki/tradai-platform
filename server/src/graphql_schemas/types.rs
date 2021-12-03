@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use juniper::FieldResult;
 
 use coinnect_rt::prelude::*;
-use strategies::query::{DataQuery, DataResult, StrategyIndicators};
+use strategies::query::{DataQuery, DataResult, PortfolioSnapshot};
 use trading::position::{OperationKind, PositionKind};
 use trading::types::TradeOperation;
 
@@ -30,7 +30,7 @@ impl StrategyState {
     #[graphql(name = "type")]
     pub fn t(&self) -> &str { &self.t }
     pub fn id(&self) -> &str { &self.id }
-    pub async fn indicators(&self, context: &Context) -> FieldResult<StrategyIndicators> {
+    pub async fn indicators(&self, context: &Context) -> FieldResult<PortfolioSnapshot> {
         context
             .with_strat(self.as_input(), DataQuery::Indicators, |dr| match dr {
                 DataResult::Indicators(indicators) => Ok(indicators),

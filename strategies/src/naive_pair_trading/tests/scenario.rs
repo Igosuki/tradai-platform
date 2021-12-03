@@ -5,8 +5,6 @@ use chrono::{DateTime, Duration, TimeZone, Utc};
 use itertools::Itertools;
 use serde::Serialize;
 
-use crate::driver::StrategyDriver;
-use crate::event::trades_history;
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::Pair;
 use portfolio::portfolio::Portfolio;
@@ -14,12 +12,14 @@ use trading::engine::mock_engine;
 use trading::position::Position;
 use util::test::test_results_dir;
 
+use crate::driver::StrategyDriver;
+use crate::event::trades_history;
 use crate::naive_pair_trading::covar_model::{LinearModelValue, LinearSpreadModel};
 use crate::naive_pair_trading::options::Options;
 use crate::naive_pair_trading::{DualBookPosition, NaiveTradingStrategy};
 use crate::test_util::draw::{draw_line_plot, StrategyEntry, TimedEntry};
 use crate::test_util::fs::copy_file;
-use crate::test_util::test_db;
+use crate::test_util::{init, test_db};
 use crate::test_util::{input, test_db_with_path};
 
 static LEFT_PAIR: &str = "ETH_USDT";
@@ -86,8 +86,6 @@ impl TimedEntry for StrategyLog {
     fn time(&self) -> DateTime<Utc> { self.time }
 }
 
-fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
-
 static EXCHANGE: &str = "Binance";
 static CHANNEL: &str = "order_books";
 
@@ -135,7 +133,7 @@ async fn complete_backtest() {
     let mut strat = NaiveTradingStrategy::new(
         db,
         "naive_strat_test".to_string(),
-        0.001,
+        exchange.default_fees(),
         &Options {
             left: left_pair.clone(),
             right: right_pair.clone(),
@@ -190,8 +188,10 @@ async fn complete_backtest() {
             }
         }
         if let Some(dual_bp) = strat.last_dual_bp() {
-            let res = strat.calc_pred_ratio(&dual_bp).unwrap_or(0.0);
-            let predicted_right = strat.predict_right(&dual_bp).unwrap_or(0.0);
+            let res = strat
+                .calc_pred_ratio(dual_bp.left.mid, dual_bp.right.mid)
+                .unwrap_or(0.0);
+            let predicted_right = strat.predict_right(dual_bp.left.mid).unwrap_or(0.0);
             if let Some(value) = strat.model_value() {
                 model_values.push((event_time, value.clone(), predicted_right, res, strat.portfolio.value()));
             }
@@ -220,21 +220,22 @@ async fn complete_backtest() {
     crate::test_util::log::write_trade_events(&test_results_dir, &trade_events);
 
     let draw_entries: Vec<StrategyEntry<'_, StrategyLog>> = vec![
-        ("right_price", vec![|x| x.right_mid, |x| x.predicted_right]),
-        ("traded_price_right", vec![|x| x.right_price]),
-        ("predicted_right", vec![|x| x.predicted_right]),
-        ("return", vec![|x| x.pos_return]),
-        ("pnl", vec![|x| x.pnl]),
-        ("value_strat", vec![|x| x.value]),
-        ("left_qty", vec![|x| x.left_qty]),
-        ("right_qty", vec![|x| x.right_qty]),
-        ("traded_price_left", vec![|x| x.left_price]),
-        ("beta", vec![|x| x.beta]),
-        ("alpha", vec![|x| x.alpha]),
-        ("res", vec![|x| x.res]),
+        ("right_price", |x| {
+            vec![("right_mid", x.right_mid), ("predicted", x.predicted_right)]
+        }),
+        ("traded_price_right", |x| vec![("traded_right_price", x.right_price)]),
+        ("traded_price_left", |x| vec![("traded_left_price", x.left_price)]),
+        ("return", |x| vec![("return", x.pos_return)]),
+        ("PnL", |x| vec![("pnl", x.pnl)]),
+        ("Portfolio Value", |x| vec![("value_strat", x.value)]),
+        ("Left Traded Qty", |x| vec![("left_qty", x.left_qty)]),
+        ("Right Traded Qty", |x| vec![("right_qty", x.right_qty)]),
+        ("beta", |x| vec![("beta", x.beta)]),
+        ("alpha", |x| vec![("alpha", x.alpha)]),
+        ("res", |x| vec![("res", x.res)]),
     ];
-    let out_file =
-        draw_line_plot(module_path!(), logs, draw_entries).expect("Should have drawn plots from strategy logs");
+    let out_file = draw_line_plot(test_results_dir.as_str(), logs, &draw_entries)
+        .expect("Should have drawn plots from strategy logs");
     copy_file(
         &out_file,
         &format!("{}/naive_pair_trading_plot_{}_latest.html", &test_results_dir, "spot"),

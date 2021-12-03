@@ -1,6 +1,7 @@
 use actix::Message;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
 use trading::position::Position;
 use trading::types::TradeOperation;
 
@@ -17,7 +18,7 @@ pub enum DataResult {
     Models(Vec<(String, Option<Value>)>),
     Status(StrategyStatus),
     Operations(Vec<TradeOperation>),
-    Indicators(StrategyIndicators),
+    Indicators(PortfolioSnapshot),
 }
 
 #[derive(Deserialize, Serialize, actix::Message)]
@@ -73,7 +74,7 @@ pub struct ModelReset {
 
 /// Global performance indicators of a strategy
 #[derive(Clone, Default, Debug, Serialize, Deserialize, PartialEq, juniper::GraphQLObject)]
-pub struct StrategyIndicators {
+pub struct PortfolioSnapshot {
     pub pnl: f64,
     pub current_return: f64,
     pub value: f64,

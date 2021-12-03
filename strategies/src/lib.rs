@@ -9,6 +9,7 @@
 #![feature(inherent_associated_types)]
 #![feature(fn_traits)]
 #![feature(result_cloned)]
+#![feature(generic_associated_types)]
 
 #[macro_use]
 extern crate anyhow;
@@ -18,6 +19,9 @@ extern crate async_trait;
 extern crate derivative;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+#[cfg(test)]
+extern crate maplit;
 #[macro_use]
 extern crate prometheus;
 #[cfg(feature = "python")]
@@ -45,6 +49,7 @@ pub use coinnect_rt::types as coinnect_types;
 pub use db::DbOptions;
 use error::*;
 use ext::ResultExt;
+pub use generic::{GenericDriverOptions, PortfolioOptions};
 pub use models::Model;
 #[cfg(feature = "python")]
 pub use python_wrapper::python_strat;
@@ -53,6 +58,7 @@ use trading::engine::TradingEngine;
 
 use crate::actor::StrategyActorOptions;
 use crate::query::{DataQuery, DataResult};
+use crate::settings::StrategyDriverSettings;
 use crate::types::StratEvent;
 
 pub mod actor;
@@ -95,6 +101,15 @@ impl Channel {
             Channel::Trades { pair, .. } => pair.clone(),
             Channel::Orderbooks { pair, .. } => pair.clone(),
             Channel::Candles { pair, .. } => pair.clone(),
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            Channel::Orders { .. } => "orders",
+            Channel::Trades { .. } => "trades",
+            Channel::Orderbooks { .. } => "order_books",
+            Channel::Candles { .. } => "candles",
         }
     }
 }
@@ -155,17 +170,19 @@ impl Trader {
         db: &DbOptions<String>,
         exchange_conf: &ExchangeSettings,
         actor_settings: &StrategyActorOptions,
-        settings: &StrategySettings,
+        settings: &StrategyDriverSettings,
         engine: Arc<TradingEngine>,
         logger: Option<Arc<dyn StratEventLogger>>,
     ) -> Self {
         let uuid = Uuid::new_v4();
-        let key = settings.key();
+        let key = settings.strat.key();
         let db = db.clone();
         let settings = settings.clone();
         let exchange_conf = exchange_conf.clone();
         let actor = StrategyActor::new_with_uuid(
-            Box::new(move || settings::from_settings(&db, &exchange_conf, &settings, engine.clone(), logger.clone())),
+            Box::new(move || {
+                settings::from_driver_settings(&db, &exchange_conf, &settings, engine.clone(), logger.clone())
+            }),
             actor_settings,
             uuid,
         );

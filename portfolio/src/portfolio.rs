@@ -125,15 +125,15 @@ impl Portfolio {
                         ..signal.into()
                     }
                 } else {
-                    return Err(Error::BadCloseSignal(p.kind));
+                    return Err(bad_signal(p, signal));
                 }
             } else {
-                return Err(Error::BadOpenSignal(p.kind, signal.op_kind));
+                return Err(bad_signal(p, signal));
             }
         } else if signal.op_kind.is_open() {
             signal.into()
         } else {
-            return Err(Error::BadOpenSignal(signal.pos_kind, signal.op_kind));
+            return Err(Error::BadCloseSignal(signal.pos_kind));
         };
         if request.quantity.is_none() || request.quantity.unwrap() <= 0.0 {
             return Err(Error::ZeroOrNegativeOrderQty);
@@ -371,6 +371,15 @@ impl Portfolio {
     }
 
     pub fn positions_history(&self) -> Result<Vec<Position>> { self.repo.all_positions() }
+}
+
+fn bad_signal(pos: &Position, signal: &TradeSignal) -> Error {
+    Error::BadSignal(
+        pos.open_order.as_ref().map(|o| o.is_filled()).unwrap_or(false),
+        pos.close_order.as_ref().map(|o| o.is_filled()).unwrap_or(false),
+        pos.kind,
+        signal.op_kind,
+    )
 }
 
 /// Repository to handle portoflio persistence

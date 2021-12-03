@@ -6,7 +6,7 @@ use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use parse_duration::parse;
 use typed_builder::TypedBuilder;
 
-use strategies::settings::StrategySettings;
+use strategies::settings::StrategyDriverSettings;
 use strategies::StrategyCopySettings;
 use util::test::test_dir;
 use util::time::{DateRange, DurationRangeType};
@@ -44,7 +44,7 @@ impl Period {
 pub struct BacktestConfig {
     #[builder(default, setter(strip_option))]
     pub db_path: Option<PathBuf>,
-    pub strats: Vec<StrategySettings>,
+    pub strats: Vec<StrategyDriverSettings>,
     pub strat_copy: Option<StrategyCopySettings>,
     pub fees: f64,
     pub period: Period,
