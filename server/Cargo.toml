@@ -92,7 +92,6 @@ tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
 nats = "0.10"
 notify = "4.0"
 once_cell = "1.4"
-openssl = "0.10"
 parse_duration = "2.1"
 
 # Monitoring

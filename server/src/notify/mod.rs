@@ -1,11 +1,12 @@
+use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Duration;
+
 use actix::{Actor, Context, Handler, ResponseActFuture, WrapFuture};
 use actix_web::http::Uri;
 use awc::Client;
 use futures::Future;
 use serde::Serialize;
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
 
 #[derive(actix::Message)]
 #[rtype(result = "anyhow::Result<()>")]
@@ -33,15 +34,7 @@ pub struct DiscordMessage {
 impl DiscordNotifier {
     #[allow(dead_code)]
     fn new(options: &DiscordNotifierOptions) -> Self {
-        let ssl = {
-            let mut ssl = openssl::ssl::SslConnector::builder(openssl::ssl::SslMethod::tls()).unwrap();
-            let _ = ssl.set_alpn_protos(b"\x08http/1.1");
-            ssl.build()
-        };
-        let connector = awc::Connector::new()
-            .ssl(ssl)
-            .timeout(Duration::from_secs(1))
-            .limit(200);
+        let connector = awc::Connector::new().timeout(Duration::from_secs(1)).limit(200);
         let client = Client::builder().connector(connector).finish();
         Self {
             client: Arc::new(client),
