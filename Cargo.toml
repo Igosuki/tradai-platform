@@ -3,7 +3,6 @@ cargo-features = ["named-profiles"]
 [workspace]
 
 members = [
-    "binance-rs",
     "coinnect",
     "coinnect_test_util",
     "db",
