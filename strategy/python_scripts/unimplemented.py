@@ -1,4 +1,4 @@
-from strategies import PythonStrat
+from strategy import PythonStrat
 
 class Strat(PythonStrat):
     def __new__(cls, conf):

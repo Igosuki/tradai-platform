@@ -1,4 +1,4 @@
-from strategies import PythonStrat, TradeSignal
+from strategy import PythonStrat, TradeSignal
 
 class Strat(PythonStrat):
     def __new__(cls, conf):

@@ -9,18 +9,18 @@ use ordered_float::OrderedFloat;
 use serde::ser::SerializeStruct;
 use serde::ser::Serializer;
 
-use coinnect_rt::types::{MarketEvent, MarketEventEnvelope};
-use db::Storage;
 use ext::ResultExt;
 use stats::indicators::macd_apo::MACDApo;
 use stats::iter::QuantileExt;
-use trading::book::BookPosition;
+use strategy::coinnect::types::{MarketEvent, MarketEventEnvelope};
+use strategy::db::Storage;
+use strategy::error::{Error, Result};
+use strategy::models::io::{IterativeModel, LoadableModel};
+use strategy::models::{IndicatorModel, PersistentWindowedModel, Sampler, TimedValue, Window, WindowedModel};
+use strategy::prelude::*;
+use strategy::trading::book::BookPosition;
 
-use crate::error::Result;
-use crate::mean_reverting::options::Options;
-use crate::models::io::{IterativeModel, LoadableModel};
-use crate::models::{IndicatorModel, PersistentWindowedModel, Sampler, TimedValue, Window, WindowedModel};
-use crate::Model;
+use super::options::Options;
 
 pub fn ema_indicator_model(
     pair: &str,
@@ -110,7 +110,7 @@ impl MeanRevertingModel {
             .and_then(|_| {
                 self.apo
                     .value()
-                    .ok_or_else(|| crate::error::Error::ModelLoadError("no mean reverting model value".to_string()))
+                    .ok_or_else(|| Error::ModelLoadError("no mean reverting model value".to_string()))
             })
             .map_err(|e| {
                 tracing::debug!(err = %e, "failed to update apo");
@@ -130,7 +130,7 @@ impl MeanRevertingModel {
         Ok(())
     }
 
-    pub fn try_load(&mut self) -> crate::error::Result<()> {
+    pub fn try_load(&mut self) -> strategy::error::Result<()> {
         {
             self.apo.try_load()?;
             if let Some(_model_time) = self.apo.last_model_time() {
@@ -143,9 +143,7 @@ impl MeanRevertingModel {
             }
         }
         if !self.is_loaded() {
-            Err(crate::error::Error::ModelLoadError(
-                "models still not loaded loading".to_string(),
-            ))
+            Err(Error::ModelLoadError("models still not loaded loading".to_string()))
         } else {
             Ok(())
         }
@@ -265,4 +263,65 @@ impl IterativeModel for MeanRevertingModel {
     fn next_model(&mut self, e: &MarketEventEnvelope) -> Result<()> { self.next(&e.e) }
 
     fn export_values(&self) -> Result<Self::ExportValue> { Ok(self.values().into_iter().collect()) }
+}
+
+#[cfg(test)]
+mod test {
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    use chrono::{TimeZone, Utc};
+
+    use strategy::coinnect::exchange::Exchange;
+    use strategy::db::MemoryKVStore;
+    use strategy::error::Result;
+    use strategy::models::io::{IterativeModel, LoadableModel};
+    use strategy_test_util::init;
+    use strategy_test_util::input;
+    use util::serde::write_as_seq;
+    use util::test::test_results_dir;
+
+    use crate::mean_reverting::model::MeanRevertingModel;
+    use crate::mean_reverting::options::Options;
+
+    const PAIR: &str = "BTC_USDT";
+
+    #[tokio::test]
+    async fn test_lodable_model_round_trip() -> Result<()> {
+        init();
+        let events = input::load_csv_events(
+            Utc.ymd(2021, 8, 1),
+            Utc.ymd(2021, 8, 9),
+            vec![PAIR],
+            "Binance",
+            "order_books",
+        )
+        .await;
+        // align data
+        let options = Options::new_test_default(PAIR, Exchange::Binance);
+        let memory_store = Arc::new(MemoryKVStore::new());
+        let mut model = MeanRevertingModel::new(&options, memory_store);
+        let mut model_values = vec![];
+
+        for event in events {
+            model.next(&event.e).unwrap();
+            model_values.push(model.export_values().unwrap());
+        }
+        let results_dir = PathBuf::from(test_results_dir(module_path!()));
+        let mut models_file_path = results_dir.clone();
+        models_file_path.push("exported_model.json");
+        let model_file = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(models_file_path.clone())?;
+        model.export(model_file, false).unwrap();
+        let model_file = std::fs::OpenOptions::new().read(true).open(models_file_path).unwrap();
+        model.import(model_file, false).unwrap();
+        model.try_load().unwrap();
+
+        let mut model_values_file_path = results_dir;
+        model_values_file_path.push("model_values.json");
+        write_as_seq(model_values_file_path, model_values.as_slice());
+        Ok(())
+    }
 }

@@ -11,7 +11,7 @@ use metrics::prom::PrometheusOptions;
 use portfolio::balance::BalanceReporterOptions;
 use portfolio::margin::MarginAccountReporterOptions;
 use strategies::actor::StrategyActorOptions;
-use strategies::settings::{StrategyCopySettings, StrategyDriverSettings};
+use strategy::prelude::*;
 use util::serde::{decode_duration, decode_duration_str, decode_file_size};
 
 use crate::notify::DiscordNotifierOptions;

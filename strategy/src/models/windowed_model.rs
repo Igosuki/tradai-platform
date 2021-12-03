@@ -78,6 +78,8 @@ where
     fn push(&mut self, row: &R) { self.rows.push(row); }
 
     fn len(&self) -> usize { self.rows.len() }
+
+    fn is_empty(&self) -> bool { self.rows.is_empty() }
 }
 
 impl<R: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + Clone + Default> Model<M>

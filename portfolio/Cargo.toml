@@ -21,8 +21,8 @@ actix = "0.12"
 actix_derive = "0.6"
 
 # metrics
-prometheus = "0.12"
-tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
+prometheus = "0.13"
+tracing = { version = "0.1", features = ["release_max_level_debug"] }
 
 # std
 thiserror = "1.0"

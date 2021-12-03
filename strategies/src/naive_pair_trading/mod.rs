@@ -7,11 +7,17 @@ use chrono::{DateTime, Duration, Utc};
 use serde_json::Value;
 use uuid::Uuid;
 
-use coinnect_rt::prelude::*;
-use db::Storage;
 use options::Options;
-use portfolio::portfolio::Portfolio;
 use stats::Next;
+use strategy::coinnect::prelude::*;
+use strategy::db::Storage;
+use strategy::driver::{DefaultStrategyContext, Strategy};
+use strategy::error::*;
+use strategy::plugin::StrategyPlugin;
+use strategy::prelude::*;
+use strategy::types::StratEvent;
+use strategy::Portfolio;
+use strategy::{Channel, StratEventLogger};
 use trading::book::BookPosition;
 use trading::engine::TradingEngine;
 use trading::position::{OperationKind, PositionKind};
@@ -20,11 +26,7 @@ use trading::stop::Stopper;
 use trading::types::OrderConf;
 use util::time::now;
 
-use crate::driver::{DefaultStrategyContext, Strategy};
-use crate::error::*;
-use crate::naive_pair_trading::covar_model::{DualBookPosition, LinearModelValue, LinearSpreadModel};
-use crate::{Channel, StratEvent, StratEventLogger};
-
+use self::covar_model::{DualBookPosition, LinearModelValue, LinearSpreadModel};
 use self::metrics::NaiveStrategyMetrics;
 
 pub mod covar_model;
@@ -33,6 +35,16 @@ pub mod options;
 
 #[cfg(test)]
 mod tests;
+
+inventory::submit! {
+    StrategyPlugin::new("naive_spread", |conf| {
+        let options: Options = serde_json::from_value(conf)?;
+        Ok(Box::new(options))
+    },|name, ctx, conf| {
+        let options: Options = serde_json::from_value(conf)?;
+        Ok(Box::new(NaiveTradingStrategy::new(ctx.db, name.to_string(), &options, ctx.engine, ctx.logger)))
+    })
+}
 
 pub struct NaiveTradingStrategy {
     key: String,

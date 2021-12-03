@@ -16,7 +16,7 @@ dependencies = [
  "env_logger 0.9.0",
  "ext",
  "futures",
- "prometheus 0.12.0",
+ "prometheus 0.13.0",
  "serde",
  "test-log",
  "thiserror",
@@ -813,7 +813,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "stats",
- "strategies",
+ "strategy",
  "structopt",
  "thiserror",
  "tokio",
@@ -1340,7 +1340,7 @@ dependencies = [
  "libflate",
  "ordered-float 2.8.0",
  "pin-project",
- "prometheus 0.12.0",
+ "prometheus 0.13.0",
  "quickcheck",
  "quickcheck_macros",
  "regex",
@@ -2433,6 +2433,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ghost"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a5bcf1bbeab73aa4cf2fde60a846858dc036163c7c33bec309f8d17de785479"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "gimli"
 version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2855,6 +2866,16 @@ name = "integer-encoding"
 version = "1.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48dc51180a9b377fd75814d0cc02199c20f8e99433d6762f650d39cdbbd3b56f"
+
+[[package]]
+name = "inventory"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1367fed6750ff2a5bcb967a631528303bb85631f167a75eb1bf7762d57eb7678"
+dependencies = [
+ "ctor",
+ "ghost",
+]
 
 [[package]]
 name = "iovec"
@@ -3362,7 +3383,7 @@ dependencies = [
  "awc",
  "lazy_static 1.4.0",
  "libc",
- "prometheus 0.12.0",
+ "prometheus 0.13.0",
  "protobuf",
  "serde",
  "thiserror",
@@ -4339,6 +4360,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "procfs"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95e344cafeaeefe487300c361654bcfc85db3ac53619eeccced29f5ea18c4c70"
+dependencies = [
+ "bitflags",
+ "byteorder",
+ "flate2",
+ "hex",
+ "lazy_static 1.4.0",
+ "libc",
+]
+
+[[package]]
 name = "prometheus"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4350,7 +4385,7 @@ dependencies = [
  "libc",
  "memchr",
  "parking_lot",
- "procfs",
+ "procfs 0.9.1",
  "protobuf",
  "protobuf-codegen-pure",
  "reqwest",
@@ -4366,9 +4401,13 @@ dependencies = [
  "cfg-if 1.0.0",
  "fnv",
  "lazy_static 1.4.0",
+ "libc",
  "memchr",
  "parking_lot",
+ "procfs 0.10.1",
  "protobuf",
+ "protobuf-codegen-pure",
+ "reqwest",
  "thiserror",
 ]
 
@@ -5432,6 +5471,35 @@ checksum = "213701ba3370744dcd1a12960caa4843b3d68b4d1c0a5d575e0d65b2ee9d16c0"
 name = "strategies"
 version = "0.1.0"
 dependencies = [
+ "actix",
+ "async-trait",
+ "chrono",
+ "derivative",
+ "ext",
+ "inventory",
+ "itertools",
+ "lazy_static 1.4.0",
+ "metrics",
+ "ordered-float 2.8.0",
+ "parse_duration",
+ "prometheus 0.13.0",
+ "serde",
+ "serde_json",
+ "snap 1.0.5",
+ "stats",
+ "strategy",
+ "strategy_test_util",
+ "tokio",
+ "tracing",
+ "trading",
+ "util",
+ "uuid",
+]
+
+[[package]]
+name = "strategy"
+version = "0.1.0"
+dependencies = [
  "account",
  "actix",
  "actix-codec",
@@ -5462,6 +5530,7 @@ dependencies = [
  "http",
  "httpmock",
  "insta",
+ "inventory",
  "itertools",
  "juniper",
  "lazy_static 1.4.0",
@@ -5474,7 +5543,7 @@ dependencies = [
  "parse_duration",
  "plotly",
  "pretty_assertions",
- "prometheus 0.12.0",
+ "prometheus 0.13.0",
  "pyo3",
  "pyo3-log",
  "quickcheck",
@@ -5499,6 +5568,32 @@ dependencies = [
  "util",
  "uuid",
  "wiremock",
+]
+
+[[package]]
+name = "strategy_test_util"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "coinnect_rt",
+ "csv",
+ "db",
+ "env_logger 0.9.0",
+ "glob",
+ "hdrhistogram",
+ "itertools",
+ "maplit",
+ "multimap",
+ "plotly",
+ "serde",
+ "serde_json",
+ "strategy",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "trading",
+ "typed-builder 0.9.1",
+ "util",
 ]
 
 [[package]]
@@ -6231,6 +6326,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "strategies",
+ "strategy",
  "structopt",
  "tempdir",
  "thiserror",

@@ -7,10 +7,10 @@ pub use windowed_model::PersistentWindowedModel;
 
 use crate::error::Result;
 
-pub(crate) mod indicator_model;
+pub mod indicator_model;
 pub mod io;
-pub(crate) mod persist;
-pub(crate) mod windowed_model;
+pub mod persist;
+pub mod windowed_model;
 
 pub trait Model<T> {
     fn ser(&self) -> Option<serde_json::Value>;
@@ -34,6 +34,7 @@ pub trait WindowedModel<R, M>: Model<M> {
     fn timed_window(&self) -> TimedWindow<'_, R>;
     fn push(&mut self, row: &R);
     fn len(&self) -> usize;
+    fn is_empty(&self) -> bool;
 }
 
 // TODO: Maybe used in a middleware like structure
@@ -42,7 +43,7 @@ pub trait WindowedModel<R, M>: Model<M> {
 // Could be an enum with various types of samplers, distribution based, time based
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub(crate) struct Sampler {
+pub struct Sampler {
     sample_freq: Duration,
     eval_freq: i32,
     last_time: DateTime<Utc>,

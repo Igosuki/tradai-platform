@@ -5,8 +5,7 @@ use datafusion::arrow::datatypes::Float64Type;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::ExecutionContext;
 
-use strategies::coinnect_types::{MarketEventEnvelope, Pair};
-use strategies::Exchange;
+use strategy::coinnect::prelude::{Exchange, MarketEventEnvelope, Pair};
 
 use crate::datafusion_util::{get_col_as, to_struct_array};
 use crate::error::*;

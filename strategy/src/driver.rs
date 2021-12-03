@@ -42,7 +42,7 @@ pub trait StrategyDriver {
 pub type SerializedModel = Vec<(String, Option<Value>)>;
 
 #[async_trait]
-pub(crate) trait Strategy: Sync + Send {
+pub trait Strategy: Sync + Send {
     //async fn try_new(&self, conf: serde_json::Value) -> Self;
 
     fn key(&self) -> String;
@@ -59,6 +59,6 @@ pub(crate) trait Strategy: Sync + Send {
     fn channels(&self) -> HashSet<Channel>;
 }
 
-pub(crate) struct DefaultStrategyContext<'a> {
+pub struct DefaultStrategyContext<'a> {
     pub portfolio: &'a Portfolio,
 }

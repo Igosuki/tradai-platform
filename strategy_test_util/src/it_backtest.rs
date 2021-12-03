@@ -7,39 +7,39 @@ use tokio::time::Duration;
 
 use coinnect_rt::prelude::*;
 use db::Storage;
-use trading::engine::{mock_engine, TradingEngine};
-use trading::position::Position;
+use strategy::driver::{Strategy, StrategyDriver};
+use strategy::prelude::{GenericDriver, GenericDriverOptions, PortfolioOptions};
+use strategy::query::{DataQuery, DataResult, PortfolioSnapshot};
+use strategy::trading::engine::{mock_engine, TradingEngine};
+use strategy::trading::position::Position;
 use util::test::test_results_dir;
 
-use crate::driver::{Strategy, StrategyDriver};
-use crate::generic::{GenericDriver, GenericDriverOptions, PortfolioOptions};
-use crate::query::{DataQuery, DataResult, PortfolioSnapshot};
-use crate::test_util::draw::{draw_line_plot, StrategyEntry};
-use crate::test_util::event::trades_history;
-use crate::test_util::fs::copy_file;
-use crate::test_util::init;
-use crate::test_util::log::{write_models, write_trade_events, StrategyLog};
-use crate::test_util::{input, test_db_with_path};
+use crate::draw::{draw_line_plot, StrategyEntry};
+use crate::event::trades_history;
+use crate::fs::copy_file;
+use crate::init;
+use crate::log::{write_models, write_trade_events, StrategyLog};
+use crate::{input, test_db_with_path};
 
-pub(crate) struct GenericTestContext {
+pub struct GenericTestContext {
     pub engine: Arc<TradingEngine>,
     pub db: Arc<dyn Storage>,
 }
 
-pub(crate) struct BacktestRange {
+pub struct BacktestRange {
     from: Date<Utc>,
     to: Date<Utc>,
 }
 
 impl BacktestRange {
-    pub(crate) fn new(from: Date<Utc>, to: Date<Utc>) -> Self { Self { from, to } }
+    pub fn new(from: Date<Utc>, to: Date<Utc>) -> Self { Self { from, to } }
 }
 
-pub(crate) type StratProvider = fn(GenericTestContext) -> Box<dyn Strategy>;
+pub type BacktestStratProvider = fn(GenericTestContext) -> Box<dyn Strategy>;
 
-pub(crate) async fn generic_backtest(
+pub async fn generic_backtest(
     test_name: &str,
-    provider: StratProvider,
+    provider: BacktestStratProvider,
     draw_entries: &[StrategyEntry<'_, StrategyLog>],
     range: &BacktestRange,
     exchanges: &[Exchange],
@@ -74,7 +74,7 @@ pub(crate) async fn generic_backtest(
     let mut elapsed = 0_u128;
 
     let mut events: Vec<MarketEventEnvelope> = vec![];
-    for c in &strat.channels {
+    for c in &strat.channels() {
         events.extend(
             input::load_csv_events(
                 range.from,
@@ -102,7 +102,7 @@ pub(crate) async fn generic_backtest(
             if tries > 5 {
                 break;
             }
-            if strat.portfolio.is_locked(&(event.xch, event.pair.clone())) {
+            if strat.ctx().portfolio.is_locked(&(event.xch, event.pair.clone())) {
                 strat.resolve_orders().await;
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 tries += 1;
@@ -111,8 +111,10 @@ pub(crate) async fn generic_backtest(
             }
         }
         if let Ok(DataResult::Models(models)) = strat.data(DataQuery::Models).await {
+            let portfolio = strat.ctx().portfolio;
             if let MarketEvent::Orderbook(ob) = &event.e {
                 let nominal_positions = strat
+                    .ctx()
                     .portfolio
                     .open_positions()
                     .values()
@@ -123,9 +125,9 @@ pub(crate) async fn generic_backtest(
                     hashmap! { (event.xch.to_string(), event.pair.to_string()) => ob.avg_price().unwrap() },
                     models,
                     PortfolioSnapshot {
-                        value: strat.portfolio.value(),
-                        pnl: strat.portfolio.pnl(),
-                        current_return: strat.portfolio.current_return(),
+                        value: portfolio.value(),
+                        pnl: portfolio.pnl(),
+                        current_return: portfolio.current_return(),
                     },
                     nominal_positions,
                 ));
@@ -142,13 +144,13 @@ pub(crate) async fn generic_backtest(
     );
 
     write_models(&test_results_dir, &strategy_logs);
-    write_trade_events(&test_results_dir, &trades_history(&strat.portfolio));
+    write_trade_events(&test_results_dir, &trades_history(strat.ctx().portfolio));
 
     let out_file = draw_line_plot(test_results_dir.as_str(), strategy_logs, draw_entries)
         .expect("Should have drawn plots from strategy logs");
     copy_file(&out_file, &format!("{}/plot_latest.html", &test_results_dir));
 
-    let mut positions = strat.portfolio.positions_history().unwrap();
+    let mut positions = strat.ctx().portfolio.positions_history().unwrap();
     positions.sort_by(|p1, p2| p1.meta.close_at.cmp(&p2.meta.close_at));
     //insta::assert_debug_snapshot!(positions.last());
     positions

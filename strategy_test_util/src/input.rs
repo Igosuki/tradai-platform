@@ -165,7 +165,7 @@ pub async fn load_csv_dataset(
             );
             std::fs::create_dir_all(&base_path).unwrap();
             let dest_dir = test_data_dir().as_path().to_str().unwrap().to_string();
-            crate::test_util::input::dl_test_data(&dest_dir, exchange, channel, pair_string).await;
+            dl_test_data(&dest_dir, exchange, channel, pair_string).await;
         }
     }
     load_records_from_csv(dr, &base_path, pairs, "*csv")

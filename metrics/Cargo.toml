@@ -9,7 +9,7 @@ edition = "2021"
 zstd = ["awc/compress-zstd"]
 
 [dependencies]
-prometheus = "0.12"
+prometheus = "0.13"
 actix = "0.12"
 awc = { version = "3.0.0-beta.7", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
 thiserror = "1.0"

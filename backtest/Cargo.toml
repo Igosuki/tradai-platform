@@ -17,7 +17,7 @@ mock_time = ["util/mock_time"]
 binary = ["env_logger", "structopt"]
 [dependencies]
 # trader
-strategies = { path = "../strategies" }
+strategy = { path = "../strategy" }
 util = { path = "../util" }
 ext = { path = "../ext" }
 db = { path = "../db" }

@@ -1,32 +1,10 @@
-#![allow(dead_code)]
-
-use std::path::Path;
 use std::sync::Arc;
 
 use db::{get_or_create, DbOptions, Storage};
 
-#[cfg(test)]
-pub mod draw;
-#[cfg(test)]
-pub mod event;
-#[cfg(test)]
-pub mod fs;
-#[cfg(test)]
-pub mod input;
-#[cfg(test)]
-pub mod log;
-
-pub fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
-
 pub fn test_db() -> Arc<dyn Storage> {
     let path = util::test::test_dir();
     get_or_create(&DbOptions::new(path), "", vec![])
-}
-
-#[cfg(test)]
-pub fn test_db_with_path<S: AsRef<Path>>(path: S) -> Arc<dyn Storage> {
-    let options = DbOptions::new(path);
-    get_or_create(&options, "", vec![])
 }
 
 pub mod fixtures {

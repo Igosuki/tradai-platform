@@ -27,6 +27,7 @@ dialog_cli = ["dialoguer", "glob"]
 models = { path = "../logging" }
 util = { path = "../util" }
 account = { path = "../portfolio" }
+strategy = { path = "../strategy" }
 strategies = { path = "../strategies" }
 #coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
 coinnect_rt = { path = "../coinnect" }

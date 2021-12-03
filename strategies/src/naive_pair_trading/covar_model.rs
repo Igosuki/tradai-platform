@@ -4,16 +4,13 @@ use std::sync::Arc;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use itertools::Itertools;
 
-use db::Storage;
 use stats::iter::{CovarianceExt, MeanExt, VarianceExt};
 use stats::Next;
+use strategy::db::Storage;
+use strategy::error::*;
+use strategy::models::{Model, PersistentWindowedModel, Sampler, Window, WindowedModel};
 use trading::book::BookPosition;
 use util::time::now;
-
-use crate::error::*;
-use crate::models::{PersistentWindowedModel, Sampler, Window, WindowedModel};
-use crate::naive_pair_trading::covar_model;
-use crate::Model;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DualBookPosition {
@@ -76,7 +73,7 @@ impl LinearSpreadModel {
     ) -> Self {
         Self {
             sampler: Sampler::new(sample_freq, Utc.timestamp_millis(0)),
-            linear_model: PersistentWindowedModel::new(id, db, window_size, None, covar_model::linear_model, None),
+            linear_model: PersistentWindowedModel::new(id, db, window_size, None, linear_model, None),
             last_sample_time_at_eval: Utc.timestamp_millis(0),
             beta_eval_freq: eval_freq,
         }
@@ -109,7 +106,7 @@ impl LinearSpreadModel {
 
     pub(super) fn predict(&self, current_price: f64) -> Option<f64> {
         self.linear_model.value().map(|lm| {
-            let predicted = covar_model::predict(lm.alpha, lm.beta, current_price);
+            let predicted = predict(lm.alpha, lm.beta, current_price);
             trace!(
                 alpha = lm.alpha,
                 beta = lm.beta,
@@ -130,7 +127,7 @@ impl LinearSpreadModel {
         self.linear_model.update()
     }
 
-    pub fn try_load(&mut self) -> crate::error::Result<()> {
+    pub fn try_load(&mut self) -> strategy::error::Result<()> {
         self.linear_model.try_load()?;
         self.last_sample_time_at_eval = self
             .linear_model
@@ -138,7 +135,7 @@ impl LinearSpreadModel {
             .unwrap_or_else(|| Utc.timestamp_millis(0));
         trace!(loaded_model_time = %self.last_sample_time_at_eval, "model loaded");
         if !self.linear_model.is_loaded() {
-            Err(crate::error::Error::ModelLoadError(
+            Err(strategy::error::Error::ModelLoadError(
                 "models not loaded for unknown reasons".to_string(),
             ))
         } else {

@@ -14,6 +14,10 @@ use prometheus::GaugeVec;
 pub mod error;
 pub mod prom;
 pub mod store;
+pub mod prelude {
+    pub use super::store::MetricStore;
+    pub use super::{MetricGaugeProvider, MetricProviderFn};
+}
 
 pub type MetricProviderFn<T> = (String, fn(&T) -> f64);
 
