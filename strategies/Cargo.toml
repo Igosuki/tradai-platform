@@ -84,7 +84,7 @@ pyo3-log = { version = "0.4", optional = true }
 # ours
 backtest = { path = "../backtest" }
 util = { path = "../util" }
-binance-rs-async = { path = "../binance-rs" }
+binance-rs-async = { version = "1.1.4" }
 trading = { path = "../trading", features = ["test_util"] }
 
 # actix
