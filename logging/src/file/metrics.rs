@@ -61,16 +61,16 @@ impl FileLoggerMetrics {
         }
     }
 
-    pub(super) fn event_lag(&self, millis: i64) {
+    pub(crate) fn event_lag(&self, millis: i64) {
         self.event_lag.with_label_values(&[]).set(millis);
         self.event_lag_hist.with_label_values(&[]).observe(millis as f64);
     }
 
-    pub(super) fn writer_acquisition_failure(&self) { self.writer_acquisition_failure.with_label_values(&[]).inc() }
+    pub(crate) fn writer_acquisition_failure(&self) { self.writer_acquisition_failure.with_label_values(&[]).inc() }
 
-    pub(super) fn flush_failure(&self) { self.flush_failure.with_label_values(&[]).inc() }
+    pub(crate) fn flush_failure(&self) { self.flush_failure.with_label_values(&[]).inc() }
 
-    pub(super) fn write_append_failure(&self) { self.write_append_failure.with_label_values(&[]).inc() }
+    pub(crate) fn write_append_failure(&self) { self.write_append_failure.with_label_values(&[]).inc() }
 }
 
 lazy_static! {

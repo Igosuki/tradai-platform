@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 
 pub mod file_actor;
-pub mod live_event;
 mod metrics;
 mod rotate;
 
@@ -14,9 +13,9 @@ pub struct Partition {
 }
 
 impl Partition {
-    fn new(path: PathBuf, expires_at: Option<DateTime<Utc>>) -> Self { Self { path, expires_at } }
+    pub fn new(path: PathBuf, expires_at: Option<DateTime<Utc>>) -> Self { Self { path, expires_at } }
 
-    fn is_expired(&self) -> bool { self.expires_at.map(|expiry| expiry < Utc::now()).unwrap_or(false) }
+    pub fn is_expired(&self) -> bool { self.expires_at.map(|expiry| expiry < Utc::now()).unwrap_or(false) }
 }
 
 pub trait Partitioner<T> {
