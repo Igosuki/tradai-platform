@@ -109,7 +109,6 @@ insta = "1.8"
 # std
 bytes = "1.0"
 bytestring = "1.0.0"
-openssl = "0.10"
 rand = "0.8"
 tempfile = "3.2"
 glob = "0.3"
