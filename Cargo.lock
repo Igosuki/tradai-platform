@@ -3467,12 +3467,27 @@ checksum = "717e29a243b81f8130e31e24e04fb151b04a44b5a7d05370935f7d937e9de06d"
 name = "models"
 version = "0.1.0"
 dependencies = [
+ "actix",
+ "anyhow",
  "avro-rs 0.13.0 (git+https://github.com/Igosuki/avro-rs.git?branch=master_merge)",
+ "chrono",
+ "coinnect_rt",
  "crc32fast",
+ "derive_more",
+ "env_logger 0.9.0",
+ "flame",
+ "flamer",
+ "fs_extra",
  "lazy_static 1.4.0",
+ "prometheus 0.13.0",
+ "rand 0.8.4",
  "rsgen-avro",
  "serde",
  "serde_json",
+ "tempdir",
+ "thiserror",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

@@ -19,6 +19,7 @@ use tracing::Instrument;
 use coinnect_rt::exchange::manager::ExchangeManager;
 use coinnect_rt::prelude::*;
 use db::DbOptions;
+use logging::prelude::*;
 use metrics::prom::PrometheusPushActor;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use portfolio::margin::{MarginAccountReporter, MarginAccountReporterOptions};
@@ -28,8 +29,6 @@ use trading::interest::MarginInterestRateProvider;
 use trading::order_manager::OrderManager;
 
 use crate::connectivity::run_connectivity_checker;
-use crate::logging::file_actor::{AvroFileActor, FileActorOptions};
-use crate::logging::live_event::LiveEventPartitioner;
 use crate::nats::{NatsConsumer, NatsProducer, Subject};
 use crate::server;
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
@@ -255,7 +254,7 @@ fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<MarketEven
             base_dir: dir.to_str().unwrap().to_string(),
             max_file_size: settings.file_rotation.max_file_size,
             max_file_time: settings.file_rotation.max_file_time,
-            partitioner: Rc::new(LiveEventPartitioner::new(settings.partitions_grace_period)),
+            partitioner: Rc::new(MarketEventPartitioner::new(settings.partitions_grace_period)),
         })
     })
 }

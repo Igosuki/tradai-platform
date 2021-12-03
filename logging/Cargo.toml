@@ -1,0 +1,59 @@
+[package]
+name = "models"
+version = "0.1.0"
+authors = ["Guillaume Balaine <igosuki@gmail.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+build = "build.rs"
+
+[lib]
+name = "logging"
+path = "src/lib.rs"
+
+[features]
+flame_it = ["flame", "flamer"]
+
+[dependencies]
+# self
+coinnect_rt = { path = "../coinnect" }
+
+# Actix
+actix = { version = "0.12" }
+
+# Std
+chrono = "0.4"
+lazy_static = "1.4"
+rand = "0.8"
+uuid = "0.8"
+
+# Error
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Codecs
+avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "master_merge" }
+serde_json = { version = "1.0" }
+
+# derive
+serde = "1.0"
+derive_more = "0.99"
+
+# Logging / Monitoring / Tracing
+prometheus = "0.13"
+tracing = "0.1"
+
+# Profiling
+flame = { version = "0.2", optional = true }
+flamer = { version = "0.4", optional = true }
+
+[dev-dependencies]
+fs_extra = "1.2"
+env_logger = "0.9"
+tempdir = "0.3"
+
+[build-dependencies]
+crc32fast = "1.2"
+rsgen-avro = { git = "https://github.com/Igosuki/rsgen-avro.git", branch = "master_merge" }
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
+

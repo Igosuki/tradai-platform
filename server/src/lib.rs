@@ -9,9 +9,6 @@
 extern crate anyhow;
 #[cfg(feature = "flame_it")]
 extern crate flame;
-#[cfg(feature = "flame_it")]
-#[macro_use]
-extern crate flamer;
 #[macro_use]
 extern crate juniper;
 #[macro_use]
@@ -23,7 +20,6 @@ extern crate tracing;
 pub mod api;
 mod connectivity;
 pub mod graphql_schemas;
-pub mod logging;
 pub mod nats;
 mod notify;
 pub mod runner;

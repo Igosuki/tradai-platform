@@ -24,7 +24,7 @@ dialog_cli = ["dialoguer", "glob"]
 
 [dependencies]
 # Self crates
-models = { path = "../models" }
+models = { path = "../logging" }
 util = { path = "../util" }
 account = { path = "../portfolio" }
 strategies = { path = "../strategies" }
