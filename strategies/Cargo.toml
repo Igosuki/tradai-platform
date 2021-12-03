@@ -51,3 +51,4 @@ snap = "1.0"
 
 [dev-dependencies]
 strategy_test_util = { path = "../strategy_test_util", features = ["trading_test_util"] }
+backtest = { path = "../backtest" }

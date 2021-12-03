@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use coinnect_rt::pair::pair_confs;
 use coinnect_rt::prelude::*;
-use strategies::{StrategyKey, Trader};
+use strategy::{StrategyKey, Trader};
 use trading::order_manager::OrderManager;
 
 use crate::api::ApiError::ExchangeNotFound;
@@ -135,7 +135,7 @@ mod tests {
     use tokio::time::timeout;
 
     use coinnect_rt::prelude::*;
-    use strategies::{StrategyKey, Trader};
+    use strategy::{StrategyKey, Trader};
     use trading::order_manager::OrderManager;
 
     use crate::api::config_app;

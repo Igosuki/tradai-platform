@@ -162,9 +162,8 @@ pub struct Trader {
 
 impl Trader {
     pub fn try_new(
-        plugins: StrategyPluginRegistry<'static>,
-        db_opts: DbOptions<String>,
-        exchange_conf: &ExchangeSettings,
+        plugins: &StrategyPluginRegistry<'static>,
+        db_opts: &DbOptions<String>,
         actor_settings: &StrategyActorOptions,
         settings: &StrategyDriverSettings,
         engine: Arc<TradingEngine>,
@@ -175,18 +174,10 @@ impl Trader {
         let uuid = Uuid::new_v4();
         let key = plugin.options(settings.strat.options.clone())?.key();
         let settings = settings.clone();
-        let exchange_conf = exchange_conf.clone();
+        let db_opts = db_opts.clone();
         let actor = StrategyActor::new_with_uuid(
             Box::new(move || {
-                settings::from_driver_settings(
-                    plugin,
-                    &db_opts,
-                    &exchange_conf,
-                    &settings,
-                    engine.clone(),
-                    logger.clone(),
-                )
-                .unwrap()
+                settings::from_driver_settings(plugin, &db_opts, &settings, engine.clone(), logger.clone()).unwrap()
             }),
             actor_settings,
             uuid,

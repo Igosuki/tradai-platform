@@ -7,7 +7,7 @@ use actix_web::web::Data;
 use actix_web::{http, HttpServer};
 
 use coinnect_rt::prelude::*;
-use strategies::{StrategyKey, Trader};
+use strategy::{StrategyKey, Trader};
 
 use crate::graphql_schemas::root::create_schema;
 use crate::settings::{ApiSettings, CorsMode, Version};

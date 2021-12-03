@@ -10,9 +10,9 @@ use actix::Addr;
 use juniper::executor::{FieldError, FieldResult};
 
 use coinnect_rt::prelude::*;
-use strategies::actor::StrategyActor;
-use strategies::query::{DataQuery, DataResult};
-use strategies::{StrategyKey, Trader};
+use strategy::actor::StrategyActor;
+use strategy::query::{DataQuery, DataResult};
+use strategy::{StrategyKey, Trader};
 use trading::order_manager::OrderManager;
 
 use super::types::TypeAndKeyInput;

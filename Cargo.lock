@@ -5473,6 +5473,7 @@ version = "0.1.0"
 dependencies = [
  "actix",
  "async-trait",
+ "backtest",
  "chrono",
  "derivative",
  "ext",
