@@ -13,7 +13,7 @@ name = "db"
 path = "src/lib.rs"
 
 [features]
-default = ["rocksdb-vendor"]
+default = ["rocksdb-static"]
 rocksdb-static = ["rocksdb/static"]
 rocksdb-vendor = ["rocksdb/vendor"]
 rkv-lmdb = ["rkv", "lmdb-rkv", "tracing"]

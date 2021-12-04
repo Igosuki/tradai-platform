@@ -19,7 +19,7 @@ extern crate anyhow;
 extern crate async_trait;
 #[macro_use]
 extern crate derivative;
-#[cfg(all(test, feature = "python"))]
+#[cfg(feature = "python")]
 #[macro_use]
 extern crate inline_python;
 #[macro_use]
