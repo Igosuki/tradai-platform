@@ -15,6 +15,7 @@ use trading::signal::TradeSignal;
 use crate::driver::{DefaultStrategyContext, Strategy};
 use crate::error::Result;
 use crate::plugin::{provide_options, StrategyPluginContext};
+use crate::python_wrapper::python_serde::from_json;
 use crate::settings::{StrategyOptions, StrategySettingsReplicator};
 use crate::{Channel, StrategyKey, StrategyPlugin};
 
@@ -67,6 +68,7 @@ impl PythonStrat {
 }
 
 struct PythonStratWrapper {
+    wrapper_key: String,
     #[allow(dead_code)]
     context: Context,
 }
@@ -85,7 +87,7 @@ pub fn strat(py: Python, m: &PyModule) -> PyResult<()> {
 }
 
 impl PythonStratWrapper {
-    fn new(_key: &str, _conf: HashMap<String, serde_json::Value>, python_script: String) -> Self {
+    fn new(key: &str, conf: HashMap<String, serde_json::Value>, python_script: String) -> Self {
         let guard = Python::acquire_gil();
         let py = guard.python();
         let context = Context::new_with_gil(py);
@@ -102,14 +104,17 @@ impl PythonStratWrapper {
             e
         })
         .unwrap();
-        //let py_conf = python::from_json(py, conf).unwrap();
-        // context.run_with_gil(py, python! {
-        //     from yourstrat import Strat
-        //     strat = Strat('py_conf)
-        // });
+        let py_conf = from_json(py, conf).unwrap();
+        context.run_with_gil(py, python! {
+            from yourstrat import Strat
+            strat = Strat('py_conf)
+        });
         // let class = module.getattr("Strat").unwrap();
         // let instance = class.call1((py_conf,));
-        Self { context }
+        Self {
+            context,
+            wrapper_key: key.to_string(),
+        }
     }
 
     fn strat(&self) -> PyObject {
