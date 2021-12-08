@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use actix::{Actor, ActorContext, ActorFutureExt, AsyncContext, Context, Handler, ResponseActFuture, Running,
@@ -39,7 +40,7 @@ pub struct StrategyActor {
     inner: Arc<RwLock<Box<dyn StrategyDriver>>>,
     #[allow(dead_code)]
     conn_backoff: ExponentialBackoff,
-    channels: Vec<Channel>,
+    channels: HashSet<Channel>,
     order_resolution_interval: Duration,
     is_checking_orders: bool,
 }
@@ -67,7 +68,7 @@ impl StrategyActor {
         }
     }
 
-    pub(crate) fn channels(&self) -> Vec<Channel> { self.channels.clone() }
+    pub(crate) fn channels(&self) -> HashSet<Channel> { self.channels.clone() }
 }
 
 impl Actor for StrategyActor {

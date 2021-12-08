@@ -27,7 +27,7 @@ pub trait StrategyDriver {
     fn mutate(&mut self, m: Mutation) -> error::Result<()>;
 
     /// The channels this strategy plugs into
-    fn channels(&self) -> Vec<Channel>;
+    fn channels(&self) -> HashSet<Channel>;
 
     /// Stop emitting trading signals
     fn stop_trading(&mut self);
