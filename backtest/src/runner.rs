@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use itertools::Itertools;
@@ -27,7 +28,7 @@ impl BacktestRunner {
         }
     }
 
-    pub(crate) async fn channels(&self) -> Vec<Channel> {
+    pub(crate) async fn channels(&self) -> HashSet<Channel> {
         let reader = self.strategy.lock().await;
         reader.channels()
     }

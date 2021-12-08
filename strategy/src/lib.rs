@@ -34,6 +34,7 @@ extern crate serde;
 #[macro_use]
 extern crate tracing;
 
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -165,7 +166,7 @@ impl ToString for StrategyKey {
 pub struct Trader {
     pub key: StrategyKey,
     actor: Addr<StrategyActor>,
-    pub channels: Vec<Channel>,
+    pub channels: HashSet<Channel>,
 }
 
 impl Trader {
@@ -218,6 +219,7 @@ pub trait StratEventLogger: Sync + Send + Debug {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashSet;
     use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::Duration;
@@ -258,11 +260,13 @@ mod test {
 
         fn mutate(&mut self, _: Mutation) -> Result<()> { Ok(()) }
 
-        fn channels(&self) -> Vec<Channel> {
+        fn channels(&self) -> HashSet<Channel> {
             vec![Channel::Orderbooks {
                 xch: Exchange::Binance,
                 pair: TEST_PAIR.into(),
             }]
+            .into_iter()
+            .collect()
         }
 
         fn stop_trading(&mut self) {}

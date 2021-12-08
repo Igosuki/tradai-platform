@@ -115,7 +115,7 @@ impl Backtest {
         let all_chans = stream::iter(&self.runners)
             .map(BacktestRunner::channels)
             .buffer_unordered(10)
-            .collect::<Vec<Vec<Channel>>>()
+            .collect::<Vec<HashSet<Channel>>>()
             .await
             .into_iter()
             .flatten()

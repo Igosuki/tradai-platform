@@ -9,6 +9,7 @@ use portfolio::portfolio::{Portfolio, PortfolioRepoImpl};
 use portfolio::risk::DefaultMarketRiskEvaluator;
 use trading::engine::TradingEngine;
 use trading::order_manager::types::StagedOrder;
+use trading::position::Position;
 use trading::signal::TradeSignal;
 
 use crate::driver::{DefaultStrategyContext, Strategy, StrategyDriver};
@@ -221,19 +222,20 @@ impl StrategyDriver for GenericDriver {
     async fn data(&mut self, q: DataQuery) -> Result<DataResult> {
         match q {
             DataQuery::CancelOngoingOp => Ok(DataResult::Success(false)),
-            //self.inner.read().await.model().to_owned()
             DataQuery::Models => {
                 let inner = self.inner.read().await;
                 Ok(DataResult::Models(inner.model()))
             }
             DataQuery::Status => Ok(DataResult::Status(self.status())),
             DataQuery::Indicators => Ok(DataResult::Indicators(self.indicators())),
-            DataQuery::PositionHistory => {
-                unimplemented!()
-            }
-            DataQuery::OpenPositions => {
-                unimplemented!()
-            }
+            DataQuery::PositionHistory => Ok(DataResult::PositionHistory(self.portfolio.positions_history()?)),
+            DataQuery::OpenPositions => Ok(DataResult::OpenPositions(
+                self.portfolio
+                    .open_positions()
+                    .values()
+                    .cloned()
+                    .collect::<Vec<Position>>(),
+            )),
         }
     }
 
@@ -252,19 +254,7 @@ impl StrategyDriver for GenericDriver {
         }
     }
 
-    fn channels(&self) -> Vec<Channel> {
-        // self.exchanges
-        //     .iter()
-        //     .map(|xchg| {
-        //         self.pairs.iter().map(move |pair| Channel::Orderbooks {
-        //             xch: *xchg,
-        //             pair: pair.clone(),
-        //         })
-        //     })
-        //     .flatten()
-        //     .collect()
-        self.channels.clone().into_iter().collect()
-    }
+    fn channels(&self) -> HashSet<Channel> { self.channels.clone() }
 
     fn stop_trading(&mut self) { self.is_trading = false; }
 
@@ -280,12 +270,12 @@ impl StrategyDriver for GenericDriver {
             match self.engine.order_executor.get_order(lock.as_str()).await {
                 Ok((order, _)) => {
                     if let Err(e) = self.portfolio.update_position(order) {
-                        // TODO: in metrics
+                        metrics::get().log_error(e.short_name());
                         error!(err = %e, "failed to update portfolio position");
                     }
                 }
                 Err(e) => {
-                    // TODO: in metrics
+                    metrics::get().log_error(e.short_name());
                     error!(err = %e, "failed to query locked order");
                 }
             }
