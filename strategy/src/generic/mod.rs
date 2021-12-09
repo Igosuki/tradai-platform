@@ -162,10 +162,10 @@ impl GenericDriver {
             metrics::get().log_error(e.short_name());
             error!(err = %e, "failed to update portfolio from market");
         }
-        {
+        let signals = {
             let mut inner = self.inner.write().await;
-            inner.update_model(le).await?;
-        }
+            inner.eval(le, &self.ctx()).await?
+        };
         metrics::get().log_is_trading(self.strat_key.as_str(), self.is_trading);
         if self.portfolio.has_any_failed_position() {
             error!(xch = %le.xch, pair = %le.pair, "failed position remaining");
@@ -177,10 +177,6 @@ impl GenericDriver {
             return Ok(());
         }
         if self.is_trading {
-            let signals = {
-                let mut inner = self.inner.write().await;
-                inner.eval(le, &self.ctx()).await?
-            };
             if let Some(signals) = signals {
                 if !signals.is_empty() {
                     if let Err(e) = self.process_signals(signals.as_slice()).await {

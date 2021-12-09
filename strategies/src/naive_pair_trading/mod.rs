@@ -315,6 +315,12 @@ impl Strategy for NaiveTradingStrategy {
                 right: r,
                 time: now(),
             };
+            self.metrics.log_mid_price(&dbp);
+            match self.model.next(&dbp) {
+                Err(e) => self.metrics.log_error(e.short_name()),
+                Ok(Some(lm)) => self.metrics.log_model(&lm),
+                _ => {}
+            }
             if !ctx.portfolio.has_any_open_position() && self.model.should_eval(dbp.time) {
                 self.model.update()?;
             }
@@ -325,33 +331,6 @@ impl Strategy for NaiveTradingStrategy {
             }
         }
         Ok(None)
-    }
-
-    async fn update_model(&mut self, le: &MarketEventEnvelope) -> Result<()> {
-        if let MarketEvent::Orderbook(ob) = &le.e {
-            let string = ob.pair.clone();
-            if string == self.left_pair {
-                self.last_left = ob.try_into().ok();
-            } else if string == self.right_pair {
-                self.last_right = ob.try_into().ok();
-            }
-        } else {
-            return Ok(());
-        }
-        if let (Some(l), Some(r)) = (self.last_left, self.last_right) {
-            let dbp = DualBookPosition {
-                left: l,
-                right: r,
-                time: now(),
-            };
-            self.metrics.log_mid_price(&dbp);
-            match self.model.next(&dbp) {
-                Err(e) => self.metrics.log_error(e.short_name()),
-                Ok(Some(lm)) => self.metrics.log_model(&lm),
-                _ => {}
-            }
-        }
-        Ok(())
     }
 
     fn model(&self) -> Vec<(String, Option<Value>)> { self.model.serialized() }

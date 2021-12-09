@@ -14,6 +14,7 @@ use trading::signal::TradeSignal;
 
 use crate::driver::{DefaultStrategyContext, Strategy};
 use crate::error::Result;
+use crate::models::io::SerializedModel;
 use crate::plugin::{provide_options, StrategyPluginContext};
 use crate::python_wrapper::python_serde::from_json;
 use crate::settings::{StrategyOptions, StrategySettingsReplicator};
@@ -153,17 +154,7 @@ impl Strategy for PythonStratWrapper {
         val.map(|_v| Some(vec![])).err_into()
     }
 
-    async fn update_model(&mut self, e: &MarketEventEnvelope) -> crate::error::Result<()> {
-        let inner = self.strat();
-        let val = Python::with_gil(|py| {
-            let py_event = PyMarketEventEnvelope::from(e);
-            inner.call_method1(py, "update_model", (py_event,))
-        });
-        eprintln!("val = {:?}", val);
-        val.map(|_| ()).err_into()
-    }
-
-    fn model(&self) -> Vec<(String, Option<Value>)> { vec![] }
+    fn model(&self) -> SerializedModel { vec![] }
 
     fn channels(&self) -> HashSet<Channel> { Default::default() }
 }
@@ -239,8 +230,7 @@ mod test {
         let python_script = python_script("calls").unwrap();
         let mut strat_wrapper = PythonStratWrapper::new("default_wrapper", Default::default(), python_script);
         strat_wrapper.init()?;
-        let event = default_order_book_event();
-        strat_wrapper.update_model(&event).await?;
+        let _event = default_order_book_event();
         // TODO: context should be like ActorContext
         //strat_wrapper.eval(&event).await?;
         strat_wrapper.model();

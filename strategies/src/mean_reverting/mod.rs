@@ -11,7 +11,7 @@ use strategy::coinnect::prelude::*;
 use strategy::db::Storage;
 use strategy::driver::{DefaultStrategyContext, Strategy};
 use strategy::error::*;
-use strategy::models::io::IterativeModel;
+use strategy::models::io::{IterativeModel, SerializedModel};
 use strategy::models::Sampler;
 use strategy::plugin::{provide_options, StrategyPlugin, StrategyPluginContext};
 use strategy::prelude::*;
@@ -231,6 +231,13 @@ impl Strategy for MeanRevertingStrategy {
         e: &MarketEventEnvelope,
         ctx: &DefaultStrategyContext,
     ) -> Result<Option<Vec<TradeSignal>>> {
+        self.model.next_model(e)?;
+        let t = self.model.thresholds();
+        self.metrics.log_thresholds(t.0, t.1);
+        if let Some(apo) = self.model.apo_value() {
+            self.metrics.log_model(apo);
+        }
+
         let mut signals = vec![];
         if !self.can_eval() {
             return Ok(None);
@@ -251,18 +258,7 @@ impl Strategy for MeanRevertingStrategy {
         Ok(Some(signals))
     }
 
-    #[tracing::instrument(skip(self), level = "trace")]
-    async fn update_model(&mut self, e: &MarketEventEnvelope) -> Result<()> {
-        self.model.next_model(e)?;
-        let t = self.model.thresholds();
-        self.metrics.log_thresholds(t.0, t.1);
-        if let Some(apo) = self.model.apo_value() {
-            self.metrics.log_model(apo);
-        }
-        Ok(())
-    }
-
-    fn model(&self) -> Vec<(String, Option<serde_json::Value>)> { self.model.values() }
+    fn model(&self) -> SerializedModel { self.model.values() }
 
     fn channels(&self) -> HashSet<Channel> {
         let channels = vec![Channel::Orderbooks {

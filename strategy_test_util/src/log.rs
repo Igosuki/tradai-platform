@@ -6,8 +6,8 @@ use std::path::Path;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde_json::Value;
+use strategy::models::io::SerializedModel;
 
-use strategy::driver::SerializedModel;
 use strategy::query::PortfolioSnapshot;
 use strategy::types::{OperationEvent, TradeEvent};
 
