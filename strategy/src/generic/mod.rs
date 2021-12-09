@@ -102,15 +102,6 @@ impl GenericDriver {
 
     async fn process_signals(&mut self, signals: &[TradeSignal]) -> Result<()> {
         metrics::get().log_signals(self.strat_key.as_str(), signals);
-        for signal in signals {
-            let order = self.portfolio.maybe_convert(signal).await?;
-            if let Some(order) = order {
-                self.engine
-                    .order_executor
-                    .stage_order(StagedOrder { request: order })
-                    .await?;
-            }
-        }
         let mut orders = vec![];
         for signal in signals {
             let conversion = self.portfolio.maybe_convert(signal).await;
