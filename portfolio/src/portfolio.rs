@@ -243,16 +243,14 @@ impl Portfolio {
 
     /// Update the corresponding position with the latest event (typically the price)
     pub async fn update_from_market(&mut self, event: &MarketEventEnvelope) -> Result<()> {
+        // This ugly bit of code is because of the mutable borrow, it should be refactored away
+        let interests = if let Some(p) = self.open_positions.get(&(event.xch, event.pair.clone())) {
+            let option = p.open_order.as_ref();
+            self.interest_fees_since_open(option).await
+        } else {
+            return Ok(());
+        }?;
         if let Some(p) = self.open_positions.get_mut(&(event.xch, event.pair.clone())) {
-            let interests = match p.open_order.as_ref() {
-                None => 0.0,
-                Some(o) => self
-                    .interest_rates
-                    .interest_fees_since(Exchange::from_str(&o.exchange).unwrap(), o)
-                    .await
-                    .err_into::<Error>()?,
-            };
-            //let interests = self.interest_fees_since_open(p.open_order.as_ref()).await?;
             p.update(event, self.fees_rate, interests);
         }
         Ok(())

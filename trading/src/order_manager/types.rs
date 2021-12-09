@@ -354,15 +354,19 @@ impl OrderDetail {
     /// Calculate total interest owed, calculated in borrowed asset
     pub fn total_interest(&self, interest_rate: InterestRate) -> f64 {
         let hours_elapsed = now().sub(self.closed_at.unwrap());
-        let borrowed_asset = self.borrowed_asset.as_ref().unwrap();
         let borrowed_amount = self.borrowed_amount.unwrap();
-        let quote_borrowed_amount = if borrowed_asset == &self.base_asset {
-            borrowed_amount
-        } else {
-            borrowed_amount * self.weighted_price
-        };
         // The first hour is owed at t0
-        interest_rate.resolve(quote_borrowed_amount, hours_elapsed.num_hours() + 1)
+        interest_rate.resolve(borrowed_amount, hours_elapsed.num_hours() + 1)
+    }
+
+    pub fn total_quote_interest(&self, interest_rate: InterestRate) -> f64 {
+        let interests = self.total_interest(interest_rate);
+        let borrowed_asset = self.borrowed_asset.as_ref().unwrap();
+        if borrowed_asset == &self.base_asset {
+            interests * self.weighted_price
+        } else {
+            interests
+        }
     }
 
     pub fn from_status(&mut self, status: TransactionStatus) {

@@ -1,15 +1,18 @@
-use crate::error::{Error, Result};
-use crate::order_manager::types::OrderDetail;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::sync::Arc;
+
 use actix::{Actor, Addr, Context, Handler, ResponseActFuture, WrapFuture};
 use chrono::Utc;
+use prometheus::CounterVec;
+
 use coinnect_rt::exchange::margin_interest_rates::get_interest_rate;
 use coinnect_rt::exchange::{Exchange, ExchangeApi};
 use coinnect_rt::types::{InterestRate, InterestRatePeriod};
 use ext::ResultExt;
-use prometheus::CounterVec;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::sync::Arc;
+
+use crate::error::{Error, Result};
+use crate::order_manager::types::OrderDetail;
 
 lazy_static! {
     static ref GET_COUNTER: CounterVec =
@@ -30,6 +33,17 @@ pub trait InterestRateProvider: Send + Sync + Debug {
         let i = if order.asset_type.is_margin() && order.borrowed_amount.is_some() {
             let interest_rate = self.get_interest_rate(exchange, order.base_asset.clone()).await?;
             order.total_interest(interest_rate)
+        } else {
+            0.0
+        };
+        Ok(i)
+    }
+
+    /// Get the accumulated interest fees since the order was opened on the exchange in quote asset
+    async fn quote_interest_fees_since(&self, exchange: Exchange, order: &OrderDetail) -> Result<f64> {
+        let i = if order.asset_type.is_margin() && order.borrowed_amount.is_some() {
+            let interest_rate = self.get_interest_rate(exchange, order.base_asset.clone()).await?;
+            order.total_quote_interest(interest_rate)
         } else {
             0.0
         };
@@ -125,10 +139,12 @@ pub mod test_util {
     use std::path::Path;
     use std::sync::Arc;
 
-    use crate::interest::MarginInterestRateProviderClient;
     use actix::{Actor, Addr};
+
     use coinnect_rt::coinnect::Coinnect;
     use coinnect_rt::exchange::{Exchange, ExchangeApi, MockExchangeApi};
+
+    use crate::interest::MarginInterestRateProviderClient;
 
     use super::MarginInterestRateProvider;
 
@@ -183,12 +199,13 @@ pub mod test_util {
 
 #[cfg(test)]
 mod test {
+    use coinnect_rt::exchange::Exchange;
+    use coinnect_rt::types::{InterestRate, InterestRatePeriod};
+
     use crate::error::*;
     use crate::interest::test_util::local_provider;
     use crate::interest::GetInterestRate;
     use crate::order_manager::test_util::init;
-    use coinnect_rt::exchange::Exchange;
-    use coinnect_rt::types::{InterestRate, InterestRatePeriod};
 
     #[actix::test]
     #[cfg_attr(not(feature = "live_e2e_tests"), ignore)]
