@@ -242,7 +242,10 @@ impl Position {
         let current_value = self.current_value_gross();
         match self.kind {
             PositionKind::Long => ((current_value * (1.0 - fees_rate)) - enter_value - interests) / enter_value,
-            PositionKind::Short => (enter_value - (current_value * (1.0 + fees_rate)) - interests) / enter_value,
+            PositionKind::Short => {
+                let open_price = self.open_order.as_ref().map(|o| o.weighted_price).unwrap();
+                (enter_value - (current_value * (1.0 + fees_rate)) - (interests * open_price)) / enter_value
+            }
         }
     }
 
