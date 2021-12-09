@@ -217,7 +217,6 @@ impl Position {
             MarketEvent::Trade(ref t) => t.price,
             MarketEvent::Orderbook(ref o) => o.avg_price().unwrap_or(0.0),
             MarketEvent::CandleTick(ref ct) => ct.close,
-            MarketEvent::Noop => 0.0,
         };
         self.meta.last_update_trace_id = event.trace_id;
         self.meta.last_update = event.e.time();

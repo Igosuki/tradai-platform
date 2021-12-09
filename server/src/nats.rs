@@ -29,7 +29,6 @@ impl Subject for MarketEventEnvelope {
         format!("live_event.{}.{}", self.xch, match &self.e {
             MarketEvent::Trade(lt) => format!("{}.trades", lt.pair),
             MarketEvent::Orderbook(ob) => format!("{}.obs", ob.pair),
-            MarketEvent::Noop => "noop".to_string(),
             MarketEvent::CandleTick(ct) => format!("{}.cts", ct.pair),
         })
     }

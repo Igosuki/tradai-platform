@@ -45,6 +45,7 @@ use uuid::Uuid;
 
 use actor::StrategyActor;
 pub use coinnect_rt as coinnect;
+use coinnect_rt::broker::{MarketEventEnvelopeMsg, Subject};
 use coinnect_rt::prelude::*;
 pub use db;
 use db::DbOptions;
@@ -126,6 +127,27 @@ impl Channel {
     }
 }
 
+impl From<MarketEventEnvelopeMsg> for Channel {
+    fn from(msg: MarketEventEnvelopeMsg) -> Self {
+        match msg.e {
+            MarketEvent::Trade(_) => Self::Trades {
+                xch: msg.xch,
+                pair: msg.pair.clone(),
+            },
+            MarketEvent::Orderbook(_) => Self::Orderbooks {
+                xch: msg.xch,
+                pair: msg.pair.clone(),
+            },
+            MarketEvent::CandleTick(_) => Self::Candles {
+                xch: msg.xch,
+                pair: msg.pair.clone(),
+            },
+        }
+    }
+}
+
+impl Subject<MarketEventEnvelopeMsg> for Channel {}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum StrategyStatus {
@@ -200,7 +222,7 @@ impl Trader {
         })
     }
 
-    pub fn live_event_recipient(&self) -> Recipient<Arc<MarketEventEnvelope>> { self.actor.clone().recipient() }
+    pub fn market_event_recipient(&self) -> Recipient<MarketEventEnvelopeMsg> { self.actor.clone().recipient() }
 
     pub async fn send<M: 'static>(&self, m: M) -> Result<<M as Message>::Result>
     where
