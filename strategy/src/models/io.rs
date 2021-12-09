@@ -1,6 +1,7 @@
 use std::io::{Read, Write};
 
 use serde::Serialize;
+use serde_json::Value;
 
 use coinnect_rt::types::MarketEventEnvelope;
 
@@ -16,6 +17,8 @@ pub trait LoadableModel {
     /// If true, will write the model as snappy compressed
     fn export<W: Write>(&self, out: W, compressed: bool) -> Result<()>;
 }
+
+pub type SerializedModel = Vec<(String, Option<Value>)>;
 
 pub trait IterativeModel {
     type ExportValue: Serialize;
