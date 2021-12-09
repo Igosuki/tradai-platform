@@ -1351,6 +1351,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "libc",
  "libflate",
+ "multimap",
  "ordered-float 2.8.0",
  "pin-project",
  "prometheus 0.13.0",

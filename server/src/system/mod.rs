@@ -13,6 +13,7 @@ use futures::future::select_all;
 use tokio::sync::RwLock;
 use tracing::Instrument;
 
+use coinnect_rt::broker::{ActixMessageBroker, Broker, MarketEventEnvelopeMsg};
 // use actix::System;
 // use tokio::select;
 // use tokio::signal::unix::{signal, SignalKind};
@@ -24,7 +25,7 @@ use metrics::prom::PrometheusPushActor;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use portfolio::margin::{MarginAccountReporter, MarginAccountReporterOptions};
 use strategy::plugin::plugin_registry;
-use strategy::{self, StrategyKey, Trader};
+use strategy::{self, Channel, StrategyKey, Trader};
 use trading::engine::{new_trading_engine, TradingEngine};
 use trading::interest::MarginInterestRateProvider;
 use trading::order_manager::OrderManager;
@@ -38,11 +39,13 @@ pub mod bots;
 
 pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     let settings_v = settings.read().await;
-    let exchanges = &settings_v.exchanges;
 
+    // Verify credentials are here
     let keys_path = PathBuf::from(settings_v.keys.clone());
     fs::metadata(keys_path.clone()).map_err(|_| anyhow!("key file doesn't exist at {:?}", keys_path.clone()))?;
 
+    // Configure exchanges
+    let exchanges = &settings_v.exchanges;
     let exchanges_conf = Arc::new(exchanges.clone());
     let manager = Arc::new(Coinnect::new_manager());
     manager
@@ -54,8 +57,11 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     Coinnect::load_pair_registries(apis.clone())
         .instrument(tracing::info_span!("loading pair registries"))
         .await?;
-
+    // Message broker
+    let mut broker = ActixMessageBroker::<Channel, MarketEventEnvelopeMsg>::new();
+    // Termination handles to fuse the server with
     let mut termination_handles: Vec<Pin<Box<dyn Future<Output = std::io::Result<()>>>>> = vec![];
+    // Message recipients
     let mut broadcast_recipients: Vec<Recipient<Arc<MarketEventEnvelope>>> = Vec::new();
     let mut strat_recipients: Vec<Recipient<Arc<MarketEventEnvelope>>> = Vec::new();
     let mut spot_account_recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>> =
@@ -88,11 +94,14 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 }
                 let mirp = margin_interest_rate_provider(apis.clone());
                 let engine = new_trading_engine(manager.clone(), om, mirp);
-                let strategies = strategies(settings_arc.clone(), Arc::new(engine))
+                let strategies = make_traders(settings_arc.clone(), Arc::new(engine))
                     .instrument(tracing::info_span!("starting strategies"))
                     .await;
-                for trader in strategies.clone() {
-                    strat_recipients.push(trader.live_event_recipient());
+                for trader in strategies {
+                    for channel in &trader.channels {
+                        broker.register(channel.clone(), trader.market_event_recipient());
+                    }
+                    strat_recipients.push(trader.market_event_recipient());
                     traders.push(trader.clone());
                 }
             }
@@ -128,13 +137,15 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     // metrics actor
     let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(&settings_v.prometheus));
 
+    let broker_ref = Arc::new(broker);
+
     for stream_settings in &settings_v.streams {
         match stream_settings {
             StreamSettings::ExchangeBots => {
                 let mut all_recipients = vec![];
                 all_recipients.extend(strat_recipients.clone());
                 all_recipients.extend(broadcast_recipients.clone());
-                let bots = bots::exchange_bots(exchanges_conf.clone(), keys_path.clone(), all_recipients).await?;
+                let bots = bots::exchange_bots(exchanges_conf.clone(), keys_path.clone(), broker_ref.clone()).await?;
                 if !bots.is_empty() {
                     termination_handles.push(Box::pin(bots::poll_bots(bots)));
                 }
@@ -179,7 +190,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                             &nats_settings.username,
                             &nats_settings.username,
                             topics,
-                            vec![trader.live_event_recipient()],
+                            vec![trader.market_event_recipient()],
                         )
                         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
                     );
@@ -202,10 +213,15 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
         }
     }
 
-    let strats_map: Arc<HashMap<StrategyKey, Trader>> =
+    let traders_by_key: Arc<HashMap<StrategyKey, Trader>> =
         Arc::new(traders.clone().iter().map(|s| (s.key.clone(), s.clone())).collect());
     // API Server
-    let server = server::httpserver(&settings_v.api, settings_v.version.clone(), apis.clone(), strats_map);
+    let server = server::httpserver(
+        &settings_v.api,
+        settings_v.version.clone(),
+        apis.clone(),
+        traders_by_key,
+    );
     termination_handles.push(Box::pin(server));
 
     // Handle interrupts for graceful shutdown
@@ -261,12 +277,12 @@ fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<MarketEven
 }
 
 #[tracing::instrument(skip(settings, engine), level = "info")]
-async fn strategies(settings: Arc<RwLock<Settings>>, engine: Arc<TradingEngine>) -> Vec<Trader> {
+async fn make_traders(settings: Arc<RwLock<Settings>>, engine: Arc<TradingEngine>) -> Vec<Trader> {
     let settings_v = settings.read().await;
-    let mut strategies = settings_v.strategies.clone();
-    strategies.extend(settings_v.strategies_copy.iter().map(|sc| sc.all()).flatten().flatten());
+    let mut drivers_settings = settings_v.strategies.clone();
+    drivers_settings.extend(settings_v.strategies_copy.iter().map(|sc| sc.all()).flatten().flatten());
     let storage = Arc::new(settings_v.storage.clone());
-    let strats = futures::future::join_all(strategies.into_iter().map(move |strategy_settings| {
+    let traders = futures::future::join_all(drivers_settings.into_iter().map(move |driver_settings| {
         let db = storage.clone();
         let actor_options = settings_v.strat_actor.clone();
         let arc = engine.clone();
@@ -275,7 +291,7 @@ async fn strategies(settings: Arc<RwLock<Settings>>, engine: Arc<TradingEngine>)
                 plugin_registry(),
                 db.as_ref(),
                 &actor_options,
-                &strategy_settings,
+                &driver_settings,
                 arc,
                 None,
             )
@@ -283,7 +299,7 @@ async fn strategies(settings: Arc<RwLock<Settings>>, engine: Arc<TradingEngine>)
         }
     }))
     .await;
-    strats
+    traders
 }
 
 async fn balance_reporter(
