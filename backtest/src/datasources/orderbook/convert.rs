@@ -18,9 +18,12 @@ pub fn events_from_orderbooks(
 ) -> impl Stream<Item = MarketEventEnvelope> + 'static {
     stream! {
         let sa: StructArray = to_struct_array(&record_batch);
+        for column in sa.columns() {
+            eprintln!("sa = {:?}", column.data_type());
+        }
         let asks_col = get_col_as::<ListArray>(&sa, "asks");
         let bids_col = get_col_as::<ListArray>(&sa, "bids");
-        let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ms");
+        let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ts");
         let pair_col = get_col_as::<StringArray>(&sa, "pr");
         for i in 0..sa.len() {
             let mut bids = vec![];

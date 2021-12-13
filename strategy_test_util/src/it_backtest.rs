@@ -62,6 +62,7 @@ pub async fn generic_backtest(
             initial_quote_cash: starting_cash,
         },
         start_trading: None,
+        dry_mode: None,
     };
     let mut strat = GenericDriver::try_new(
         <dyn Strategy>::channels(embedded.as_ref()),

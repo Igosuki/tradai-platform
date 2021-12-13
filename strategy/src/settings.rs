@@ -12,7 +12,7 @@ use trading::engine::TradingEngine;
 
 use crate::driver::StrategyDriver;
 use crate::generic::GenericDriverOptions;
-use crate::plugin::{plugin_registry, StrategyPlugin, StrategyPluginContext};
+use crate::plugin::{gather_plugins, plugin_registry, StrategyPlugin, StrategyPluginContext};
 use crate::{error::Result, Error, StratEventLogger, StrategyKey};
 
 /// Strategy configuration
@@ -62,6 +62,7 @@ impl StrategyCopySettings {
                 exchanges,
                 base: StrategyDriverSettings { strat, driver },
             } => {
+                eprintln!("gather_plugins = {:?}", gather_plugins());
                 let plugin = plugin_registry()
                     .get(strat.strat_type.as_str())
                     .ok_or(Error::StrategyPluginNotFound)?;

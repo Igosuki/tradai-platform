@@ -22,6 +22,7 @@ mod metrics;
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PortfolioOptions {
     pub initial_quote_cash: f64,
+    // TODO: replace by getting it from the exchange conf
     pub fees_rate: f64,
 }
 
@@ -30,6 +31,11 @@ pub struct GenericDriverOptions {
     pub portfolio: PortfolioOptions,
     /// Start trading after first start
     pub start_trading: Option<bool>,
+    pub dry_mode: Option<bool>,
+}
+
+impl GenericDriverOptions {
+    pub fn dry_mode(&self) -> bool { self.dry_mode.unwrap_or(false) }
 }
 
 pub struct GenericDriver {
@@ -159,11 +165,10 @@ impl GenericDriver {
         };
         metrics::get().log_is_trading(self.strat_key.as_str(), self.is_trading);
         if self.portfolio.has_any_failed_position() {
-            error!(xch = %le.xch, pair = %le.pair, "failed position remaining");
+            metrics::get().log_failed_position(&le.xch, &le.pair);
             return Ok(());
         }
         if !self.portfolio.locks().is_empty() {
-            error!(xch = %le.xch, pair = %le.pair, "portfolio locked");
             metrics::get().log_lock(&le.xch, &le.pair);
             return Ok(());
         }

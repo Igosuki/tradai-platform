@@ -24,7 +24,7 @@ pub fn sampled_orderbooks_df(partitions: HashSet<String>, format: String) -> imp
             let now = Instant::now();
             let df = ctx
                 .clone()
-                .sql("select pr, to_timestamp_millis(event_ms) as event_ms, asks, bids from order_books")
+                .sql("select pr, to_timestamp_millis(event_ms) as event_ts, asks, bids from order_books order by event_ms asc")
                 .await
                 .unwrap();
             let collected = df.execute_stream().await.unwrap();

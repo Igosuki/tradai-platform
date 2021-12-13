@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
 use serde::de::DeserializeOwned;
@@ -33,6 +34,12 @@ pub struct StrategyPlugin {
     name: &'static str,
     provider: StratProvider,
     opt_provider: OptionsProvider,
+}
+
+impl Debug for StrategyPlugin {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StrategyPlugin").field("name", &self.name).finish()
+    }
 }
 
 impl StrategyPlugin {
