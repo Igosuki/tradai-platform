@@ -10,7 +10,7 @@ use crate::query::{DataQuery, DataResult, Mutation};
 use crate::{error, Channel};
 
 #[async_trait]
-pub trait StrategyDriver {
+pub trait StrategyDriver: Send + Sync {
     /// A unique key or id for the strategy
     async fn key(&self) -> String;
 

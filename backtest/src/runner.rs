@@ -1,15 +1,15 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use itertools::Itertools;
-use tokio::sync::Mutex;
-
 use ext::ResultExt;
 use strategy::coinnect::prelude::{MarketEvent, MarketEventEnvelope};
 use strategy::driver::StrategyDriver;
 use strategy::query::{DataQuery, DataResult};
 use strategy::Channel;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::Mutex;
 use trading::book::BookPosition;
+use util::time::set_current_time;
 
 use crate::error::*;
 use crate::report::VecEventLogger;
@@ -18,13 +18,24 @@ use crate::{BacktestReport, TimedData};
 pub(crate) struct BacktestRunner {
     strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
     strategy_events_logger: Arc<VecEventLogger>,
+    events_stream: UnboundedReceiver<MarketEventEnvelope>,
+    events_sink: UnboundedSender<MarketEventEnvelope>,
+    close_sink: tokio::sync::broadcast::Receiver<bool>,
 }
 
 impl BacktestRunner {
-    pub fn new(strategy: Arc<Mutex<Box<dyn StrategyDriver>>>, strategy_events_logger: Arc<VecEventLogger>) -> Self {
+    pub fn new(
+        strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
+        strategy_events_logger: Arc<VecEventLogger>,
+        close_sink: tokio::sync::broadcast::Receiver<bool>,
+    ) -> Self {
+        let (events_sink, events_stream) = unbounded_channel::<MarketEventEnvelope>();
         Self {
             strategy_events_logger,
             strategy,
+            events_stream,
+            events_sink,
+            close_sink,
         }
     }
 
@@ -33,46 +44,64 @@ impl BacktestRunner {
         reader.channels()
     }
 
-    pub(crate) async fn run(&self, live_events: &[MarketEventEnvelope]) -> BacktestReport {
-        let mut strategy = self.strategy.lock().await;
-        let mut report = BacktestReport::new(strategy.key().await);
-        for live_event in live_events.iter().sorted_by_key(|le| le.e.time().timestamp_millis()) {
-            util::time::set_current_time(live_event.e.time());
-            strategy.add_event(live_event).await.unwrap();
-            // If there is an ongoing operation, resolve orders
-            let mut tries = 0;
-            loop {
-                if tries > 5 {
-                    break;
-                }
-                let open_ops = strategy.data(DataQuery::OpenPositions).await;
-                match open_ops {
-                    Ok(DataResult::OpenPositions(positions)) if !positions.is_empty() => {
-                        strategy.resolve_orders().await;
-                        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                        tries += 1;
+    pub(crate) fn event_sink(&self) -> UnboundedSender<MarketEventEnvelope> { self.events_sink.clone() }
+
+    pub(crate) async fn run(&mut self) -> BacktestReport {
+        let key = {
+            let strategy = self.strategy.lock().await;
+            strategy.key().await
+        };
+        let mut report = BacktestReport::new(key.clone());
+        'main: loop {
+            select! {
+                _ = self.close_sink.recv() => {
+                    info!("Closing {}", key);
+                    break 'main;
+                },
+                market_event = self.events_stream.recv() => {
+                    if market_event.is_none() {
+                        break 'main;
                     }
-                    _ => break,
-                }
-            }
-            if let MarketEvent::Orderbook(ob) = &live_event.e {
-                let bp_try: Result<BookPosition> = ob.try_into().err_into();
-                if let Ok(bp) = bp_try {
-                    report.book_positions.push(TimedData::new(live_event.e.time(), bp));
-                }
-            }
-            match strategy.data(DataQuery::Models).await {
-                Ok(DataResult::Models(models)) => report
-                    .models
-                    .push(TimedData::new(live_event.e.time(), models.into_iter().collect())),
-                _ => {
-                    report.model_failures += 1;
-                }
-            }
-            match strategy.data(DataQuery::Indicators).await {
-                Ok(DataResult::Indicators(i)) => report.indicators.push(TimedData::new(live_event.e.time(), i)),
-                _ => {
-                    report.indicator_failures += 1;
+                    let market_event = market_event.unwrap();
+                    set_current_time(market_event.e.time());
+                    let mut driver = self.strategy.lock().await;
+                    driver.add_event(&market_event).await.unwrap();
+                    // If there is an ongoing operation, resolve orders
+                    let mut tries = 0;
+                    loop {
+                        if tries > 5 {
+                            break;
+                        }
+                        let open_ops = driver.data(DataQuery::OpenPositions).await;
+                        match open_ops {
+                            Ok(DataResult::OpenPositions(positions)) if !positions.is_empty() => {
+                                driver.resolve_orders().await;
+                                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                                tries += 1;
+                            }
+                            _ => break,
+                        }
+                    }
+                    if let MarketEvent::Orderbook(ob) = &market_event.e {
+                        let bp_try: Result<BookPosition> = ob.try_into().err_into();
+                        if let Ok(bp) = bp_try {
+                            report.book_positions.push(TimedData::new(market_event.e.time(), bp));
+                        }
+                    }
+                    match driver.data(DataQuery::Models).await {
+                        Ok(DataResult::Models(models)) => report
+                            .models
+                            .push(TimedData::new(market_event.e.time(), models.into_iter().collect())),
+                        _ => {
+                            report.model_failures += 1;
+                        }
+                    }
+                    match driver.data(DataQuery::Indicators).await {
+                        Ok(DataResult::Indicators(i)) => report.indicators.push(TimedData::new(market_event.e.time(), i)),
+                        _ => {
+                            report.indicator_failures += 1;
+                        }
+                    }
                 }
             }
         }
