@@ -1,16 +1,15 @@
 use itertools::Itertools;
 
-use strategy::trading::position::{OperationKind, Position};
-use strategy::types::{OperationEvent, TradeEvent};
-use strategy::Portfolio;
+use crate::trading::position::{OperationKind, Position};
+use crate::types::{OperationEvent, TradeEvent};
 
-pub fn trades_history(portfolio: &Portfolio) -> Vec<(OperationEvent, TradeEvent)> {
+pub fn trades_history(history: &[Position]) -> Vec<(OperationEvent, TradeEvent)> {
     let mut trade_events: Vec<(OperationEvent, TradeEvent)> = Vec::new();
-    for pos in portfolio.positions_history().unwrap() {
-        if let Some((op, event)) = open_events(&pos) {
+    for pos in history {
+        if let Some((op, event)) = open_events(pos) {
             trade_events.push((op, event));
         }
-        if let Some((op, event)) = close_events(&pos) {
+        if let Some((op, event)) = close_events(pos) {
             trade_events.push((op, event));
         }
     }

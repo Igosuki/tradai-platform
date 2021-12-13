@@ -11,7 +11,6 @@ use std::sync::Arc;
 use db::{get_or_create, DbOptions, Storage};
 
 pub mod draw;
-pub mod event;
 pub mod fs;
 pub mod input;
 pub mod it_backtest;
