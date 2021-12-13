@@ -104,7 +104,7 @@ impl BacktestRunner {
                             report.indicator_failures += 1;
                         }
                     }
-                    execution_hist += start.elapsed().as_micros() as u64;
+                    execution_hist += start.elapsed().as_nanos() as u64;
                 },
                 _ = self.close_sink.recv() => {
                     info!("Closing {}", key);

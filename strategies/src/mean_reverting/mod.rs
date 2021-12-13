@@ -231,7 +231,10 @@ impl Strategy for MeanRevertingStrategy {
         e: &MarketEventEnvelope,
         ctx: &DefaultStrategyContext,
     ) -> Result<Option<Vec<TradeSignal>>> {
-        self.model.next_model(e)?;
+        if let Err(e) = self.model.next_model(e) {
+            self.metrics.log_error(e.short_name());
+            return Ok(None);
+        }
         let t = self.model.thresholds();
         self.metrics.log_thresholds(t.0, t.1);
         if let Some(apo) = self.model.apo_value() {

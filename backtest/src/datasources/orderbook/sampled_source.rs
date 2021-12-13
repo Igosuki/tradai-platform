@@ -28,6 +28,9 @@ pub fn sampled_orderbooks_df(partitions: HashSet<String>, format: String) -> imp
                 .await
                 .unwrap();
             let collected = df.execute_stream().await.unwrap();
+            for await batch in collected {
+                yield batch.unwrap();
+            }
             let elapsed = now.elapsed();
             info!(
                 "Read records for {} in {}.{}s",
@@ -35,9 +38,6 @@ pub fn sampled_orderbooks_df(partitions: HashSet<String>, format: String) -> imp
                 elapsed.as_secs(),
                 elapsed.subsec_millis()
             );
-            for await batch in collected {
-                yield batch.unwrap();
-            }
         }
     }
 }
