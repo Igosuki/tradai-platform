@@ -263,12 +263,12 @@ impl StrategyDriver for GenericDriver {
                 Ok((order, _)) => {
                     if let Err(e) = self.portfolio.update_position(order) {
                         metrics::get().log_error(e.short_name());
-                        error!(err = %e, "failed to update portfolio position");
+                        debug!(err = %e, "failed to update portfolio position");
                     }
                 }
                 Err(e) => {
                     metrics::get().log_error(e.short_name());
-                    error!(err = %e, "failed to query locked order");
+                    debug!(err = %e, "failed to query locked order");
                 }
             }
         }
