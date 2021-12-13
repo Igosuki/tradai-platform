@@ -12,7 +12,7 @@ use util::test::test_dir;
 use util::time::{DateRange, DurationRangeType};
 
 use crate::error::*;
-use crate::{Dataset, DatasetInputFormat};
+use crate::{DatasetInputFormat, DatasetType};
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "type")]
@@ -49,7 +49,7 @@ pub struct BacktestConfig {
     pub fees: f64,
     pub period: Period,
     pub input_format: DatasetInputFormat,
-    pub input_dataset: Dataset,
+    pub input_dataset: DatasetType,
     pub data_dir: PathBuf,
     #[builder(default, setter(strip_option))]
     pub sql_override: Option<String>,

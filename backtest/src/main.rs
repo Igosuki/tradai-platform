@@ -24,7 +24,7 @@ async fn main() -> backtest::Result<()> {
     let conf = BacktestConfig::new(opts.config)?;
     match opts.cmd.unwrap_or(BacktestCmd::Run) {
         BacktestCmd::Run => {
-            let bt = Backtest::try_new(&conf).await?;
+            let mut bt = Backtest::try_new(&conf).await?;
             bt.run().await?;
         }
         BacktestCmd::GenReport => {

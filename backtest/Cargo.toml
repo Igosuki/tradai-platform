@@ -27,12 +27,21 @@ trading = { path = "../trading", features = ["test_util"] }
 # async
 futures = "0.3"
 tokio = "1"
+async-trait = "0.1"
+async-stream = "0.3"
+tokio-stream = "0.1"
+
+# actors
 actix = "0.12"
 
-# std
-tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
+# cli
 structopt = { version = "0.3", optional = true }
 config = { version = "0.11", features = ["yaml", "toml", "json"], default-features = false }
+
+# logging / monitoring / metrics
+tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
+
+# std
 thiserror = "1.0"
 serde = "1.0"
 serde_derive = "1.0"
@@ -41,8 +50,8 @@ chrono = { version = "0.4", features = ["serde"] }
 parse_duration = "2.1"
 env_logger = { version = "0.9", optional = true }
 typed-builder = "0.9"
-async-trait = "0.1"
 itertools = "0.10"
+
 # data
 datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "optional_crates", version = "6.0", default-features = false, features = ["avro", "crypto_expressions", "regex_expressions", "unicode_expressions"] }
 #datafusion = { path = "/home/geps/dev/oss/arrow-datafusion/datafusion", version = "5.1", default-features = false, features = ["avro"] }
