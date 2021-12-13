@@ -11,8 +11,8 @@ strats:
       short_window_size: 100
       long_window_size: 1000
       sample_freq: 1min
-      threshold_short: 0.001
-      threshold_long: -0.001
+      threshold_short: 0.01
+      threshold_long: -0.01
       threshold_eval_freq: 1
       dynamic_threshold: false
       threshold_window_size: 100
@@ -24,41 +24,12 @@ strats:
         dry_mode: true
         asset_type: spot
 
-#strat_copy:
-#  type: market_replica
-#  pairs: ['.*_USDT']
-#  exchanges: ['Binance']
-#  base:
-#    driver:
-#      type: generic
-#      portfolio:
-#        initial_quote_cash: 100.0
-#        fees_rate: 0.001
-#    strat:
-#      type: mean_reverting
-#      pair: ''
-#      short_window_size: 100
-#      long_window_size: 1000
-#      sample_freq: 1min
-#      threshold_short: 0.01
-#      threshold_long: -0.01
-#      threshold_eval_freq: 1
-#      dynamic_threshold: true
-#      threshold_window_size: 10000
-#      stop_loss: -0.1
-#      stop_gain: 0.075
-#      exchange: Binance
-#      order_conf:
-#        order_mode: limit
-#        dry_mode: true
-#        asset_type: spot
-
 fees: 0.001
 
 period:
   type: interval
-  from: 2021-11-20
-  to: 2021-11-21
+  from: 2021-10-18
+  to: 2021-12-03
 
 input_format: avro
 input_dataset: orderbooks_by_minute
