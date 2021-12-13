@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate tracing;
+
 use structopt::StructOpt;
 
 use backtest::{Backtest, BacktestConfig};
@@ -26,6 +29,7 @@ async fn main() -> backtest::Result<()> {
         BacktestCmd::Run => {
             let mut bt = Backtest::try_new(&conf).await?;
             bt.run().await?;
+            info!("Backtest finished.");
         }
         BacktestCmd::GenReport => {
             Backtest::gen_report(&conf).await;
