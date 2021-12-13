@@ -36,6 +36,9 @@ pub trait StrategyDriver: Send + Sync {
 
     /// When called upon, resolve previously emitted trading signals
     async fn resolve_orders(&mut self);
+
+    /// Check if there are any pending locks
+    async fn is_locked(&self) -> bool;
 }
 
 #[async_trait]

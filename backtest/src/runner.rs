@@ -1,13 +1,15 @@
+use ext::ResultExt;
 use std::collections::HashSet;
 use std::sync::Arc;
-
-use ext::ResultExt;
 use strategy::coinnect::prelude::{MarketEvent, MarketEventEnvelope};
 use strategy::driver::StrategyDriver;
+use strategy::event::trades_history;
 use strategy::query::{DataQuery, DataResult};
+use strategy::types::StratEvent;
 use strategy::Channel;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::Mutex;
+use tokio::time::Duration;
 use trading::book::BookPosition;
 use util::time::set_current_time;
 
@@ -54,10 +56,8 @@ impl BacktestRunner {
         let mut report = BacktestReport::new(key.clone());
         'main: loop {
             select! {
-                _ = self.close_sink.recv() => {
-                    info!("Closing {}", key);
-                    break 'main;
-                },
+                biased;
+
                 market_event = self.events_stream.recv() => {
                     if market_event.is_none() {
                         break 'main;
@@ -68,18 +68,16 @@ impl BacktestRunner {
                     driver.add_event(&market_event).await.unwrap();
                     // If there is an ongoing operation, resolve orders
                     let mut tries = 0;
-                    loop {
+                    'resolve: loop {
                         if tries > 5 {
-                            break;
+                            break 'resolve;
                         }
-                        let open_ops = driver.data(DataQuery::OpenPositions).await;
-                        match open_ops {
-                            Ok(DataResult::OpenPositions(positions)) if !positions.is_empty() => {
-                                driver.resolve_orders().await;
-                                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                                tries += 1;
-                            }
-                            _ => break,
+                        if driver.is_locked().await {
+                            driver.resolve_orders().await;
+                            tokio::time::sleep(Duration::from_millis(10)).await;
+                            tries += 1;
+                        } else {
+                            break 'resolve;
                         }
                     }
                     if let MarketEvent::Orderbook(ob) = &market_event.e {
@@ -102,10 +100,28 @@ impl BacktestRunner {
                             report.indicator_failures += 1;
                         }
                     }
+                },
+                _ = self.close_sink.recv() => {
+                    info!("Closing {}", key);
+                    break 'main;
                 }
             }
         }
-        let read = self.strategy_events_logger.get_events().await;
+
+        let mut read = self.strategy_events_logger.get_events().await;
+        let mut driver = self.strategy.lock().await;
+        if let Ok(DataResult::PositionHistory(history)) = driver.data(DataQuery::PositionHistory).await {
+            let events = trades_history(&history)
+                .into_iter()
+                .map(|(op, trade)| {
+                    vec![
+                        TimedData::new(op.at, StratEvent::Operation(op)),
+                        TimedData::new(trade.at, StratEvent::Trade(trade)),
+                    ]
+                })
+                .flatten();
+            read.extend(events);
+        }
         report.events = read;
         report
     }

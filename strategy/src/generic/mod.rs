@@ -282,4 +282,6 @@ impl StrategyDriver for GenericDriver {
             }
         }
     }
+
+    async fn is_locked(&self) -> bool { !self.portfolio.locks().is_empty() }
 }

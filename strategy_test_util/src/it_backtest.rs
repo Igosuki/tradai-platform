@@ -15,11 +15,11 @@ use strategy::trading::position::Position;
 use util::test::test_results_dir;
 
 use crate::draw::{draw_line_plot, StrategyEntry};
-use crate::event::trades_history;
 use crate::fs::copy_file;
 use crate::init;
 use crate::log::{write_models, write_trade_events, StrategyLog};
 use crate::{input, test_db_with_path};
+use strategy::event::trades_history;
 
 pub struct GenericTestContext {
     pub engine: Arc<TradingEngine>,
@@ -145,7 +145,10 @@ pub async fn generic_backtest(
     );
 
     write_models(&test_results_dir, &strategy_logs);
-    write_trade_events(&test_results_dir, &trades_history(strat.ctx().portfolio));
+    write_trade_events(
+        &test_results_dir,
+        &trades_history(&strat.ctx().portfolio.positions_history().unwrap()),
+    );
 
     let out_file = draw_line_plot(test_results_dir.as_str(), strategy_logs, draw_entries)
         .expect("Should have drawn plots from strategy logs");
