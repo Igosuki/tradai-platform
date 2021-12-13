@@ -807,6 +807,7 @@ dependencies = [
  "env_logger 0.9.0",
  "ext",
  "futures",
+ "hdrhistogram",
  "itertools",
  "parse_duration",
  "plotly",
@@ -6752,6 +6753,8 @@ version = "0.1.0"
 dependencies = [
  "byte-unit",
  "chrono",
+ "hdrhistogram",
+ "maplit",
  "mock_instant",
  "opentelemetry",
  "opentelemetry-jaeger",

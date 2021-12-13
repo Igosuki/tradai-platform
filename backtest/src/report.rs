@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
 use std::fs::File;
 use std::io::BufReader;
@@ -186,6 +186,7 @@ impl GlobalReport {
 pub(crate) struct ReportSnapshot {
     model: Option<BTreeMap<String, Option<serde_json::Value>>>,
     indicators: Option<PortfolioSnapshot>,
+    loop_stats: HashMap<String, f64>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -197,6 +198,7 @@ pub(crate) struct BacktestReport {
     pub(crate) indicators: TimedVec<PortfolioSnapshot>,
     pub(crate) book_positions: TimedVec<BookPosition>,
     pub(crate) events: TimedVec<StratEvent>,
+    pub(crate) execution_hist: HashMap<String, f64>,
 }
 
 impl Debug for BacktestReport {
@@ -238,6 +240,7 @@ impl BacktestReport {
         let snapshot = ReportSnapshot {
             model: self.models.last().map(|m| m.value.clone()),
             indicators: self.indicators.last().map(|i| i.value.clone()),
+            loop_stats: self.execution_hist.clone(),
         };
         serde_json::to_writer(logs_f, &snapshot).unwrap();
         self.write_html_report(report_dir).unwrap();

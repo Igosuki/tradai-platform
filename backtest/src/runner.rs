@@ -1,6 +1,7 @@
 use ext::ResultExt;
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::Instant;
 use strategy::coinnect::prelude::{MarketEvent, MarketEventEnvelope};
 use strategy::driver::StrategyDriver;
 use strategy::event::trades_history;
@@ -12,6 +13,7 @@ use tokio::sync::Mutex;
 use tokio::time::Duration;
 use trading::book::BookPosition;
 use util::time::set_current_time;
+use util::tracing::{display_hist_percentiles, microtime_histogram, microtime_percentiles};
 
 use crate::error::*;
 use crate::report::VecEventLogger;
@@ -54,6 +56,7 @@ impl BacktestRunner {
             strategy.key().await
         };
         let mut report = BacktestReport::new(key.clone());
+        let mut execution_hist = microtime_histogram();
         'main: loop {
             select! {
                 biased;
@@ -62,6 +65,7 @@ impl BacktestRunner {
                     if market_event.is_none() {
                         break 'main;
                     }
+                    let start = Instant::now();
                     let market_event = market_event.unwrap();
                     set_current_time(market_event.e.time());
                     let mut driver = self.strategy.lock().await;
@@ -100,6 +104,7 @@ impl BacktestRunner {
                             report.indicator_failures += 1;
                         }
                     }
+                    execution_hist += start.elapsed().as_micros() as u64;
                 },
                 _ = self.close_sink.recv() => {
                     info!("Closing {}", key);
@@ -108,6 +113,12 @@ impl BacktestRunner {
             }
         }
 
+        info!(
+            "{} event loop stats : {}",
+            report.key,
+            display_hist_percentiles(&execution_hist)
+        );
+        report.execution_hist = microtime_percentiles(&execution_hist);
         let mut read = self.strategy_events_logger.get_events().await;
         let mut driver = self.strategy.lock().await;
         if let Ok(DataResult::PositionHistory(history)) = driver.data(DataQuery::PositionHistory).await {
