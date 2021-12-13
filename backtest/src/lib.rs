@@ -22,13 +22,6 @@ use futures::StreamExt;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::{Mutex, RwLock};
 
-use db::{DbEngineOptions, DbOptions, RocksDbOptions};
-use strategy::coinnect::prelude::*;
-use strategy::plugin::plugin_registry;
-use strategy::prelude::*;
-use trading::engine::mock_engine;
-use util::test::test_dir;
-
 use crate::coinnect::broker::{Broker, UnboundedChannelMessageBroker};
 use crate::dataset::Dataset;
 use crate::datasources::orderbook::convert::events_from_orderbooks;
@@ -40,6 +33,12 @@ use crate::runner::BacktestRunner;
 pub use crate::{config::*,
                 dataset::{DatasetInputFormat, DatasetType},
                 error::*};
+use db::{DbEngineOptions, DbOptions, RocksDbOptions};
+use strategy::coinnect::prelude::*;
+use strategy::plugin::plugin_registry;
+use strategy::prelude::*;
+use trading::engine::mock_engine;
+use util::test::test_dir;
 
 mod config;
 mod datafusion_util;

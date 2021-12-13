@@ -18,6 +18,7 @@ binary = ["env_logger", "structopt"]
 [dependencies]
 # trader
 strategy = { path = "../strategy" }
+strategies = { path = "../strategies" }
 util = { path = "../util" }
 ext = { path = "../ext" }
 db = { path = "../db" }

@@ -20,6 +20,7 @@ type SignalIndicatorFn = MetricProviderFn<TradeSignal>;
 #[derive(Clone)]
 pub struct GenericDriverMetrics {
     lock_counters: GaugeVec,
+    failed_position_counters: GaugeVec,
     signal_errors: CounterVec,
     errors: CounterVec,
     signal_fns: Vec<SignalIndicatorFn>,
@@ -37,6 +38,16 @@ impl GenericDriverMetrics {
         let lock_counters = {
             let pos_labels = &["xch", "pair"];
             let vec_name = "dr_pos_lock";
+            register_gauge_vec!(
+                opts!(vec_name, format!("gauge for {}", vec_name), const_labels),
+                pos_labels
+            )
+            .unwrap()
+        };
+
+        let failed_position_counters = {
+            let pos_labels = &["xch", "pair"];
+            let vec_name = "dr_pos_failed";
             register_gauge_vec!(
                 opts!(vec_name, format!("gauge for {}", vec_name), const_labels),
                 pos_labels
@@ -97,6 +108,7 @@ impl GenericDriverMetrics {
 
         Self {
             lock_counters,
+            failed_position_counters,
             signal_errors,
             errors,
             signal_fns,
@@ -111,6 +123,12 @@ impl GenericDriverMetrics {
 
     pub(super) fn log_lock(&self, xch: &Exchange, pair: &Pair) {
         self.lock_counters
+            .with_label_values(&[xch.as_ref(), pair.as_ref()])
+            .set(1.0);
+    }
+
+    pub(super) fn log_failed_position(&self, xch: &Exchange, pair: &Pair) {
+        self.failed_position_counters
             .with_label_values(&[xch.as_ref(), pair.as_ref()])
             .set(1.0);
     }

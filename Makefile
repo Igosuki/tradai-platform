@@ -87,6 +87,9 @@ macramdisk:
 linuxramdisk:
 	sudo mount -t tmpfs -o size=2048M tmpfs /media/ramdisk
 
+.PHONY: maxopenfiles
+	ulimit -Sn 65536 200000
+
 .PHONY: test_all
 test_all: ## Tests all features
 	@$(CARGO_BIN) test --all-features
@@ -172,7 +175,7 @@ release_backtest:
 	make target=backtest features=env_logger,mock_time,rocksdb-vendor,zstd release
 
 release_local_backtest:
-	@$(CARGO_BIN) build --release --bin backtest --features=env_logger,mock_time
+	@$(CARGO_BIN) build --release --bin backtest --features=env_logger,mock_time,binary
 
 bin_tag=latest
 download_binary:
