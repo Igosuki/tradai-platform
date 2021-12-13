@@ -814,6 +814,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "stats",
+ "strategies",
  "strategy",
  "structopt",
  "thiserror",
