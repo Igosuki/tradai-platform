@@ -6,14 +6,14 @@ use chrono::{Date, DateTime, Duration, Utc};
 #[cfg(feature = "mock_time")]
 use mock_instant::MockClock;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum DurationRangeType {
     Millis,
     Seconds,
     Days,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct DateRange(pub Date<Utc>, pub Date<Utc>, pub DurationRangeType, pub i64);
 
 impl Iterator for DateRange {

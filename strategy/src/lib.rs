@@ -127,8 +127,8 @@ impl Channel {
     }
 }
 
-impl From<MarketEventEnvelopeMsg> for Channel {
-    fn from(msg: MarketEventEnvelopeMsg) -> Self {
+impl From<&MarketEventEnvelope> for Channel {
+    fn from(msg: &MarketEventEnvelope) -> Self {
         match msg.e {
             MarketEvent::Trade(_) => Self::Trades {
                 xch: msg.xch,
@@ -146,7 +146,17 @@ impl From<MarketEventEnvelopeMsg> for Channel {
     }
 }
 
+impl From<MarketEventEnvelopeMsg> for Channel {
+    fn from(msg: MarketEventEnvelopeMsg) -> Self { Self::from(msg.as_ref()) }
+}
+
+impl From<MarketEventEnvelope> for Channel {
+    fn from(msg: MarketEventEnvelope) -> Self { Self::from(&msg) }
+}
+
 impl Subject<MarketEventEnvelopeMsg> for Channel {}
+
+impl Subject<MarketEventEnvelope> for Channel {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "snake_case")]

@@ -48,3 +48,4 @@ lto = false
 
 [patch.crates-io]
 plotly = { git = "https://github.com/igiagkiozis/plotly", branch = "master" }
+actix-cors = { git = "https://github.com/actix/actix-extras", branch = "master" }

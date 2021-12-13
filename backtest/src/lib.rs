@@ -3,31 +3,34 @@
 #![feature(path_try_exists)]
 
 #[macro_use]
+extern crate async_stream;
+#[macro_use]
 extern crate async_trait;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate tracing;
+#[macro_use]
+extern crate tokio;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use chrono::Duration;
-use futures::{stream, StreamExt};
-use itertools::Itertools;
-use tokio::sync::Mutex;
+use futures::StreamExt;
+use tokio::sync::broadcast::Sender;
+use tokio::sync::{Mutex, RwLock};
 
 use db::{DbEngineOptions, DbOptions, RocksDbOptions};
 use strategy::coinnect::prelude::*;
 use strategy::plugin::plugin_registry;
 use strategy::prelude::*;
-use strategy::Channel;
 use trading::engine::mock_engine;
 use util::test::test_dir;
-use util::time::DateRange;
 
+use crate::coinnect::broker::{Broker, UnboundedChannelMessageBroker};
+use crate::dataset::Dataset;
 use crate::datasources::orderbook::convert::events_from_orderbooks;
 use crate::datasources::orderbook::csv_source::{csv_orderbooks_df, events_from_csv_orderbooks};
 use crate::datasources::orderbook::raw_source::raw_orderbooks_df;
@@ -35,7 +38,7 @@ use crate::datasources::orderbook::sampled_source::sampled_orderbooks_df;
 use crate::report::{BacktestReport, GlobalReport, TimedData, VecEventLogger};
 use crate::runner::BacktestRunner;
 pub use crate::{config::*,
-                dataset::{Dataset, DatasetInputFormat},
+                dataset::{DatasetInputFormat, DatasetType},
                 error::*};
 
 mod config;
@@ -47,13 +50,10 @@ mod report;
 mod runner;
 
 pub struct Backtest {
-    period: DateRange,
-    runners: Vec<BacktestRunner>,
-    data_dir: PathBuf,
+    runners: Vec<Arc<RwLock<BacktestRunner>>>,
     output_dir: PathBuf,
-    input_format: DatasetInputFormat,
     dataset: Dataset,
-    input_sample_rate: Duration,
+    stop_tx: Sender<bool>,
 }
 
 impl Backtest {
@@ -72,140 +72,96 @@ impl Backtest {
         //let exchanges: Vec<Exchange> = all_strategy_settings.iter().map(|s| s.exchange()).collect();
         let exchanges = vec![Exchange::Binance];
         let mock_engine = Arc::new(mock_engine(db_path.clone(), &exchanges));
-        let runners: Vec<BacktestRunner> = all_strategy_settings
-            .into_iter()
+        let (stop_tx, _) = tokio::sync::broadcast::channel(1);
+        let runners: Vec<_> = tokio_stream::iter(all_strategy_settings.into_iter())
             .map(|settings| {
                 let local_db_path = db_path.clone();
-                let db_conf = DbOptions {
-                    path: local_db_path,
-                    engine: DbEngineOptions::RocksDb(
-                        RocksDbOptions::default()
-                            .max_log_file_size(10 * 1024 * 1024)
-                            .keep_log_file_num(2)
-                            .max_total_wal_size(10 * 1024 * 1024),
-                    ),
-                };
+                let mock_engine = mock_engine.clone();
+                let receiver = stop_tx.subscribe();
+                async move {
+                    let db_conf = DbOptions {
+                        path: local_db_path,
+                        engine: DbEngineOptions::RocksDb(
+                            RocksDbOptions::default()
+                                .max_log_file_size(10 * 1024 * 1024)
+                                .keep_log_file_num(2)
+                                .max_total_wal_size(10 * 1024 * 1024),
+                        ),
+                    };
 
-                let logger: Arc<VecEventLogger> = Arc::new(VecEventLogger::default());
-                let plugin = plugin_registry().get(settings.strat.strat_type.as_str()).unwrap();
-                let strategy_driver = strategy::settings::from_driver_settings(
-                    plugin,
-                    &db_conf,
-                    &settings,
-                    mock_engine.clone(),
-                    Some(logger.clone()),
-                )
-                .unwrap();
-                BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger)
+                    let logger: Arc<VecEventLogger> = Arc::new(VecEventLogger::default());
+                    let plugin = plugin_registry().get(settings.strat.strat_type.as_str()).unwrap();
+                    let strategy_driver = strategy::settings::from_driver_settings(
+                        plugin,
+                        &db_conf,
+                        &settings,
+                        mock_engine,
+                        Some(logger.clone()),
+                    )
+                    .unwrap();
+                    let runner = BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger, receiver);
+                    Arc::new(RwLock::new(runner))
+                }
             })
-            .collect();
+            .buffer_unordered(10)
+            .collect()
+            .await;
         info!("Created {} strategy runners", runners.len());
         Ok(Self {
-            period: conf.period.as_range(),
+            stop_tx,
             runners,
-            data_dir: conf.data_dir.clone(),
-            input_format: conf.input_format.clone(),
-            input_sample_rate: conf.input_sample_rate,
             output_dir: output_path,
-            dataset: conf.input_dataset,
+            dataset: Dataset {
+                input_format: conf.input_format.clone(),
+                period: conf.period.as_range(),
+                ds_type: conf.input_dataset,
+                base_dir: conf.data_dir.clone(),
+                input_sample_rate: conf.input_sample_rate,
+            },
         })
     }
 
-    pub async fn run(&self) -> Result<()> {
-        let all_chans = stream::iter(&self.runners)
-            .map(BacktestRunner::channels)
-            .buffer_unordered(10)
-            .collect::<Vec<HashSet<Channel>>>()
-            .await
-            .into_iter()
-            .flatten()
-            .collect();
+    pub async fn run(&mut self) -> Result<()> {
+        let mut broker = UnboundedChannelMessageBroker::new();
+        for runner in &self.runners {
+            let runner = runner.read().await;
+            for channel in runner.channels().await {
+                broker.register(channel, runner.event_sink());
+            }
+        }
 
+        // Start runners
+        let (reports_tx, mut reports_rx) = tokio::sync::mpsc::unbounded_channel();
+        for runner in &self.runners {
+            let reports_tx = reports_tx.clone();
+            let runner = runner.clone();
+            tokio::task::spawn(async move {
+                let mut runner = runner.write().await;
+                let report = runner.run().await;
+                reports_tx.send(report).unwrap();
+            });
+        }
+        // Read input datasets
         let before_read = Instant::now();
-        let live_events = self.read_channels(all_chans).await?;
+        self.dataset.read_channels(broker).await?;
+        self.stop_tx.send(true).unwrap();
         let elapsed = before_read.elapsed();
         info!(
-            "read {} events in {}.{}s",
-            live_events.iter().map(|(_, v)| v.len()).sum::<usize>(),
+            "read all market events in {}.{}s",
+            //live_events.iter().map(|(_, v)| v.len()).sum::<usize>(),
             elapsed.as_secs(),
             elapsed.subsec_millis()
         );
-        let futs = self.runners.iter().map(|r| async {
-            let strat_chans = r.channels().await;
-            let events: Vec<MarketEventEnvelope> = strat_chans
-                .into_iter()
-                .map(|c| live_events.get(&(c.exchange(), c.pair())))
-                .flatten()
-                .cloned()
-                .flatten()
-                .collect();
-            r.run(events.as_slice()).await
-        });
+        //live_events.iter().sorted_by_key(|le| le.e.time().timestamp_millis())
+
         let mut global_report = GlobalReport::new(self.output_dir.clone());
-        let reports: Vec<BacktestReport> = futures::future::join_all(futs).await;
-        for report in reports {
-            global_report.add_report(report)
+        while let Some(report) = reports_rx.recv().await {
+            global_report.add_report(report);
         }
         global_report.write().unwrap();
 
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         Ok(())
-    }
-
-    async fn read_channels(
-        &self,
-        chans: HashSet<Channel>,
-    ) -> Result<HashMap<(Exchange, Pair), Vec<MarketEventEnvelope>>> {
-        let mut live_events = HashMap::new();
-        match self.dataset {
-            Dataset::OrderbooksByMinute | Dataset::OrderbooksBySecond => {
-                let partitions: HashSet<String> = chans
-                    .iter()
-                    .filter(|c| matches!(c, Channel::Orderbooks { .. }))
-                    .map(|c| match c {
-                        Channel::Orderbooks { xch, pair } => {
-                            self.dataset
-                                .partitions(self.data_dir.clone(), self.period.clone(), *xch, pair)
-                        }
-                        _ => HashSet::new(),
-                    })
-                    .flatten()
-                    .collect();
-                let records = sampled_orderbooks_df(partitions, &self.input_format.to_string()).await?;
-                let xch = chans.iter().last().unwrap().exchange();
-                let events = events_from_orderbooks(xch, records.as_slice());
-                live_events.extend(events.into_iter().map(|e| ((xch, e.e.pair()), e)).into_group_map());
-            }
-            Dataset::OrderbooksRaw => {
-                for chan in chans {
-                    if let Channel::Orderbooks { xch, pair } = chan {
-                        let partitions =
-                            self.dataset
-                                .partitions(self.data_dir.clone(), self.period.clone(), xch, &pair);
-                        let events = match self.input_format {
-                            DatasetInputFormat::Csv => {
-                                let records = csv_orderbooks_df(partitions).await?;
-                                events_from_csv_orderbooks(xch, pair.clone(), records.as_slice())
-                            }
-                            _ => {
-                                let records = raw_orderbooks_df(
-                                    partitions,
-                                    self.input_sample_rate,
-                                    false,
-                                    &self.input_format.to_string(),
-                                )
-                                .await?;
-                                events_from_orderbooks(xch, records.as_slice())
-                            }
-                        };
-                        live_events.extend(events.into_iter().map(|e| ((xch, e.e.pair()), e)).into_group_map());
-                    }
-                }
-            }
-            _ => panic!("order books channel requires an order books dataset"),
-        }
-
-        Ok(live_events)
     }
 
     pub async fn gen_report(conf: &BacktestConfig) {

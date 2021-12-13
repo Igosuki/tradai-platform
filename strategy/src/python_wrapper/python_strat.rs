@@ -69,6 +69,7 @@ impl PythonStrat {
 }
 
 struct PythonStratWrapper {
+    #[allow(dead_code)]
     wrapper_key: String,
     #[allow(dead_code)]
     context: Context,

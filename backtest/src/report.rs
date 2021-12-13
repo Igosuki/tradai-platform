@@ -82,7 +82,7 @@ impl GlobalReport {
     pub(crate) fn write(&mut self) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut report_dir = self.output_dir.clone();
         report_dir.push(now_str());
-        for report in self.reports.as_slice() {
+        for report in self.reports.as_slice().iter() {
             report.write_to(report_dir.clone())?;
         }
         self.write_global_report(report_dir.as_path())?;
@@ -185,7 +185,7 @@ pub(crate) struct ReportSnapshot {
     indicators: Option<PortfolioSnapshot>,
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Debug)]
 pub(crate) struct BacktestReport {
     pub(crate) key: String,
     pub(crate) model_failures: u32,

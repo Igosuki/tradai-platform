@@ -121,22 +121,21 @@ where
     Vec<R>: FromIterator<CsvRecord>,
 {
     let get_records = move |pair: String| {
-        dr.clone()
-            .flat_map(|dt| {
-                let date = dt;
-                let buf = base_path
-                    .join(format!("pr={}", pair.clone()))
-                    .join(format!("dt={}", date.format("%Y-%m-%d")));
-                let glob_string = format!("{}{}", buf.to_str().unwrap(), glob_str);
-                trace!("Loading csv records from : {:?}", glob_string);
-                let files = glob::glob(&glob_string).unwrap();
-                if files.count() == 0 {
-                    trace!("no files found !");
-                }
-                let files = glob::glob(&glob_string).unwrap();
-                files.flat_map(|glob_result| load_records(glob_result.unwrap().to_str().unwrap()))
-            })
-            .collect()
+        dr.flat_map(|dt| {
+            let date = dt;
+            let buf = base_path
+                .join(format!("pr={}", pair.clone()))
+                .join(format!("dt={}", date.format("%Y-%m-%d")));
+            let glob_string = format!("{}{}", buf.to_str().unwrap(), glob_str);
+            trace!("Loading csv records from : {:?}", glob_string);
+            let files = glob::glob(&glob_string).unwrap();
+            if files.count() == 0 {
+                trace!("no files found !");
+            }
+            let files = glob::glob(&glob_string).unwrap();
+            files.flat_map(|glob_result| load_records(glob_result.unwrap().to_str().unwrap()))
+        })
+        .collect()
     };
     pairs
         .iter()

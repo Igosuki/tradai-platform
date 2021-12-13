@@ -4,16 +4,15 @@ use std::time::Instant;
 use datafusion::arrow::array::StringArray;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::ExecutionContext;
+use tokio_stream::Stream;
 
 use crate::error::*;
 
 /// Read partitions as sampled order books
-pub async fn sampled_orderbooks_df(partitions: HashSet<String>, format: &str) -> Result<Vec<RecordBatch>> {
+pub fn sampled_orderbooks_df(partitions: HashSet<String>, format: String) -> impl Stream<Item = RecordBatch> + 'static {
     dbg!(&partitions);
-    let mut records = vec![];
-
-    let tasks: Vec<Result<Vec<RecordBatch>>> =
-        futures::future::join_all(partitions.iter().map(|partition| async move {
+    stream! {
+        for partition in partitions {
             let ctx = ExecutionContext::new();
             ctx.clone()
                 .sql(&format!(
@@ -21,14 +20,14 @@ pub async fn sampled_orderbooks_df(partitions: HashSet<String>, format: &str) ->
                     partition = &partition,
                     format = format
                 ))
-                .await?;
+                .await.unwrap();
             let now = Instant::now();
             let df = ctx
                 .clone()
                 .sql("select pr, to_timestamp_millis(event_ms) as event_ms, asks, bids from order_books")
                 .await
                 .unwrap();
-            let collected = df.collect().await.unwrap();
+            let collected = df.execute_stream().await.unwrap();
             let elapsed = now.elapsed();
             info!(
                 "Read records for {} in {}.{}s",
@@ -36,13 +35,11 @@ pub async fn sampled_orderbooks_df(partitions: HashSet<String>, format: &str) ->
                 elapsed.as_secs(),
                 elapsed.subsec_millis()
             );
-            Result::Ok(collected)
-        }))
-        .await;
-    for result in tasks {
-        records.extend_from_slice(result.unwrap().as_slice());
+            for await batch in collected {
+                yield batch.unwrap();
+            }
+        }
     }
-    Ok(records)
 }
 
 /// Find all distinct pairs in the sampled orderbook partitions
