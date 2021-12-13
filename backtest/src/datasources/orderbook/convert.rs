@@ -18,8 +18,8 @@ pub fn events_from_orderbooks(
 ) -> impl Stream<Item = MarketEventEnvelope> + 'static {
     stream! {
         let sa: StructArray = to_struct_array(&record_batch);
-        for column in sa.columns() {
-            eprintln!("sa = {:?}", column.data_type());
+        for (i, column) in sa.columns().iter().enumerate() {
+            trace!("sa[{}] = {:?}", i, column.data_type());
         }
         let asks_col = get_col_as::<ListArray>(&sa, "asks");
         let bids_col = get_col_as::<ListArray>(&sa, "bids");

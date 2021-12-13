@@ -34,6 +34,11 @@ pub use crate::{config::*,
                 dataset::{DatasetInputFormat, DatasetType},
                 error::*};
 use db::{DbEngineOptions, DbOptions, RocksDbOptions};
+// TODO: https://github.com/rust-lang/rust/issues/47384
+#[allow(unused_imports)]
+use strategies::mean_reverting;
+#[allow(unused_imports)]
+use strategies::naive_pair_trading;
 use strategy::coinnect::prelude::*;
 use strategy::plugin::plugin_registry;
 use strategy::prelude::*;
@@ -143,20 +148,25 @@ impl Backtest {
         // Read input datasets
         let before_read = Instant::now();
         self.dataset.read_channels(broker).await?;
-        self.stop_tx.send(true).unwrap();
+        let sent = self.stop_tx.send(true).unwrap();
+        info!("Closed {} runners", sent);
         let elapsed = before_read.elapsed();
         info!(
-            "read all market events in {}.{}s",
-            //live_events.iter().map(|(_, v)| v.len()).sum::<usize>(),
+            "processed all market events in {}.{}s",
             elapsed.as_secs(),
             elapsed.subsec_millis()
         );
-        //live_events.iter().sorted_by_key(|le| le.e.time().timestamp_millis())
 
         let mut global_report = GlobalReport::new(self.output_dir.clone());
-        while let Some(report) = reports_rx.recv().await {
-            global_report.add_report(report);
+        info!("Awaiting {} reports...", sent);
+        while global_report.len() < sent {
+            if let Some(report) = reports_rx.recv().await {
+                global_report.add_report(report);
+            } else {
+                break;
+            }
         }
+        info!("Writing reports...");
         global_report.write().unwrap();
 
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;

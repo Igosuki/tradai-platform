@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fmt::{Debug, Formatter};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
@@ -89,6 +90,8 @@ impl GlobalReport {
         self.symlink_dir(report_dir)?;
         Ok(())
     }
+
+    pub(crate) fn len(&self) -> usize { self.reports.len() }
 
     pub fn write_global_report<P: AsRef<Path>>(
         &mut self,
@@ -185,7 +188,7 @@ pub(crate) struct ReportSnapshot {
     indicators: Option<PortfolioSnapshot>,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug)]
+#[derive(Serialize, Deserialize, Default)]
 pub(crate) struct BacktestReport {
     pub(crate) key: String,
     pub(crate) model_failures: u32,
@@ -194,6 +197,20 @@ pub(crate) struct BacktestReport {
     pub(crate) indicators: TimedVec<PortfolioSnapshot>,
     pub(crate) book_positions: TimedVec<BookPosition>,
     pub(crate) events: TimedVec<StratEvent>,
+}
+
+impl Debug for BacktestReport {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BacktestReport")
+            .field("key", &self.key)
+            .field("model_failures", &self.model_failures)
+            .field("indicator_failures", &self.indicator_failures)
+            .field("indicators[0]", &self.indicators.first())
+            .field("book_positions[0]", &self.book_positions.first())
+            .field("events[0]", &self.events.first())
+            .field("models[0]", &self.models.first())
+            .finish()
+    }
 }
 
 impl BacktestReport {
