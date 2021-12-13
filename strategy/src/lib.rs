@@ -79,6 +79,7 @@ pub mod prelude {
 pub mod actor;
 pub mod driver;
 pub mod error;
+pub mod event;
 mod generic;
 pub mod models;
 pub mod plugin;
@@ -306,6 +307,8 @@ mod test {
         fn resume_trading(&mut self) {}
 
         async fn resolve_orders(&mut self) { todo!() }
+
+        async fn is_locked(&self) -> bool { false }
     }
 
     #[test]
