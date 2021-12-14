@@ -55,7 +55,7 @@ pub struct BacktestConfig {
     pub sql_override: Option<String>,
     #[builder(default, setter(strip_option))]
     pub output_dir: Option<PathBuf>,
-    #[serde(deserialize_with = "util::serde::decode_duration_str")]
+    #[serde(deserialize_with = "util::ser::decode_duration_str")]
     pub input_sample_rate: Duration,
 }
 

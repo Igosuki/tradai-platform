@@ -278,7 +278,7 @@ mod test {
     use strategy::models::io::{IterativeModel, LoadableModel};
     use strategy_test_util::init;
     use strategy_test_util::input;
-    use util::serde::write_as_seq;
+    use util::ser::write_as_seq;
     use util::test::test_results_dir;
 
     use crate::mean_reverting::model::MeanRevertingModel;

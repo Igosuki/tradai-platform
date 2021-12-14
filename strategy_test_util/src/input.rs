@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use coinnect_rt::exchange::Exchange;
 use coinnect_rt::types::{MarketEvent, MarketEventEnvelope, Orderbook, Pair};
-use util::serde::date_time_format;
+use util::ser::date_time_format;
 use util::test::test_data_dir;
 use util::time::{DateRange, DurationRangeType};
 

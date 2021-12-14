@@ -6,20 +6,28 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# std
 chrono = { version = "0.4", features = ["serde"] }
-opentelemetry = { version = "0.15", default-features = false, features = ["trace"] }
-opentelemetry-jaeger = "0.14"
 parse_duration = "2.1"
 rust_decimal = "1.11"
-serde = "1.0"
-serde_json = "1.0"
 tempdir = "0.3"
-tokio = { version = "1", features = ["full"], optional = true }
 byte-unit = "4.0"
+hdrhistogram = "7.4"
 mock_instant = "0.2.1"
 maplit = "1.0"
-hdrhistogram = "7.4"
+
+# serde
+serde = "1.0"
+serde_json = "1.0"
+
+# async
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+futures = "0.3"
+
 # Tracing
+opentelemetry = { version = "0.15", default-features = false, features = ["trace"] }
+opentelemetry-jaeger = "0.14"
 tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
 tracing-flame = "0.1"
 tracing-log = { version = "0.1", features = ["env_logger"] }
@@ -31,4 +39,5 @@ tracing-timing = "0.5"
 mock_time = []
 
 [dev-dependencies]
-
+serde = { version = "1.0", features = ["derive"] }
+async-stream = "0.3"

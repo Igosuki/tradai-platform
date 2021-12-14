@@ -1,5 +1,5 @@
-use ext::ResultExt;
 use std::collections::HashSet;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 use strategy::coinnect::prelude::{MarketEvent, MarketEventEnvelope};
@@ -11,11 +11,10 @@ use strategy::Channel;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::Mutex;
 use tokio::time::Duration;
-use trading::book::BookPosition;
+use trading::types::MarketStat;
 use util::time::set_current_time;
 use util::tracing::{display_hist_percentiles, microtime_histogram, microtime_percentiles};
 
-use crate::error::*;
 use crate::report::VecEventLogger;
 use crate::{BacktestReport, TimedData};
 
@@ -50,12 +49,13 @@ impl BacktestRunner {
 
     pub(crate) fn event_sink(&self) -> UnboundedSender<MarketEventEnvelope> { self.events_sink.clone() }
 
-    pub(crate) async fn run(&mut self) -> BacktestReport {
+    pub(crate) async fn run<P: AsRef<Path>>(&mut self, output_dir: P) -> BacktestReport {
         let key = {
             let strategy = self.strategy.lock().await;
             strategy.key().await
         };
-        let mut report = BacktestReport::new(key.clone());
+        let mut report = BacktestReport::new(output_dir, key.clone());
+        report.start().await.unwrap();
         let mut execution_hist = microtime_histogram();
         'main: loop {
             select! {
@@ -84,24 +84,20 @@ impl BacktestRunner {
                             break 'resolve;
                         }
                     }
-                    if let MarketEvent::Orderbook(ob) = &market_event.e {
-                        let bp_try: Result<BookPosition> = ob.try_into().err_into();
-                        if let Ok(bp) = bp_try {
-                            report.book_positions.push(TimedData::new(market_event.e.time(), bp));
-                        }
+                    if let MarketEvent::Orderbook(_) = &market_event.e {
+                        report.push_market_stat(TimedData::new(market_event.e.time(), MarketStat::from_market_event(&market_event.e)));
                     }
                     match driver.data(DataQuery::Models).await {
                         Ok(DataResult::Models(models)) => report
-                            .models
-                            .push(TimedData::new(market_event.e.time(), models.into_iter().collect())),
+                            .push_model(TimedData::new(market_event.e.time(), models.into_iter().collect())),
                         _ => {
-                            report.model_failures += 1;
+                            report.failures += 1;
                         }
                     }
                     match driver.data(DataQuery::Indicators).await {
-                        Ok(DataResult::Indicators(i)) => report.indicators.push(TimedData::new(market_event.e.time(), i)),
+                        Ok(DataResult::Indicators(i)) => report.push_snapshot(TimedData::new(market_event.e.time(), i)),
                         _ => {
-                            report.indicator_failures += 1;
+                            report.failures += 1;
                         }
                     }
                     execution_hist += start.elapsed().as_nanos() as u64;

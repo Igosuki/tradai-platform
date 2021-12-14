@@ -1,7 +1,10 @@
 // --------- Event Types ---------
 
+use crate::book::BookPosition;
 use crate::signal::ExecutionInstruction;
-use coinnect_rt::types::{AddOrderRequest, AssetType, MarginSideEffect, OrderEnforcement, OrderType, TradeType};
+use chrono::{DateTime, TimeZone, Utc};
+use coinnect_rt::types::{AddOrderRequest, AssetType, MarginSideEffect, MarketEvent, OrderEnforcement, OrderType,
+                         TradeType};
 use uuid::Uuid;
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
@@ -152,6 +155,30 @@ impl Default for OrderConf {
             order_mode: OrderMode::Limit,
             asset_type: AssetType::Spot,
             execution_instruction: None,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MarketStat {
+    /// Timestamp
+    pub ts: DateTime<Utc>,
+    /// Weighted price
+    pub w_price: f64,
+    /// Volume
+    pub vol: f64,
+}
+
+impl MarketStat {
+    pub fn from_market_event(e: &MarketEvent) -> Self {
+        match e {
+            MarketEvent::Trade(_) => unimplemented!(),
+            MarketEvent::Orderbook(o) => MarketStat {
+                ts: Utc.timestamp_millis(o.timestamp),
+                w_price: BookPosition::mid(&o.asks, &o.bids),
+                vol: BookPosition::vol(&o.asks, &o.bids),
+            },
+            MarketEvent::CandleTick(_) => unimplemented!(),
         }
     }
 }

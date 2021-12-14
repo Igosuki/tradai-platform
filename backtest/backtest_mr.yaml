@@ -33,7 +33,7 @@ fees: 0.001
 
 period:
   type: interval
-  from: 2021-10-18
+  from: 2021-11-17
   to: 2021-12-03
 
 input_format: avro
