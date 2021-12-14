@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use coinnect_rt::types::MarketEventEnvelope;
-use util::serde::decode_duration_str;
+use util::ser::decode_duration_str;
 
 use crate::driver::StrategyDriver;
 use crate::query::{DataQuery, ModelReset, Mutation, StateFieldMutation};

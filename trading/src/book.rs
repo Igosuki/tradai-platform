@@ -39,11 +39,18 @@ impl BookPosition {
         }
     }
 
-    fn mid(asks: &[(f64, f64)], bids: &[(f64, f64)]) -> f64 {
+    pub(crate) fn mid(asks: &[(f64, f64)], bids: &[(f64, f64)]) -> f64 {
         let (asks_iter, asks_iter2) = asks.iter().tee();
         let (bids_iter, bids_iter2) = bids.iter().tee();
         (asks_iter.map(|a| a.0 * a.1).sum::<f64>() + bids_iter.map(|b| b.0 * b.1).sum::<f64>())
             / asks_iter2.interleave(bids_iter2).map(|t| t.1).sum::<f64>()
+    }
+
+    pub(crate) fn vol(asks: &[(f64, f64)], bids: &[(f64, f64)]) -> f64 {
+        asks.iter()
+            .map(|v| v.1)
+            .interleave(bids.iter().map(|v| v.1))
+            .sum::<f64>()
     }
 }
 

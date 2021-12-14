@@ -16,7 +16,7 @@ extern crate tokio;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use futures::StreamExt;
 use tokio::sync::broadcast::Sender;
@@ -139,9 +139,10 @@ impl Backtest {
         for runner in &self.runners {
             let reports_tx = reports_tx.clone();
             let runner = runner.clone();
+            let buf = self.output_dir.clone();
             tokio::task::spawn(async move {
                 let mut runner = runner.write().await;
-                let report = runner.run().await;
+                let report = runner.run(buf).await;
                 reports_tx.send(report).unwrap();
             });
         }
@@ -160,14 +161,14 @@ impl Backtest {
         let mut global_report = GlobalReport::new(self.output_dir.clone());
         info!("Awaiting {} reports...", sent);
         while global_report.len() < sent {
-            if let Some(report) = reports_rx.recv().await {
+            if let Ok(Some(report)) = tokio::time::timeout(Duration::from_secs(30), reports_rx.recv()).await {
                 global_report.add_report(report);
             } else {
                 break;
             }
         }
         info!("Writing reports...");
-        global_report.write().unwrap();
+        global_report.write().await.unwrap();
 
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         Ok(())

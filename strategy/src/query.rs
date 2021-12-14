@@ -73,7 +73,7 @@ pub struct ModelReset {
 }
 
 /// Global performance indicators of a strategy
-#[derive(Clone, Default, Debug, Serialize, Deserialize, PartialEq, juniper::GraphQLObject)]
+#[derive(Copy, Clone, Default, Debug, Serialize, Deserialize, PartialEq, juniper::GraphQLObject)]
 pub struct PortfolioSnapshot {
     pub pnl: f64,
     pub current_return: f64,

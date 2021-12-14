@@ -12,7 +12,7 @@ use portfolio::balance::BalanceReporterOptions;
 use portfolio::margin::MarginAccountReporterOptions;
 use strategy::actor::StrategyActorOptions;
 use strategy::prelude::*;
-use util::serde::{decode_duration, decode_duration_str, decode_file_size};
+use util::ser::{decode_duration, decode_duration_str, decode_file_size};
 
 use crate::notify::DiscordNotifierOptions;
 
