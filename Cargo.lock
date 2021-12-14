@@ -6751,8 +6751,10 @@ checksum = "7cf7d77f457ef8dfa11e4cd5933c5ddb5dc52a94664071951219a97710f0a32b"
 name = "util"
 version = "0.1.0"
 dependencies = [
+ "async-stream",
  "byte-unit",
  "chrono",
+ "futures",
  "hdrhistogram",
  "maplit",
  "mock_instant",
@@ -6764,6 +6766,7 @@ dependencies = [
  "serde_json",
  "tempdir",
  "tokio",
+ "tokio-stream",
  "tracing",
  "tracing-flame",
  "tracing-log",

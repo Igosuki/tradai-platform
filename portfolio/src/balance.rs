@@ -103,7 +103,7 @@ impl BalanceReport {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct BalanceReporterOptions {
-    #[serde(deserialize_with = "util::serde::string_duration")]
+    #[serde(deserialize_with = "util::ser::string_duration")]
     pub refresh_rate: Duration,
 }
 
