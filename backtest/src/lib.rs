@@ -110,13 +110,14 @@ impl Backtest {
 
         // Start runners
         let (reports_tx, mut reports_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut global_report = GlobalReport::new(self.output_dir.clone());
         for runner in &self.runners {
             let reports_tx = reports_tx.clone();
             let runner = runner.clone();
-            let buf = self.output_dir.clone();
+            let output_dir = global_report.output_dir.clone();
             tokio::task::spawn(async move {
                 let mut runner = runner.write().await;
-                let report = runner.run(buf).await;
+                let report = runner.run(output_dir).await;
                 reports_tx.send(report).unwrap();
             });
         }
@@ -132,7 +133,6 @@ impl Backtest {
             elapsed.subsec_millis()
         );
 
-        let mut global_report = GlobalReport::new(self.output_dir.clone());
         info!("Awaiting {} reports...", sent);
         while global_report.len() < sent {
             if let Ok(Some(report)) = tokio::time::timeout(Duration::from_secs(30), reports_rx.recv()).await {

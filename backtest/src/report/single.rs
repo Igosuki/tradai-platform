@@ -90,8 +90,7 @@ impl BacktestReport {
     /// Call [`start`] to enable writing data to files
     /// [`start`]: fn@self::BacktestReport::start
     pub fn new<P: AsRef<Path>>(base_output_dir: P, key: String) -> Self {
-        let mut report_dir = base_output_dir.as_ref().to_path_buf();
-        report_dir.push(key.clone());
+        let report_dir = base_output_dir.as_ref().to_path_buf().join(key.clone());
         Self {
             output_dir: report_dir.clone(),
             model_ss: Arc::new(StreamSerializerWriter::new(report_dir.join("models.json"))),
