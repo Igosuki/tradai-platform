@@ -1,13 +1,16 @@
 use std::collections::HashSet;
+use std::fmt::Debug;
+use std::path::Path;
 
+use crate::datafusion_util::where_clause;
 use chrono::Duration;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::ExecutionContext;
 
 use crate::error::*;
 
-pub async fn raw_orderbooks_df(
-    partitions: HashSet<String>,
+pub async fn raw_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
+    partitions: HashSet<(P, Vec<(&'static str, String)>)>,
     sample_rate: Duration,
     order_book_split_cols: bool,
     format: &str,
@@ -19,29 +22,32 @@ pub async fn raw_orderbooks_df(
     } else {
         "asks, bids"
     };
-    let tasks: Vec<Result<Vec<RecordBatch>>> = futures::future::join_all(partitions.iter().map(|partition| {
-        async move {
-            let mut ctx = ExecutionContext::new();
-            ctx.sql(&format!(
-                "CREATE EXTERNAL TABLE order_books STORED AS {format} LOCATION '{partition}';",
-                partition = &partition,
-                format = format
-            ))
-            .await?;
-            //ctx.register_avro("order_books", &partition, AvroReadOptions::default())?;
-            let sql_query = format!(
-                "select to_timestamp_millis(event_ms) as event_ms, {order_book_selector} from
+    let tasks: Vec<Result<Vec<RecordBatch>>> =
+        futures::future::join_all(partitions.iter().map(|(base_path, partition)| {
+            let base_path = base_path.as_ref().to_str().unwrap();
+            async move {
+                let mut ctx = ExecutionContext::new();
+                ctx.sql(&format!(
+                    "CREATE EXTERNAL TABLE order_books STORED AS {format} LOCATION '{base_path}';",
+                    base_path = base_path,
+                    format = format
+                ))
+                .await?;
+                let where_clause = where_clause(&mut partition.iter().map(|p| format!("{}={}", p.0, p.1)));
+                let sql_query = format!(
+                    "select to_timestamp_millis(event_ms) as event_ms, {order_book_selector} from
    (select asks, bids, event_ms, ROW_NUMBER() OVER (PARTITION BY sample_time order by event_ms) as row_num
-    FROM (select asks, bids, event_ms / {sample_rate} as sample_time, event_ms from order_books)) where row_num = 1;",
-                sample_rate = sample_rate.num_milliseconds(),
-                order_book_selector = order_book_selector
-            );
-            let df = ctx.sql(&sql_query).await?;
-            let results: Vec<RecordBatch> = df.collect().await?;
-            Result::Ok(results)
-        }
-    }))
-    .await;
+    FROM (select asks, bids, event_ms / {sample_rate} as sample_time, event_ms from order_books {where_clause})) where row_num = 1;",
+                    sample_rate = sample_rate.num_milliseconds(),
+                    order_book_selector = order_book_selector,
+                    where_clause = where_clause
+                );
+                let df = ctx.sql(&sql_query).await?;
+                let results: Vec<RecordBatch> = df.collect().await?;
+                Result::Ok(results)
+            }
+        }))
+        .await;
     for result in tasks {
         records.extend_from_slice(result.unwrap().as_slice());
     }

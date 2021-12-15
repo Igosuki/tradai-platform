@@ -1,6 +1,7 @@
 #![feature(box_patterns)]
 #![feature(map_try_insert)]
 #![feature(path_try_exists)]
+#![feature(exact_size_is_empty)]
 
 #[macro_use]
 extern crate async_stream;
@@ -14,7 +15,7 @@ extern crate tracing;
 extern crate tokio;
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -42,7 +43,7 @@ use strategies::naive_pair_trading;
 use strategy::coinnect::prelude::*;
 use strategy::plugin::plugin_registry;
 use strategy::prelude::*;
-use trading::engine::mock_engine;
+use trading::engine::{mock_engine, TradingEngine};
 use util::test::test_dir;
 
 mod config;
@@ -77,36 +78,9 @@ impl Backtest {
         let exchanges = vec![Exchange::Binance];
         let mock_engine = Arc::new(mock_engine(db_path.clone(), &exchanges));
         let (stop_tx, _) = tokio::sync::broadcast::channel(1);
+        let db_conf = default_db_conf(db_path);
         let runners: Vec<_> = tokio_stream::iter(all_strategy_settings.into_iter())
-            .map(|settings| {
-                let local_db_path = db_path.clone();
-                let mock_engine = mock_engine.clone();
-                let receiver = stop_tx.subscribe();
-                async move {
-                    let db_conf = DbOptions {
-                        path: local_db_path,
-                        engine: DbEngineOptions::RocksDb(
-                            RocksDbOptions::default()
-                                .max_log_file_size(10 * 1024 * 1024)
-                                .keep_log_file_num(2)
-                                .max_total_wal_size(10 * 1024 * 1024),
-                        ),
-                    };
-
-                    let logger: Arc<VecEventLogger> = Arc::new(VecEventLogger::default());
-                    let plugin = plugin_registry().get(settings.strat.strat_type.as_str()).unwrap();
-                    let strategy_driver = strategy::settings::from_driver_settings(
-                        plugin,
-                        &db_conf,
-                        &settings,
-                        mock_engine,
-                        Some(logger.clone()),
-                    )
-                    .unwrap();
-                    let runner = BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger, receiver);
-                    Arc::new(RwLock::new(runner))
-                }
-            })
+            .map(|s| spawn_runner(stop_tx.clone(), db_conf.clone(), mock_engine.clone(), s))
             .buffer_unordered(10)
             .collect()
             .await;
@@ -208,4 +182,31 @@ async fn init_coinnect(xchs: &[Exchange]) {
         exchange_apis.insert(*xch, api);
     }
     Coinnect::load_pair_registries(Arc::new(exchange_apis)).await.unwrap();
+}
+
+async fn spawn_runner<P: AsRef<Path>>(
+    stop_tx: Sender<bool>,
+    db_conf: DbOptions<P>,
+    engine: Arc<TradingEngine>,
+    settings: StrategyDriverSettings,
+) -> Arc<RwLock<BacktestRunner>> {
+    let receiver = stop_tx.subscribe();
+    let logger: Arc<VecEventLogger> = Arc::new(VecEventLogger::default());
+    let plugin = plugin_registry().get(settings.strat.strat_type.as_str()).unwrap();
+    let strategy_driver =
+        strategy::settings::from_driver_settings(plugin, &db_conf, &settings, engine, Some(logger.clone())).unwrap();
+    let runner = BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger, receiver);
+    Arc::new(RwLock::new(runner))
+}
+
+fn default_db_conf<S: AsRef<Path>>(local_db_path: S) -> DbOptions<S> {
+    DbOptions {
+        path: local_db_path,
+        engine: DbEngineOptions::RocksDb(
+            RocksDbOptions::default()
+                .max_log_file_size(10 * 1024 * 1024)
+                .keep_log_file_num(2)
+                .max_total_wal_size(10 * 1024 * 1024),
+        ),
+    }
 }

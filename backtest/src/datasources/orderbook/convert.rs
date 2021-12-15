@@ -2,7 +2,7 @@ use datafusion::arrow::array::{Array, ListArray, PrimitiveArray, StringArray, St
 use datafusion::arrow::datatypes::Float64Type;
 use datafusion::arrow::record_batch::RecordBatch;
 use futures::Stream;
-
+use std::str::FromStr;
 use strategy::coinnect::prelude::{Exchange, MarketEventEnvelope, Pair};
 
 use crate::datafusion_util::{get_col_as, to_struct_array};
@@ -10,12 +10,10 @@ use crate::datafusion_util::{get_col_as, to_struct_array};
 /// Expects a record batch with the following schema :
 /// asks : List(Tuple(f64))
 /// bids : List(Tuple(f64))
-/// event_ms : TimestampMillisecond
+/// event_ts : TimestampMillisecond
 /// pr : String
-pub fn events_from_orderbooks(
-    xchg: Exchange,
-    record_batch: RecordBatch,
-) -> impl Stream<Item = MarketEventEnvelope> + 'static {
+/// xch : String
+pub fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = MarketEventEnvelope> + 'static {
     stream! {
         let sa: StructArray = to_struct_array(&record_batch);
         for (i, column) in sa.columns().iter().enumerate() {
@@ -25,6 +23,7 @@ pub fn events_from_orderbooks(
         let bids_col = get_col_as::<ListArray>(&sa, "bids");
         let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ts");
         let pair_col = get_col_as::<StringArray>(&sa, "pr");
+        let xch_col = get_col_as::<StringArray>(&sa, "xch");
         for i in 0..sa.len() {
             let mut bids = vec![];
             for bid in bids_col
@@ -60,6 +59,8 @@ pub fn events_from_orderbooks(
             }
             let ts = event_ms_col.value(i);
             let pair = pair_col.value(i);
+            let xch = xch_col.value(i);
+            let xchg = Exchange::from_str(xch).unwrap();
             yield MarketEventEnvelope::order_book_event(
                 xchg,
                 Pair::from(pair),
