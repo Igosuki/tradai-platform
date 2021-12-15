@@ -40,7 +40,7 @@ pub fn sampled_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
                 None,
             )
             .await.unwrap();
-            let where_clause = where_clause(&mut partition.iter().map(|p| format!("{}={}", p.0, p.1)));
+            let where_clause = where_clause(&mut partition.iter());
             let df = ctx
                 .clone()
                 .sql(&format!("select xch, pr, to_timestamp_millis(event_ms) as event_ts, asks, bids from order_books {where_clause} order by event_ms asc", where_clause = &where_clause))

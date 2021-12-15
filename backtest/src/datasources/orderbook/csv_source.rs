@@ -17,7 +17,6 @@ pub async fn csv_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
     partitions: HashSet<(P, Vec<(&'static str, String)>)>,
 ) -> Result<Vec<RecordBatch>> {
     let mut ctx = ExecutionContext::new();
-    dbg!(&partitions);
     let mut records = vec![];
     for (base_path, partition) in partitions {
         ctx.sql(&format!(
@@ -25,7 +24,7 @@ pub async fn csv_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
             base_path = base_path.as_ref().to_str().unwrap()
         ))
         .await?;
-        let where_clause = where_clause(&mut partition.iter().map(|p| format!("{}={}", p.0, p.1)));
+        let where_clause = where_clause(&mut partition.iter());
         let sql_query = format!(
             "select to_timestamp_millis(event_ms) as event_ts, * from order_books {where_clause} order by event_ms asc",
             where_clause = &where_clause

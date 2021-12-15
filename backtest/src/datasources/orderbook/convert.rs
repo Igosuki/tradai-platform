@@ -1,5 +1,6 @@
-use datafusion::arrow::array::{Array, ListArray, PrimitiveArray, StringArray, StructArray, TimestampMillisecondArray};
-use datafusion::arrow::datatypes::Float64Type;
+use datafusion::arrow::array::{Array, DictionaryArray, ListArray, PrimitiveArray, StringArray, StructArray,
+                               TimestampMillisecondArray};
+use datafusion::arrow::datatypes::{Float64Type, UInt8Type};
 use datafusion::arrow::record_batch::RecordBatch;
 use futures::Stream;
 use std::str::FromStr;
@@ -14,16 +15,20 @@ use crate::datafusion_util::{get_col_as, to_struct_array};
 /// pr : String
 /// xch : String
 pub fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = MarketEventEnvelope> + 'static {
+    let sa: StructArray = to_struct_array(&record_batch);
+
     stream! {
-        let sa: StructArray = to_struct_array(&record_batch);
         for (i, column) in sa.columns().iter().enumerate() {
             trace!("sa[{}] = {:?}", i, column.data_type());
         }
+
         let asks_col = get_col_as::<ListArray>(&sa, "asks");
         let bids_col = get_col_as::<ListArray>(&sa, "bids");
         let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ts");
         let pair_col = get_col_as::<StringArray>(&sa, "pr");
-        let xch_col = get_col_as::<StringArray>(&sa, "xch");
+        let xch_col = get_col_as::<DictionaryArray<UInt8Type>>(&sa, "xch");
+        let xch_values = xch_col.values().as_any().downcast_ref::<StringArray>().unwrap();
+
         for i in 0..sa.len() {
             let mut bids = vec![];
             for bid in bids_col
@@ -59,8 +64,11 @@ pub fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = M
             }
             let ts = event_ms_col.value(i);
             let pair = pair_col.value(i);
-            let xch = xch_col.value(i);
-            let xchg = Exchange::from_str(xch).unwrap();
+
+            let k = xch_col.keys().value(i);
+            let xch = xch_values.value(k as usize);
+            let xchg = Exchange::from_str(xch).unwrap_or_else(|_| panic!("wrong xchg {}", xch));
+
             yield MarketEventEnvelope::order_book_event(
                 xchg,
                 Pair::from(pair),
