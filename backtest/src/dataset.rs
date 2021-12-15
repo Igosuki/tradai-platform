@@ -26,10 +26,8 @@ impl Dataset {
         &self,
         broker: UnboundedChannelMessageBroker<Channel, MarketEventEnvelope>,
     ) -> Result<()> {
-        // TODO: get exchange from partition path once datafusion supports it
-        let xch = broker.subjects().last().unwrap().exchange();
         for dt in self.period {
-            let orderbook_partitions: HashSet<String> = broker
+            let orderbook_partitions: HashSet<(PathBuf, Vec<(&'static str, String)>)> = broker
                 .subjects()
                 .filter(|c| matches!(c, Channel::Orderbooks { .. }))
                 .map(|c| match c {
@@ -40,31 +38,34 @@ impl Dataset {
                 })
                 .flatten()
                 .collect();
-            let event_stream = match self.ds_type {
+            match self.ds_type {
                 DatasetType::OrderbooksByMinute | DatasetType::OrderbooksBySecond => {
                     let input_format = self.input_format.to_string();
-                    let record_batches = sampled_orderbooks_df(orderbook_partitions, input_format);
-                    record_batches.map(|rb| events_from_orderbooks(xch, rb)).flatten()
+                    let event_stream = sampled_orderbooks_df(orderbook_partitions, input_format)
+                        .map(events_from_orderbooks)
+                        .flatten();
+                    event_stream.for_each(|event| async { broker.broadcast(event) }).await;
                 }
-                // DatasetType::OrderbooksRaw => match self.input_format {
-                //     DatasetInputFormat::Csv => {
-                //         let records = csv_orderbooks_df(orderbook_partitions).await?;
-                //         events_from_csv_orderbooks(*xch, pair.clone(), records.as_slice())
-                //     }
-                //     _ => {
-                //         let records = raw_orderbooks_df(
-                //             partitions,
-                //             self.input_sample_rate,
-                //             false,
-                //             &self.input_format.to_string(),
-                //         )
-                //         .await?;
-                //         events_from_orderbooks(*xch, records.as_slice())
-                //     }
-                // },
+                DatasetType::OrderbooksRaw => match self.input_format {
+                    DatasetInputFormat::Csv => {
+                        let records = csv_orderbooks_df(orderbook_partitions).await?;
+                        let event_stream = tokio_stream::iter(records).map(events_from_csv_orderbooks).flatten();
+                        event_stream.for_each(|event| async { broker.broadcast(event) }).await;
+                    }
+                    _ => {
+                        let records = raw_orderbooks_df(
+                            orderbook_partitions,
+                            self.input_sample_rate,
+                            false,
+                            &self.input_format.to_string(),
+                        )
+                        .await?;
+                        let event_stream = tokio_stream::iter(records).map(events_from_orderbooks).flatten();
+                        event_stream.for_each(|event| async { broker.broadcast(event) }).await;
+                    }
+                },
                 _ => panic!("order books channel requires an order books dataset"),
             };
-            event_stream.for_each(|event| async { broker.broadcast(event) }).await;
         }
         Ok(())
     }
@@ -80,38 +81,51 @@ pub enum DatasetType {
 }
 
 impl DatasetType {
-    pub(crate) fn partition(&self, base_dir: PathBuf, date: Date<Utc>, xch: Exchange, pair: &Pair) -> String {
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `base_dir`: a base directory
+    /// * `date`: a date
+    /// * `xch`: an exchange
+    /// * `pair`: a market pair
+    ///
+    /// returns: (String, Vec<(String, String), Global>) the base directory and partitions
+    ///
+    /// # Examples
+    ///
+    /// ```
+    ///
+    /// ```
+    pub(crate) fn partition(
+        &self,
+        base_dir: PathBuf,
+        date: Date<Utc>,
+        xch: Exchange,
+        pair: &Pair,
+    ) -> (PathBuf, Vec<(&'static str, String)>) {
         let ts = date.and_hms_milli(0, 0, 0, 0).timestamp_millis();
-        let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d");
-        let sub_partition = match self {
-            DatasetType::OrderbooksByMinute => vec![
-                format!("xch={}", xch),
-                format!("chan={}", "1mn_order_books"),
-                format!("dt={}", dt_par),
-            ],
-            DatasetType::OrderbooksBySecond => vec![
-                format!("xch={}", xch),
-                format!("chan={}", "1s_order_books"),
-                format!("dt={}", dt_par),
-            ],
-            DatasetType::OrderbooksRaw => vec![
-                xch.to_string(),
-                "order_books".to_string(),
-                format!("pr={}", pair),
-                format!("dt={}", dt_par),
-            ],
-            DatasetType::Trades => vec![
-                xch.to_string(),
-                "trades".to_string(),
-                format!("pr={}", pair),
-                format!("dt={}", dt_par),
-            ],
-        };
-        let mut partition_file = base_dir;
-        for part in sub_partition {
-            partition_file.push(part);
+        let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d").to_string();
+        match self {
+            DatasetType::OrderbooksByMinute => (base_dir, vec![
+                ("xch", xch.to_string()),
+                ("chan", "1mn_order_books".to_string()),
+                ("dt", dt_par),
+            ]),
+            DatasetType::OrderbooksBySecond => (base_dir, vec![
+                ("xch", xch.to_string()),
+                ("chan", "1s_order_books".to_string()),
+                ("dt", dt_par),
+            ]),
+            DatasetType::OrderbooksRaw => (base_dir.join(xch.to_string()).join("order_books"), vec![
+                ("pr", pair.to_string()),
+                ("dt", dt_par),
+            ]),
+            DatasetType::Trades => (base_dir.join(xch.to_string()).join("trades"), vec![
+                ("pr", pair.to_string()),
+                ("dt", dt_par),
+            ]),
         }
-        partition_file.as_path().to_string_lossy().to_string()
     }
 }
 
