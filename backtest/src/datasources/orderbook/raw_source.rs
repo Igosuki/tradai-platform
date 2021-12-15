@@ -15,7 +15,7 @@ pub async fn raw_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
     order_book_split_cols: bool,
     format: &str,
 ) -> Result<Vec<RecordBatch>> {
-    dbg!(&partitions);
+    debug!("{:?}", &partitions);
     let mut records = vec![];
     let order_book_selector = if order_book_split_cols {
         "asks[0][0] as a1, asks[0][1] as aq1, asks[1][0] as a2, asks[1][1] as aq2, asks[2][0] as a3, asks[2][1] as aq3, asks[3][0] as a4, asks[3][1] as aq4, asks[4][0] as a5, asks[4][1] as aq5, bids[0][0] as b1, bids[0][1] as bq1, bids[1][0] as b2, bids[1][1] as bq2, bids[2][0] as b3, bids[2][1] as bq3, bids[3][0] as b4, bids[3][1] as bq4, bids[4][0] as b5, bids[4][1] as bq5"
