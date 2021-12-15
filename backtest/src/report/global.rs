@@ -10,28 +10,29 @@ use strategy::query::PortfolioSnapshot;
 use util::time::now_str;
 
 pub(crate) struct GlobalReport {
-    reports: Vec<BacktestReport>,
-    output_dir: PathBuf,
+    pub reports: Vec<BacktestReport>,
+    pub output_dir: PathBuf,
+    pub base_dir: PathBuf,
 }
 
 impl GlobalReport {
     pub(crate) fn new(output_dir: PathBuf) -> Self {
         Self {
             reports: vec![],
-            output_dir,
+            base_dir: output_dir.clone(),
+            output_dir: output_dir.join(now_str()),
         }
     }
 
     pub(crate) fn add_report(&mut self, report: BacktestReport) { self.reports.push(report); }
 
     pub(crate) async fn write(&mut self) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let mut report_dir = self.output_dir.clone();
-        report_dir.push(now_str());
+        let output_dir = self.output_dir.clone();
         for report in self.reports.as_slice().iter() {
-            report.write_to(report_dir.clone()).await?;
+            report.write_to(output_dir.clone()).await?;
         }
-        self.write_global_report(report_dir.as_path())?;
-        self.symlink_dir(report_dir)?;
+        self.write_global_report(output_dir.clone())?;
+        self.symlink_dir(output_dir.clone())?;
         Ok(())
     }
 
@@ -53,7 +54,7 @@ impl GlobalReport {
 
     fn symlink_dir(&mut self, report_dir: PathBuf) -> std::result::Result<(), Box<dyn std::error::Error>> {
         if cfg!(unix) {
-            let mut ln_dir = self.output_dir.clone();
+            let mut ln_dir = self.base_dir.clone();
             ln_dir.push("latest");
             let path = std::env::current_dir()?.join(report_dir);
             if let Ok(true) = std::fs::try_exists(ln_dir.clone()) {
