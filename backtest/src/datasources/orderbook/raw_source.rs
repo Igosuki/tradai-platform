@@ -33,7 +33,7 @@ pub async fn raw_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
                     format = format
                 ))
                 .await?;
-                let where_clause = where_clause(&mut partition.iter().map(|p| format!("{}={}", p.0, p.1)));
+                let where_clause = where_clause(&mut partition.iter());
                 let sql_query = format!(
                     "select to_timestamp_millis(event_ms) as event_ms, {order_book_selector} from
    (select asks, bids, event_ms, ROW_NUMBER() OVER (PARTITION BY sample_time order by event_ms) as row_num

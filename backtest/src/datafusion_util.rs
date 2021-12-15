@@ -9,7 +9,11 @@ use itertools::Itertools;
 use std::sync::Arc;
 
 pub fn get_col_as<'a, T: 'static>(sa: &'a StructArray, name: &str) -> &'a T {
-    sa.column_by_name(name).unwrap().as_any().downcast_ref::<T>().unwrap()
+    sa.column_by_name(name)
+        .unwrap()
+        .as_any()
+        .downcast_ref::<T>()
+        .unwrap_or_else(|| panic!("column {}", name))
 }
 
 pub fn to_struct_array(batch: &RecordBatch) -> StructArray {
@@ -32,13 +36,15 @@ pub fn df_format(format: String) -> (&'static str, Arc<dyn FileFormat>) {
     }
 }
 
-pub fn where_clause<S: std::fmt::Display, I: Iterator<Item = S>>(iter: &mut I) -> String
+pub fn where_clause<'a, K: 'a + std::fmt::Display, V: 'a + std::fmt::Display, I: Iterator<Item = &'a (K, V)>>(
+    iter: &mut I,
+) -> String
 where
     I: std::iter::ExactSizeIterator,
 {
     if iter.is_empty() {
         String::new()
     } else {
-        "where ".to_string() + iter.join(" and ").as_str()
+        "where ".to_string() + iter.map(|s| format!("{}='{}'", s.0, s.1)).join(" and ").as_str()
     }
 }
