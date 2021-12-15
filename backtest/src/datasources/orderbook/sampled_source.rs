@@ -17,7 +17,7 @@ pub fn sampled_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
     partitions: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
 ) -> impl Stream<Item = RecordBatch> + 'static {
-    dbg!(&partitions);
+    debug!("{:?}", &partitions);
     let s = partitions.into_iter().map(move |(base_path, partition)| {
         let format = format.clone();
         let base_path = base_path.as_ref().to_str().unwrap_or("").to_string();
@@ -70,7 +70,7 @@ pub async fn sampled_orderbooks_pairs(
     pair: Option<String>,
     format: &str,
 ) -> Result<Vec<String>> {
-    dbg!(&partitions);
+    debug!("{:?}", &partitions);
     let mut records = vec![];
 
     let tasks: Vec<Result<Vec<String>>> = futures::future::join_all(partitions.iter().map(|partition| {
@@ -148,8 +148,7 @@ mod test {
             .clone()
             .sql("select xch, pr, to_timestamp_millis(event_ms) as event_ts, asks, bids from order_books where dt='20211129' and xch='Binance' and chan='1mn_order_books' order by event_ts asc LIMIT 100")
             .await?;
-        let batch = df2.collect().await?;
-        dbg!(batch);
+        df2.collect().await?;
         Ok(())
     }
 }
