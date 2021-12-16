@@ -66,7 +66,7 @@ where
     }
     if opts.telemetry {
         let telemetry = &settings_r.telemetry;
-        util::tracing::setup_opentelemetry(
+        util::trace::setup_opentelemetry(
             telemetry.agents.clone(),
             telemetry.service_name.clone(),
             telemetry.tags.clone(),

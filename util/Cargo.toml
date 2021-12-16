@@ -17,15 +17,16 @@ mock_instant = "0.2.1"
 maplit = "1.0"
 
 # serde
-serde = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # async
 tokio = { version = "1", features = ["full"] }
-tokio-stream = "0.1"
+tokio-stream = { version = "0.1", features = ["sync", "fs", "net", "io-util", "tokio-util", "signal", "time"] }
 futures = "0.3"
 
-# Tracing
+# Tracing / Logging
+pretty_env_logger = "0.4"
 opentelemetry = { version = "0.15", default-features = false, features = ["trace"] }
 opentelemetry-jaeger = "0.14"
 tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
@@ -39,5 +40,4 @@ tracing-timing = "0.5"
 mock_time = []
 
 [dev-dependencies]
-serde = { version = "1.0", features = ["derive"] }
 async-stream = "0.3"

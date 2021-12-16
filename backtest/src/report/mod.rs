@@ -1,65 +1,19 @@
-use chrono::{DateTime, Utc};
-use std::fmt::Debug;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
-use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use plotly::{Plot, Scatter};
 use serde::de::DeserializeOwned;
-use tokio::sync::Mutex;
-
-use strategy::types::StratEvent;
-use strategy::StratEventLogger;
-use util::time::now;
-
-mod global;
-mod single;
 
 pub(crate) use global::GlobalReport;
+pub(crate) use logger::StreamWriterLogger;
 pub(crate) use single::BacktestReport;
+use util::time::TimedData;
 
-pub type TimedVec<T> = Vec<TimedData<T>>;
-
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct TimedData<T> {
-    ts: DateTime<Utc>,
-    #[serde(flatten)]
-    pub(crate) value: T,
-}
-
-impl<T> TimedData<T> {
-    pub fn new(ts: DateTime<Utc>, value: T) -> Self { Self { ts, value } }
-}
-
-#[derive(Clone, Debug)]
-pub struct VecEventLogger {
-    events: Arc<Mutex<TimedVec<StratEvent>>>,
-}
-
-impl Default for VecEventLogger {
-    fn default() -> Self {
-        Self {
-            events: Arc::new(Mutex::new(vec![])),
-        }
-    }
-}
-impl VecEventLogger {
-    pub async fn get_events(&self) -> TimedVec<StratEvent> {
-        let read = self.events.lock().await;
-        read.clone()
-    }
-}
-
-#[async_trait]
-impl StratEventLogger for VecEventLogger {
-    async fn maybe_log(&self, event: Option<StratEvent>) {
-        if let Some(e) = event {
-            let mut write = self.events.lock().await;
-            write.push(TimedData::new(now(), e));
-        }
-    }
-}
+mod global;
+mod logger;
+mod single;
 
 pub type StrategyEntry<'a, T> = (&'a str, Vec<fn(&T) -> f64>);
 

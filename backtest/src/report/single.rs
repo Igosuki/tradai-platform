@@ -6,15 +6,17 @@ use std::sync::Arc;
 use itertools::Itertools;
 use plotly::layout::{GridPattern, LayoutGrid};
 use plotly::{Layout, Plot};
+use tokio::sync::mpsc::UnboundedSender;
 
-use super::TimedData;
-use super::TimedVec;
-use crate::error::Result;
 use stats::Next;
 use strategy::query::PortfolioSnapshot;
 use strategy::types::StratEvent;
 use trading::types::MarketStat;
 use util::ser::{write_as_seq, StreamSerializerWriter};
+
+use crate::error::Result;
+
+use super::TimedData;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct BacktestReportMiscStats {
@@ -69,7 +71,7 @@ pub(crate) struct BacktestReport {
     #[serde(skip)]
     pub(crate) market_stats_ss: Arc<StreamSerializerWriter<TimedData<MarketStat>>>,
     #[serde(skip)]
-    pub(crate) events: TimedVec<StratEvent>,
+    pub(crate) events_ss: Arc<StreamSerializerWriter<TimedData<StratEvent>>>,
     pub(crate) execution_hist: HashMap<String, f64>,
     pub(crate) last_ptf_snapshot: Option<TimedData<PortfolioSnapshot>>,
     pub(crate) misc_stats: BacktestReportMiscStats,
@@ -80,10 +82,16 @@ impl Debug for BacktestReport {
         f.debug_struct("BacktestReport")
             .field("key", &self.key)
             .field("output_dir", &self.output_dir)
-            .field("events[0]", &self.events.first())
             .finish()
     }
 }
+
+const MODEL_FILE: &str = "models.json";
+const SNAPSHOTS_FILE: &str = "snapshots.json";
+const MARKET_STATS_FILE: &str = "market_stats.json";
+const STRAT_EVENTS_FILE: &str = "strat_events.json";
+const REPORT_FILE: &str = "report.json";
+const REPORT_HTML_FILE: &str = "report.html";
 
 impl BacktestReport {
     /// Create a new backtest report
@@ -93,12 +101,12 @@ impl BacktestReport {
         let report_dir = base_output_dir.as_ref().to_path_buf().join(key.clone());
         Self {
             output_dir: report_dir.clone(),
-            model_ss: Arc::new(StreamSerializerWriter::new(report_dir.join("models.json"))),
-            snapshots_ss: Arc::new(StreamSerializerWriter::new(report_dir.join("snapshots.json"))),
-            market_stats_ss: Arc::new(StreamSerializerWriter::new(report_dir.join("market_stats.json"))),
+            model_ss: Arc::new(StreamSerializerWriter::new(report_dir.join(MODEL_FILE))),
+            snapshots_ss: Arc::new(StreamSerializerWriter::new(report_dir.join(SNAPSHOTS_FILE))),
+            market_stats_ss: Arc::new(StreamSerializerWriter::new(report_dir.join(MARKET_STATS_FILE))),
+            events_ss: Arc::new(StreamSerializerWriter::new(report_dir.join(STRAT_EVENTS_FILE))),
             misc_stats: BacktestReportMiscStats::default(),
             key,
-            events: Default::default(),
             failures: Default::default(),
             execution_hist: Default::default(),
             last_ptf_snapshot: None,
@@ -119,6 +127,12 @@ impl BacktestReport {
     /// Push a market stat to the report
     pub fn push_market_stat(&self, v: TimedData<MarketStat>) { self.market_stats_ss.push(v); }
 
+    /// Push a strat event to the report
+    pub fn push_strat_event(&self, v: TimedData<StratEvent>) { self.events_ss.push(v); }
+
+    /// Get a strat event sink to forward to
+    pub fn strat_event_sink(&self) -> UnboundedSender<TimedData<StratEvent>> { self.events_ss.sink() }
+
     /// Start writing received data to files in a streaming manner
     pub async fn start(&self) -> Result<()> {
         std::fs::create_dir_all(self.output_dir.clone())?;
@@ -135,13 +149,12 @@ impl BacktestReport {
     pub async fn write_to<P: AsRef<Path>>(&self, output_dir: P) -> Result<()> {
         let report_dir = output_dir.as_ref().to_path_buf().join(self.key.clone());
         std::fs::create_dir_all(report_dir.clone())?;
-        let file = report_dir.join("report.json");
+        let file = report_dir.join(REPORT_FILE);
         write_as_seq(file, vec![self].as_slice());
-        let file = report_dir.join("strat_events.json");
-        write_as_seq(file, self.events.as_slice());
         self.model_ss.close().await;
         self.snapshots_ss.close().await;
         self.market_stats_ss.close().await;
+        self.events_ss.close().await;
         self.write_html_report(report_dir).unwrap();
         Ok(())
     }
@@ -150,16 +163,15 @@ impl BacktestReport {
         &self,
         output_dir: P,
     ) -> std::result::Result<String, Box<dyn std::error::Error>> {
-        let out_file = format!("{}/report.html", output_dir.as_ref().to_str().unwrap());
+        let out_file = format!("{}/{}", output_dir.as_ref().to_str().unwrap(), REPORT_HTML_FILE);
         let mut plot = Plot::new();
         let models: Vec<TimedData<BTreeMap<String, Option<serde_json::Value>>>> =
-            super::read_json_file(output_dir.as_ref(), "models.json");
+            super::read_json_file(output_dir.as_ref(), MODEL_FILE);
         super::draw_entries(&mut plot, 0, models.as_slice(), vec![("apo", vec![|m| {
             m.get("apo").unwrap().as_ref().unwrap().as_f64().unwrap()
         }])]);
         drop(models);
-        let indicators: Vec<TimedData<PortfolioSnapshot>> =
-            super::read_json_file(output_dir.as_ref(), "snapshots.json");
+        let indicators: Vec<TimedData<PortfolioSnapshot>> = super::read_json_file(output_dir.as_ref(), SNAPSHOTS_FILE);
         super::draw_entries(&mut plot, 2, indicators.as_slice(), vec![
             ("pnl", vec![|i| i.pnl]),
             ("value", vec![|i| i.value]),

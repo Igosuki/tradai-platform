@@ -1,13 +1,14 @@
-use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, WrapFuture};
-use actix_derive::{Message, MessageResponse};
-use async_trait::async_trait;
-use futures::FutureExt;
-use itertools::Itertools;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
+
+use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, WrapFuture};
+use actix_derive::{Message, MessageResponse};
+use async_trait::async_trait;
+use futures::FutureExt;
+use itertools::Itertools;
 use strum_macros::AsRefStr;
 use tokio::sync::RwLock;
 
@@ -17,12 +18,12 @@ use coinnect_rt::prelude::*;
 use coinnect_rt::types::{Order, OrderStatus, OrderUpdate};
 use db::{get_or_create, DbOptions};
 use ext::ResultExt;
-
-use self::error::{Error, Result};
-use crate::order_manager::repo::{OrderRepository, ORDERS_TABLE};
-use crate::types::TradeOperation;
 use wal::{Wal, WalCmp};
 
+use crate::order_manager::repo::{OrderRepository, ORDERS_TABLE};
+use crate::types::TradeOperation;
+
+use self::error::{Error, Result};
 use self::types::{OrderDetail, OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
 
 pub mod error;
@@ -86,7 +87,6 @@ impl OrderManagerClient {
 
 #[async_trait]
 impl OrderExecutor for OrderManagerClient {
-    #[tracing::instrument(skip(self), level = "debug")]
     async fn stage_order(&self, staged_order: StagedOrder) -> Result<OrderDetail> {
         self.om
             .send(staged_order)

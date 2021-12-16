@@ -58,9 +58,8 @@ avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "master_mer
 
 # Async
 futures = { version = "0.3", features = ["thread-pool"] }
-futures-util = "0.3"
 tokio = { version = "1", features = ["full", "time"] }
-tokio-stream = "0.1"
+tokio-stream = { version = "0.1", features = ["sync", "fs", "net", "io-util", "tokio-util", "signal", "time"] }
 
 # Std
 byte-unit = "4.0"

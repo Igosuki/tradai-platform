@@ -13,7 +13,7 @@ use trading::engine::TradingEngine;
 use crate::driver::StrategyDriver;
 use crate::generic::GenericDriverOptions;
 use crate::plugin::{gather_plugins, plugin_registry, StrategyPlugin, StrategyPluginContext};
-use crate::{error::Result, Error, StratEventLogger, StrategyKey};
+use crate::{error::Result, Error, StratEventLoggerRef, StrategyKey};
 
 /// Strategy configuration
 #[derive(Clone, Debug, Deserialize)]
@@ -113,7 +113,7 @@ pub fn from_driver_settings<S: AsRef<Path>>(
     db_opts: &DbOptions<S>,
     s: &StrategyDriverSettings,
     engine: Arc<TradingEngine>,
-    logger: Option<Arc<dyn StratEventLogger>>,
+    logger: Option<StratEventLoggerRef>,
 ) -> Result<Box<dyn StrategyDriver>> {
     let key = plugin.options(s.strat.options.clone())?.key();
     let strat_key = key.to_string();
