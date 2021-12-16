@@ -6,7 +6,7 @@ use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use parse_duration::parse;
 use typed_builder::TypedBuilder;
 
-use db::{DbEngineOptions, DbOptions};
+use db::DbEngineOptions;
 use strategy::settings::StrategyCopySettings;
 use strategy::settings::StrategyDriverSettings;
 use util::test::test_dir;

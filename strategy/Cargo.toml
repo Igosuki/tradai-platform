@@ -124,4 +124,4 @@ wiremock = "0.5"
 socket2 = "0.4"
 
 # Async
-tokio-stream = "0.1"
+tokio-stream = { version = "0.1", features = ["sync", "fs", "net", "io-util", "tokio-util", "signal", "time"] }

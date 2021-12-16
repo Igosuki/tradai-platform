@@ -3,26 +3,27 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
-use tokio::sync::mpsc::{channel, unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::Mutex;
 use tokio::time::Duration;
+use tokio_stream::StreamExt;
 
 use strategy::coinnect::prelude::{MarketEvent, MarketEventEnvelope};
 use strategy::driver::StrategyDriver;
-use strategy::event::trades_history;
+use strategy::event::{close_events, open_events};
 use strategy::query::{DataQuery, DataResult};
-use strategy::types::StratEvent;
+use strategy::types::{OperationEvent, StratEvent, TradeEvent};
 use strategy::Channel;
 use trading::types::MarketStat;
-use util::time::set_current_time;
-use util::tracing::{display_hist_percentiles, microtime_histogram, microtime_percentiles};
+use util::time::{set_current_time, TimedData};
+use util::trace::{display_hist_percentiles, microtime_histogram, microtime_percentiles};
 
-use crate::report::VecEventLogger;
-use crate::{BacktestReport, TimedData};
+use crate::report::StreamWriterLogger;
+use crate::BacktestReport;
 
 pub(crate) struct BacktestRunner {
     strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
-    strategy_events_logger: Arc<VecEventLogger>,
+    strategy_events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
     events_stream: Receiver<MarketEventEnvelope>,
     events_sink: Sender<MarketEventEnvelope>,
     close_sink: tokio::sync::broadcast::Receiver<bool>,
@@ -31,7 +32,7 @@ pub(crate) struct BacktestRunner {
 impl BacktestRunner {
     pub fn new(
         strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
-        strategy_events_logger: Arc<VecEventLogger>,
+        strategy_events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
         close_sink: tokio::sync::broadcast::Receiver<bool>,
     ) -> Self {
         let (events_sink, events_stream) = channel::<MarketEventEnvelope>(10);
@@ -56,9 +57,24 @@ impl BacktestRunner {
             let strategy = self.strategy.lock().await;
             strategy.key().await
         };
+
+        // Start report
         let mut report = BacktestReport::new(output_dir, key.clone());
         report.start().await.unwrap();
         let mut execution_hist = microtime_histogram();
+
+        // Subscribe report to events
+        let mut sub = self.strategy_events_logger.subscription();
+        let events_sink = report.strat_event_sink();
+        tokio::spawn(async move {
+            while let Some(Ok(e)) = sub.next().await {
+                for event in simplify_pos_events(e) {
+                    events_sink.send(event).unwrap();
+                }
+            }
+        });
+        // Main loop
+        let mut driver = self.strategy.lock().await;
         'main: loop {
             select! {
                 biased;
@@ -70,7 +86,6 @@ impl BacktestRunner {
                     let start = Instant::now();
                     let market_event = market_event.unwrap();
                     set_current_time(market_event.e.time());
-                    let mut driver = self.strategy.lock().await;
                     driver.add_event(&market_event).await.unwrap();
                     // If there is an ongoing operation, resolve orders
                     let mut tries = 0;
@@ -117,21 +132,21 @@ impl BacktestRunner {
             display_hist_percentiles(&execution_hist)
         );
         report.execution_hist = microtime_percentiles(&execution_hist);
-        let mut read = self.strategy_events_logger.get_events().await;
-        let mut driver = self.strategy.lock().await;
-        if let Ok(DataResult::PositionHistory(history)) = driver.data(DataQuery::PositionHistory).await {
-            let events = trades_history(&history)
-                .into_iter()
-                .map(|(op, trade)| {
-                    vec![
-                        TimedData::new(op.at, StratEvent::Operation(op)),
-                        TimedData::new(trade.at, StratEvent::Trade(trade)),
-                    ]
-                })
-                .flatten();
-            read.extend(events);
-        }
-        report.events = read;
         report
     }
+}
+
+fn simplify_pos_events(event: TimedData<StratEvent>) -> Vec<TimedData<StratEvent>> {
+    match event.value {
+        StratEvent::OpenPosition(pos) => open_events(&pos).map(op_and_trade_to_strat).unwrap_or_default(),
+        StratEvent::ClosePosition(pos) => close_events(&pos).map(op_and_trade_to_strat).unwrap_or_default(),
+        _ => vec![event],
+    }
+}
+
+fn op_and_trade_to_strat((op, trade): (OperationEvent, TradeEvent)) -> Vec<TimedData<StratEvent>> {
+    vec![
+        TimedData::new(op.at, StratEvent::Operation(op)),
+        TimedData::new(trade.at, StratEvent::Trade(trade)),
+    ]
 }

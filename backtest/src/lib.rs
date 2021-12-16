@@ -34,6 +34,7 @@ use strategy::plugin::plugin_registry;
 use strategy::prelude::*;
 use trading::engine::{mock_engine, TradingEngine};
 use util::test::test_dir;
+use util::time::TimedData;
 
 use crate::coinnect::broker::{Broker, ChannelMessageBroker};
 use crate::dataset::Dataset;
@@ -41,7 +42,7 @@ use crate::datasources::orderbook::convert::events_from_orderbooks;
 use crate::datasources::orderbook::csv_source::{csv_orderbooks_df, events_from_csv_orderbooks};
 use crate::datasources::orderbook::raw_source::raw_orderbooks_df;
 use crate::datasources::orderbook::sampled_source::sampled_orderbooks_df;
-use crate::report::{BacktestReport, GlobalReport, TimedData, VecEventLogger};
+use crate::report::{BacktestReport, GlobalReport, StreamWriterLogger};
 use crate::runner::BacktestRunner;
 pub use crate::{config::*,
                 dataset::{DatasetInputFormat, DatasetType},
@@ -196,7 +197,7 @@ async fn spawn_runner<P: AsRef<Path>>(
     settings: StrategyDriverSettings,
 ) -> Arc<RwLock<BacktestRunner>> {
     let receiver = stop_tx.subscribe();
-    let logger: Arc<VecEventLogger> = Arc::new(VecEventLogger::default());
+    let logger: Arc<StreamWriterLogger<TimedData<StratEvent>>> = Arc::new(StreamWriterLogger::default());
     let plugin = plugin_registry().get(settings.strat.strat_type.as_str()).unwrap();
     let strategy_driver =
         strategy::settings::from_driver_settings(plugin, &db_conf, &settings, engine, Some(logger.clone())).unwrap();

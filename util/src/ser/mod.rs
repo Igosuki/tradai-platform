@@ -126,6 +126,9 @@ impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
     /// Push a new value to be serialized and written
     pub fn push(&self, value: T) { self.sink.send(value).unwrap(); }
 
+    /// Get the sink
+    pub fn sink(&self) -> UnboundedSender<T> { self.sink.clone() }
+
     /// Ask the stream to finish and close the serializer, this will wait until the serializer has finished writing
     pub async fn close(&self) {
         self.finish_tx.send(true).await.unwrap();
@@ -145,9 +148,9 @@ impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
                 biased;
                 next = lock.next() => {
                     if let Some(value) = next {
-                        tokio::task::block_in_place(|| async {
-                            seq.serialize_element(&value).unwrap();
-                        }).await;
+                        tokio::task::block_in_place(|| {
+                            seq.serialize_element(&value).unwrap()
+                        });
                     } else {
                         break 'stream;
                     }
@@ -189,7 +192,14 @@ mod test {
                 yield TestData { i }
             }
         };
-        stream.map(|td| serializer.push(td)).collect::<Vec<_>>().await;
+        stream
+            .map(|td| {
+                serializer.push(td);
+                Ok(())
+            })
+            .forward(futures::sink::drain())
+            .await
+            .unwrap();
         serializer.close().await;
         let file = std::fs::File::open(&file).unwrap();
         let values: Vec<TestData> = serde_json::from_reader(BufReader::new(file)).unwrap();

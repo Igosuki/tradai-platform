@@ -16,15 +16,15 @@ use strategy::error::*;
 use strategy::plugin::{provide_options, StrategyPlugin};
 use strategy::prelude::*;
 use strategy::types::StratEvent;
-use strategy::Portfolio;
-use strategy::{Channel, StratEventLogger};
+use strategy::Channel;
+use strategy::{Portfolio, StratEventLoggerRef};
 use trading::book::BookPosition;
 use trading::engine::TradingEngine;
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};
 use trading::stop::Stopper;
 use trading::types::OrderConf;
-use util::time::now;
+use util::time::{now, TimedData};
 
 use self::covar_model::{DualBookPosition, LinearModelValue, LinearSpreadModel};
 use self::metrics::NaiveStrategyMetrics;
@@ -59,7 +59,7 @@ pub struct NaiveTradingStrategy {
     #[allow(dead_code)]
     engine: Arc<TradingEngine>,
     stopper: Stopper<f64>,
-    logger: Option<Arc<dyn StratEventLogger>>,
+    logger: Option<StratEventLoggerRef>,
 }
 
 impl NaiveTradingStrategy {
@@ -68,7 +68,7 @@ impl NaiveTradingStrategy {
         strat_key: String,
         n: &Options,
         engine: Arc<TradingEngine>,
-        logger: Option<Arc<dyn StratEventLogger>>,
+        logger: Option<StratEventLoggerRef>,
     ) -> Self {
         let metrics = NaiveStrategyMetrics::for_strat(prometheus::default_registry(), &n.left, &n.right);
         let model = LinearSpreadModel::new(
@@ -194,9 +194,9 @@ impl NaiveTradingStrategy {
                 let ret = portfolio.current_return();
                 let maybe_stop = self.stopper.should_stop(ret);
                 if let Some(logger) = &self.logger {
-                    logger
-                        .maybe_log(maybe_stop.as_ref().map(|e| StratEvent::Stop { stop: *e }))
-                        .await;
+                    if let Some(stop) = maybe_stop {
+                        logger.log(TimedData::new(lr.time, StratEvent::Stop { stop })).await;
+                    }
                 }
                 let max_open_time_reached =
                     now() - max(left_pos.meta.open_at, right_pos.meta.open_at) > self.max_pos_duration;

@@ -56,6 +56,7 @@ pub use portfolio::portfolio::Portfolio;
 pub use python_wrapper::python_strat;
 pub use trading;
 use trading::engine::TradingEngine;
+use util::time::TimedData;
 
 use crate::actor::StrategyActorOptions;
 use crate::plugin::{StrategyPlugin, StrategyPluginRegistry};
@@ -72,8 +73,8 @@ pub mod prelude {
     pub use super::settings::{StrategyCopySettings, StrategyDriverSettings, StrategySettings};
     pub use super::trading;
     pub use super::types::StratEvent;
+    pub use super::EventLogger;
     pub use super::Portfolio;
-    pub use super::StratEventLogger;
 }
 
 pub mod actor;
@@ -193,6 +194,8 @@ impl ToString for StrategyKey {
     fn to_string(&self) -> String { format!("{}_{}", self.0, self.1) }
 }
 
+pub type StratEventLoggerRef = Arc<dyn EventLogger<TimedData<StratEvent>>>;
+
 /// A trader owns the context of running a single strategy and is responsible for managing
 /// its data interface and lifecycle
 #[derive(Clone)]
@@ -209,7 +212,7 @@ impl Trader {
         actor_settings: &StrategyActorOptions,
         settings: &StrategyDriverSettings,
         engine: Arc<TradingEngine>,
-        logger: Option<Arc<dyn StratEventLogger>>,
+        logger: Option<StratEventLoggerRef>,
     ) -> Result<Self> {
         let strat_type = settings.strat.strat_type.clone();
         let plugin: &'static StrategyPlugin = plugins.get(strat_type.as_str()).ok_or(Error::StrategyPluginNotFound)?;
@@ -246,8 +249,8 @@ impl Trader {
 }
 
 #[async_trait]
-pub trait StratEventLogger: Sync + Send + Debug {
-    async fn maybe_log(&self, event: Option<StratEvent>);
+pub trait EventLogger<T>: Sync + Send + Debug {
+    async fn log(&self, event: T);
 }
 
 #[cfg(test)]

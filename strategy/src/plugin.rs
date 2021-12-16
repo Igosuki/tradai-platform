@@ -11,7 +11,7 @@ use trading::engine::TradingEngine;
 use crate::driver::Strategy;
 use crate::error::Result;
 use crate::settings::StrategyOptions;
-use crate::StratEventLogger;
+use crate::StratEventLoggerRef;
 
 pub(crate) type StratProvider = fn(&str, StrategyPluginContext, serde_json::Value) -> Result<Box<dyn Strategy>>;
 pub(crate) type OptionsProvider = fn(serde_json::Value) -> Result<Box<dyn StrategyOptions>>;
@@ -27,7 +27,7 @@ pub fn provide_options<T: 'static + DeserializeOwned + StrategyOptions>(
 pub struct StrategyPluginContext {
     pub db: Arc<dyn Storage>,
     pub engine: Arc<TradingEngine>,
-    pub logger: Option<Arc<dyn StratEventLogger>>,
+    pub logger: Option<StratEventLoggerRef>,
 }
 
 pub struct StrategyPlugin {

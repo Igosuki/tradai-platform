@@ -15,13 +15,14 @@ use strategy::models::io::{IterativeModel, SerializedModel};
 use strategy::models::Sampler;
 use strategy::plugin::{provide_options, StrategyPlugin, StrategyPluginContext};
 use strategy::prelude::*;
-use strategy::Channel;
+use strategy::{Channel, StratEventLoggerRef};
 use trading::book::BookPosition;
 use trading::engine::TradingEngine;
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};
 use trading::stop::Stopper;
 use trading::types::OrderConf;
+use util::time::TimedData;
 
 use self::metrics::MeanRevertingStrategyMetrics;
 
@@ -62,7 +63,7 @@ pub struct MeanRevertingStrategy {
     stopper: Stopper<f64>,
     sampler: Sampler,
     last_book_pos: Option<BookPosition>,
-    logger: Option<Arc<dyn StratEventLogger>>,
+    logger: Option<StratEventLoggerRef>,
     order_conf: OrderConf,
     engine: Arc<TradingEngine>,
 }
@@ -73,7 +74,7 @@ impl MeanRevertingStrategy {
         strat_key: String,
         n: &Options,
         engine: Arc<TradingEngine>,
-        logger: Option<Arc<dyn StratEventLogger>>,
+        logger: Option<StratEventLoggerRef>,
     ) -> Self {
         let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
         let model = MeanRevertingModel::new(n, db.clone());
@@ -152,9 +153,11 @@ impl MeanRevertingStrategy {
             Some(pos) => {
                 let maybe_stop = self.stopper.should_stop(pos.unreal_profit_loss);
                 if let Some(logger) = &self.logger {
-                    logger
-                        .maybe_log(maybe_stop.as_ref().map(|e| StratEvent::Stop { stop: *e }))
-                        .await;
+                    if let Some(stop) = maybe_stop {
+                        logger
+                            .log(TimedData::new(lr.event_time, StratEvent::Stop { stop }))
+                            .await;
+                    }
                 }
                 // Possibly close a short position
                 if (pos.is_short() && apo < 0.0) || maybe_stop.is_some() {

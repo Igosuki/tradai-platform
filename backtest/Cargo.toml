@@ -33,7 +33,7 @@ futures = "0.3"
 tokio = "1"
 async-trait = "0.1"
 async-stream = "0.3"
-tokio-stream = "0.1"
+tokio-stream = { version = "0.1", features = ["sync", "fs", "net", "io-util", "tokio-util", "signal", "time"] }
 console-subscriber = { git = "https://github.com/tokio-rs/console", optional = true, features = ["parking_lot"] }
 
 # actors

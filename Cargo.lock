@@ -1345,7 +1345,6 @@ dependencies = [
  "fancy-regex",
  "float-cmp",
  "futures",
- "futures-util",
  "hmac",
  "itertools",
  "lazy_static 1.4.0",
@@ -4486,6 +4485,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pretty_env_logger"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "926d36b9553851b8b0005f1275891b392ee4d2d833852c417ed025477350fb9d"
+dependencies = [
+ "env_logger 0.7.1",
+ "log",
+]
+
+[[package]]
 name = "prettytable-rs"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6393,6 +6402,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -6692,7 +6702,6 @@ dependencies = [
  "flamer",
  "fs_extra",
  "futures",
- "futures-util",
  "glob",
  "gperftools",
  "itertools",
@@ -6980,6 +6989,7 @@ dependencies = [
  "opentelemetry",
  "opentelemetry-jaeger",
  "parse_duration",
+ "pretty_env_logger",
  "rust_decimal",
  "serde",
  "serde_json",
