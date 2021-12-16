@@ -38,7 +38,7 @@ input_sample_rate: 1min
 
 db_path: .local_data/strat_backtest_dbs
 
-data_dir: /Users/geps/dev/bitcoins/data_cache/data
+data_dir: /home/geps/dev/bitcoins/data_cache/data
 
 use_generic: false
 

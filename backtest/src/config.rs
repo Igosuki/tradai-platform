@@ -6,6 +6,7 @@ use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use parse_duration::parse;
 use typed_builder::TypedBuilder;
 
+use db::{DbEngineOptions, DbOptions};
 use strategy::settings::StrategyCopySettings;
 use strategy::settings::StrategyDriverSettings;
 use util::test::test_dir;
@@ -57,6 +58,7 @@ pub struct BacktestConfig {
     pub output_dir: Option<PathBuf>,
     #[serde(deserialize_with = "util::ser::decode_duration_str")]
     pub input_sample_rate: Duration,
+    pub db_conf: Option<DbEngineOptions>,
 }
 
 impl BacktestConfig {

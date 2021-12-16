@@ -2,15 +2,17 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
+
+use tokio::sync::mpsc::{channel, unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender};
+use tokio::sync::Mutex;
+use tokio::time::Duration;
+
 use strategy::coinnect::prelude::{MarketEvent, MarketEventEnvelope};
 use strategy::driver::StrategyDriver;
 use strategy::event::trades_history;
 use strategy::query::{DataQuery, DataResult};
 use strategy::types::StratEvent;
 use strategy::Channel;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
-use tokio::sync::Mutex;
-use tokio::time::Duration;
 use trading::types::MarketStat;
 use util::time::set_current_time;
 use util::tracing::{display_hist_percentiles, microtime_histogram, microtime_percentiles};
@@ -21,8 +23,8 @@ use crate::{BacktestReport, TimedData};
 pub(crate) struct BacktestRunner {
     strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
     strategy_events_logger: Arc<VecEventLogger>,
-    events_stream: UnboundedReceiver<MarketEventEnvelope>,
-    events_sink: UnboundedSender<MarketEventEnvelope>,
+    events_stream: Receiver<MarketEventEnvelope>,
+    events_sink: Sender<MarketEventEnvelope>,
     close_sink: tokio::sync::broadcast::Receiver<bool>,
 }
 
@@ -32,7 +34,7 @@ impl BacktestRunner {
         strategy_events_logger: Arc<VecEventLogger>,
         close_sink: tokio::sync::broadcast::Receiver<bool>,
     ) -> Self {
-        let (events_sink, events_stream) = unbounded_channel::<MarketEventEnvelope>();
+        let (events_sink, events_stream) = channel::<MarketEventEnvelope>(10);
         Self {
             strategy_events_logger,
             strategy,
@@ -47,7 +49,7 @@ impl BacktestRunner {
         reader.channels()
     }
 
-    pub(crate) fn event_sink(&self) -> UnboundedSender<MarketEventEnvelope> { self.events_sink.clone() }
+    pub(crate) fn event_sink(&self) -> Sender<MarketEventEnvelope> { self.events_sink.clone() }
 
     pub(crate) async fn run<P: AsRef<Path>>(&mut self, output_dir: P) -> BacktestReport {
         let key = {

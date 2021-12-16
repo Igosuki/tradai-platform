@@ -20,8 +20,19 @@ struct BacktestCliOptions {
     cmd: Option<BacktestCmd>,
 }
 
-#[actix::main]
-async fn main() -> backtest::Result<()> {
+fn main() -> anyhow::Result<()> {
+    actix::System::with_tokio_rt(move || {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Default Tokio runtime could not be created.")
+    })
+    .block_on(run_main())
+}
+
+async fn run_main() -> anyhow::Result<()> {
+    #[cfg(feature = "console_tracing")]
+    console_subscriber::init();
     env_logger::init();
     let opts = BacktestCliOptions::from_args();
     let conf = BacktestConfig::new(opts.config)?;

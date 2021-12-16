@@ -10,9 +10,9 @@ extern crate async_trait;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
-extern crate tracing;
-#[macro_use]
 extern crate tokio;
+#[macro_use]
+extern crate tracing;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -23,17 +23,6 @@ use futures::StreamExt;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::{Mutex, RwLock};
 
-use crate::coinnect::broker::{Broker, UnboundedChannelMessageBroker};
-use crate::dataset::Dataset;
-use crate::datasources::orderbook::convert::events_from_orderbooks;
-use crate::datasources::orderbook::csv_source::{csv_orderbooks_df, events_from_csv_orderbooks};
-use crate::datasources::orderbook::raw_source::raw_orderbooks_df;
-use crate::datasources::orderbook::sampled_source::sampled_orderbooks_df;
-use crate::report::{BacktestReport, GlobalReport, TimedData, VecEventLogger};
-use crate::runner::BacktestRunner;
-pub use crate::{config::*,
-                dataset::{DatasetInputFormat, DatasetType},
-                error::*};
 use db::{DbEngineOptions, DbOptions, RocksDbOptions};
 // TODO: https://github.com/rust-lang/rust/issues/47384
 #[allow(unused_imports)]
@@ -45,6 +34,18 @@ use strategy::plugin::plugin_registry;
 use strategy::prelude::*;
 use trading::engine::{mock_engine, TradingEngine};
 use util::test::test_dir;
+
+use crate::coinnect::broker::{Broker, ChannelMessageBroker};
+use crate::dataset::Dataset;
+use crate::datasources::orderbook::convert::events_from_orderbooks;
+use crate::datasources::orderbook::csv_source::{csv_orderbooks_df, events_from_csv_orderbooks};
+use crate::datasources::orderbook::raw_source::raw_orderbooks_df;
+use crate::datasources::orderbook::sampled_source::sampled_orderbooks_df;
+use crate::report::{BacktestReport, GlobalReport, TimedData, VecEventLogger};
+use crate::runner::BacktestRunner;
+pub use crate::{config::*,
+                dataset::{DatasetInputFormat, DatasetType},
+                error::*};
 
 mod config;
 mod datafusion_util;
@@ -78,7 +79,11 @@ impl Backtest {
         let exchanges = vec![Exchange::Binance];
         let mock_engine = Arc::new(mock_engine(db_path.clone(), &exchanges));
         let (stop_tx, _) = tokio::sync::broadcast::channel(1);
-        let db_conf = default_db_conf(db_path);
+        let db_conf = conf
+            .db_conf
+            .as_ref()
+            .map(|eo| DbOptions::new_with_options(db_path.clone(), eo.clone()))
+            .unwrap_or_else(|| default_db_conf(db_path));
         let runners: Vec<_> = tokio_stream::iter(all_strategy_settings.into_iter())
             .map(|s| spawn_runner(stop_tx.clone(), db_conf.clone(), mock_engine.clone(), s))
             .buffer_unordered(10)
@@ -100,7 +105,7 @@ impl Backtest {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        let mut broker = UnboundedChannelMessageBroker::new();
+        let mut broker = ChannelMessageBroker::new();
         for runner in &self.runners {
             let runner = runner.read().await;
             for channel in runner.channels().await {
