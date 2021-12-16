@@ -160,7 +160,7 @@ impl MeanRevertingStrategy {
                     }
                 }
                 // Possibly close a short position
-                if (pos.is_short() && apo < 0.0) || maybe_stop.is_some() {
+                if pos.is_short() && (apo < 0.0 || maybe_stop.is_some()) {
                     Some(self.make_signal(
                         lr.trace_id,
                         lr.event_time,
@@ -171,7 +171,7 @@ impl MeanRevertingStrategy {
                     ))
                 }
                 // Possibly close a long position
-                else if (pos.is_long() && apo > 0.0) || maybe_stop.is_some() {
+                else if pos.is_long() && (apo > 0.0 || maybe_stop.is_some()) {
                     Some(self.make_signal(
                         lr.trace_id,
                         lr.event_time,

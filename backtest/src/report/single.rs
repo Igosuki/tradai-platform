@@ -143,6 +143,8 @@ impl BacktestReport {
         tokio::spawn(async move { x1.start().await });
         let x2 = self.market_stats_ss.clone();
         tokio::spawn(async move { x2.start().await });
+        let x3 = self.events_ss.clone();
+        tokio::spawn(async move { x3.start().await });
         Ok(())
     }
 
