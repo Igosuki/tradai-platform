@@ -140,13 +140,14 @@ impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
         let mut seq = ser.serialize_seq(None).unwrap();
         let mut lock = self.stream.write().await;
         let mut finish_lock = self.finish_rx.write().await;
-
         'stream: loop {
             select! {
                 biased;
                 next = lock.next() => {
                     if let Some(value) = next {
-                        seq.serialize_element(&value).unwrap();
+                        tokio::task::block_in_place(|| async {
+                            seq.serialize_element(&value).unwrap();
+                        }).await;
                     } else {
                         break 'stream;
                     }
@@ -161,12 +162,14 @@ impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
 
 #[cfg(test)]
 mod test {
-    use crate::ser::StreamSerializerWriter;
-    use futures::StreamExt;
-    use serde::Serialize;
     use std::env::temp_dir;
     use std::io::BufReader;
     use std::sync::Arc;
+
+    use futures::StreamExt;
+    use serde::Serialize;
+
+    use crate::ser::StreamSerializerWriter;
 
     #[derive(PartialEq, Debug, Serialize, Deserialize)]
     struct TestData {
