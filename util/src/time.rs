@@ -62,3 +62,16 @@ pub fn set_current_time(t: DateTime<Utc>) {
     let d = std::time::Duration::from_millis(t.timestamp_millis() as u64);
     mock_instant::MockClock::set_time(d);
 }
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub struct TimedData<T> {
+    pub ts: DateTime<Utc>,
+    #[serde(flatten)]
+    pub value: T,
+}
+
+impl<T> TimedData<T> {
+    pub fn new(ts: DateTime<Utc>, value: T) -> Self { Self { ts, value } }
+}
+
+pub type TimedVec<T> = Vec<TimedData<T>>;
