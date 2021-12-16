@@ -11,11 +11,12 @@ use trading::engine::TradingEngine;
 use trading::order_manager::types::StagedOrder;
 use trading::position::Position;
 use trading::signal::TradeSignal;
+use util::time::{now, TimedData};
 
 use crate::driver::{DefaultStrategyContext, Strategy, StrategyDriver};
 use crate::error::Result;
 use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, PortfolioSnapshot};
-use crate::{Channel, StrategyStatus};
+use crate::{Channel, StratEventLoggerRef, StrategyStatus};
 
 mod metrics;
 
@@ -47,6 +48,7 @@ pub struct GenericDriver {
     engine: Arc<TradingEngine>,
     strat_key: String,
     last_event: Option<MarketEventEnvelope>,
+    logger: Option<StratEventLoggerRef>,
 }
 
 impl GenericDriver {
@@ -56,6 +58,7 @@ impl GenericDriver {
         driver_options: &GenericDriverOptions,
         strat: Box<dyn Strategy>,
         engine: Arc<TradingEngine>,
+        logger: Option<StratEventLoggerRef>,
     ) -> Result<Self> {
         let portfolio_options = &driver_options.portfolio;
         let strat_key = strat.key();
@@ -76,6 +79,7 @@ impl GenericDriver {
             engine,
             strat_key,
             last_event: None,
+            logger,
         })
     }
 
@@ -260,12 +264,20 @@ impl StrategyDriver for GenericDriver {
         let locked_ids: Vec<String> = self.portfolio.locks().values().map(|v| v.order_id.clone()).collect();
         for lock in &locked_ids {
             match self.engine.order_executor.get_order(lock.as_str()).await {
-                Ok((order, _)) => {
-                    if let Err(e) = self.portfolio.update_position(order) {
+                Ok((order, _)) => match self.portfolio.update_position(order) {
+                    Ok(Some(pos)) => {
+                        if let Some(logger) = self.logger.as_ref() {
+                            if let Ok(strat_event) = pos.try_into() {
+                                logger.log(TimedData::new(now(), strat_event)).await;
+                            }
+                        }
+                    }
+                    Err(e) => {
                         metrics::get().log_error(e.short_name());
                         debug!(err = %e, "failed to update portfolio position");
                     }
-                }
+                    _ => {}
+                },
                 Err(e) => {
                     metrics::get().log_error(e.short_name());
                     debug!(err = %e, "failed to query locked order");

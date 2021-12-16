@@ -8,6 +8,7 @@ use tokio::time::Duration;
 use coinnect_rt::prelude::*;
 use db::Storage;
 use strategy::driver::{Strategy, StrategyDriver};
+use strategy::event::trades_history;
 use strategy::prelude::{GenericDriver, GenericDriverOptions, PortfolioOptions};
 use strategy::query::{DataQuery, DataResult, PortfolioSnapshot};
 use strategy::trading::engine::{mock_engine, TradingEngine};
@@ -19,7 +20,6 @@ use crate::fs::copy_file;
 use crate::init;
 use crate::log::{write_models, write_trade_events, StrategyLog};
 use crate::{input, test_db_with_path};
-use strategy::event::trades_history;
 
 pub struct GenericTestContext {
     pub engine: Arc<TradingEngine>,
@@ -70,6 +70,7 @@ pub async fn generic_backtest(
         &generic_options,
         embedded,
         engine,
+        None,
     )
     .unwrap();
     let mut elapsed = 0_u128;

@@ -128,6 +128,7 @@ impl BacktestReport {
     pub fn push_market_stat(&self, v: TimedData<MarketStat>) { self.market_stats_ss.push(v); }
 
     /// Push a strat event to the report
+    #[allow(dead_code)]
     pub fn push_strat_event(&self, v: TimedData<StratEvent>) { self.events_ss.push(v); }
 
     /// Get a strat event sink to forward to
