@@ -14,7 +14,7 @@ pub struct StreamWriterLogger<T> {
 
 impl<T: Clone> Default for StreamWriterLogger<T> {
     fn default() -> Self {
-        let (events_tx, _events_rx) = broadcast::channel(10);
+        let (events_tx, _events_rx) = broadcast::channel(100);
         Self { events_tx }
     }
 }

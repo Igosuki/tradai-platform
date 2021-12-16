@@ -35,7 +35,7 @@ impl BacktestRunner {
         strategy_events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
         close_sink: tokio::sync::broadcast::Receiver<bool>,
     ) -> Self {
-        let (events_sink, events_stream) = channel::<MarketEventEnvelope>(10);
+        let (events_sink, events_stream) = channel::<MarketEventEnvelope>(1000);
         Self {
             strategy_events_logger,
             strategy,
