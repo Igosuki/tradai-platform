@@ -3,15 +3,16 @@ use std::path::PathBuf;
 
 use chrono::{Date, Duration, TimeZone, Utc};
 use futures::StreamExt;
-use strategy::coinnect::broker::{Broker, UnboundedChannelMessageBroker};
-use strategy::Channel;
 
+use strategy::coinnect::prelude::{Exchange, Pair};
+use strategy::coinnect::types::MarketEventEnvelope;
+use strategy::Channel;
+use util::time::DateRange;
+
+use crate::coinnect::broker::{AsyncBroker, ChannelMessageBroker};
 use crate::error::*;
 use crate::{csv_orderbooks_df, events_from_csv_orderbooks, events_from_orderbooks, raw_orderbooks_df,
             sampled_orderbooks_df};
-use strategy::coinnect::prelude::{Exchange, Pair};
-use strategy::coinnect::types::MarketEventEnvelope;
-use util::time::DateRange;
 
 pub struct Dataset {
     pub input_format: DatasetInputFormat,
@@ -22,10 +23,7 @@ pub struct Dataset {
 }
 
 impl Dataset {
-    pub async fn read_channels(
-        &self,
-        broker: UnboundedChannelMessageBroker<Channel, MarketEventEnvelope>,
-    ) -> Result<()> {
+    pub async fn read_channels(&self, broker: ChannelMessageBroker<Channel, MarketEventEnvelope>) -> Result<()> {
         for dt in self.period {
             let orderbook_partitions: HashSet<(PathBuf, Vec<(&'static str, String)>)> = broker
                 .subjects()
@@ -44,13 +42,13 @@ impl Dataset {
                     let event_stream = sampled_orderbooks_df(orderbook_partitions, input_format)
                         .map(events_from_orderbooks)
                         .flatten();
-                    event_stream.for_each(|event| async { broker.broadcast(event) }).await;
+                    event_stream.for_each(|event| broker.broadcast(event)).await;
                 }
                 DatasetType::OrderbooksRaw => match self.input_format {
                     DatasetInputFormat::Csv => {
                         let records = csv_orderbooks_df(orderbook_partitions).await?;
                         let event_stream = tokio_stream::iter(records).map(events_from_csv_orderbooks).flatten();
-                        event_stream.for_each(|event| async { broker.broadcast(event) }).await;
+                        event_stream.for_each(|event| broker.broadcast(event)).await;
                     }
                     _ => {
                         let records = raw_orderbooks_df(
@@ -61,7 +59,7 @@ impl Dataset {
                         )
                         .await?;
                         let event_stream = tokio_stream::iter(records).map(events_from_orderbooks).flatten();
-                        event_stream.for_each(|event| async { broker.broadcast(event) }).await;
+                        event_stream.for_each(|event| broker.broadcast(event)).await;
                     }
                 },
                 _ => panic!("order books channel requires an order books dataset"),
