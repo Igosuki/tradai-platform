@@ -121,14 +121,21 @@ pub fn from_driver_settings<S: AsRef<Path>>(
     let ctx = StrategyPluginContext::builder()
         .db(db.clone())
         .engine(engine.clone())
-        .logger(logger)
+        .logger(logger.clone())
         .build();
     let inner: Box<dyn crate::driver::Strategy> = plugin.strat(&strat_key, ctx, s.strat.options.clone())?;
 
     let driver = match &s.driver {
         StrategyDriverOptions::Generic(options) => Box::new(
-            crate::generic::GenericDriver::try_new(inner.channels().into_iter().collect(), db, options, inner, engine)
-                .unwrap(),
+            crate::generic::GenericDriver::try_new(
+                inner.channels().into_iter().collect(),
+                db,
+                options,
+                inner,
+                engine,
+                logger,
+            )
+            .unwrap(),
         ),
     };
     info!("Creating strategy : {}", strat_key);

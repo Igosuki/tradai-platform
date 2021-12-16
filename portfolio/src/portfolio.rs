@@ -201,10 +201,13 @@ impl Portfolio {
                 }
             }
         }
+
+        let mut resp = Ok(None);
         if let Entry::Occupied(pos_entry) = self.open_positions.entry(pos_key.clone()) {
             let pos = pos_entry.get();
             self.repo.put_position(pos)?;
             if order.is_filled() {
+                resp = Ok(Some(pos.clone()));
                 if pos.is_closed() {
                     pos_entry.remove();
                     if self.open_positions.is_empty() {
@@ -217,7 +220,7 @@ impl Portfolio {
                 self.remove_lock(&pos_key)?;
             }
         }
-        Ok(None)
+        resp
     }
 
     fn log_position(
