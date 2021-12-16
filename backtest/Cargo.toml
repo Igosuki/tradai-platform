@@ -13,8 +13,11 @@ path = "src/main.rs"
 required-features = ["binary"]
 
 [features]
+default = ["env_logger", "mock_time", "binary", "console_tracing"]
 mock_time = ["util/mock_time"]
 binary = ["env_logger", "structopt"]
+console_tracing = ["tokio/tracing", "console-subscriber"]
+
 [dependencies]
 # trader
 strategy = { path = "../strategy" }
@@ -31,6 +34,7 @@ tokio = "1"
 async-trait = "0.1"
 async-stream = "0.3"
 tokio-stream = "0.1"
+console-subscriber = { git = "https://github.com/tokio-rs/console", optional = true, features = ["parking_lot"] }
 
 # actors
 actix = "0.12"
@@ -44,6 +48,7 @@ tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
 
 # std
 thiserror = "1.0"
+anyhow = "1.0"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"

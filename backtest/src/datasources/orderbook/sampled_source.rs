@@ -1,15 +1,16 @@
-use crate::datafusion_util::{df_format, where_clause};
+use std::collections::HashSet;
+use std::fmt::Debug;
+use std::path::Path;
+use std::time::Instant;
+
 use datafusion::arrow::array::StringArray;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::listing::ListingOptions;
 use datafusion::execution::context::ExecutionContext;
 use futures::StreamExt;
-use std::collections::HashSet;
-use std::fmt::Debug;
-use std::path::Path;
-use std::time::Instant;
 use tokio_stream::Stream;
 
+use crate::datafusion_util::{df_format, where_clause};
 use crate::error::*;
 
 /// Read partitions as sampled order books
@@ -47,12 +48,20 @@ pub fn sampled_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
                 .await
                 .unwrap();
             let collected = df.execute_stream().await.unwrap();
+            let elapsed = now.elapsed();
+            info!(
+                "Read records in {} for {:?} in {}.{}s",
+                base_path,
+                partition,
+                elapsed.as_secs(),
+                elapsed.subsec_millis()
+            );
             for await batch in collected {
                 yield batch.unwrap();
             }
             let elapsed = now.elapsed();
             info!(
-                "Read records in {} for {:?} in {}.{}s",
+                "Pushed record stream in {} for {:?} in {}.{}s",
                 base_path,
                 partition,
                 elapsed.as_secs(),
@@ -117,11 +126,12 @@ pub async fn sampled_orderbooks_pairs(
 
 #[cfg(test)]
 mod test {
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
     use datafusion::datasource::file_format::avro::AvroFormat;
     use datafusion::datasource::listing::ListingOptions;
     use datafusion::prelude::ExecutionContext;
-    use std::path::PathBuf;
-    use std::sync::Arc;
 
     // TODO: make some small sample files to test this out instead of production files
     #[tokio::test]

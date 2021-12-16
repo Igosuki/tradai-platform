@@ -161,6 +161,13 @@ impl<S: AsRef<Path>> DbOptions<S> {
         }
     }
 
+    pub fn new_with_options(db_path: S, options: DbEngineOptions) -> Self {
+        Self {
+            path: db_path,
+            engine: options,
+        }
+    }
+
     pub fn new_in_memory(db_path: S) -> Self {
         Self {
             path: db_path,
