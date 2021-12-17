@@ -116,6 +116,10 @@ impl Portfolio {
         if self.is_locked(&pos_key) {
             return Err(Error::PositionLocked);
         }
+        // TODO: replace with allocator
+        if self.pnl <= 0.0 {
+            return Ok(None);
+        }
         let request: AddOrderRequest = if let Some(p) = self.open_positions.get(&pos_key) {
             if signal.op_kind.is_close() {
                 if p.is_opened() {
