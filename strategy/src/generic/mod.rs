@@ -120,7 +120,7 @@ impl GenericDriver {
             match conversion {
                 Ok(Some(order)) => orders.push(order),
                 Err(e) => error!(err = %e, key = %self.strat_key, pair = %signal.pair, "failed to convert order"),
-                _ => error!(signal = ?signal, "did not convert to an order"),
+                _ => trace!(signal = ?signal, "did not convert to an order"),
             }
         }
         if orders.len() != signals.len() {
