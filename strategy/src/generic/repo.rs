@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use db::{Storage, StorageExt};
-use ext::ResultExt;
 
 use crate::error::*;
 use crate::StrategyStatus;
@@ -28,5 +27,11 @@ impl DriverRepository for GenericDriverRepository {
         Ok(())
     }
 
-    fn get_status(&self) -> Result<Option<StrategyStatus>> { self.db.get(DRIVER_TABLE, "status").err_into() }
+    fn get_status(&self) -> Result<Option<StrategyStatus>> {
+        match self.db.get(DRIVER_TABLE, "status") {
+            Ok(r) => Ok(Some(r)),
+            Err(db::Error::NotFound(_)) => Ok(None),
+            Err(r) => Err(r.into()),
+        }
+    }
 }
