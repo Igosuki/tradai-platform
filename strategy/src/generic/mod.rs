@@ -119,7 +119,7 @@ impl GenericDriver {
             let conversion = self.portfolio.maybe_convert(signal).await;
             match conversion {
                 Ok(Some(order)) => orders.push(order),
-                Err(e) => error!(err = %e, "failed to convert order"),
+                Err(e) => error!(err = %e, key = %self.strat_key, pair = %signal.pair, "failed to convert order"),
                 _ => error!(signal = ?signal, "did not convert to an order"),
             }
         }
