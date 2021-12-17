@@ -59,3 +59,22 @@ impl TryFrom<Position> for StratEvent {
         }
     }
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, juniper::GraphQLEnum)]
+#[serde(rename_all = "snake_case")]
+pub enum TradingStatus {
+    StartOfDay,
+    PreOpen,
+    PreOpenNoCancel,
+    PreOpenFreeze,
+    Open,
+    FastMarket,
+    Halt,
+    CloseNotFinal,
+    PreClose,
+    PreCloseNoCancel,
+    PreCloseFreeze,
+    Close,
+    PostClose,
+    EndOfDay,
+}
