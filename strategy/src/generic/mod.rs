@@ -15,10 +15,12 @@ use util::time::{now, TimedData};
 
 use crate::driver::{DefaultStrategyContext, Strategy, StrategyDriver};
 use crate::error::Result;
+use crate::generic::repo::{DriverRepository, GenericDriverRepository};
 use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, PortfolioSnapshot};
 use crate::{Channel, StratEventLoggerRef, StrategyStatus};
 
 mod metrics;
+mod repo;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PortfolioOptions {
@@ -43,12 +45,14 @@ pub struct GenericDriver {
     channels: HashSet<Channel>,
     pub(crate) inner: RwLock<Box<dyn Strategy>>,
     initialized: bool,
-    is_trading: bool,
+    start_trading: Option<bool>,
+    status: StrategyStatus,
     pub(crate) portfolio: Portfolio,
     engine: Arc<TradingEngine>,
     strat_key: String,
     last_event: Option<MarketEventEnvelope>,
     logger: Option<StratEventLoggerRef>,
+    repo: GenericDriverRepository,
 }
 
 impl GenericDriver {
@@ -66,26 +70,24 @@ impl GenericDriver {
             portfolio_options.initial_quote_cash,
             portfolio_options.fees_rate,
             strat_key.clone(),
-            Arc::new(PortfolioRepoImpl::new(db)),
+            Arc::new(PortfolioRepoImpl::new(db.clone())),
             Arc::new(DefaultMarketRiskEvaluator::default()),
             engine.interest_rate_provider.clone(),
         )?;
+        let repo = GenericDriverRepository::new(db);
         Ok(Self {
             channels,
             inner: RwLock::new(strat),
             initialized: false,
-            is_trading: driver_options.start_trading.unwrap_or(true),
+            start_trading: driver_options.start_trading,
+            status: Default::default(),
             portfolio,
             engine,
             strat_key,
             last_event: None,
             logger,
+            repo,
         })
-    }
-
-    async fn init(&self) -> Result<()> {
-        let mut strat = self.inner.write().await;
-        strat.init()
     }
 
     fn handles(&self, le: &MarketEventEnvelope) -> bool {
@@ -102,12 +104,12 @@ impl GenericDriver {
         })
     }
 
-    pub(crate) fn status(&self) -> StrategyStatus {
-        if self.is_trading {
-            StrategyStatus::Running
-        } else {
-            StrategyStatus::NotTrading
-        }
+    pub(crate) fn status(&self) -> StrategyStatus { self.status }
+
+    pub(crate) fn set_status(&mut self, status: StrategyStatus) -> Result<()> {
+        self.repo.set_status(status)?;
+        self.status = status;
+        Ok(())
     }
 
     async fn process_signals(&mut self, signals: &[TradeSignal]) -> Result<()> {
@@ -155,10 +157,6 @@ impl GenericDriver {
     }
 
     async fn process_event(&mut self, le: &MarketEventEnvelope) -> Result<()> {
-        if !self.initialized {
-            self.init().await.unwrap();
-            self.initialized = true;
-        }
         if let Err(e) = self.portfolio.update_from_market(le).await {
             metrics::get().log_error(e.short_name());
             error!(err = %e, "failed to update portfolio from market");
@@ -167,7 +165,7 @@ impl GenericDriver {
             let mut inner = self.inner.write().await;
             inner.eval(le, &self.ctx()).await?
         };
-        metrics::get().log_is_trading(self.strat_key.as_str(), self.is_trading);
+        metrics::get().log_is_trading(self.strat_key.as_str(), self.is_trading());
         if self.portfolio.has_any_failed_position() {
             metrics::get().log_failed_position(&le.xch, &le.pair);
             return Ok(());
@@ -176,7 +174,7 @@ impl GenericDriver {
             metrics::get().log_lock(&le.xch, &le.pair);
             return Ok(());
         }
-        if self.is_trading {
+        if self.is_trading() {
             if let Some(signals) = signals {
                 if !signals.is_empty() {
                     if let Err(e) = self.process_signals(signals.as_slice()).await {
@@ -195,16 +193,39 @@ impl GenericDriver {
             portfolio: &self.portfolio,
         }
     }
+
+    fn is_trading(&self) -> bool { matches!(self.status, StrategyStatus::Running) }
 }
 
 #[async_trait]
 impl StrategyDriver for GenericDriver {
+    async fn init(&mut self) -> Result<()> {
+        self.status = match self.repo.get_status()? {
+            None => {
+                if self.start_trading.unwrap_or(true) {
+                    StrategyStatus::Running
+                } else {
+                    StrategyStatus::NotTrading
+                }
+            }
+            Some(s) => s,
+        };
+        let mut strat = self.inner.write().await;
+        strat.init()?;
+        Ok(())
+    }
+
     async fn key(&self) -> String {
         let r = self.inner.read().await;
         r.key()
     }
 
     async fn add_event(&mut self, le: &MarketEventEnvelope) -> Result<()> {
+        // TODO: return an error instead if not initialized ?
+        if !self.initialized {
+            self.init().await.unwrap();
+            self.initialized = true;
+        }
         if !self.handles(le) {
             return Ok(());
         }
@@ -252,9 +273,9 @@ impl StrategyDriver for GenericDriver {
 
     fn channels(&self) -> HashSet<Channel> { self.channels.clone() }
 
-    fn stop_trading(&mut self) { self.is_trading = false; }
+    fn stop_trading(&mut self) -> Result<()> { self.set_status(StrategyStatus::NotTrading) }
 
-    fn resume_trading(&mut self) { self.is_trading = true; }
+    fn resume_trading(&mut self) -> Result<()> { self.set_status(StrategyStatus::Running) }
 
     async fn resolve_orders(&mut self) {
         if self.portfolio.locks().is_empty() {

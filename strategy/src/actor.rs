@@ -76,6 +76,20 @@ impl Actor for StrategyActor {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         info!(uuid = %self.session_uuid, "strategy started");
+        let inner = self.inner.clone();
+        ctx.wait(
+            async move {
+                let mut w = inner.write().await;
+                w.init().await
+            }
+            .into_actor(self)
+            .map(|result, _, ctx| {
+                if let Err(e) = result {
+                    error!("failed to initialize strategy {}", e);
+                    ctx.stop();
+                }
+            }),
+        );
         ctx.run_interval(self.order_resolution_interval.to_std().unwrap(), |act, ctx| {
             // This will prevent stacking tasks if resolution interval is too low
             if act.is_checking_orders {
@@ -179,7 +193,7 @@ impl Handler<ModelReset> for StrategyActor {
             async move {
                 let mut inner = lock.write().await;
                 if msg.stop_trading {
-                    inner.stop_trading();
+                    inner.stop_trading()?;
                 }
                 inner.mutate(Mutation::Model(msg))
             }
@@ -209,7 +223,7 @@ impl Handler<StrategyLifecycleCmd> for StrategyActor {
             StrategyLifecycleCmd::StopTrading => Box::pin(
                 async move {
                     let mut guard = lock.write().await;
-                    guard.stop_trading();
+                    guard.stop_trading()?;
                     Ok(StrategyStatus::NotTrading)
                 }
                 .into_actor(self),
@@ -217,7 +231,7 @@ impl Handler<StrategyLifecycleCmd> for StrategyActor {
             StrategyLifecycleCmd::ResumeTrading => Box::pin(
                 async move {
                     let mut guard = lock.write().await;
-                    guard.resume_trading();
+                    guard.resume_trading()?;
                     Ok(StrategyStatus::Running)
                 }
                 .into_actor(self),

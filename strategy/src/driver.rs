@@ -11,6 +11,9 @@ use crate::{error, Channel};
 
 #[async_trait]
 pub trait StrategyDriver: Send + Sync {
+    /// Initialize the driver
+    async fn init(&mut self) -> Result<()>;
+
     /// A unique key or id for the strategy
     async fn key(&self) -> String;
 
@@ -29,10 +32,10 @@ pub trait StrategyDriver: Send + Sync {
     fn channels(&self) -> HashSet<Channel>;
 
     /// Stop emitting trading signals
-    fn stop_trading(&mut self);
+    fn stop_trading(&mut self) -> Result<()>;
 
     /// Resume trading signals
-    fn resume_trading(&mut self);
+    fn resume_trading(&mut self) -> Result<()>;
 
     /// When called upon, resolve previously emitted trading signals
     async fn resolve_orders(&mut self);
