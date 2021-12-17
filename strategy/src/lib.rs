@@ -160,7 +160,7 @@ impl Subject<MarketEventEnvelopeMsg> for Channel {}
 
 impl Subject<MarketEventEnvelope> for Channel {}
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, AsRefStr, juniper::GraphQLEnum)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum StrategyStatus {
     #[strum(serialize = "stopped")]
@@ -169,6 +169,10 @@ pub enum StrategyStatus {
     Running,
     #[strum(serialize = "not_trading")]
     NotTrading,
+}
+
+impl Default for StrategyStatus {
+    fn default() -> Self { Self::Running }
 }
 
 #[derive(actix::Message, juniper::GraphQLEnum)]
@@ -284,6 +288,8 @@ mod test {
 
     #[async_trait]
     impl StrategyDriver for LoggingStrat {
+        async fn init(&mut self) -> Result<()> { todo!() }
+
         async fn key(&self) -> String { "logging".to_string() }
 
         async fn add_event(&mut self, e: &MarketEventEnvelope) -> Result<()> {
@@ -305,9 +311,9 @@ mod test {
             .collect()
         }
 
-        fn stop_trading(&mut self) {}
+        fn stop_trading(&mut self) -> Result<()> { todo!() }
 
-        fn resume_trading(&mut self) {}
+        fn resume_trading(&mut self) -> Result<()> { todo!() }
 
         async fn resolve_orders(&mut self) { todo!() }
 
