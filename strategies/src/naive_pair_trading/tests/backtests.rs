@@ -97,22 +97,20 @@ async fn spot_backtest() {
         0.001,
     )
     .await;
-    let last_position = positions.last();
-    assert!(last_position.is_some(), "No position found in operations");
-    assert_eq!(
-        Some("44015.99".to_string()),
-        last_position.map(|p| format!("{:.2}", p.current_symbol_price))
-    );
-    assert_eq!(
-        Some("87.87".to_string()),
-        last_position
-            .and_then(|p| p.close_order.as_ref().map(|o| o.realized_quote_value()))
-            .map(|f| format!("{:.2}", f))
-    );
-    assert_eq!(
-        Some("87.87".to_string()),
-        last_position.map(|p| format!("{:.2}", p.current_value_gross()))
-    );
+    if let [position1, position2, ..] = &positions.as_slice()[positions.len() - 3..positions.len() - 1] {
+        assert_eq!("44015.99".to_string(), format!("{:.2}", position1.current_symbol_price));
+        assert_eq!(
+            Some("87.87".to_string()),
+            position1
+                .close_order
+                .as_ref()
+                .map(|o| o.realized_quote_value())
+                .map(|f| format!("{:.2}", f))
+        );
+        assert_eq!("87.87".to_string(), format!("{:.2}", position1.current_value_gross()));
+    } else {
+        panic!("no positions found");
+    }
 }
 
 #[actix::test]

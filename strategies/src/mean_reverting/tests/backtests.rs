@@ -82,13 +82,13 @@ async fn spot_backtest() {
         last_position.map(|p| format!("{:.2}", p.current_symbol_price))
     );
     assert_eq!(
-        Some("87.87".to_string()),
+        Some("87.71".to_string()),
         last_position
             .and_then(|p| p.close_order.as_ref().map(|o| o.realized_quote_value()))
             .map(|f| format!("{:.2}", f))
     );
     assert_eq!(
-        Some("87.87".to_string()),
+        Some("87.71".to_string()),
         last_position.map(|p| format!("{:.2}", p.current_value_gross()))
     );
 }
@@ -134,7 +134,7 @@ async fn margin_backtest() {
         last_position.map(|p| format!("{:.2}", p.current_symbol_price))
     );
     assert_eq!(
-        Some("83.27".to_string()),
+        Some("82.47".to_string()),
         last_position.map(|p| format!("{:.2}", p.current_value_gross()))
     );
 }
