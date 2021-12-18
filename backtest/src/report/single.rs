@@ -3,9 +3,11 @@ use std::fmt::{Debug, Formatter};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use plotly::layout::{GridPattern, LayoutGrid};
 use plotly::{Layout, Plot};
+use serde_json::Value;
 use tokio::sync::mpsc::UnboundedSender;
 
 use stats::Next;
@@ -149,32 +151,47 @@ impl BacktestReport {
     }
 
     /// Finish writing the report
-    pub async fn write_to<P: AsRef<Path>>(&self, output_dir: P) -> Result<()> {
-        let report_dir = output_dir.as_ref().to_path_buf().join(self.key.clone());
-        std::fs::create_dir_all(report_dir.clone())?;
-        let file = report_dir.join(REPORT_FILE);
-        write_as_seq(file, vec![self].as_slice());
+    pub async fn finish(&self) -> Result<()> {
+        let report_dir = self.output_dir.clone();
+        write_as_seq(report_dir.join(REPORT_FILE), vec![self].as_slice());
         self.model_ss.close().await;
         self.snapshots_ss.close().await;
         self.market_stats_ss.close().await;
         self.events_ss.close().await;
-        self.write_html_report(report_dir).unwrap();
+        self.write_html_report().unwrap();
         Ok(())
     }
 
-    fn write_html_report<P: AsRef<Path>>(
-        &self,
-        output_dir: P,
-    ) -> std::result::Result<String, Box<dyn std::error::Error>> {
-        let out_file = format!("{}/{}", output_dir.as_ref().to_str().unwrap(), REPORT_HTML_FILE);
+    fn write_html_report(&self) -> std::result::Result<String, Box<dyn std::error::Error>> {
+        let output_dir = self.output_dir.clone();
+        let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), REPORT_HTML_FILE);
         let mut plot = Plot::new();
         let models: Vec<TimedData<BTreeMap<String, Option<serde_json::Value>>>> =
-            super::read_json_file(output_dir.as_ref(), MODEL_FILE);
-        super::draw_entries(&mut plot, 0, models.as_slice(), vec![("apo", vec![|m| {
-            m.get("apo").unwrap().as_ref().unwrap().as_f64().unwrap()
-        }])]);
+            super::read_json_file(output_dir.as_path(), MODEL_FILE);
+        super::draw_entries(&mut plot, 0, models.as_slice(), vec![("model", vec![
+            |m| m.get("apo").unwrap().as_ref().unwrap().as_f64().unwrap(),
+            |m| m.get("threshold_short").unwrap().as_ref().unwrap().as_f64().unwrap(),
+            |m| m.get("threshold_long").unwrap().as_ref().unwrap().as_f64().unwrap(),
+        ])]);
         drop(models);
-        let indicators: Vec<TimedData<PortfolioSnapshot>> = super::read_json_file(output_dir.as_ref(), SNAPSHOTS_FILE);
+        let market_stats_d: Vec<HashMap<String, Value>> =
+            super::read_json_file(output_dir.as_path(), MARKET_STATS_FILE);
+        let market_stats: Vec<TimedData<MarketStat>> = market_stats_d
+            .into_iter()
+            .map(|md| {
+                let time = DateTime::parse_from_rfc3339(md.get("ts").unwrap().as_str().unwrap()).unwrap();
+                TimedData::new(time.with_timezone(&Utc), MarketStat {
+                    w_price: md.get("w_price").unwrap().as_f64().unwrap(),
+                    vol: md.get("vol").unwrap().as_f64().unwrap(),
+                })
+            })
+            .collect();
+        let report_dir = self.output_dir.clone();
+        write_as_seq(report_dir.join(MARKET_STATS_FILE), market_stats.as_slice());
+        super::draw_entries(&mut plot, 0, market_stats.as_slice(), vec![("stats", vec![|ms| {
+            ms.w_price
+        }])]);
+        let indicators: Vec<TimedData<PortfolioSnapshot>> = super::read_json_file(output_dir, SNAPSHOTS_FILE);
         super::draw_entries(&mut plot, 2, indicators.as_slice(), vec![
             ("pnl", vec![|i| i.pnl]),
             ("value", vec![|i| i.value]),
@@ -187,8 +204,9 @@ impl BacktestReport {
         Ok(out_file)
     }
 
-    pub fn from_files<P: AsRef<Path>>(key: &str, path: P) -> Self {
+    pub fn reload<P: AsRef<Path>>(key: &str, path: P) -> Self {
         let report = BacktestReport::new(path.as_ref().to_path_buf(), key.to_string());
+        report.write_html_report().unwrap();
         report
     }
 }
