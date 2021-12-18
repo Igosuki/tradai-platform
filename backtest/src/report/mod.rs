@@ -36,5 +36,5 @@ fn read_json_file<P: AsRef<Path>, T: DeserializeOwned>(base_path: P, filename: &
     let mut file = base_path.as_ref().to_path_buf();
     file.push(filename);
     let read = BufReader::new(File::open(file).unwrap());
-    serde_json::from_reader(read).unwrap()
+    serde_json::from_reader(read).expect(filename)
 }

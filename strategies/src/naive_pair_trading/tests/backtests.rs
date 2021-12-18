@@ -97,7 +97,7 @@ async fn spot_backtest() {
         0.001,
     )
     .await;
-    if let [position1, position2, ..] = &positions.as_slice()[positions.len() - 3..positions.len() - 1] {
+    if let [position1, _position2, ..] = &positions.as_slice()[positions.len() - 3..positions.len() - 1] {
         assert_eq!("44015.99".to_string(), format!("{:.2}", position1.current_symbol_price));
         assert_eq!(
             Some("87.87".to_string()),
