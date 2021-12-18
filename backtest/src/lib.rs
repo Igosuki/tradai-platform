@@ -162,10 +162,10 @@ impl Backtest {
         let fetches = futures::stream::iter(dir_list.into_iter().map(|file| async {
             let dir_entry = file.unwrap();
             if dir_entry.metadata().unwrap().is_dir() {
-                let report_os_string = dir_entry.file_name();
-                let report_dir = report_os_string.to_str().unwrap();
-                info!("Reading report at {}", report_dir);
-                Some(BacktestReport::from_files(report_dir, dir_entry.path()))
+                let string = dir_entry.file_name();
+                let key = string.to_str().unwrap();
+                info!("Reading report at {}", key);
+                Some(BacktestReport::reload(key, output_dir.clone()))
             } else {
                 None
             }

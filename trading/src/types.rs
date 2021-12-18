@@ -1,11 +1,13 @@
 // --------- Event Types ---------
 
-use crate::book::BookPosition;
-use crate::signal::ExecutionInstruction;
 use chrono::{DateTime, TimeZone, Utc};
+use uuid::Uuid;
+
 use coinnect_rt::types::{AddOrderRequest, AssetType, MarginSideEffect, MarketEvent, OrderEnforcement, OrderType,
                          TradeType};
-use uuid::Uuid;
+
+use crate::book::BookPosition;
+use crate::signal::ExecutionInstruction;
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -161,8 +163,6 @@ impl Default for OrderConf {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MarketStat {
-    /// Timestamp
-    pub ts: DateTime<Utc>,
     /// Weighted price
     pub w_price: f64,
     /// Volume
@@ -174,7 +174,6 @@ impl MarketStat {
         match e {
             MarketEvent::Trade(_) => unimplemented!(),
             MarketEvent::Orderbook(o) => MarketStat {
-                ts: Utc.timestamp_millis(o.timestamp),
                 w_price: BookPosition::mid(&o.asks, &o.bids),
                 vol: BookPosition::vol(&o.asks, &o.bids),
             },

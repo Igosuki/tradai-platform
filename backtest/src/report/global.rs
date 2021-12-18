@@ -1,13 +1,15 @@
 use std::path::{Path, PathBuf};
 
-use super::single::BacktestReport;
-use super::TimedData;
 use itertools::Itertools;
 use plotly::common::Font;
 use plotly::layout::{GridPattern, LayoutGrid, Legend, RowOrder};
 use plotly::{Layout, Plot};
+
 use strategy::query::PortfolioSnapshot;
 use util::time::now_str;
+
+use super::single::BacktestReport;
+use super::TimedData;
 
 pub(crate) struct GlobalReport {
     pub reports: Vec<BacktestReport>,
@@ -29,7 +31,7 @@ impl GlobalReport {
     pub(crate) async fn write(&mut self) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let output_dir = self.output_dir.clone();
         for report in self.reports.as_slice().iter() {
-            report.write_to(output_dir.clone()).await?;
+            report.finish().await?;
         }
         self.write_global_report(output_dir.clone())?;
         self.symlink_dir(output_dir.clone())?;
