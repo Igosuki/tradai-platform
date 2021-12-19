@@ -86,6 +86,24 @@ where
     Duration::from_std(parse_duration::parse(&val).map_err(serde::de::Error::custom)?).map_err(serde::de::Error::custom)
 }
 
+#[derive(Deserialize, Debug)]
+#[serde(untagged)]
+enum F64Helper {
+    Price(f64),
+    Null,
+}
+
+pub fn parse_null_to_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let helper = Deserialize::deserialize(deserializer)?;
+    match helper {
+        F64Helper::Price(s) => Ok(s),
+        F64Helper::Null => Ok(0.0),
+    }
+}
+
 pub fn write_as_seq<P: AsRef<Path>, T: Serialize>(out_file: P, data: &[T]) {
     let logs_f = std::fs::File::create(out_file).unwrap();
     let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));

@@ -162,6 +162,7 @@ impl Default for OrderConf {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MarketStat {
+    #[serde(deserialize_with = "util::ser::parse_null_to_f64")]
     /// Weighted price
     pub w_price: f64,
     /// Volume
