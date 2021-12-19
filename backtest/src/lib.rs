@@ -22,6 +22,7 @@ use std::time::{Duration, Instant};
 use futures::StreamExt;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::{Mutex, RwLock};
+use tokio::task;
 
 use db::{DbEngineOptions, DbOptions, RocksDbOptions};
 // TODO: https://github.com/rust-lang/rust/issues/47384
@@ -165,7 +166,7 @@ impl Backtest {
                 let string = dir_entry.file_name();
                 let key = string.to_str().unwrap();
                 info!("Reading report at {}", key);
-                Some(BacktestReport::reload(key, output_dir.clone()))
+                Some(BacktestReport::reload(key, output_dir.clone()).await)
             } else {
                 None
             }
@@ -190,18 +191,22 @@ async fn init_coinnect(xchs: &[Exchange]) {
     Coinnect::load_pair_registries(Arc::new(exchange_apis)).await.unwrap();
 }
 
-async fn spawn_runner<P: AsRef<Path>>(
+async fn spawn_runner(
     stop_tx: Sender<bool>,
-    db_conf: DbOptions<P>,
+    db_conf: DbOptions<PathBuf>,
     engine: Arc<TradingEngine>,
     settings: StrategyDriverSettings,
 ) -> Arc<RwLock<BacktestRunner>> {
     let receiver = stop_tx.subscribe();
     let logger: Arc<StreamWriterLogger<TimedData<StratEvent>>> = Arc::new(StreamWriterLogger::default());
-    let plugin = plugin_registry().get(settings.strat.strat_type.as_str()).unwrap();
-    let strategy_driver =
-        strategy::settings::from_driver_settings(plugin, &db_conf, &settings, engine, Some(logger.clone())).unwrap();
-    let runner = BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger, receiver);
+    let logger2 = logger.clone();
+    let strategy_driver = task::spawn_blocking(move || {
+        let plugin = plugin_registry().get(settings.strat.strat_type.as_str()).unwrap();
+        strategy::settings::from_driver_settings(plugin, &db_conf, &settings, engine, Some(logger.clone())).unwrap()
+    })
+    .await
+    .unwrap();
+    let runner = BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger2, receiver);
     Arc::new(RwLock::new(runner))
 }
 
