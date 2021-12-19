@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use futures::StreamExt;
 use itertools::Itertools;
 use plotly::common::Font;
 use plotly::layout::{GridPattern, LayoutGrid, Legend, RowOrder};
@@ -30,11 +31,17 @@ impl GlobalReport {
 
     pub(crate) async fn write(&mut self) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let output_dir = self.output_dir.clone();
-        for report in self.reports.as_slice().iter() {
-            report.finish().await?;
-        }
+        tokio_stream::iter(self.reports.as_slice().iter())
+            .map(|report| report.finish())
+            .buffer_unordered(10)
+            .map(|x| {
+                x.unwrap();
+                Ok(())
+            })
+            .forward(futures::sink::drain())
+            .await?;
         self.write_global_report(output_dir.clone())?;
-        self.symlink_dir(output_dir.clone())?;
+        self.symlink_dir(output_dir)?;
         Ok(())
     }
 
