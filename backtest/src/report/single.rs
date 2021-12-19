@@ -3,12 +3,11 @@ use std::fmt::{Debug, Formatter};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use plotly::layout::{GridPattern, LayoutGrid};
 use plotly::{Layout, Plot};
-use serde_json::Value;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::task;
 
 use stats::Next;
 use strategy::query::PortfolioSnapshot;
@@ -169,45 +168,36 @@ impl BacktestReport {
         let models: Vec<TimedData<BTreeMap<String, Option<serde_json::Value>>>> =
             super::read_json_file(output_dir.as_path(), MODEL_FILE);
         super::draw_entries(&mut plot, 0, models.as_slice(), vec![("model", vec![
-            |m| m.get("apo").unwrap().as_ref().unwrap().as_f64().unwrap(),
-            |m| m.get("threshold_short").unwrap().as_ref().unwrap().as_f64().unwrap(),
-            |m| m.get("threshold_long").unwrap().as_ref().unwrap().as_f64().unwrap(),
+            |m| extract_f64(m, "apo"),
+            |m| extract_f64(m, "threshold_short"),
+            |m| extract_f64(m, "threshold_long"),
         ])]);
         drop(models);
-        let market_stats_d: Vec<HashMap<String, Value>> =
-            super::read_json_file(output_dir.as_path(), MARKET_STATS_FILE);
-        let market_stats: Vec<TimedData<MarketStat>> = market_stats_d
-            .into_iter()
-            .map(|md| {
-                let time = DateTime::parse_from_rfc3339(md.get("ts").unwrap().as_str().unwrap()).unwrap();
-                TimedData::new(time.with_timezone(&Utc), MarketStat {
-                    w_price: md.get("w_price").unwrap().as_f64().unwrap(),
-                    vol: md.get("vol").unwrap().as_f64().unwrap(),
-                })
-            })
-            .collect();
-        let report_dir = self.output_dir.clone();
-        write_as_seq(report_dir.join(MARKET_STATS_FILE), market_stats.as_slice());
-        super::draw_entries(&mut plot, 0, market_stats.as_slice(), vec![("stats", vec![|ms| {
+        let market_stats: Vec<TimedData<MarketStat>> = super::read_json_file(output_dir.as_path(), MARKET_STATS_FILE);
+        super::draw_entries(&mut plot, 2, market_stats.as_slice(), vec![("stats", vec![|ms| {
             ms.w_price
         }])]);
         let indicators: Vec<TimedData<PortfolioSnapshot>> = super::read_json_file(output_dir, SNAPSHOTS_FILE);
-        super::draw_entries(&mut plot, 2, indicators.as_slice(), vec![
+        super::draw_entries(&mut plot, 3, indicators.as_slice(), vec![
             ("pnl", vec![|i| i.pnl]),
             ("value", vec![|i| i.value]),
             ("return", vec![|i| i.current_return]),
         ]);
 
-        let layout = Layout::new().grid(LayoutGrid::new().rows(4).columns(1).pattern(GridPattern::Independent));
+        let layout = Layout::new().grid(LayoutGrid::new().rows(5).columns(1).pattern(GridPattern::Independent));
         plot.set_layout(layout);
         plot.to_html(&out_file);
         Ok(out_file)
     }
 
-    pub fn reload<P: AsRef<Path>>(key: &str, path: P) -> Self {
+    pub async fn reload<P: AsRef<Path>>(key: &str, path: P) -> Self {
         let report = BacktestReport::new(path.as_ref().to_path_buf(), key.to_string());
-        report.write_html_report().unwrap();
-        report
+        task::spawn_blocking(move || {
+            report.write_html_report().unwrap();
+            report
+        })
+        .await
+        .unwrap()
     }
 }
 
@@ -226,4 +216,11 @@ fn pnl_increase_ratio(indicators: &[TimedData<PortfolioSnapshot>]) -> f64 {
 #[allow(dead_code)]
 fn stop_event_ratio(events: &[StratEvent]) -> usize {
     events.len() / events.iter().filter(|e| matches!(e, StratEvent::Stop { .. })).count()
+}
+
+fn extract_f64(m: &BTreeMap<String, Option<serde_json::Value>>, key: &str) -> f64 {
+    m.get(key)
+        .as_ref()
+        .and_then(|t| t.as_ref().and_then(|v| v.as_f64()))
+        .unwrap_or(0.0)
 }

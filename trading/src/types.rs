@@ -1,6 +1,5 @@
 // --------- Event Types ---------
 
-use chrono::{DateTime, TimeZone, Utc};
 use uuid::Uuid;
 
 use coinnect_rt::types::{AddOrderRequest, AssetType, MarginSideEffect, MarketEvent, OrderEnforcement, OrderType,
