@@ -7,6 +7,7 @@ use pyo3::exceptions::PyBaseException;
 use pyo3::prelude::*;
 use uuid::Uuid;
 
+use ext::MapInto;
 use strategy::coinnect::prelude::*;
 use strategy::coinnect::types::{AssetType, MarginSideEffect, OrderType};
 use strategy::trading::position::{OperationKind, PositionKind};
@@ -17,7 +18,7 @@ use util::time::now;
 #[pyclass(name = "TradeSignal", module = "trading", subclass)]
 #[derive(Debug, Clone)]
 #[pyo3(
-    text_signature = "TradeSignal(position, operation, side, price, qty, pair, exchange, dry_mode, asset_type, order_type, instructions, enforcement, side_effect, event_time, trace_id, /)"
+    text_signature = "TradeSignal(position, operation, side, price, qty, pair, exchange, dry_mode, asset_type, order_type, event_time, trace_id, instructions, enforcement, side_effect, /)"
 )]
 pub(crate) struct PyTradeSignal {
     inner: TradeSignal,
@@ -32,21 +33,21 @@ impl PyTradeSignal {
     #[allow(clippy::too_many_arguments)]
     #[new]
     fn new(
-        position: &str,
-        operation: &str,
-        side: &str,
+        position: PyPositionKind,
+        operation: PyOperationKind,
+        side: PyTradeKind,
         price: f64,
-        qty: f64,
         pair: &str,
         exchange: &str,
         dry_mode: bool,
-        asset_type: &str,
-        order_type: &str,
-        instructions: Option<&str>,
-        enforcement: Option<&str>,
-        side_effect: Option<&str>,
+        asset_type: PyAssetType,
+        order_type: PyOrderType,
         event_time: i64,
         trace_id: &str,
+        qty: Option<f64>,
+        instructions: Option<PyExecutionInstruction>,
+        enforcement: Option<PyOrderEnforcement>,
+        side_effect: Option<PyMarginSideEffect>,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: TradeSignal {
@@ -54,40 +55,197 @@ impl PyTradeSignal {
                     .map_err(|_| PyBaseException::new_err(format!("bad uuid string '{}'", trace_id)))?,
                 event_time: Utc.timestamp_millis(event_time),
                 signal_time: now(),
-                pos_kind: PositionKind::from_str(position)
-                    .map_err(|_| PyBaseException::new_err(format!("unknown position '{}'", position)))?,
-                op_kind: OperationKind::from_str(operation)
-                    .map_err(|_| PyBaseException::new_err(format!("unknown operation '{}'", operation)))?,
-                trade_kind: TradeKind::from_str(side)
-                    .map_err(|_| PyBaseException::new_err(format!("unknown side '{}'", side)))?,
+                pos_kind: position.into(),
+                op_kind: operation.into(),
+                trade_kind: side.into(),
                 price,
-                qty: Some(qty),
-                pair: pair.into(),
+                qty,
+                pair: pair.to_uppercase().into(),
                 exchange: Exchange::from_str(exchange)
                     .map_err(|_| PyBaseException::new_err(format!("unknown exchange '{}'", exchange)))?,
-                instructions: instructions.and_then(|i| {
-                    ExecutionInstruction::from_str(i)
-                        .map_err(|_| PyBaseException::new_err(format!("unknown execution instruction '{}'", i)))
-                        .ok()
-                }),
+                instructions: instructions.map_into(),
                 dry_mode,
-                order_type: OrderType::from_str(order_type)
-                    .map_err(|_| PyBaseException::new_err(format!("unknown order_type '{}'", exchange)))?,
-                enforcement: enforcement.and_then(|e| {
-                    OrderEnforcement::from_str(e)
-                        .map_err(|_| PyBaseException::new_err(format!("unknown order_type '{}'", exchange)))
-                        .ok()
-                }),
-                asset_type: Some(
-                    AssetType::from_str(asset_type)
-                        .map_err(|_| PyBaseException::new_err(format!("unknown asset type '{}'", asset_type)))?,
-                ),
-                side_effect: side_effect.and_then(|e| {
-                    MarginSideEffect::from_str(e)
-                        .map_err(|_| PyBaseException::new_err(format!("unknown order_type '{}'", exchange)))
-                        .ok()
-                }),
+                order_type: order_type.into(),
+                enforcement: enforcement.map_into(),
+                asset_type: Some(asset_type.into()),
+                side_effect: side_effect.map_into(),
             },
         })
+    }
+}
+
+#[pyclass(name = "PositionKind")]
+#[derive(Copy, Clone)]
+pub(crate) enum PyPositionKind {
+    Short,
+    Long,
+}
+
+impl From<PyPositionKind> for PositionKind {
+    fn from(p: PyPositionKind) -> Self {
+        match p {
+            PyPositionKind::Short => PositionKind::Short,
+            PyPositionKind::Long => PositionKind::Long,
+        }
+    }
+}
+
+#[pyclass(name = "TradeKind")]
+#[derive(Copy, Clone)]
+pub(crate) enum PyTradeKind {
+    Buy,
+    Sell,
+}
+
+impl From<PyTradeKind> for TradeKind {
+    fn from(t: PyTradeKind) -> Self {
+        match t {
+            PyTradeKind::Buy => TradeKind::Buy,
+            PyTradeKind::Sell => TradeKind::Sell,
+        }
+    }
+}
+
+#[pyclass(name = "OperationKind")]
+#[derive(Copy, Clone)]
+pub(crate) enum PyOperationKind {
+    Open,
+    Close,
+}
+
+impl From<PyOperationKind> for OperationKind {
+    fn from(o: PyOperationKind) -> Self {
+        match o {
+            PyOperationKind::Open => OperationKind::Open,
+            PyOperationKind::Close => OperationKind::Close,
+        }
+    }
+}
+
+#[pyclass(name = "OrderType")]
+#[derive(Copy, Clone)]
+pub(crate) enum PyOrderType {
+    Limit,
+    Market,
+    StopLoss,
+    StopLossLimit,
+    TakeProfit,
+    TakeProfitLimit,
+    LimitMaker,
+}
+
+impl From<PyOrderType> for OrderType {
+    fn from(o: PyOrderType) -> Self {
+        match o {
+            PyOrderType::Limit => OrderType::Limit,
+            PyOrderType::Market => OrderType::Market,
+            PyOrderType::StopLoss => OrderType::StopLoss,
+            PyOrderType::StopLossLimit => OrderType::StopLossLimit,
+            PyOrderType::TakeProfit => OrderType::TakeProfit,
+            PyOrderType::TakeProfitLimit => OrderType::TakeProfitLimit,
+            PyOrderType::LimitMaker => OrderType::LimitMaker,
+        }
+    }
+}
+
+#[pyclass(name = "ExecutionInstruction")]
+#[derive(Copy, Clone)]
+pub(crate) enum PyExecutionInstruction {
+    CancelIfNotBest,
+    DoNotIncrease,
+    DoNotReduce,
+    LastPrice,
+}
+
+impl From<PyExecutionInstruction> for ExecutionInstruction {
+    fn from(e: PyExecutionInstruction) -> Self {
+        match e {
+            PyExecutionInstruction::CancelIfNotBest => ExecutionInstruction::CancelIfNotBest,
+            PyExecutionInstruction::DoNotIncrease => ExecutionInstruction::DoNotIncrease,
+            PyExecutionInstruction::DoNotReduce => ExecutionInstruction::DoNotReduce,
+            PyExecutionInstruction::LastPrice => ExecutionInstruction::LastPrice,
+        }
+    }
+}
+
+#[pyclass(name = "MarginSideEffect")]
+#[derive(Copy, Clone)]
+pub(crate) enum PyMarginSideEffect {
+    NoSideEffect,
+    MarginBuy,
+    AutoRepay,
+}
+
+impl From<PyMarginSideEffect> for MarginSideEffect {
+    fn from(m: PyMarginSideEffect) -> Self {
+        match m {
+            PyMarginSideEffect::NoSideEffect => MarginSideEffect::NoSideEffect,
+            PyMarginSideEffect::MarginBuy => MarginSideEffect::MarginBuy,
+            PyMarginSideEffect::AutoRepay => MarginSideEffect::AutoRepay,
+        }
+    }
+}
+
+#[pyclass(name = "AssetType")]
+#[derive(Copy, Clone)]
+pub enum PyAssetType {
+    Spot,
+    Margin,
+    MarginFunding,
+    IsolatedMargin,
+    Index,
+    Binary,
+    PerpetualContract,
+    PerpetualSwap,
+    Futures,
+    UpsideProfitContract,
+    DownsideProfitContract,
+    CoinMarginedFutures,
+    UsdtMarginedFutures,
+}
+
+impl From<PyAssetType> for AssetType {
+    fn from(a: PyAssetType) -> Self {
+        match a {
+            PyAssetType::Spot => AssetType::Spot,
+            PyAssetType::Margin => AssetType::Margin,
+            PyAssetType::MarginFunding => AssetType::MarginFunding,
+            PyAssetType::IsolatedMargin => AssetType::IsolatedMargin,
+            PyAssetType::Index => AssetType::Index,
+            PyAssetType::Binary => AssetType::Binary,
+            PyAssetType::PerpetualContract => AssetType::PerpetualContract,
+            PyAssetType::PerpetualSwap => AssetType::PerpetualSwap,
+            PyAssetType::Futures => AssetType::Futures,
+            PyAssetType::UpsideProfitContract => AssetType::UpsideProfitContract,
+            PyAssetType::DownsideProfitContract => AssetType::DownsideProfitContract,
+            PyAssetType::CoinMarginedFutures => AssetType::CoinMarginedFutures,
+            PyAssetType::UsdtMarginedFutures => AssetType::UsdtMarginedFutures,
+        }
+    }
+}
+
+/// How an order will be resolved
+#[pyclass(name = "OrderEnforcement")]
+#[derive(Copy, Clone)]
+#[allow(clippy::upper_case_acronyms)]
+pub enum PyOrderEnforcement {
+    /// Good Till Canceled
+    GTC,
+    /// Immediate Or Cancel
+    IOC,
+    /// Fill or Kill
+    FOK,
+    /// Good till executed
+    GTX,
+}
+
+impl From<PyOrderEnforcement> for OrderEnforcement {
+    fn from(o: PyOrderEnforcement) -> Self {
+        match o {
+            PyOrderEnforcement::GTC => OrderEnforcement::GTC,
+            PyOrderEnforcement::IOC => OrderEnforcement::IOC,
+            PyOrderEnforcement::FOK => OrderEnforcement::FOK,
+            PyOrderEnforcement::GTX => OrderEnforcement::GTX,
+        }
     }
 }

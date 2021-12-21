@@ -17,4 +17,9 @@ python-source = "python_src"
 [dependencies]
 strategy_python = { path = "../strategy_python", features = ["static"] }
 
-pyo3 = { version = "0.15", features = ["serde", "auto-initialize", "extension-module"] }
+pyo3 = { version = "^0.15", features = ["serde", "auto-initialize", "extension-module"] }
+
+[patch.crates-io]
+plotly = { git = "https://github.com/igiagkiozis/plotly", branch = "master" }
+actix-cors = { git = "https://github.com/actix/actix-extras", branch = "master" }
+pyo3 = { git = "https://github.com/PyO3/pyo3", rev = "8a989eeb6aeb862c0c518d994ef6e5f967f0dc46", version = "^0.15" }

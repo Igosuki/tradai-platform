@@ -13,7 +13,7 @@ use py_strat::*;
 
 use crate::channel::PyChannel;
 use crate::coinnect::PyMarketEvent;
-use crate::trading::PyTradeSignal;
+use crate::trading::*;
 
 mod backtest;
 mod channel;
@@ -36,6 +36,14 @@ pub fn strat(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyTradeSignal>()?;
     m.add_class::<PyMarketEvent>()?;
     m.add_class::<PyChannel>()?;
+    m.add_class::<PyPositionKind>()?;
+    m.add_class::<PyTradeKind>()?;
+    m.add_class::<PyOperationKind>()?;
+    m.add_class::<PyOrderType>()?;
+    m.add_class::<PyExecutionInstruction>()?;
+    m.add_class::<PyMarginSideEffect>()?;
+    m.add_class::<PyAssetType>()?;
+    m.add_class::<PyOrderEnforcement>()?;
     m.add("ModelError", py.get_type::<ModelError>())?;
     m.add("EvalError", py.get_type::<EvalError>())?;
 

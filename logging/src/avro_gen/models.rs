@@ -50,6 +50,14 @@ impl Default for Orderbook {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
+pub enum TradeType {
+    #[serde(rename = "BUY")]
+    Buy,
+    #[serde(rename = "SELL")]
+    Sell,
+}
+
 lazy_static! {
     pub static ref LIVETRADE_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveTrade\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
 }
@@ -75,12 +83,4 @@ impl Default for LiveTrade {
             tt: 0,
         }
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
-pub enum TradeType {
-    #[serde(rename = "BUY")]
-    Buy,
-    #[serde(rename = "SELL")]
-    Sell,
 }

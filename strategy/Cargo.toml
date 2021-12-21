@@ -60,10 +60,10 @@ async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
 
 # graph_ql
-juniper = { version = "0.15", features = ["expose-test-schema"] }
+juniper = { version = "^0.15", features = ["expose-test-schema"] }
 
 # metrics and tracing
-opentelemetry = { version = "0.15", default-features = false, features = ["trace"] }
+opentelemetry = { version = "^0.15", default-features = false, features = ["trace"] }
 opentelemetry-jaeger = "0.14"
 tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-futures = "0.2"
@@ -77,7 +77,7 @@ serde_json = { version = "1.0", features = ["float_roundtrip"] }
 snap = "1.0"
 
 # python
-pyo3 = { version = "0.15", optional = true }
+pyo3 = { version = "^0.15", optional = true }
 
 [dev-dependencies]
 # ours
