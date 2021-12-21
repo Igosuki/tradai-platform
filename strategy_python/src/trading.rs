@@ -5,7 +5,7 @@ use std::str::FromStr;
 use chrono::{TimeZone, Utc};
 use pyo3::exceptions::PyBaseException;
 use pyo3::prelude::*;
-use uuid::Uuid;
+use pyo3_chrono::NaiveDateTime;
 
 use ext::MapInto;
 use strategy::coinnect::prelude::*;
@@ -15,10 +15,12 @@ use strategy::trading::signal::{ExecutionInstruction, TradeSignal};
 use strategy::trading::types::TradeKind;
 use util::time::now;
 
+use crate::uuid::Uuid;
+
 #[pyclass(name = "TradeSignal", module = "trading", subclass)]
 #[derive(Debug, Clone)]
 #[pyo3(
-    text_signature = "TradeSignal(position, operation, side, price, qty, pair, exchange, dry_mode, asset_type, order_type, event_time, trace_id, instructions, enforcement, side_effect, /)"
+    text_signature = "TradeSignal(position, operation, side, price, pair, exchange, dry_mode, asset_type, order_type, event_time, trace_id, qty, instructions, enforcement, side_effect, /)"
 )]
 pub(crate) struct PyTradeSignal {
     inner: TradeSignal,
@@ -42,8 +44,8 @@ impl PyTradeSignal {
         dry_mode: bool,
         asset_type: PyAssetType,
         order_type: PyOrderType,
-        event_time: i64,
-        trace_id: &str,
+        event_time: NaiveDateTime,
+        trace_id: Uuid,
         qty: Option<f64>,
         instructions: Option<PyExecutionInstruction>,
         enforcement: Option<PyOrderEnforcement>,
@@ -51,9 +53,8 @@ impl PyTradeSignal {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: TradeSignal {
-                trace_id: Uuid::from_str(trace_id)
-                    .map_err(|_| PyBaseException::new_err(format!("bad uuid string '{}'", trace_id)))?,
-                event_time: Utc.timestamp_millis(event_time),
+                trace_id: trace_id.handle,
+                event_time: Utc.from_utc_datetime(&event_time.0),
                 signal_time: now(),
                 pos_kind: position.into(),
                 op_kind: operation.into(),
