@@ -1,0 +1,49 @@
+[package]
+name = "strategy_python"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+path = "src/lib.rs"
+name = "strategy_python"
+
+[features]
+static = ["db/rocksdb-vendor"]
+
+[dependencies]
+strategy = { path = "../strategy", features = ["python"] }
+trading = { path = "../trading" }
+ext = { path = "../ext" }
+db = { path = "../db" }
+util = { path = "../util" }
+strategy_test_util = { path = "../strategy_test_util" }
+#backtest = { path = "../backtest" }
+
+# std
+chrono = { version = "0.4", features = ["serde"] }
+inventory = "0.2"
+thiserror = "1.0"
+anyhow = "1.0"
+uuid = "0.8"
+
+# log / trace
+tracing = "0.1"
+
+# python
+pyo3 = { version = "0.15", features = ["serde", "auto-initialize", "anyhow", "macros"] }
+pyo3-log = { version = "0.5" }
+pyo3-asyncio = { version = "0.15", features = ["tokio-runtime", "attributes"] }
+pyo3-chrono = { version = "0.3", features = ["serde"] }
+canonical_json = { version = "0.4.0", optional = true }
+inline-python = { version = "0.8" }
+
+# async
+tokio = { version = "1", features = ["full", "time"] }
+async-trait = "0.1"
+
+# serde
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+

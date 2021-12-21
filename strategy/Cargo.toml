@@ -12,10 +12,10 @@ path = "src/lib.rs"
 
 [features]
 zstd = ["awc/compress-zstd"]
-python = ["pyo3", "pyo3-log", "inline-python", "trading/python", "canonical_json"]
 backtests = ["util/mock_time"]
 live_e2e_tests = []
 manual_e2e_tests = []
+python = ["pyo3"]
 
 [dependencies]
 # trader
@@ -77,14 +77,10 @@ serde_json = { version = "1.0", features = ["float_roundtrip"] }
 snap = "1.0"
 
 # python
-inline-python = { version = "0.7", optional = true }
-pyo3 = { version = "0.14", features = ["serde", "auto-initialize"], optional = true }
-pyo3-log = { version = "0.4", optional = true }
-canonical_json = { version = "0.4.0", optional = true }
+pyo3 = { version = "0.15", optional = true }
 
 [dev-dependencies]
 # ours
-backtest = { path = "../backtest" }
 util = { path = "../util" }
 binance-rs-async = { version = "1.1.4" }
 trading = { path = "../trading", features = ["test_util"] }
@@ -125,3 +121,4 @@ socket2 = "0.4"
 
 # Async
 tokio-stream = { version = "0.1", features = ["sync", "fs", "net", "io-util", "tokio-util", "signal", "time"] }
+

@@ -21,6 +21,7 @@ use crate::init;
 use crate::log::{write_models, write_trade_events, StrategyLog};
 use crate::{input, test_db_with_path};
 
+#[pyclass]
 pub struct GenericTestContext {
     pub engine: Arc<TradingEngine>,
     pub db: Arc<dyn Storage>,

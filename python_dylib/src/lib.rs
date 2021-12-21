@@ -1,8 +1,9 @@
-use pyo3::prelude::*;
+#[macro_use]
+extern crate pyo3;
 
 #[pymodule]
 #[pyo3(name = "strategy")]
 fn strategy(py: pyo3::Python, m: &pyo3::types::PyModule) -> pyo3::PyResult<()> {
-    ::strategy::python_strat::strat(py, m)?;
+    strategy_python::strat(py, m)?;
     Ok(())
 }

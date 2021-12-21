@@ -1,6 +1,4 @@
 use chrono::{DateTime, Utc};
-#[cfg(feature = "python")]
-use pyo3::prelude::*;
 use uuid::Uuid;
 
 use coinnect_rt::prelude::*;
@@ -10,8 +8,7 @@ use util::time::now;
 use crate::position::{OperationKind, PositionKind};
 use crate::types::{OrderConf, OrderMode, TradeKind};
 
-#[derive(Debug)]
-#[cfg_attr(feature = "python", pyclass)]
+#[derive(Debug, Clone)]
 pub struct TradeSignal {
     /// Trace of the event that triggered the signal
     pub trace_id: Uuid,

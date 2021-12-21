@@ -19,16 +19,10 @@ extern crate anyhow;
 extern crate async_trait;
 #[macro_use]
 extern crate derivative;
-#[cfg(feature = "python")]
-#[macro_use]
-extern crate inline_python;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate prometheus;
-#[cfg(feature = "python")]
-#[macro_use]
-extern crate pyo3;
 #[macro_use]
 extern crate serde;
 #[macro_use]
@@ -52,8 +46,6 @@ use db::DbOptions;
 use error::*;
 use ext::ResultExt;
 pub use portfolio::portfolio::Portfolio;
-#[cfg(feature = "python")]
-pub use python_wrapper::python_strat;
 pub use trading;
 use trading::engine::TradingEngine;
 use util::time::TimedData;
@@ -68,8 +60,6 @@ pub mod prelude {
     pub use super::db;
     pub use super::generic::{GenericDriver, GenericDriverOptions, PortfolioOptions};
     pub use super::models::Model;
-    #[cfg(feature = "python")]
-    pub use super::python_wrapper::python_strat;
     pub use super::settings::{StrategyCopySettings, StrategyDriverSettings, StrategySettings};
     pub use super::trading;
     pub use super::types::StratEvent;
@@ -85,7 +75,6 @@ mod generic;
 pub mod models;
 pub mod plugin;
 pub mod plugin_flag;
-mod python_wrapper;
 pub mod query;
 pub mod settings;
 #[cfg(test)]

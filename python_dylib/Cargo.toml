@@ -10,13 +10,11 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 name = "strategy"
 
-[features]
-static = ["db/rocksdb-vendor"]
+[package.metadata.maturin]
+name = "strategy"
+python-source = "python_src"
 
 [dependencies]
-strategy = { path = "../strategy", features = ["python"] }
-db = { path = "../db" }
-#backtest = { path = "../backtest" }
+strategy_python = { path = "../strategy_python", features = ["static"] }
 
-pyo3 = { version = "0.14", features = ["serde", "auto-initialize"] }
-tracing = "0.1"
+pyo3 = { version = "0.15", features = ["serde", "auto-initialize", "extension-module"] }
