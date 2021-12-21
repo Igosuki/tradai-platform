@@ -10,7 +10,6 @@ required-features = ["binary"]
 
 [features]
 binary = ["clap", "structopt"]
-python = ["pyo3"]
 test_util = ["binance-rs-async", "httpmock", "rand", "env_logger", "fake", "quickcheck"]
 
 [dependencies]
@@ -50,10 +49,8 @@ structopt = { version = "0.3.23", optional = true }
 tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
 
 # graphql
-juniper = { version = "0.15", features = ["expose-test-schema"] }
+juniper = { version = "^0.15", features = ["expose-test-schema"] }
 
-# python
-pyo3 = { version = "0.15", features = ["serde", "auto-initialize"], optional = true }
 binance-rs-async = { version = "1.1.4", optional = true }
 httpmock = { git = "https://github.com/Igosuki/httpmock.git", optional = true }
 rand = { version = "0.8", optional = true }

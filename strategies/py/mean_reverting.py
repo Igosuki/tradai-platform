@@ -1,7 +1,7 @@
 import asyncio
 
-from strategy import Strategy, TradeSignal, Channel, backtest
-
+from strategy import Strategy, TradeSignal, Channel, PositionKind, backtest
+from inspect import getmembers
 
 class Strat(Strategy):
     def __new__(cls, conf):
@@ -14,7 +14,7 @@ class Strat(Strategy):
         print("initi")
 
     def eval(self, event):
-        return [TradeSignal('short', 'open', 'buy', 1.0, 'BTC_USDT', 'binance', False, 'spot')]
+        return [TradeSignal(PositionKind.Long, 'open', 'buy', 1.0, 1.0, 'BTC_USDT', 'binance', False, 'spot', )]
 
     def update_model(self, event):
         print("update_model")
@@ -34,6 +34,7 @@ if __name__ == '__main__':
     print("0", Channel("orderbooks", "Binance", "BTC_USDT").__doc__)
     print("2", Channel.__text_signature__)
     print("4", TradeSignal.__doc__)
-    asyncio.run(backtest_run())
+    print(getmembers(PositionKind))
+    #asyncio.run(backtest_run())
     s = Strat({})
     s.eval({})
