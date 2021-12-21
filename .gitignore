@@ -37,3 +37,7 @@ flame-graph.html
 
 # submodule
 #binance-rs
+
+# python
+__pycache__
+*.cpython*
