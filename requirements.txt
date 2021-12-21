@@ -1,3 +1,4 @@
 maturin
 cffi
 ansible
+datafusion

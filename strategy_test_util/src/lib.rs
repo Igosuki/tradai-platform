@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate maplit;
 #[macro_use]
+extern crate pyo3;
+#[macro_use]
 extern crate serde;
 #[macro_use]
 extern crate tracing;

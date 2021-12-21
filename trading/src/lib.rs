@@ -1,19 +1,19 @@
 #![allow(unused_braces)]
 
 #[macro_use]
-extern crate serde;
-#[macro_use]
 extern crate anyhow;
-#[macro_use]
-extern crate tracing;
-#[macro_use]
-extern crate strum_macros;
 #[macro_use]
 extern crate async_trait;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate prometheus;
+#[macro_use]
+extern crate serde;
+#[macro_use]
+extern crate strum_macros;
+#[macro_use]
+extern crate tracing;
 
 pub mod book;
 pub mod engine;
@@ -21,7 +21,6 @@ pub mod error;
 pub mod interest;
 pub mod order_manager;
 pub mod position;
-pub mod python_impls;
 pub mod signal;
 pub mod stop;
 mod test_util;

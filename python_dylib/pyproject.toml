@@ -1,0 +1,35 @@
+[build-system]
+requires = ["maturin>=0.12"]
+build-backend = "maturin"
+
+[project]
+name = "strategy"
+version = "2021.0.0"
+description = "The python SDK of the trading api"
+requires-python = ">=3.6"
+keywords = ["trading", "backtest", "strategy"]
+authors = [
+    {email = "igosuki.github@gmail.com"},
+    {name = "Guillaume Balaine"}
+]
+maintainers = [
+    {name = "Guillaume Balaine", email = "igosuki.github@gmail.com"}
+]
+classifiers = [
+    "Development Status :: 1 - Beta",
+    "Programming Language :: Python"
+]
+
+dependencies = []
+
+[project.optional-dependencies]
+test = [
+    "pytest < 5.0.0",
+    "pytest-cov[all]"
+]
+
+[project.urls]
+homepage = "github.com/Igosuki/bitcoins"
+repository = "github.com/Igosuki/bitcoins"
+changelog = "github.com/Igosuki/bitcoins"
+
