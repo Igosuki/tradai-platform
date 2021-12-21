@@ -1,13 +1,12 @@
-use chrono::{DateTime, TimeZone, Utc};
-use coinnect_rt::types::Orderbook;
-use itertools::Itertools;
-#[cfg(feature = "python")]
-use pyo3::prelude::*;
 use std::collections::HashMap;
+
+use chrono::{DateTime, TimeZone, Utc};
+use itertools::Itertools;
 use uuid::Uuid;
 
+use coinnect_rt::types::Orderbook;
+
 #[derive(Copy, Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(feature = "python", pyclass)]
 pub struct BookPosition {
     pub mid: f64,
     // mid = (top_ask + top_bid) / 2, alias: crypto1_m

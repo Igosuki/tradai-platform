@@ -13,10 +13,11 @@ members = [
     "metrics",
     "server",
     "strategy",
+    "strategy_python",
     "strategies",
     "util",
     "backtest",
-    "trading"
+    "trading",
 ]
 
 exclude = [
