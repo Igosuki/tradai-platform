@@ -458,12 +458,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "atomic"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64f46ca51dca4837f1520754d1c8c36636356b81553d928dc9c177025369a06e"
-
-[[package]]
 name = "atomic-shim"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -570,7 +564,7 @@ checksum = "e069b745a052c30dd6bb4826356f37ca61c5e3c89665b2975a6de5d0abfb7bcd"
 dependencies = [
  "chrono",
  "futures",
- "hex 0.4.3",
+ "hex",
  "lazy_static",
  "reqwest",
  "ring",
@@ -706,7 +700,7 @@ checksum = "de0aa578035b938855a710ba58d43cfb4d435f3619f99236fb35922a574d6cb1"
 dependencies = [
  "base64",
  "chrono",
- "hex 0.4.3",
+ "hex",
  "lazy_static",
  "linked-hash-map",
  "rand 0.7.3",
@@ -1374,30 +1368,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "faster-hex"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5b8cccaafb5aae8c282692e5590f341925edea6c696e8715ff0d973320b2646"
-
-[[package]]
 name = "fastrand"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "779d043b6a0b90cc4c0ed7ee380a6504394cee7efd7db050e3774eee387324b2"
 dependencies = [
  "instant",
-]
-
-[[package]]
-name = "fastuuid"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79f945fd87a370e003b9174bb4f78e4ecf65675f99a4b25ddcc91fc61831ed4d"
-dependencies = [
- "atomic",
- "faster-hex",
- "hex 0.3.2",
- "rand 0.7.3",
 ]
 
 [[package]]
@@ -1712,12 +1688,6 @@ checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
 dependencies = [
  "libc",
 ]
-
-[[package]]
-name = "hex"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "805026a5d0141ffc30abb3be3173848ad46a1b1664fe632428479619a3644d77"
 
 [[package]]
 name = "hex"
@@ -2847,7 +2817,7 @@ dependencies = [
  "bitflags",
  "byteorder",
  "flate2",
- "hex 0.4.3",
+ "hex",
  "lazy_static",
  "libc",
 ]
@@ -3752,7 +3722,6 @@ dependencies = [
  "chrono",
  "db",
  "ext",
- "fastuuid",
  "inline-python",
  "inventory 0.2.0",
  "pyo3",

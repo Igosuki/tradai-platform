@@ -1,9 +1,11 @@
 import asyncio
 
-from strategy import Strategy, TradeSignal, Channel, PositionKind, backtest
+from strategy import Strategy, TradeSignal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
+    OrderType, uuid
 from inspect import getmembers
+from datetime import datetime
 
-class Strat(Strategy):
+class MeanReverting(Strategy):
     def __new__(cls, conf):
         dis = super().__new__(cls, conf)
         dis.conf = conf
@@ -14,27 +16,20 @@ class Strat(Strategy):
         print("initi")
 
     def eval(self, event):
-        return [TradeSignal(PositionKind.Long, 'open', 'buy', 1.0, 1.0, 'BTC_USDT', 'binance', False, 'spot', )]
-
-    def update_model(self, event):
-        print("update_model")
+        return [TradeSignal(PositionKind.Long, OperationKind.Open, TradeKind.Buy, 1.0, 'BTC_USDT', 'Binance', True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), 1.0, None, None, None)]
 
     def models(self):
         print("models")
         return ()
 
     def channels(self):
-        print("channels")
-        return ()
+        return ((Channel("orderbooks", "Binance", "BTC_USDT"),))
 
-async def backtest_run():
-    await backtest.it_backtest("hello_world")
+async def backtest_run(*args, **kwargs):
+    await backtest.it_backtest(*args, **kwargs)
 
 if __name__ == '__main__':
-    print("0", Channel("orderbooks", "Binance", "BTC_USDT").__doc__)
-    print("2", Channel.__text_signature__)
-    print("4", TradeSignal.__doc__)
-    print(getmembers(PositionKind))
-    #asyncio.run(backtest_run())
-    s = Strat({})
-    s.eval({})
+    strat = MeanReverting({})
+    signals = strat.eval({})
+    print(signals)
+    #asyncio.run(backtest_run("mr_py_test", ))
