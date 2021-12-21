@@ -24,7 +24,7 @@ pub trait MapInto<T> {
 
 impl<S, T, E> MapInto<Result<T, E>> for Result<S, E>
 where
-    T: From<S>,
+    S: Into<T>,
 {
     #[inline]
     fn map_into(self) -> Result<T, E> { self.map(|v| v.into()) }
@@ -32,7 +32,7 @@ where
 
 impl<S, T> MapInto<Option<T>> for Option<S>
 where
-    T: From<S>,
+    S: Into<T>,
 {
     #[inline]
     fn map_into(self) -> Option<T> { self.map(|v| v.into()) }
@@ -40,7 +40,7 @@ where
 
 impl<S, T> MapInto<Vec<T>> for Vec<S>
 where
-    T: From<S>,
+    S: Into<T>,
 {
     #[inline]
     fn map_into(self) -> Vec<T> { self.into_iter().map_into().collect() }
