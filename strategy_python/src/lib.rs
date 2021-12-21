@@ -25,6 +25,7 @@ mod script_strat;
 mod test_util;
 mod trading;
 mod util;
+mod uuid;
 
 create_exception!(strat, ModelError, pyo3::exceptions::PyException);
 create_exception!(strat, EvalError, pyo3::exceptions::PyException);
@@ -51,5 +52,10 @@ pub fn strat(py: Python, m: &PyModule) -> PyResult<()> {
     let backtest = PyModule::new(py, "backtest")?;
     backtest::init_module(backtest)?;
     m.add_submodule(backtest)?;
+
+    // Register UUID as a submodule
+    let uuid = PyModule::new(py, "uuid")?;
+    uuid::init_module(uuid)?;
+    m.add_submodule(uuid)?;
     Ok(())
 }

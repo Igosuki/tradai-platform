@@ -1,6 +1,11 @@
+use std::sync::Arc;
+
 use chrono::{Date, TimeZone, Utc};
 use pyo3::prelude::*;
 use pyo3_chrono::NaiveDate;
+
+use db::Storage;
+use strategy_test_util::it_backtest::GenericTestContext;
 
 #[pyfunction(name = "it_backtest", module = "backtest")]
 fn it_backtest_wrapper<'p>(
@@ -41,6 +46,16 @@ fn it_backtest_wrapper<'p>(
         // .await;
         Python::with_gil(|py| Ok(py.None()))
     })
+}
+
+#[pyclass]
+pub(crate) struct PyGenericTestContext {
+    inner: GenericTestContext,
+}
+
+#[pyclass(name = "Storage")]
+pub(crate) struct PyDb {
+    inner: Arc<dyn Storage>,
 }
 
 pub(crate) fn init_module(m: &PyModule) -> PyResult<()> {
