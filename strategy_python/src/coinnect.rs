@@ -6,6 +6,13 @@ pub(crate) struct PyMarketEvent {
     pub(crate) inner: MarketEventEnvelope,
 }
 
+#[pymethods]
+impl PyMarketEvent {
+    fn debug(&self) {
+        info!("{:?}", self);
+    }
+}
+
 impl From<PyMarketEvent> for MarketEventEnvelope {
     fn from(event: PyMarketEvent) -> MarketEventEnvelope { event.inner }
 }
