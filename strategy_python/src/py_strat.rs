@@ -1,7 +1,10 @@
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use pyo3::prelude::*;
+use pyo3::types::PyList;
 
+use ext::ResultExt;
 use strategy::coinnect::prelude::MarketEventEnvelope;
 use strategy::driver::{DefaultStrategyContext, Strategy};
 use strategy::models::io::SerializedModel;
@@ -10,6 +13,7 @@ use trading::signal::TradeSignal;
 
 use crate::channel::PyChannel;
 use crate::trading::PyTradeSignal;
+use crate::PyMarketEvent;
 
 #[pyclass(name = "Strategy", module = "strategy", subclass)]
 #[derive(Clone)]
@@ -33,35 +37,63 @@ impl PyStrategy {
 
 #[pyclass(name = "StrategyWrapper", module = "strategy")]
 pub(crate) struct PyStrategyWrapper {
-    inner: Py<PyAny>,
+    inner: PyObject,
+}
+
+impl PyStrategyWrapper {
+    fn with_strat<F, T>(&self, f: F) -> T
+    where
+        F: Fn(&PyAny) -> T,
+    {
+        Python::with_gil(|py| {
+            let py_strat = self.inner.as_ref(py);
+            f(py_strat)
+        })
+    }
 }
 
 #[pymethods]
 impl PyStrategyWrapper {
     #[new]
-    fn new(inner: Py<PyAny>) -> Self { Self { inner } }
+    pub(crate) fn new(inner: PyObject) -> Self { Self { inner } }
 }
 
 #[async_trait]
 impl Strategy for PyStrategyWrapper {
-    fn key(&self) -> String { todo!() }
+    fn key(&self) -> String {
+        self.with_strat(|inner| inner.call_method0("whoami").and_then(|v| v.extract()))
+            .expect("expected a string")
+    }
 
-    fn init(&mut self) -> strategy::error::Result<()> { todo!() }
+    fn init(&mut self) -> strategy::error::Result<()> {
+        self.with_strat(|inner| inner.call_method0("init").map(|_| ()))
+            .err_into()
+    }
 
     async fn eval(
         &mut self,
-        _e: &MarketEventEnvelope,
+        e: &MarketEventEnvelope,
         _ctx: &DefaultStrategyContext,
     ) -> strategy::error::Result<Option<Vec<TradeSignal>>> {
-        todo!()
+        self.with_strat(|inner| {
+            let e: PyMarketEvent = e.clone().into();
+            inner.call_method1("eval", (e,)).and_then(|signals| {
+                if signals.is_none() {
+                    Ok(None)
+                } else {
+                    let signals: Vec<PyTradeSignal> = signals.extract()?;
+                    Ok(Some(signals.into_iter().map(|s| s.into()).collect()))
+                }
+            })
+        })
+        .err_into()
     }
 
-    fn model(&self) -> SerializedModel { todo!() }
+    fn model(&self) -> SerializedModel { Default::default() }
 
     fn channels(&self) -> HashSet<Channel> {
-        Python::with_gil(|py| {
-            let py_strat = self.inner.as_ref(py);
-            py_strat
+        self.with_strat(|inner| {
+            inner
                 .call_method0("channels")
                 .and_then(|v| v.extract())
                 .unwrap_or_else(|_| vec![])

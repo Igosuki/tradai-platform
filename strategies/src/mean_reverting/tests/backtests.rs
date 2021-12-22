@@ -1,11 +1,12 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use chrono::{TimeZone, Utc};
 use serde_json::Value;
 
 use strategy::coinnect::prelude::*;
 use strategy_test_util::draw::StrategyEntry;
-use strategy_test_util::it_backtest::{generic_backtest, BacktestRange, BacktestStratProvider, GenericTestContext};
+use strategy_test_util::it_backtest::{generic_backtest, BacktestRange, BacktestStratProviderRef, GenericTestContext};
 use strategy_test_util::log::StrategyLog;
 use trading::types::{OrderConf, OrderMode};
 
@@ -52,7 +53,7 @@ lazy_static! {
 
 #[actix::test]
 async fn spot_backtest() {
-    let provider: BacktestStratProvider = |ctx: GenericTestContext| {
+    let provider: BacktestStratProviderRef = Arc::new(|ctx: GenericTestContext| {
         let exchange = Exchange::Binance;
         let conf = Options::new_test_default(PAIR, exchange);
         Box::new(MeanRevertingStrategy::new(
@@ -62,7 +63,7 @@ async fn spot_backtest() {
             ctx.engine,
             None,
         ))
-    };
+    });
     let exchange = Exchange::Binance;
     let full_test_name = format!("{}_{}", module_path!(), "spot");
     let positions = generic_backtest(
@@ -95,7 +96,7 @@ async fn spot_backtest() {
 
 #[actix::test]
 async fn margin_backtest() {
-    let provider: BacktestStratProvider = |ctx: GenericTestContext| {
+    let provider: BacktestStratProviderRef = Arc::new(|ctx: GenericTestContext| {
         let exchange = Exchange::Binance;
         let conf = Options {
             order_conf: OrderConf {
@@ -113,7 +114,7 @@ async fn margin_backtest() {
             ctx.engine,
             None,
         ))
-    };
+    });
     let exchange = Exchange::Binance;
     let full_test_name = format!("{}_{}", module_path!(), "spot");
     let positions = generic_backtest(

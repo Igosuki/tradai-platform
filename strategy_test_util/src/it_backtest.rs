@@ -35,14 +35,15 @@ impl BacktestRange {
     pub fn new(from: Date<Utc>, to: Date<Utc>) -> Self { Self { from, to } }
 }
 
-pub type BacktestStratProvider = fn(GenericTestContext) -> Box<dyn Strategy>;
+pub type BacktestStratProvider<'a> = dyn Fn(GenericTestContext) -> Box<dyn Strategy> + 'a;
+pub type BacktestStratProviderRef<'a> = Arc<dyn Fn(GenericTestContext) -> Box<dyn Strategy> + Send + Sync>;
 
-pub async fn generic_backtest(
-    test_name: &str,
-    provider: BacktestStratProvider,
-    draw_entries: &[StrategyEntry<'_, StrategyLog>],
-    range: &BacktestRange,
-    exchanges: &[Exchange],
+pub async fn generic_backtest<'a>(
+    test_name: &'a str,
+    provider: BacktestStratProviderRef<'a>,
+    draw_entries: &'a [StrategyEntry<'_, StrategyLog>],
+    range: &'a BacktestRange,
+    exchanges: &'a [Exchange],
     starting_cash: f64,
     fees_rate: f64,
 ) -> Vec<Position> {
@@ -88,8 +89,7 @@ pub async fn generic_backtest(
             .await,
         );
     }
-    let (events, count) = events.iter().tee();
-    let num_records = count.count();
+    //let num_records = count.count();
     // align data
     let mut strategy_logs: Vec<StrategyLog> = Vec::new();
 
@@ -98,7 +98,7 @@ pub async fn generic_backtest(
         let now = Instant::now();
         let event_time = event.e.time();
         util::time::set_current_time(event_time);
-        strat.add_event(event).await.unwrap();
+        strat.add_event(&event).await.unwrap();
         let mut tries = 0;
         loop {
             if tries > 5 {
@@ -138,12 +138,12 @@ pub async fn generic_backtest(
 
         elapsed += now.elapsed().as_nanos();
     }
-    info!(
-        "For {} records, evals took {}ms, each iteration took {} ns on avg",
-        num_records,
-        before_evals.elapsed().as_millis(),
-        elapsed / num_records as u128
-    );
+    // info!(
+    //     "For {} records, evals took {}ms, each iteration took {} ns on avg",
+    //     num_records,
+    //     before_evals.elapsed().as_millis(),
+    //     elapsed / num_records as u128
+    // );
 
     write_models(&test_results_dir, &strategy_logs);
     write_trade_events(

@@ -3,6 +3,8 @@ extern crate async_trait;
 #[macro_use]
 extern crate inline_python;
 #[macro_use]
+extern crate log;
+#[macro_use]
 extern crate pyo3;
 #[macro_use]
 extern crate serde;
