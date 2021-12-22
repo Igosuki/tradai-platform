@@ -2970,7 +2970,9 @@ dependencies = [
 name = "python_dylib"
 version = "0.1.0"
 dependencies = [
+ "log",
  "pyo3",
+ "pyo3-log",
  "strategy_python",
 ]
 
@@ -3717,6 +3719,7 @@ dependencies = [
 name = "strategy_python"
 version = "0.1.0"
 dependencies = [
+ "actix",
  "anyhow",
  "async-trait",
  "chrono",
@@ -3724,6 +3727,7 @@ dependencies = [
  "ext",
  "inline-python",
  "inventory 0.2.0",
+ "log",
  "pyo3",
  "pyo3-asyncio",
  "pyo3-chrono",

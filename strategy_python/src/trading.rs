@@ -13,6 +13,7 @@ use strategy::coinnect::types::{AssetType, MarginSideEffect, OrderType};
 use strategy::trading::position::{OperationKind, PositionKind};
 use strategy::trading::signal::{ExecutionInstruction, TradeSignal};
 use strategy::trading::types::TradeKind;
+use trading::position::Position;
 use util::time::now;
 
 use crate::uuid::Uuid;
@@ -28,6 +29,10 @@ pub(crate) struct PyTradeSignal {
 
 impl From<TradeSignal> for PyTradeSignal {
     fn from(t: TradeSignal) -> Self { Self { inner: t } }
+}
+
+impl From<PyTradeSignal> for TradeSignal {
+    fn from(t: PyTradeSignal) -> Self { t.inner }
 }
 
 #[pymethods]
@@ -249,4 +254,25 @@ impl From<PyOrderEnforcement> for OrderEnforcement {
             PyOrderEnforcement::GTX => OrderEnforcement::GTX,
         }
     }
+}
+
+#[pyclass(name = "Position", module = "strategy", subclass)]
+#[derive(Debug, Clone)]
+pub(crate) struct PyPosition {
+    pub(crate) inner: Position,
+}
+
+#[pymethods]
+impl PyPosition {
+    fn debug(&self) {
+        info!("{:?}", self);
+    }
+}
+
+impl From<PyPosition> for Position {
+    fn from(event: PyPosition) -> Position { event.inner }
+}
+
+impl From<Position> for PyPosition {
+    fn from(e: Position) -> Self { PyPosition { inner: e } }
 }

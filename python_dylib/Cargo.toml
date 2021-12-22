@@ -18,6 +18,8 @@ python-source = "python_src"
 strategy_python = { path = "../strategy_python", features = ["static"] }
 
 pyo3 = { version = "^0.15", features = ["serde", "auto-initialize", "extension-module"] }
+pyo3-log = { version = "0.5"}
+log = "0.4"
 
 [patch.crates-io]
 plotly = { git = "https://github.com/igiagkiozis/plotly", branch = "master" }
