@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use pyo3::prelude::PyModule;
 use pyo3::prelude::*;
+use pyo3::types::PyTuple;
 use pyo3::PyResult;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -38,10 +39,22 @@ impl<R: Close> Next<&R> for TechnicalIndicator {
     }
 }
 
+impl TechnicalIndicator {
+    pub(crate) fn values(&self) -> Vec<f64> {
+        match self {
+            TechnicalIndicator::MACDApo(m) => vec![m.apo],
+        }
+    }
+}
+
 #[derive(Clone)]
 #[pyclass]
 pub(crate) struct PyIndicator {
     inner: TechnicalIndicator,
+}
+
+impl From<PyIndicator> for TechnicalIndicator {
+    fn from(p: PyIndicator) -> Self { p.inner }
 }
 
 #[doc = "The MACD Apo technical indicator"]
@@ -50,10 +63,6 @@ pub(crate) fn macd_apo(short_window: u32, long_window: u32) -> PyIndicator {
     PyIndicator {
         inner: TechnicalIndicator::MACDApo(MACDApo::new(long_window, short_window)),
     }
-}
-
-impl From<PyIndicator> for TechnicalIndicator {
-    fn from(p: PyIndicator) -> Self { p.inner }
 }
 
 pub(crate) fn init_module(m: &PyModule) -> PyResult<()> {

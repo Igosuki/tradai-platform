@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use pyo3::prelude::PyModule;
+use pyo3::types::{PyList, PyTuple};
 use pyo3::PyResult;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -8,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use stats::indicators::macd_apo::MACDApo;
 use stats::{Close, Next};
 use strategy::models::IndicatorModel;
+use strategy::prelude::Model;
 
 use crate::backtest::PyDb;
 use crate::ta::{PyIndicator, TechnicalIndicator};
@@ -20,6 +22,8 @@ pub(crate) struct PyIndicatorModel {
 #[pymethods]
 impl PyIndicatorModel {
     fn next(&mut self, value: f64) { self.inner.update(value); }
+
+    fn values(&self) -> Option<Vec<f64>> { self.inner.value().map(|ta| ta.values()) }
 }
 
 impl From<IndicatorModel<TechnicalIndicator, f64>> for PyIndicatorModel {
