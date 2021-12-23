@@ -22,8 +22,11 @@ mod channel;
 mod coinnect;
 mod error;
 mod json_cannonical;
+mod model;
 mod py_strat;
 mod script_strat;
+mod stats;
+mod ta;
 mod test_util;
 mod trading;
 mod util;
@@ -55,9 +58,19 @@ pub fn strat(py: Python, m: &PyModule) -> PyResult<()> {
     backtest::init_module(backtest)?;
     m.add_submodule(backtest)?;
 
-    // Register UUID as a submodule
+    // Register uuid as a submodule
     let uuid = PyModule::new(py, "uuid")?;
     uuid::init_module(uuid)?;
     m.add_submodule(uuid)?;
+
+    // Register ta as a submodule
+    let ta = PyModule::new(py, "ta")?;
+    ta::init_module(ta)?;
+    m.add_submodule(ta)?;
+
+    // Register model as a submodule
+    let model = PyModule::new(py, "model")?;
+    model::init_module(model)?;
+    m.add_submodule(model)?;
     Ok(())
 }

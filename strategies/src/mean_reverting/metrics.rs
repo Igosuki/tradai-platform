@@ -92,10 +92,10 @@ impl MeanRevertingStrategyMetrics {
             g.with_label_values(&[]).set(threshold_long)
         }
     }
-    pub(super) fn log_model(&self, model: MACDApo) {
+    pub(super) fn log_model(&self, model: &MACDApo) {
         for (gauge_name, model_gauge_fn) in &self.model_indicator_fns {
             if let Some(g) = self.common_gauges.get(gauge_name) {
-                g.with_label_values(&[]).set(model_gauge_fn(&model))
+                g.with_label_values(&[]).set(model_gauge_fn(model))
             }
         }
     }

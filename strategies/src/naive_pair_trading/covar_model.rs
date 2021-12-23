@@ -45,10 +45,11 @@ pub struct LinearModelValue {
     pub alpha: f64,
 }
 
-pub fn linear_model(_m: &LinearModelValue, i: Window<'_, DualBookPosition>) -> LinearModelValue {
+pub fn linear_model<'a>(m: &'a mut LinearModelValue, i: Window<'_, DualBookPosition>) -> &'a LinearModelValue {
     let beta = beta(i.clone());
     let alpha = alpha(i.clone(), beta);
-    LinearModelValue { beta, alpha }
+    *m = LinearModelValue { beta, alpha };
+    m
 }
 
 pub fn predict(alpha: f64, beta: f64, value: f64) -> f64 { alpha + beta * value }
@@ -159,7 +160,7 @@ impl LinearSpreadModel {
 
     pub(super) fn has_model(&self) -> bool { self.linear_model.has_model() && self.linear_model.is_loaded() }
 
-    pub(super) fn value(&self) -> Option<LinearModelValue> { self.linear_model.value() }
+    pub(super) fn value(&self) -> Option<&LinearModelValue> { self.linear_model.value() }
 
     #[allow(dead_code)]
     pub(super) fn reset(&mut self) -> Result<()> { self.linear_model.wipe() }
@@ -195,6 +196,6 @@ impl Next<&DualBookPosition> for LinearSpreadModel {
         if self.linear_model.value().is_none() && self.linear_model.is_filled() {
             self.update()?;
         }
-        Ok(self.linear_model.value())
+        Ok(self.linear_model.value().cloned())
     }
 }

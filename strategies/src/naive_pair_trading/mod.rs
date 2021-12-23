@@ -280,7 +280,7 @@ impl NaiveTradingStrategy {
     }
 
     #[allow(dead_code)]
-    fn model_value(&self) -> Option<LinearModelValue> { self.model.value() }
+    fn model_value(&self) -> Option<&LinearModelValue> { self.model.value() }
 }
 
 #[async_trait]
