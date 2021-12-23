@@ -120,7 +120,7 @@ impl Portfolio {
         if self.pnl <= 0.0 {
             return Ok(None);
         }
-        let request: AddOrderRequest = if let Some(p) = self.open_positions.get(&pos_key) {
+        let mut request: AddOrderRequest = if let Some(p) = self.open_positions.get(&pos_key) {
             if signal.op_kind.is_close() {
                 if p.is_opened() {
                     let interests = self.interest_fees_since_open(p.open_order.as_ref()).await?;
@@ -139,7 +139,11 @@ impl Portfolio {
         } else {
             return Err(Error::BadCloseSignal(signal.pos_kind));
         };
-        if request.quantity.is_none() || request.quantity.unwrap() <= 0.0 {
+        // Default quantity allocation is portfolio value / price
+        if request.quantity.is_none() {
+            request.quantity = Some(self.value / signal.price)
+        }
+        if request.quantity.unwrap() <= 0.0 {
             return Err(Error::ZeroOrNegativeOrderQty);
         }
         // TODO: Check that cash can be provisionned for pair, this should be compatible with margin trading multiplers

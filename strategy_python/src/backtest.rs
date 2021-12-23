@@ -71,13 +71,28 @@ pub(crate) struct PyGenericTestContext {
     inner: GenericTestContext,
 }
 
+#[pymethods]
+impl PyGenericTestContext {
+    #[getter]
+    fn db(&self) -> PyResult<PyDb> { Ok(self.inner.db.clone().into()) }
+}
+
 impl From<GenericTestContext> for PyGenericTestContext {
     fn from(inner: GenericTestContext) -> Self { Self { inner } }
 }
 
+#[derive(Clone)]
 #[pyclass(name = "Storage")]
 pub(crate) struct PyDb {
     inner: Arc<dyn Storage>,
+}
+
+impl PyDb {
+    pub(crate) fn db(&self) -> Arc<dyn Storage> { self.inner.clone() }
+}
+
+impl From<Arc<dyn Storage>> for PyDb {
+    fn from(inner: Arc<dyn Storage>) -> Self { Self { inner } }
 }
 
 pub(crate) fn init_module(m: &PyModule) -> PyResult<()> {

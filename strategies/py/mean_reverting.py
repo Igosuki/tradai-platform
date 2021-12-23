@@ -3,20 +3,41 @@ import logging
 from datetime import datetime, date
 
 from strategy import Strategy, TradeSignal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
-    OrderType, uuid
+    OrderType, uuid, ta, model
 
 FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'
 logging.basicConfig(format=FORMAT)
 logging.getLogger().setLevel(logging.DEBUG)
 
 class MeanReverting(Strategy):
-    def __new__(cls, conf):
+    def __new__(cls, conf, ctx):
         dis = super().__new__(cls, conf)
-        dis.conf = conf
+        dis.conf = {
+            'pair': 'BTC_USDT',
+            'short_window_size': 100,
+            'long_window_size': 1000,
+            'sample_freq': 60, # seconds
+            'threshold_short': 0.01,
+            'threshold_long': -0.01,
+            'threshold_eval_freq': 1,
+            'dynamic_threshold': True,
+            'threshold_window_size': 1000,
+            'stop_loss': 0.1,
+            'stop_gain': 0.075,
+            'xch': 'Binance',
+            'order_conf': {
+                'dry_mode': True,
+                'order_mode': 'limit',
+                'asset_type': AssetType.Spot,
+                'execution_instruction': None
+            }
+        }
+        db = ctx.db
+        dis.apo_model = model.persistent_ta("BTC_USDT_apo", db, ta.macd_apo(100, 1000))
         return dis
         pass
 
-    def __init__(self, conf):
+    def __init__(self, conf, ctx):
         self.initialized = False
         self.opened = False
         self.trade_count = 0
@@ -30,14 +51,15 @@ class MeanReverting(Strategy):
 
     def eval(self, event):
         #event.debug()
+        self.apo_model.next(event.vwap())
         if self.trade_count < 10:
             if self.opened is True:
                 self.opened = False
-                return [TradeSignal(PositionKind.Long, OperationKind.Close, TradeKind.Sell, 1.0, 'BTC_USDT', 'Binance', True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), 1.0, None, None, None)]
+                return [TradeSignal(PositionKind.Long, OperationKind.Close, TradeKind.Sell, event.high(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None)]
             else:
                 self.opened = True
                 self.trade_count += 1
-                return [TradeSignal(PositionKind.Long, OperationKind.Open, TradeKind.Buy, 1.0, 'BTC_USDT', 'Binance', True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), 1.0, None, None, None)]
+                return [TradeSignal(PositionKind.Long, OperationKind.Open, TradeKind.Buy, event.low(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None)]
 
     def models(self):
         print("models")
@@ -50,7 +72,6 @@ async def backtest_run(*args, **kwargs):
     return await backtest.it_backtest(*args, **kwargs)
 
 if __name__ == '__main__':
-    strat = MeanReverting({})
-    positions = asyncio.run(backtest_run("mr_py_test", lambda ctx: strat, date(2021, 8, 1), date(2021, 8, 9)))
+    positions = asyncio.run(backtest_run("mr_py_test", lambda ctx: MeanReverting({}, ctx), date(2021, 8, 1), date(2021, 8, 9)))
     for position in positions:
         position.debug()

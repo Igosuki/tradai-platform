@@ -11,6 +11,14 @@ impl PyMarketEvent {
     fn debug(&self) {
         info!("{:?}", self);
     }
+
+    pub fn vwap(&self) -> f64 { self.inner.e.vwap() }
+
+    pub fn high(&self) -> f64 { self.inner.e.high() }
+
+    pub fn low(&self) -> f64 { self.inner.e.low() }
+
+    pub fn close(&self) -> f64 { self.inner.e.close() }
 }
 
 impl From<PyMarketEvent> for MarketEventEnvelope {
