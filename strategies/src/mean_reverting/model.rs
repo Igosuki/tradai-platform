@@ -51,15 +51,16 @@ impl ApoThresholds {
     }
 }
 
-pub fn threshold(m: &ApoThresholds, wdw: Window<'_, f64>) -> ApoThresholds {
+pub fn threshold<'a>(m: &'a mut ApoThresholds, wdw: Window<'_, f64>) -> &'a ApoThresholds {
     let (threshold_short_iter, threshold_long_iter) = wdw.tee();
     let threshold_short = max(m.short_0.into(), OrderedFloat(threshold_short_iter.quantile(0.99))).into();
     let threshold_long = min(m.long_0.into(), OrderedFloat(threshold_long_iter.quantile(0.01))).into();
-    ApoThresholds {
+    *m = ApoThresholds {
         short: threshold_short,
         long: threshold_long,
         ..*m
-    }
+    };
+    m
 }
 
 #[derive(Debug)]
@@ -200,7 +201,7 @@ impl MeanRevertingModel {
 
     pub(crate) fn apo(&self) -> Option<f64> { self.apo.value().map(|m| m.apo) }
 
-    pub(crate) fn apo_value(&self) -> Option<MACDApo> { self.apo.value() }
+    pub(crate) fn apo_value(&self) -> Option<&MACDApo> { self.apo.value() }
 
     pub(crate) fn thresholds(&self) -> (f64, f64) {
         match self.thresholds.as_ref() {

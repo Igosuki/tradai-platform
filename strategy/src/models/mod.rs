@@ -19,7 +19,7 @@ pub trait Model<T> {
     fn wipe(&mut self) -> Result<()>;
     fn last_model_time(&self) -> Option<DateTime<Utc>>;
     fn has_model(&self) -> bool;
-    fn value(&self) -> Option<T>;
+    fn value(&self) -> Option<&T>;
 }
 
 pub type Window<'a, T> = impl Iterator<Item = &'a T> + Clone;

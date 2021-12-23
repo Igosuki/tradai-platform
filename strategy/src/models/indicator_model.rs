@@ -9,11 +9,10 @@ use ext::ResultExt;
 use stats::Next;
 
 use crate::error::Result;
+use crate::models::persist::ModelUpdateFn;
 use crate::models::Model;
 
 use super::persist::{ModelValue, PersistentModel};
-
-type ModelUpdateFn<T, R> = fn(&T, R) -> T;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -23,14 +22,13 @@ pub struct IndicatorModel<T, R> {
     update_fn: ModelUpdateFn<T, R>,
 }
 
-impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> IndicatorModel<T, R> {
+impl<T: Serialize + DeserializeOwned + Next<R>, R> IndicatorModel<T, R> {
     pub fn new(id: &str, db: Arc<dyn Storage>, initial_value: T) -> Self {
         Self {
             model: PersistentModel::new(db, id, Some(ModelValue::new(initial_value))),
             update_fn: |m, args| {
-                let mut new_m = m.clone();
-                new_m.next(args);
-                new_m
+                m.next(args);
+                m
             },
         }
     }
@@ -45,7 +43,7 @@ impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> IndicatorModel
     }
 }
 
-impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> Model<T> for IndicatorModel<T, R> {
+impl<T: Serialize + DeserializeOwned + Next<R>, R> Model<T> for IndicatorModel<T, R> {
     fn ser(&self) -> Option<serde_json::Value> { self.value().and_then(|m| serde_json::to_value(m).ok()) }
 
     fn try_load(&mut self) -> crate::error::Result<()> { self.model.try_loading() }
@@ -58,7 +56,7 @@ impl<T: Serialize + DeserializeOwned + Clone + Next<R>, R: Clone> Model<T> for I
 
     fn has_model(&self) -> bool { self.model.has_model() }
 
-    fn value(&self) -> Option<T> { self.model.value() }
+    fn value(&self) -> Option<&T> { self.model.value() }
 }
 
 #[cfg(test)]

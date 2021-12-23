@@ -192,7 +192,7 @@ impl MeanRevertingStrategy {
                     lr.event_time,
                     OperationKind::Open,
                     PositionKind::Short,
-                    lr.bid,
+                    lr.ask,
                     qty,
                 ))
             }
@@ -204,7 +204,7 @@ impl MeanRevertingStrategy {
                     lr.event_time,
                     OperationKind::Open,
                     PositionKind::Long,
-                    lr.ask,
+                    lr.bid,
                     qty,
                 ))
             }

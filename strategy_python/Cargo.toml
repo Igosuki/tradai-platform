@@ -19,6 +19,7 @@ ext = { path = "../ext" }
 db = { path = "../db" }
 util = { path = "../util" }
 strategy_test_util = { path = "../strategy_test_util" }
+stats = { path = "../stats" }
 #backtest = { path = "../backtest" }
 
 # std
@@ -48,4 +49,4 @@ async-trait = "0.1"
 # serde
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-
+erased-serde = "0.3"

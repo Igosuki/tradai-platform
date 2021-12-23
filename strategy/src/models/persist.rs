@@ -16,7 +16,7 @@ use crate::models::{TimedValue, TimedWindow, Window};
 
 static MODELS_TABLE_NAME: &str = "models";
 
-pub type ModelUpdateFn<T, A> = fn(&T, A) -> T;
+pub type ModelUpdateFn<T, A> = fn(&mut T, A) -> &T;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelValue<T> {
@@ -37,7 +37,7 @@ pub struct PersistentModel<T> {
     is_loaded: bool,
 }
 
-impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
+impl<T: DeserializeOwned + Serialize> PersistentModel<T> {
     pub fn new(db: Arc<dyn Storage>, key: &str, init: Option<ModelValue<T>>) -> Self {
         //let db = get_or_create(db_path, vec![MODELS_TABLE_NAME.to_string()]);
         db.ensure_table(MODELS_TABLE_NAME).unwrap();
@@ -67,9 +67,8 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
     pub fn set_last_model(&mut self, new_model: T) { self.last_model = Some(ModelValue::new(new_model)); }
 
     pub fn update<A>(&mut self, update_fn: ModelUpdateFn<T, A>, args: A) -> Result<()> {
-        if let Some(model) = &self.last_model {
-            let new_model_value = (update_fn).call((&model.value, args));
-            self.set_last_model(new_model_value);
+        if let Some(model) = self.last_model.as_mut() {
+            (update_fn).call((&mut model.value, args));
             self.db.put(MODELS_TABLE_NAME, &self.key, &self.last_model)?;
         }
         Ok(())
@@ -85,7 +84,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentModel<T> {
 
     pub fn has_model(&self) -> bool { self.last_model.is_some() }
 
-    pub fn value(&self) -> Option<T> { self.last_model.clone().map(|s| s.value) }
+    pub fn value(&self) -> Option<&T> { self.last_model.as_ref().map(|s| &s.value) }
 
     pub fn try_loading(&mut self) -> crate::error::Result<()> {
         if self.last_model_load_attempt.is_none() {
@@ -261,7 +260,7 @@ mod test {
         let mut table: PersistentModel<MockLinearModel> =
             PersistentModel::new(db, "default", Some(ModelValue::new(MockLinearModel {})));
         let _gen = Gen::new(500);
-        b.iter(|| table.update(|m, _a| m.clone(), ()).unwrap());
+        b.iter(|| table.update(|m, _a| m, ()).unwrap());
         table.try_loading().unwrap();
     }
 

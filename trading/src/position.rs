@@ -215,7 +215,7 @@ impl Position {
     pub fn update(&mut self, event: &MarketEventEnvelope, fees_rate: f64, interests: f64) {
         let price = match event.e {
             MarketEvent::Trade(ref t) => t.price,
-            MarketEvent::Orderbook(ref o) => o.avg_price().unwrap_or(0.0),
+            MarketEvent::Orderbook(ref o) => o.vwap().unwrap_or(0.0),
             MarketEvent::CandleTick(ref ct) => ct.close,
         };
         self.meta.last_update_trace_id = event.trace_id;

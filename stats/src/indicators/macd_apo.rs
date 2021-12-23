@@ -1,5 +1,6 @@
+use ta::{Close, Next};
+
 use crate::indicators::ema::ExponentialMovingAverage;
-use ta::Next;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MACDApo {
@@ -27,5 +28,14 @@ impl Next<f64> for MACDApo {
         self.apo = (short_ema - long_ema) / long_ema;
 
         self.apo
+    }
+}
+
+impl<R: Close> Next<&R> for MACDApo {
+    type Output = f64;
+
+    fn next(&mut self, input: &R) -> Self::Output {
+        let v = input.close();
+        self.next(v)
     }
 }

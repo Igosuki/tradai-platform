@@ -15,7 +15,7 @@ use crate::models::{Model, TimedValue, TimedWindow, Window, WindowedModel};
 
 use super::persist::{PersistentModel, PersistentVec};
 
-type WindowFn<T, M> = fn(&M, Window<'_, T>) -> M;
+type WindowFn<T, M> = for<'a> fn(&'a mut M, Window<'_, T>) -> &'a M;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -103,7 +103,7 @@ impl<R: Serialize + DeserializeOwned + Clone, M: Serialize + DeserializeOwned + 
 
     fn has_model(&self) -> bool { self.model.has_model() }
 
-    fn value(&self) -> Option<M> { self.model.value() }
+    fn value(&self) -> Option<&M> { self.model.value() }
 }
 
 impl<
@@ -149,7 +149,10 @@ mod test {
         }
     }
 
-    fn sum_window(_lm: &f64, window: Window<'_, TestRow>) -> f64 { window.map(|t| t.pos.mid).sum::<f64>() }
+    fn sum_window<'a>(lm: &'a mut f64, window: Window<'_, TestRow>) -> &'a f64 {
+        *lm = window.map(|t| t.pos.mid).sum::<f64>();
+        lm
+    }
 
     #[bench]
     fn test_save_load_model(b: &mut Bencher) {
