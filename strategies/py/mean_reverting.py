@@ -7,7 +7,7 @@ from strategy import Strategy, TradeSignal, Channel, PositionKind, backtest, Ope
 
 FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'
 logging.basicConfig(format=FORMAT)
-logging.getLogger().setLevel(logging.DEBUG)
+logging.getLogger().setLevel(logging.INFO)
 
 class MeanReverting(Strategy):
     def __new__(cls, conf, ctx):
@@ -39,8 +39,6 @@ class MeanReverting(Strategy):
 
     def __init__(self, conf, ctx):
         self.initialized = False
-        self.opened = False
-        self.trade_count = 0
 
     def whoami(self):
         return "mean_reverting_py"
@@ -52,14 +50,17 @@ class MeanReverting(Strategy):
     def eval(self, event):
         #event.debug()
         self.apo_model.next(event.vwap())
-        if self.trade_count < 10:
-            if self.opened is True:
-                self.opened = False
-                return [TradeSignal(PositionKind.Long, OperationKind.Close, TradeKind.Sell, event.high(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None)]
-            else:
-                self.opened = True
-                self.trade_count += 1
-                return [TradeSignal(PositionKind.Long, OperationKind.Open, TradeKind.Buy, event.low(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None)]
+        apo = self.apo_model.values()[0]
+        signals = []
+        if event.low() > 0 and apo < 0.0:
+            signals.append(TradeSignal(PositionKind.Short, OperationKind.Close, TradeKind.Buy, event.low(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
+        if event.high() > 0 and apo > 0.0:
+            signals.append(TradeSignal(PositionKind.Long, OperationKind.Close, TradeKind.Sell, event.high(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
+        if event.low() > 0 and apo < self.conf['threshold_long']:
+            signals.append(TradeSignal(PositionKind.Long, OperationKind.Open, TradeKind.Buy, event.low(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
+        if event.high() > 0 and apo > self.conf['threshold_short']:
+            signals.append(TradeSignal(PositionKind.Short, OperationKind.Open, TradeKind.Sell, event.high(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
+        return signals
 
     def models(self):
         print("models")
@@ -73,5 +74,4 @@ async def backtest_run(*args, **kwargs):
 
 if __name__ == '__main__':
     positions = asyncio.run(backtest_run("mr_py_test", lambda ctx: MeanReverting({}, ctx), date(2021, 8, 1), date(2021, 8, 9)))
-    for position in positions:
-        position.debug()
+    print('took %d positions' % len(positions))

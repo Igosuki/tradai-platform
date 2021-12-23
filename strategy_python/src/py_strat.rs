@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -8,12 +9,16 @@ use ext::ResultExt;
 use strategy::coinnect::prelude::MarketEventEnvelope;
 use strategy::driver::{DefaultStrategyContext, Strategy};
 use strategy::models::io::SerializedModel;
-use strategy::Channel;
+use strategy::{Channel, Portfolio};
+use trading::position::OperationKind;
 use trading::signal::TradeSignal;
 
 use crate::channel::PyChannel;
 use crate::trading::PyTradeSignal;
 use crate::PyMarketEvent;
+
+#[pyclass(name = "DefaultStrategyContext")]
+pub(crate) struct PyStrategyContext {}
 
 #[pyclass(name = "Strategy", module = "strategy", subclass)]
 #[derive(Clone)]
@@ -73,7 +78,7 @@ impl Strategy for PyStrategyWrapper {
     async fn eval(
         &mut self,
         e: &MarketEventEnvelope,
-        _ctx: &DefaultStrategyContext,
+        ctx: &DefaultStrategyContext,
     ) -> strategy::error::Result<Option<Vec<TradeSignal>>> {
         self.with_strat(|inner| {
             let e: PyMarketEvent = e.clone().into();
@@ -82,7 +87,20 @@ impl Strategy for PyStrategyWrapper {
                     Ok(None)
                 } else {
                     let signals: Vec<PyTradeSignal> = signals.extract()?;
-                    Ok(Some(signals.into_iter().map(|s| s.into()).collect()))
+                    let tss = signals
+                        .into_iter()
+                        .filter_map(|s| {
+                            let ts: TradeSignal = s.into();
+                            match ctx.portfolio.open_position(ts.exchange, ts.pair.clone()) {
+                                // Open
+                                None if ts.op_kind == OperationKind::Open => Some(ts),
+                                // Close
+                                Some(pos) if ts.op_kind == OperationKind::Close && ts.pos_kind == pos.kind => Some(ts),
+                                _ => None,
+                            }
+                        })
+                        .collect();
+                    Ok(Some(tss))
                 }
             })
         })
