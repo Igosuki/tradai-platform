@@ -6,8 +6,7 @@ use serde_json::Value;
 
 use strategy::coinnect::prelude::*;
 use strategy_test_util::draw::StrategyEntry;
-use strategy_test_util::it_backtest::{generic_backtest, BacktestRange, BacktestStratProvider,
-                                      BacktestStratProviderRef, GenericTestContext};
+use strategy_test_util::it_backtest::{generic_backtest, BacktestRange, BacktestStratProviderRef, GenericTestContext};
 use strategy_test_util::log::StrategyLog;
 use trading::types::{OrderConf, OrderMode};
 

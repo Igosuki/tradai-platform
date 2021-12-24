@@ -1,16 +1,17 @@
 #![feature(test)]
+#![feature(type_alias_impl_trait)]
 
 #[cfg(test)]
 #[macro_use]
 extern crate float_cmp;
+#[macro_use]
+extern crate prettytable;
 #[macro_use]
 extern crate serde_derive;
 #[cfg(test)]
 extern crate test;
 #[macro_use]
 extern crate thiserror;
-#[macro_use]
-extern crate prettytable;
 
 pub use ta::indicators::*;
 pub use ta::*;

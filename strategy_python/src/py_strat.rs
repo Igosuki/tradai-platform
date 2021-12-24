@@ -1,15 +1,12 @@
-use std::cell::RefCell;
 use std::collections::HashSet;
-use std::sync::Arc;
 
 use pyo3::prelude::*;
-use pyo3::types::PyList;
 
 use ext::ResultExt;
 use strategy::coinnect::prelude::MarketEventEnvelope;
 use strategy::driver::{DefaultStrategyContext, Strategy};
 use strategy::models::io::SerializedModel;
-use strategy::{Channel, Portfolio};
+use strategy::Channel;
 use trading::position::OperationKind;
 use trading::signal::TradeSignal;
 
