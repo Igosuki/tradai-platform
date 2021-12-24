@@ -80,6 +80,44 @@ impl PyTradeSignal {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+#[pyfunction]
+pub(crate) fn signal(
+    position: PyPositionKind,
+    operation: PyOperationKind,
+    side: PyTradeKind,
+    price: f64,
+    pair: &str,
+    exchange: &str,
+    dry_mode: bool,
+    asset_type: PyAssetType,
+    order_type: PyOrderType,
+    event_time: NaiveDateTime,
+    trace_id: Uuid,
+    qty: Option<f64>,
+    instructions: Option<PyExecutionInstruction>,
+    enforcement: Option<PyOrderEnforcement>,
+    side_effect: Option<PyMarginSideEffect>,
+) -> PyResult<PyTradeSignal> {
+    PyTradeSignal::new(
+        position,
+        operation,
+        side,
+        price,
+        pair,
+        exchange,
+        dry_mode,
+        asset_type,
+        order_type,
+        event_time,
+        trace_id,
+        qty,
+        instructions,
+        enforcement,
+        side_effect,
+    )
+}
+
 #[pyclass(name = "PositionKind")]
 #[derive(Copy, Clone)]
 pub(crate) enum PyPositionKind {

@@ -5741,6 +5741,7 @@ dependencies = [
  "float-cmp",
  "itertools",
  "num-traits",
+ "ordered-float 2.8.0",
  "peroxide",
  "prettytable-rs",
  "rand 0.8.4",

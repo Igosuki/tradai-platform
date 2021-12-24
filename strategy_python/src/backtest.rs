@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::thread;
 
-use actix::ActorStreamExt;
 use chrono::{Date, TimeZone, Utc};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -9,8 +8,7 @@ use pyo3_chrono::NaiveDate;
 
 use db::Storage;
 use strategy::coinnect::prelude::Exchange;
-use strategy_test_util::it_backtest::{generic_backtest, BacktestRange, BacktestStratProvider,
-                                      BacktestStratProviderRef, GenericTestContext};
+use strategy_test_util::it_backtest::{generic_backtest, BacktestRange, BacktestStratProviderRef, GenericTestContext};
 use trading::position::Position;
 
 use crate::{PyPosition, PyStrategyWrapper};
@@ -56,10 +54,9 @@ fn it_backtest_wrapper<'p>(
                 )
                 .await;
                 debug!("positions = {:?}", positions);
-                tx.send(positions).await;
+                tx.send(positions).await.unwrap();
             })
-        })
-        .join();
+        });
         let positions = rx.recv().await.unwrap_or_default();
         let py_positions: Vec<PyPosition> = positions.into_iter().map(|v| v.into()).collect();
         Python::with_gil(|py| Ok(py_positions.into_py(py)))
