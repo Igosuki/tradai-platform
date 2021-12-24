@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import datetime, date
 
-from strategy import Strategy, TradeSignal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
+from strategy import Strategy, signal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
     OrderType, uuid, ta, model
 
 FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'
@@ -33,7 +33,8 @@ class MeanReverting(Strategy):
             }
         }
         db = ctx.db
-        dis.apo_model = model.persistent_ta("BTC_USDT_apo", db, ta.macd_apo(100, 1000))
+        dis.apo_model = model.persistent_ta("apo_%s" % dis.conf['pair'], db, ta.macd_apo(100, 1000))
+        dis.threshold_model = model.persistent_windowed_ta("thresholds_%s" % dis.conf['pair'], db, ta.macd_apo(100, 1000))
         return dis
         pass
 
@@ -41,7 +42,7 @@ class MeanReverting(Strategy):
         self.initialized = False
 
     def whoami(self):
-        return "mean_reverting_py"
+        return "mean_reverting_%s" % (self.conf['pair'],)
 
     def init(self):
         self.initialized = True
@@ -53,13 +54,13 @@ class MeanReverting(Strategy):
         apo = self.apo_model.values()[0]
         signals = []
         if event.low() > 0 and apo < 0.0:
-            signals.append(TradeSignal(PositionKind.Short, OperationKind.Close, TradeKind.Buy, event.low(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
+            signals.append(signal(PositionKind.Short, OperationKind.Close, TradeKind.Buy, event.low(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
         if event.high() > 0 and apo > 0.0:
-            signals.append(TradeSignal(PositionKind.Long, OperationKind.Close, TradeKind.Sell, event.high(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
+            signals.append(signal(PositionKind.Long, OperationKind.Close, TradeKind.Sell, event.high(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
         if event.low() > 0 and apo < self.conf['threshold_long']:
-            signals.append(TradeSignal(PositionKind.Long, OperationKind.Open, TradeKind.Buy, event.low(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
+            signals.append(signal(PositionKind.Long, OperationKind.Open, TradeKind.Buy, event.low(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
         if event.high() > 0 and apo > self.conf['threshold_short']:
-            signals.append(TradeSignal(PositionKind.Short, OperationKind.Open, TradeKind.Sell, event.high(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
+            signals.append(signal(PositionKind.Short, OperationKind.Open, TradeKind.Sell, event.high(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
         return signals
 
     def models(self):
@@ -67,7 +68,7 @@ class MeanReverting(Strategy):
         return ()
 
     def channels(self):
-        return ((Channel("orderbooks", "Binance", "BTC_USDT"),))
+        return ((Channel("orderbooks", self.conf['xch'], self.conf['pair']),))
 
 async def backtest_run(*args, **kwargs):
     return await backtest.it_backtest(*args, **kwargs)

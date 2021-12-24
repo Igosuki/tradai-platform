@@ -1,17 +1,10 @@
-use std::sync::Arc;
-
 use pyo3::prelude::PyModule;
 use pyo3::prelude::*;
-use pyo3::types::PyTuple;
 use pyo3::PyResult;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use stats::indicators::macd_apo::MACDApo;
 use stats::{Close, Next};
-use strategy::models::IndicatorModel;
-
-use crate::backtest::PyDb;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]

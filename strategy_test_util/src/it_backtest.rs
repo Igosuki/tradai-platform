@@ -89,7 +89,8 @@ pub async fn generic_backtest<'a>(
             .await,
         );
     }
-    //let num_records = count.count();
+    let (events, count) = events.into_iter().tee();
+    let num_records = count.count();
     // align data
     let mut strategy_logs: Vec<StrategyLog> = Vec::new();
 
@@ -138,12 +139,12 @@ pub async fn generic_backtest<'a>(
 
         elapsed += now.elapsed().as_nanos();
     }
-    // info!(
-    //     "For {} records, evals took {}ms, each iteration took {} ns on avg",
-    //     num_records,
-    //     before_evals.elapsed().as_millis(),
-    //     elapsed / num_records as u128
-    // );
+    info!(
+        "For {} records, evals took {}ms, each iteration took {} ns on avg",
+        num_records,
+        before_evals.elapsed().as_millis(),
+        elapsed / num_records as u128
+    );
 
     write_models(&test_results_dir, &strategy_logs);
     write_trade_events(

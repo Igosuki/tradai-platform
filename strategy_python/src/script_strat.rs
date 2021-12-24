@@ -20,7 +20,7 @@ use crate::util::register_strat;
 use crate::PyMarketEvent;
 
 struct PyScriptStrategy {
-    //wrapper_key: String,
+    wrapper_key: String,
     context: Context,
 }
 
@@ -46,7 +46,7 @@ impl PyScriptStrategy {
         });
         Self {
             context,
-            //wrapper_key: key.to_string(),
+            wrapper_key: key.to_string(),
         }
     }
 
@@ -60,9 +60,10 @@ impl PyScriptStrategy {
 impl Strategy for PyScriptStrategy {
     fn key(&self) -> String {
         let inner = self.strat();
-        Python::with_gil(|py| inner.call_method0(py, "key"))
+        let inner_key = Python::with_gil(|py| inner.call_method0(py, "key"))
             .map(|v| v.to_string())
-            .unwrap_or_else(|_| "python".to_string())
+            .unwrap_or_else(|_| "python".to_string());
+        format!("{}_{}", self.wrapper_key, inner_key)
     }
 
     fn init(&mut self) -> strategy::error::Result<()> {

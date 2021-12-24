@@ -52,6 +52,7 @@ pub fn strat(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyOrderEnforcement>()?;
     m.add("ModelError", py.get_type::<ModelError>())?;
     m.add("EvalError", py.get_type::<EvalError>())?;
+    m.add_function(wrap_pyfunction!(signal, m)?)?;
 
     // Register backtest as a submodule
     let backtest = PyModule::new(py, "backtest")?;
