@@ -16,7 +16,7 @@ use crate::models::{TimedValue, TimedWindow, Window};
 
 static MODELS_TABLE_NAME: &str = "models";
 
-pub type ModelUpdateFn<T, A> = fn(&mut T, A) -> &T;
+pub type ModelUpdateFn<T, A> = for<'a> fn(&'a mut T, A) -> &'a T;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelValue<T> {
@@ -30,14 +30,14 @@ impl<T> ModelValue<T> {
 
 #[derive(Debug)]
 pub struct PersistentModel<T> {
-    last_model: Option<ModelValue<T>>,
+    pub last_model: Option<ModelValue<T>>,
     last_model_load_attempt: Option<DateTime<Utc>>,
-    db: Arc<dyn Storage>,
-    key: String,
+    pub db: Arc<dyn Storage>,
+    pub key: String,
     is_loaded: bool,
 }
 
-impl<T: DeserializeOwned + Serialize> PersistentModel<T> {
+impl<T: DeserializeOwned + Serialize + Copy> PersistentModel<T> {
     pub fn new(db: Arc<dyn Storage>, key: &str, init: Option<ModelValue<T>>) -> Self {
         //let db = get_or_create(db_path, vec![MODELS_TABLE_NAME.to_string()]);
         db.ensure_table(MODELS_TABLE_NAME).unwrap();
@@ -84,7 +84,7 @@ impl<T: DeserializeOwned + Serialize> PersistentModel<T> {
 
     pub fn has_model(&self) -> bool { self.last_model.is_some() }
 
-    pub fn value(&self) -> Option<&T> { self.last_model.as_ref().map(|s| &s.value) }
+    pub fn value(&self) -> Option<T> { self.last_model.as_ref().map(|s| s.value) }
 
     pub fn try_loading(&mut self) -> crate::error::Result<()> {
         if self.last_model_load_attempt.is_none() {
@@ -119,7 +119,7 @@ impl<T, I: SliceIndex<[TimedValue<T>]>> Index<I> for PersistentVec<T> {
 }
 
 /// Values are written and sorted by time
-impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
+impl<T: DeserializeOwned + Serialize> PersistentVec<T> {
     pub fn new(db: Arc<dyn Storage>, key: &str, max_size: usize, window_size: usize) -> Self {
         db.ensure_table(key).unwrap();
         assert!(max_size > window_size);
@@ -134,14 +134,15 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
         }
     }
 
-    pub fn push(&mut self, row: &T) {
-        let timed_row = TimedValue(Utc::now().timestamp_nanos(), row.clone());
-        let x: &str = &timed_row.0.to_string();
-        self.rows.push(timed_row);
-        // Truncate the table by window_size once max_size is reached
-        if let Err(e) = self.db.put(&self.key, x, row) {
+    pub fn push(&mut self, row: T) {
+        let i = Utc::now().timestamp_nanos();
+        let k: &str = &i.to_string();
+        if let Err(e) = self.db.put(&self.key, k, &row) {
             error!("Failed writing row : {:?}", e);
         }
+        let timed_row = TimedValue(i, row);
+        self.rows.push(timed_row);
+        // Truncate the table by window_size once max_size is reached
         if let Err(e) = self.maybe_drain() {
             error!("Failed to delete range of rows : {:?}", e);
         }
@@ -167,7 +168,7 @@ impl<T: DeserializeOwned + Serialize + Clone> PersistentVec<T> {
         Ok(())
     }
 
-    pub fn window(&self) -> Window<'_, T> { self.timed_window().map(|r| &r.1) }
+    pub fn window(&self) -> Window<T> { self.timed_window().map(|r| &r.1) }
 
     pub fn timed_window(&self) -> TimedWindow<'_, T> { self.rows.iter().rev().take(self.window_size).rev() }
 
@@ -235,7 +236,7 @@ mod test {
     use super::ModelValue;
     use super::PersistentModel;
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize, Copy)]
     struct MockLinearModel;
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -275,7 +276,7 @@ mod test {
             let mut table = PersistentVec::new(db.clone(), id, max_size, max_size / 2);
             let mut gen = Gen::new(500);
             for _ in 0..max_size {
-                table.push(&TestRow::arbitrary(&mut gen))
+                table.push(TestRow::arbitrary(&mut gen))
             }
             table.window().cloned().collect()
         };

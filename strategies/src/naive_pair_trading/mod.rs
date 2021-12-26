@@ -280,7 +280,7 @@ impl NaiveTradingStrategy {
     }
 
     #[allow(dead_code)]
-    fn model_value(&self) -> Option<&LinearModelValue> { self.model.value() }
+    fn model_value(&self) -> Option<LinearModelValue> { self.model.value() }
 }
 
 #[async_trait]
@@ -316,7 +316,7 @@ impl Strategy for NaiveTradingStrategy {
                 time: now(),
             };
             self.metrics.log_mid_price(&dbp);
-            match self.model.next(&dbp) {
+            match self.model.next(dbp) {
                 Err(e) => self.metrics.log_error(e.short_name()),
                 Ok(Some(lm)) => self.metrics.log_model(&lm),
                 _ => {}

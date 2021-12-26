@@ -2,7 +2,7 @@ use crate::error::Error;
 use crate::{Close, Next, Reset};
 use std::fmt;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 pub struct ExponentialMovingAverage {
     length: u32,
     k: f64,

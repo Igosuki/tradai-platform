@@ -15,10 +15,10 @@ pub struct Thresholds {
 }
 
 impl Thresholds {
-    pub fn new(short_0: f64, long_0: f64) -> Self {
+    pub fn new(high_0: f64, low_0: f64) -> Self {
         Self {
-            high_0: short_0,
-            low_0: long_0,
+            high_0,
+            low_0,
             low: 0.0,
             high: 0.0,
         }

@@ -2,7 +2,7 @@ use ta::{Close, Next};
 
 use crate::indicators::ema::ExponentialMovingAverage;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 pub struct MACDApo {
     pub long_ema: ExponentialMovingAverage,
     pub short_ema: ExponentialMovingAverage,
