@@ -6,7 +6,8 @@ use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use db::Storage;
+use db::{Storage, StorageExt};
+use stats::Next;
 
 use crate::error::Result;
 use crate::models::persist::ModelValue;
@@ -14,41 +15,32 @@ use crate::models::{Model, TimedValue, TimedWindow, Window, WindowedModel};
 
 use super::persist::{PersistentModel, PersistentVec};
 
-pub(crate) type WindowFn<T, M> = for<'a> fn(&'a mut M, Window<'_, T>) -> &'a M;
-
+// TODO: this repetead code is only here because PersistentVec returns an anonymous lifetime and we can't use Next<Window> with WindowFn
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub struct PersistentWindowedModel<T: Serialize + DeserializeOwned, M: Serialize + DeserializeOwned> {
+pub struct IndicatorWindowedModel<T: Serialize + DeserializeOwned, M: Serialize + DeserializeOwned> {
     rows: PersistentVec<T>,
     model: PersistentModel<M>,
-    #[derivative(Debug = "ignore")]
-    window_fn: WindowFn<T, M>,
 }
 
-impl<'a, T: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOwned + Default + Copy>
-    PersistentWindowedModel<T, M>
+impl<'a, T: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOwned + Copy + Next<Window<'a, T>>>
+    IndicatorWindowedModel<T, M>
 {
-    pub fn new(
-        id: &str,
-        db: Arc<dyn Storage>,
-        window_size: usize,
-        max_size_o: Option<usize>,
-        window_fn: WindowFn<T, M>,
-        init: Option<M>,
-    ) -> Self {
+    pub fn new(id: &str, db: Arc<dyn Storage>, window_size: usize, max_size_o: Option<usize>, init: M) -> Self {
         let max_size = max_size_o.unwrap_or_else(|| (1.2 * window_size as f64) as usize);
         Self {
             rows: PersistentVec::new(db.clone(), &format!("{}_rows", id), max_size, window_size),
-            model: PersistentModel::new(db, id, init.map(|i| ModelValue::new(i))),
-            window_fn,
+            model: PersistentModel::new(db, id, Some(ModelValue::new(init))),
         }
     }
 
     pub fn update(&'a mut self) -> Result<()> {
-        if self.is_filled() && !self.has_model() {
-            self.model.set_last_model(M::default());
+        if let Some(model) = self.model.last_model.as_mut() {
+            model.value.next(self.rows.window());
+            self.model
+                .db
+                .put("MODELS_TABLE_NAME", &self.model.key, &self.model.last_model)?;
         }
-        self.model.update(self.window_fn, self.rows.window()).unwrap();
         Ok(())
     }
 
@@ -62,9 +54,9 @@ impl<'a, T: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOw
     }
 }
 
-impl<R, M: Copy> WindowedModel<R, M> for PersistentWindowedModel<R, M>
+impl<R, M> WindowedModel<R, M> for IndicatorWindowedModel<R, M>
 where
-    M: Serialize + DeserializeOwned + Default,
+    M: Serialize + DeserializeOwned + Copy,
     R: Serialize + DeserializeOwned,
 {
     fn is_filled(&self) -> bool { self.rows.is_filled() }
@@ -80,8 +72,8 @@ where
     fn is_empty(&self) -> bool { self.rows.is_empty() }
 }
 
-impl<'a, R: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOwned + Default + Copy> Model<M>
-    for PersistentWindowedModel<R, M>
+impl<'a, R: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOwned + Copy> Model<M>
+    for IndicatorWindowedModel<R, M>
 {
     fn ser(&self) -> Option<serde_json::Value> { self.value().and_then(|m| serde_json::to_value(m).ok()) }
 
@@ -109,7 +101,7 @@ impl<
         R: Serialize + DeserializeOwned,
         M: Serialize + DeserializeOwned + Default,
         I: SliceIndex<[TimedValue<R>]>,
-    > Index<I> for PersistentWindowedModel<R, M>
+    > Index<I> for IndicatorWindowedModel<R, M>
 {
     type Output = I::Output;
 
@@ -125,11 +117,12 @@ mod test {
     use chrono::{DateTime, Utc};
     use fake::Fake;
     use quickcheck::{Arbitrary, Gen};
+    use stats::Next;
 
     use trading::book::BookPosition;
 
-    use crate::models::{Model, Window};
-    use crate::models::{PersistentWindowedModel, WindowedModel};
+    use crate::models::indicator_windowed_model::IndicatorWindowedModel;
+    use crate::models::{Model, Window, WindowedModel};
     use crate::test_util::test_db;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,9 +141,18 @@ mod test {
         }
     }
 
-    fn sum_window<'a>(lm: &'a mut f64, window: Window<'_, TestRow>) -> &'a f64 {
-        *lm = window.map(|t| t.pos.mid).sum::<f64>();
-        lm
+    #[derive(Debug, Serialize, Deserialize, Default, Copy, Clone)]
+    struct TestModel {
+        sum: f64,
+    }
+
+    impl Next<Window<'_, TestRow>> for TestModel {
+        type Output = f64;
+
+        fn next(&mut self, window: Window<'_, TestRow>) -> Self::Output {
+            self.sum = window.map(|t| t.pos.mid).sum::<f64>();
+            self.sum
+        }
     }
 
     #[bench]
@@ -158,10 +160,11 @@ mod test {
         let id = "default";
         let max_size = 2000;
         let db = test_db();
-        let mut table = PersistentWindowedModel::new(id, db, 1000, Some(max_size), sum_window, None);
+        let mut table = IndicatorWindowedModel::new(id, db, 1000, Some(max_size), TestModel::default());
         let mut gen = Gen::new(500);
         for _ in 0..max_size {
-            table.push(TestRow::arbitrary(&mut gen))
+            table.push(TestRow::arbitrary(&mut gen));
+            table.update().unwrap();
         }
         b.iter(|| {
             table.update().unwrap();

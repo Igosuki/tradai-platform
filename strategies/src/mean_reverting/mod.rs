@@ -241,7 +241,7 @@ impl Strategy for MeanRevertingStrategy {
         let t = self.model.thresholds();
         self.metrics.log_thresholds(t.0, t.1);
         if let Some(apo) = self.model.apo_value() {
-            self.metrics.log_model(apo);
+            self.metrics.log_model(&apo);
         }
 
         let mut signals = vec![];

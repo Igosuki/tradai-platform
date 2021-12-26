@@ -31,6 +31,7 @@ mod test_util;
 mod trading;
 mod util;
 mod uuid;
+mod windowed_ta;
 
 create_exception!(strat, ModelError, pyo3::exceptions::PyException);
 create_exception!(strat, EvalError, pyo3::exceptions::PyException);
@@ -67,6 +68,11 @@ pub fn strat(py: Python, m: &PyModule) -> PyResult<()> {
     // Register ta as a submodule
     let ta = PyModule::new(py, "ta")?;
     ta::init_module(ta)?;
+    m.add_submodule(ta)?;
+
+    // Register windowed_ta as a submodule
+    let ta = PyModule::new(py, "windowed_ta")?;
+    windowed_ta::init_module(ta)?;
     m.add_submodule(ta)?;
 
     // Register model as a submodule

@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use coinnect_rt::types::Orderbook;
 
-#[derive(Copy, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct BookPosition {
     pub mid: f64,
     // mid = (top_ask + top_bid) / 2, alias: crypto1_m

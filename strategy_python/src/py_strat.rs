@@ -11,6 +11,7 @@ use trading::position::OperationKind;
 use trading::signal::TradeSignal;
 
 use crate::channel::PyChannel;
+use crate::model::PyJsonValue;
 use crate::trading::PyTradeSignal;
 use crate::PyMarketEvent;
 
@@ -104,7 +105,19 @@ impl Strategy for PyStrategyWrapper {
         .err_into()
     }
 
-    fn model(&self) -> SerializedModel { Default::default() }
+    fn model(&self) -> SerializedModel {
+        let exported: PyJsonValue = self.with_strat(|inner| {
+            inner
+                .call_method0("models")
+                .and_then(|v| v.extract())
+                .unwrap_or_else(|_| serde_json::Value::Null.into())
+        });
+        let inner: serde_json::Value = exported.into();
+        inner
+            .as_object()
+            .map(|v| v.into_iter().map(|(k, v)| (k.clone(), Some(v.clone()))).collect())
+            .unwrap_or_else(Vec::new)
+    }
 
     fn channels(&self) -> HashSet<Channel> {
         self.with_strat(|inner| {

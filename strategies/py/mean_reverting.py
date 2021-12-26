@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, date
 
 from strategy import Strategy, signal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
-    OrderType, uuid, ta, model
+    OrderType, uuid, ta, windowed_ta, model
 
 FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'
 logging.basicConfig(format=FORMAT)
@@ -33,39 +33,45 @@ class MeanReverting(Strategy):
             }
         }
         db = ctx.db
-        dis.apo_model = model.persistent_ta("apo_%s" % dis.conf['pair'], db, ta.macd_apo(100, 1000))
-        dis.threshold_model = model.persistent_windowed_ta("thresholds_%s" % dis.conf['pair'], db, ta.macd_apo(100, 1000))
+        dis.apo_model = model.persistent_ta("apo_%s" % dis.conf['pair'], db, ta.macd_apo(dis.conf['short_window_size'], dis.conf['long_window_size']))
+        if dis.conf['dynamic_threshold'] is True:
+            dis.threshold_model = model.persistent_window_ta("thresholds_%s" % dis.conf['pair'], db, dis.conf['threshold_window_size'], windowed_ta.thresholds(dis.conf['threshold_short'], dis.conf['threshold_long']))
+        dis.initialized = False
         return dis
         pass
 
     def __init__(self, conf, ctx):
-        self.initialized = False
+        pass
 
     def whoami(self):
         return "mean_reverting_%s" % (self.conf['pair'],)
 
     def init(self):
-        self.initialized = True
-        print("init")
+        if self.initialized is not True:
+            self.apo_model.try_load()
+            self.threshold_model.try_load()
+            self.initialized = True
+            f"Initialized {self.whoami()}"
 
     def eval(self, event):
         #event.debug()
         self.apo_model.next(event.vwap())
         apo = self.apo_model.values()[0]
+        if apo is not None:
+            self.threshold_model.next(apo)
         signals = []
         if event.low() > 0 and apo < 0.0:
             signals.append(signal(PositionKind.Short, OperationKind.Close, TradeKind.Buy, event.low(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
         if event.high() > 0 and apo > 0.0:
             signals.append(signal(PositionKind.Long, OperationKind.Close, TradeKind.Sell, event.high(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
-        if event.low() > 0 and apo < self.conf['threshold_long']:
+        if event.low() > 0 and apo < (self.threshold_model.values()[1] or self.conf['threshold_long']):
             signals.append(signal(PositionKind.Long, OperationKind.Open, TradeKind.Buy, event.low(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
-        if event.high() > 0 and apo > self.conf['threshold_short']:
+        if event.high() > 0 and apo > (self.threshold_model.values()[0] or self.conf['threshold_short']):
             signals.append(signal(PositionKind.Short, OperationKind.Open, TradeKind.Sell, event.high(), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
         return signals
 
     def models(self):
-        print("models")
-        return ()
+        return self.apo_model.export() + self.threshold_model.export()
 
     def channels(self):
         return ((Channel("orderbooks", self.conf['xch'], self.conf['pair']),))

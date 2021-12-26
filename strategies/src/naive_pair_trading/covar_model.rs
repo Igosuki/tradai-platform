@@ -12,14 +12,17 @@ use strategy::models::{Model, PersistentWindowedModel, Sampler, Window, Windowed
 use trading::book::BookPosition;
 use util::time::now;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct DualBookPosition {
     pub time: DateTime<Utc>,
     pub left: BookPosition,
     pub right: BookPosition,
 }
 
-pub fn beta(i: Window<'_, DualBookPosition>) -> f64 {
+pub fn beta<'a, I>(i: I) -> f64
+where
+    I: Iterator<Item = &'a DualBookPosition>,
+{
     let (var, covar) = i.tee();
     let variance: f64 = var.map(|r| r.left.mid).variance();
     trace!("variance {}", variance);
@@ -30,7 +33,10 @@ pub fn beta(i: Window<'_, DualBookPosition>) -> f64 {
     beta_val
 }
 
-pub fn alpha(i: Window<'_, DualBookPosition>, beta_val: f64) -> f64 {
+pub fn alpha<'a, I>(i: I, beta_val: f64) -> f64
+where
+    I: Iterator<Item = &'a DualBookPosition>,
+{
     let (left, right) = i.tee();
     let mean_left: f64 = left.map(|l| l.left.mid).mean();
     trace!("mean left {}", mean_left);
@@ -39,15 +45,16 @@ pub fn alpha(i: Window<'_, DualBookPosition>, beta_val: f64) -> f64 {
     mean_right - beta_val * mean_left
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, Default)]
 pub struct LinearModelValue {
     pub beta: f64,
     pub alpha: f64,
 }
 
 pub fn linear_model<'a>(m: &'a mut LinearModelValue, i: Window<'_, DualBookPosition>) -> &'a LinearModelValue {
-    let beta = beta(i.clone());
-    let alpha = alpha(i.clone(), beta);
+    let (a, b) = i.tee();
+    let beta = beta(a);
+    let alpha = alpha(b, beta);
     *m = LinearModelValue { beta, alpha };
     m
 }
@@ -160,12 +167,12 @@ impl LinearSpreadModel {
 
     pub(super) fn has_model(&self) -> bool { self.linear_model.has_model() && self.linear_model.is_loaded() }
 
-    pub(super) fn value(&self) -> Option<&LinearModelValue> { self.linear_model.value() }
+    pub(super) fn value(&self) -> Option<LinearModelValue> { self.linear_model.value() }
 
     #[allow(dead_code)]
     pub(super) fn reset(&mut self) -> Result<()> { self.linear_model.wipe() }
 
-    pub(super) fn push(&mut self, input: &DualBookPosition) { self.linear_model.push(input); }
+    pub(super) fn push(&mut self, input: DualBookPosition) { self.linear_model.push(input); }
 
     pub(crate) fn serialized(&self) -> Vec<(String, Option<serde_json::Value>)> {
         vec![
@@ -185,10 +192,10 @@ impl LinearSpreadModel {
     }
 }
 
-impl Next<&DualBookPosition> for LinearSpreadModel {
+impl Next<DualBookPosition> for LinearSpreadModel {
     type Output = Result<Option<LinearModelValue>>;
 
-    fn next(&mut self, input: &DualBookPosition) -> Self::Output {
+    fn next(&mut self, input: DualBookPosition) -> Self::Output {
         if !self.sampler.sample(input.time) {
             return Ok(None);
         }
@@ -196,6 +203,6 @@ impl Next<&DualBookPosition> for LinearSpreadModel {
         if self.linear_model.value().is_none() && self.linear_model.is_filled() {
             self.update()?;
         }
-        Ok(self.linear_model.value().cloned())
+        Ok(self.linear_model.value())
     }
 }
