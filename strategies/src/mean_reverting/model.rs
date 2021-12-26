@@ -119,7 +119,7 @@ impl MeanRevertingModel {
             })?;
         if let Some(apo) = self.apo.value().map(|m| m.apo) {
             if let Some(t) = self.thresholds.as_mut() {
-                t.push(&apo);
+                t.push(apo);
                 if t.is_filled() {
                     t.update().map_err(|e| {
                         tracing::debug!(err = %e, "failed to update thresholds");
@@ -135,6 +135,7 @@ impl MeanRevertingModel {
         {
             self.apo.try_load()?;
             if let Some(_model_time) = self.apo.last_model_time() {
+                // TODO: set last sample time from loaded data
                 //self.sampler.set_last_time(model_time);
             }
         }
@@ -201,7 +202,7 @@ impl MeanRevertingModel {
 
     pub(crate) fn apo(&self) -> Option<f64> { self.apo.value().map(|m| m.apo) }
 
-    pub(crate) fn apo_value(&self) -> Option<&MACDApo> { self.apo.value() }
+    pub(crate) fn apo_value(&self) -> Option<MACDApo> { self.apo.value() }
 
     pub(crate) fn thresholds(&self) -> (f64, f64) {
         match self.thresholds.as_ref() {

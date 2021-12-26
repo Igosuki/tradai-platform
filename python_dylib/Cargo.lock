@@ -3619,6 +3619,7 @@ dependencies = [
  "chrono",
  "itertools",
  "num-traits",
+ "ordered-float 2.8.0",
  "peroxide",
  "prettytable-rs",
  "serde",

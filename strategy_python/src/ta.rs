@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use stats::indicators::macd_apo::MACDApo;
 use stats::{Close, Next};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub(crate) enum TechnicalIndicator {
     MACDApo(MACDApo),
@@ -27,7 +27,7 @@ impl<R: Close> Next<&R> for TechnicalIndicator {
 
     fn next(&mut self, input: &R) -> Self::Output {
         match self {
-            TechnicalIndicator::MACDApo(v) => v.next(input),
+            TechnicalIndicator::MACDApo(v) => v.next(input.close()),
         };
     }
 }

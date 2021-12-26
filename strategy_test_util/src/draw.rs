@@ -18,7 +18,7 @@ pub fn draw_line_plot<T: TimedEntry>(
     data: Vec<T>,
     entries: &[StrategyEntry<'_, T>],
 ) -> std::result::Result<String, Box<dyn Error>> {
-    let graph_dir = format!("{}/graphs", util::test::test_results_dir(module_path),);
+    let graph_dir = format!("{}/graphs", module_path);
     std::fs::create_dir_all(&graph_dir).unwrap();
     let out_file = format!("{}/plot_{}.html", graph_dir, now_str_files());
     let mut plot = Plot::new();

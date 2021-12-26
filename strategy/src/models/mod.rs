@@ -8,6 +8,7 @@ pub use windowed_model::PersistentWindowedModel;
 use crate::error::Result;
 
 pub mod indicator_model;
+pub mod indicator_windowed_model;
 pub mod io;
 pub mod persist;
 pub mod windowed_model;
@@ -19,11 +20,11 @@ pub trait Model<T> {
     fn wipe(&mut self) -> Result<()>;
     fn last_model_time(&self) -> Option<DateTime<Utc>>;
     fn has_model(&self) -> bool;
-    fn value(&self) -> Option<&T>;
+    fn value(&self) -> Option<T>;
 }
 
-pub type Window<'a, T> = impl Iterator<Item = &'a T> + Clone;
-pub type TimedWindow<'a, T> = impl Iterator<Item = &'a TimedValue<T>> + Clone;
+pub type Window<'a, T> = impl Iterator<Item = &'a T>;
+pub type TimedWindow<'a, T> = impl Iterator<Item = &'a TimedValue<T>>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TimedValue<T>(i64, T);
@@ -32,7 +33,7 @@ pub trait WindowedModel<R, M>: Model<M> {
     fn is_filled(&self) -> bool;
     fn window(&self) -> Window<'_, R>;
     fn timed_window(&self) -> TimedWindow<'_, R>;
-    fn push(&mut self, row: &R);
+    fn push(&mut self, row: R);
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool;
 }
