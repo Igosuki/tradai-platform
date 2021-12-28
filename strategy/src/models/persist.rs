@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use db::Storage;
 use db::StorageExt;
+use ext::ResultExt;
 use util::time::now;
 
 use crate::error::Result;
@@ -69,10 +70,12 @@ impl<T: DeserializeOwned + Serialize + Copy> PersistentModel<T> {
     pub fn update<A>(&mut self, update_fn: ModelUpdateFn<T, A>, args: A) -> Result<()> {
         if let Some(model) = self.last_model.as_mut() {
             (update_fn).call((&mut model.value, args));
-            self.db.put(MODELS_TABLE_NAME, &self.key, &self.last_model)?;
+            self.persist()?;
         }
         Ok(())
     }
+
+    pub fn persist(&mut self) -> Result<()> { self.db.put(MODELS_TABLE_NAME, &self.key, &self.last_model).err_into() }
 
     pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.last_model.as_ref().map(|m| m.at) }
 
