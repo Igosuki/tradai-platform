@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use db::{Storage, StorageExt};
+use db::Storage;
 use stats::Next;
 
 use crate::error::Result;
@@ -37,9 +37,7 @@ impl<'a, T: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOw
     pub fn update(&'a mut self) -> Result<()> {
         if let Some(model) = self.model.last_model.as_mut() {
             model.value.next(self.rows.window());
-            self.model
-                .db
-                .put("MODELS_TABLE_NAME", &self.model.key, &self.model.last_model)?;
+            self.model.persist()?;
         }
         Ok(())
     }
