@@ -21,32 +21,41 @@ fn get_f64(model: &HashMap<String, Option<Value>>, key: &str) -> f64 {
 }
 
 lazy_static! {
-    static ref MEAN_REVERTING_DRAW_ENTRIES: Vec<StrategyEntry<'static, StrategyLog>> = {
+    static ref MEAN_REVERTING_DRAW_ENTRIES: Vec<StrategyEntry<StrategyLog, &'static str>> = {
         vec![
-            ("Prices and EMA", |x| {
-                vec![
-                    (
-                        "mid_price",
-                        *x.prices
+            (
+                "Prices and EMA",
+                Arc::new(|x| {
+                    vec![
+                        (
+                            "mid_price",
+                            *x.prices
+                                .get(&(EXCHANGE.to_string(), PAIR.to_string()))
+                                .unwrap_or(&f64::NAN),
+                        ),
+                        ("short_ema", get_f64(&x.model, "short_ema")),
+                        ("long_ema", get_f64(&x.model, "long_ema")),
+                    ]
+                }),
+            ),
+            ("APO", Arc::new(|x| vec![("apo", get_f64(&x.model, "apo"))])),
+            (
+                "Portfolio Return",
+                Arc::new(|x| vec![("pfl_return", x.snapshot.current_return)]),
+            ),
+            ("Portfolio PnL", Arc::new(|x| vec![("pnl", x.snapshot.pnl)])),
+            ("Portfolio Value", Arc::new(|x| vec![("value", x.snapshot.value)])),
+            (
+                "Nominal (units)",
+                Arc::new(|x| {
+                    vec![(
+                        "nominal",
+                        *x.nominal_positions
                             .get(&(EXCHANGE.to_string(), PAIR.to_string()))
                             .unwrap_or(&f64::NAN),
-                    ),
-                    ("short_ema", get_f64(&x.model, "short_ema")),
-                    ("long_ema", get_f64(&x.model, "long_ema")),
-                ]
-            }),
-            ("APO", |x| vec![("apo", get_f64(&x.model, "apo"))]),
-            ("Portfolio Return", |x| vec![("pfl_return", x.snapshot.current_return)]),
-            ("Portfolio PnL", |x| vec![("pnl", x.snapshot.pnl)]),
-            ("Portfolio Value", |x| vec![("value", x.snapshot.value)]),
-            ("Nominal (units)", |x| {
-                vec![(
-                    "nominal",
-                    *x.nominal_positions
-                        .get(&(EXCHANGE.to_string(), PAIR.to_string()))
-                        .unwrap_or(&f64::NAN),
-                )]
-            }),
+                    )]
+                }),
+            ),
         ]
     };
 }
@@ -66,10 +75,11 @@ async fn spot_backtest() {
     });
     let exchange = Exchange::Binance;
     let full_test_name = format!("{}_{}", module_path!(), "spot");
+    let entries = MEAN_REVERTING_DRAW_ENTRIES.clone();
     let positions = generic_backtest(
         &full_test_name,
         provider,
-        &MEAN_REVERTING_DRAW_ENTRIES,
+        &entries,
         &BacktestRange::new(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 9)),
         &[exchange],
         100.0,
@@ -117,10 +127,11 @@ async fn margin_backtest() {
     });
     let exchange = Exchange::Binance;
     let full_test_name = format!("{}_{}", module_path!(), "spot");
+    let entries = MEAN_REVERTING_DRAW_ENTRIES.clone();
     let positions = generic_backtest(
         &full_test_name,
         provider,
-        &MEAN_REVERTING_DRAW_ENTRIES,
+        &entries,
         &BacktestRange::new(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 9)),
         &[exchange],
         100.0,

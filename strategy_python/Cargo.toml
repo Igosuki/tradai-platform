@@ -41,6 +41,8 @@ pyo3-chrono = { version = "0.3", features = ["serde"] }
 canonical_json = { version = "0.4.0", optional = true }
 inline-python = { version = "0.8" }
 #dict_derive = "0.4.0"
+pythonize = "0.15"
+
 # async
 actix = "0.12"
 tokio = { version = "1", features = ["full", "time"] }

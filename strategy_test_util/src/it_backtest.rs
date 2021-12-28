@@ -15,7 +15,7 @@ use strategy::trading::engine::{mock_engine, TradingEngine};
 use strategy::trading::position::Position;
 use util::test::test_results_dir;
 
-use crate::draw::{draw_line_plot, StrategyEntry};
+use crate::draw::{draw_line_plot, StrategyEntryFnRef};
 use crate::fs::copy_file;
 use crate::init;
 use crate::log::{write_models, write_trade_events, StrategyLog};
@@ -36,17 +36,20 @@ impl BacktestRange {
 }
 
 pub type BacktestStratProvider<'a> = dyn Fn(GenericTestContext) -> Box<dyn Strategy> + 'a;
-pub type BacktestStratProviderRef<'a> = Arc<dyn Fn(GenericTestContext) -> Box<dyn Strategy> + Send + Sync>;
+pub type BacktestStratProviderRef = Arc<dyn Fn(GenericTestContext) -> Box<dyn Strategy> + Send + Sync>;
 
-pub async fn generic_backtest<'a>(
+pub async fn generic_backtest<'a, S2>(
     test_name: &'a str,
-    provider: BacktestStratProviderRef<'a>,
-    draw_entries: &'a [StrategyEntry<'_, StrategyLog>],
+    provider: BacktestStratProviderRef,
+    draw_entries: &'a [(S2, StrategyEntryFnRef<StrategyLog, S2>)],
     range: &'a BacktestRange,
     exchanges: &'a [Exchange],
     starting_cash: f64,
     fees_rate: f64,
-) -> Vec<Position> {
+) -> Vec<Position>
+where
+    S2: ToString,
+{
     init();
     //setup_opentelemetry();
     let path = util::test::test_dir();
@@ -146,13 +149,15 @@ pub async fn generic_backtest<'a>(
         elapsed / num_records as u128
     );
 
-    write_models(&test_results_dir, &strategy_logs);
+    let data = Arc::new(strategy_logs);
+
+    write_models(&test_results_dir, data.as_ref());
     write_trade_events(
         &test_results_dir,
         &trades_history(&strat.ctx().portfolio.positions_history().unwrap()),
     );
 
-    let out_file = draw_line_plot(test_results_dir.as_str(), strategy_logs, draw_entries)
+    let out_file = draw_line_plot(test_results_dir.as_str(), data.as_ref(), draw_entries)
         .expect("Should have drawn plots from strategy logs");
     copy_file(&out_file, &format!("{}/plot_latest.html", &test_results_dir));
 
