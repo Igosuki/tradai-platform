@@ -98,7 +98,7 @@ MEAN_REVERTING_DRAW_ENTRIES = [(
         [
             (
                 "mid_price",
-                x['prices'][('Binance', 'BTC_USDT')]),
+                x['prices'][('Binance', 'BTC_USDT')] if ('Binance', 'BTC_USDT') in x['nominal_positions'] else 0.0),
             ("short_ema", x['model']['short_ema']['current']),
             ("long_ema", x['model']['long_ema']['current'])])
     ,
@@ -111,7 +111,9 @@ MEAN_REVERTING_DRAW_ENTRIES = [(
     (
         "Nominal (units)",
         lambda x: [("nominal",
-                    x['nominal_positions'][('Binance', 'BTC_USDT')])])]
+                    x['nominal_positions'][('Binance', 'BTC_USDT')] if ('Binance', 'BTC_USDT') in x['nominal_positions'] else 0.0)])
+    #,("print", lambda x: [("zero", print_and_zero(x))])
+]
 
 PRINT_DRAW_ENTRIES = [("print", lambda x: [("zero", print_and_zero(x))])]
 if __name__ == '__main__':

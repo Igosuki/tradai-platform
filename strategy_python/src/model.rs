@@ -92,6 +92,9 @@ impl PyWindowedIndicatorModel {
     fn next(&mut self, value: f64) -> PyResult<()> {
         // TODO: shouldn't this be a 'ModelError' exception ?
         self.inner.push(value);
+        if self.is_filled() {
+            self.update()?;
+        }
         Ok(())
     }
 
