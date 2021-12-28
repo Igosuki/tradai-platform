@@ -21,7 +21,8 @@ pub(crate) fn wrap_draw_entry_fn(entry_fn: PyObject) -> StrategyEntryFnRef<Strat
     Arc::new(move |log| {
         Python::with_gil(|py| {
             let py_val = pythonize(py, log).unwrap();
-            let r: Vec<(String, f64)> = entry_fn.call1(py, (py_val,)).unwrap().extract(py).unwrap();
+            let py1 = entry_fn.call1(py, (py_val,)).unwrap();
+            let r: Vec<(String, f64)> = py1.extract(py).unwrap();
             r
         })
     })
