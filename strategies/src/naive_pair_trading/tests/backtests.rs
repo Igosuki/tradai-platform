@@ -29,46 +29,58 @@ fn get_f64(model: &HashMap<String, Option<Value>>, key: &str) -> f64 {
 // ("res", |x| vec![("res", x.res)]),
 
 lazy_static! {
-    static ref NAIVE_STRATEGY_DRAW_ENTRIES: Vec<StrategyEntry<'static, StrategyLog>> = {
+    static ref NAIVE_STRATEGY_DRAW_ENTRIES: Vec<StrategyEntry<StrategyLog, &'static str>> = {
         vec![
-            ("Right Price vs Predicted", |x| {
-                let right_price = *x
-                    .prices
-                    .get(&(EXCHANGE.to_string(), RIGHT_PAIR.to_string()))
-                    .unwrap_or(&f64::NAN);
-                let left_price = *x
-                    .prices
-                    .get(&(EXCHANGE.to_string(), LEFT_PAIR.to_string()))
-                    .unwrap_or(&f64::NAN);
-                let alpha = get_f64(&x.model, "alpha");
-                let beta = get_f64(&x.model, "beta");
-                vec![
-                    ("right_price", right_price),
-                    ("predicted_right", covar_model::predict(alpha, beta, left_price)),
-                    ("alpha", alpha),
-                ]
-            }),
-            ("Alpha", |x| vec![("alpha", get_f64(&x.model, "alpha"))]),
-            ("Beta", |x| vec![("beta", get_f64(&x.model, "beta"))]),
-            ("Portfolio Return", |x| vec![("pfl_return", x.snapshot.current_return)]),
-            ("Portfolio PnL", |x| vec![("pnl", x.snapshot.pnl)]),
-            ("Portfolio Value", |x| vec![("value", x.snapshot.value)]),
-            ("Left Traded Qty", |x| {
-                vec![(
-                    "left_qty",
-                    *x.nominal_positions
-                        .get(&(EXCHANGE.to_string(), LEFT_PAIR.to_string()))
-                        .unwrap_or(&f64::NAN),
-                )]
-            }),
-            ("Right Traded Qty", |x| {
-                vec![(
-                    "right_qty",
-                    *x.nominal_positions
+            (
+                "Right Price vs Predicted",
+                Arc::new(|x| {
+                    let right_price = *x
+                        .prices
                         .get(&(EXCHANGE.to_string(), RIGHT_PAIR.to_string()))
-                        .unwrap_or(&f64::NAN),
-                )]
-            }),
+                        .unwrap_or(&f64::NAN);
+                    let left_price = *x
+                        .prices
+                        .get(&(EXCHANGE.to_string(), LEFT_PAIR.to_string()))
+                        .unwrap_or(&f64::NAN);
+                    let alpha = get_f64(&x.model, "alpha");
+                    let beta = get_f64(&x.model, "beta");
+                    vec![
+                        ("right_price", right_price),
+                        ("predicted_right", covar_model::predict(alpha, beta, left_price)),
+                        ("alpha", alpha),
+                    ]
+                }),
+            ),
+            ("Alpha", Arc::new(|x| vec![("alpha", get_f64(&x.model, "alpha"))])),
+            ("Beta", Arc::new(|x| vec![("beta", get_f64(&x.model, "beta"))])),
+            (
+                "Portfolio Return",
+                Arc::new(|x| vec![("pfl_return", x.snapshot.current_return)]),
+            ),
+            ("Portfolio PnL", Arc::new(|x| vec![("pnl", x.snapshot.pnl)])),
+            ("Portfolio Value", Arc::new(|x| vec![("value", x.snapshot.value)])),
+            (
+                "Left Traded Qty",
+                Arc::new(|x| {
+                    vec![(
+                        "left_qty",
+                        *x.nominal_positions
+                            .get(&(EXCHANGE.to_string(), LEFT_PAIR.to_string()))
+                            .unwrap_or(&f64::NAN),
+                    )]
+                }),
+            ),
+            (
+                "Right Traded Qty",
+                Arc::new(|x| {
+                    vec![(
+                        "right_qty",
+                        *x.nominal_positions
+                            .get(&(EXCHANGE.to_string(), RIGHT_PAIR.to_string()))
+                            .unwrap_or(&f64::NAN),
+                    )]
+                }),
+            ),
         ]
     };
 }

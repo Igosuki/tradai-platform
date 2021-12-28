@@ -5,16 +5,32 @@ use chrono::{Date, TimeZone, Utc};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3_chrono::NaiveDate;
+use pythonize::pythonize;
 
 use db::Storage;
 use strategy::coinnect::prelude::Exchange;
+use strategy_test_util::draw::StrategyEntryFnRef;
 use strategy_test_util::it_backtest::{generic_backtest, BacktestRange, BacktestStratProviderRef, GenericTestContext};
+use strategy_test_util::log::StrategyLog;
 use trading::position::Position;
 
 use crate::{PyPosition, PyStrategyWrapper};
 
+/// Wraps a python function that returns a list of tuples of (str, f64) for a dict corresponding to [`StrategyLog`]
+pub(crate) fn wrap_draw_entry_fn(entry_fn: PyObject) -> StrategyEntryFnRef<StrategyLog, String> {
+    Arc::new(move |log| {
+        Python::with_gil(|py| {
+            let py_val = pythonize(py, log).unwrap();
+            let r: Vec<(String, f64)> = entry_fn.call1(py, (py_val,)).unwrap().extract(py).unwrap();
+            r
+        })
+    })
+}
+
 /// Launch an integration backtest with the generic test driver
 /// The profider_fn must return a [`PyStrategy`] (or strategy.Strategy in python)
+/// draw_entries must be a tuple of name for a figure, and a fn(log) -> (line_name, float).
+/// See [`wrap_draw_entry_fn`] for details
 #[pyfunction(name = "it_backtest", module = "backtest")]
 #[pyo3(text_signature = "(test_name, provider_fn, from, to, /)")]
 fn it_backtest_wrapper<'p>(
@@ -23,6 +39,7 @@ fn it_backtest_wrapper<'p>(
     provider_fn: &'p PyAny,
     from: NaiveDate,
     to: NaiveDate,
+    draw_entries: Vec<(&'p str, &'p PyAny)>,
 ) -> PyResult<&'p PyAny> {
     let name: String = test_name.extract()?;
     if !provider_fn.is_callable() {
@@ -31,10 +48,18 @@ fn it_backtest_wrapper<'p>(
     let provider_fn = Arc::new(provider_fn.to_object(py));
     let from: Date<Utc> = Utc.from_utc_date(&from.0);
     let to: Date<Utc> = Utc.from_utc_date(&to.0);
-
+    let draw_entries: Vec<(String, StrategyEntryFnRef<StrategyLog, String>)> = draw_entries
+        .into_iter()
+        .map(|entry| {
+            let entry_fn = entry.1.to_object(py);
+            (entry.0.to_string(), wrap_draw_entry_fn(entry_fn))
+        })
+        .collect();
+    let draw_entries = Arc::new(draw_entries);
     pyo3_asyncio::tokio::future_into_py_with_locals(py, pyo3_asyncio::tokio::get_current_locals(py)?, async move {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<Position>>(1);
         thread::spawn(move || {
+            let arc = draw_entries.clone();
             actix::System::new().block_on(async move {
                 let provider: BacktestStratProviderRef = Arc::new(move |ctx: GenericTestContext| {
                     Python::with_gil(|py| {
@@ -46,7 +71,7 @@ fn it_backtest_wrapper<'p>(
                 let positions = generic_backtest(
                     &name,
                     provider,
-                    &[],
+                    arc.as_slice(),
                     &BacktestRange::new(from, to),
                     &[Exchange::Binance],
                     100.0,
