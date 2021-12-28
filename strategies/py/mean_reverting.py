@@ -61,8 +61,16 @@ class MeanReverting(Strategy):
         # event.debug()
         self.apo_model.next(event.vwap())
         apo = self.apo_model.values()[0]
-        if apo is not None:
+        if apo is None:
+            return
+        if self.conf['dynamic_threshold']:
             self.threshold_model.next(apo)
+            threshold_long = self.threshold_model.values()[0]
+            threshold_short = self.threshold_model.values()[1]
+        else:
+            threshold_long = self.conf['threshold_long']
+            threshold_short = self.conf['threshold_short']
+
         signals = []
         if event.low() > 0 and apo < 0.0:
             signals.append(signal(PositionKind.Short, OperationKind.Close, TradeKind.Buy, event.low(
@@ -70,10 +78,10 @@ class MeanReverting(Strategy):
         if event.high() > 0 and apo > 0.0:
             signals.append(signal(PositionKind.Long, OperationKind.Close, TradeKind.Sell, event.high(
             ), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
-        if event.low() > 0 and apo < (self.threshold_model.values()[1] or self.conf['threshold_long']):
+        if event.low() > 0 and apo < threshold_long:
             signals.append(signal(PositionKind.Long, OperationKind.Open, TradeKind.Buy, event.low(
             ), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
-        if event.high() > 0 and apo > (self.threshold_model.values()[0] or self.conf['threshold_short']):
+        if event.high() > 0 and apo > threshold_short:
             signals.append(signal(PositionKind.Short, OperationKind.Open, TradeKind.Sell, event.high(
             ), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
         return signals
@@ -98,7 +106,7 @@ MEAN_REVERTING_DRAW_ENTRIES = [(
         [
             (
                 "mid_price",
-                x['prices'][('Binance', 'BTC_USDT')] if ('Binance', 'BTC_USDT') in x['nominal_positions'] else 0.0),
+                x['prices'][('Binance', 'BTC_USDT')] if ('Binance', 'BTC_USDT') in x['prices'] else 0.0),
             ("short_ema", x['model']['short_ema']['current']),
             ("long_ema", x['model']['long_ema']['current'])])
     ,

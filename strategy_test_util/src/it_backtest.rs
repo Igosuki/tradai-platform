@@ -116,28 +116,34 @@ where
                 break;
             }
         }
-        if let Ok(DataResult::Models(models)) = strat.data(DataQuery::Models).await {
+        if let MarketEvent::Orderbook(ob) = &event.e {
+            let models = strat
+                .data(DataQuery::Models)
+                .await
+                .map(|dr| match dr {
+                    DataResult::Models(v) => v,
+                    _ => vec![],
+                })
+                .unwrap();
             let portfolio = strat.ctx().portfolio;
-            if let MarketEvent::Orderbook(ob) = &event.e {
-                let nominal_positions = strat
-                    .ctx()
-                    .portfolio
-                    .open_positions()
-                    .values()
-                    .map(|v| ((v.exchange.to_string(), v.symbol.to_string()), v.quantity))
-                    .collect();
-                strategy_logs.push(StrategyLog::new(
-                    event_time,
-                    hashmap! { (event.xch.to_string(), event.pair.to_string()) => ob.avg_price().unwrap() },
-                    models,
-                    PortfolioSnapshot {
-                        value: portfolio.value(),
-                        pnl: portfolio.pnl(),
-                        current_return: portfolio.current_return(),
-                    },
-                    nominal_positions,
-                ));
-            }
+            let nominal_positions = strat
+                .ctx()
+                .portfolio
+                .open_positions()
+                .values()
+                .map(|v| ((v.exchange.to_string(), v.symbol.to_string()), v.quantity))
+                .collect();
+            strategy_logs.push(StrategyLog::new(
+                event_time,
+                hashmap! { (event.xch.to_string(), event.pair.to_string()) => ob.vwap().unwrap() },
+                models,
+                PortfolioSnapshot {
+                    value: portfolio.value(),
+                    pnl: portfolio.pnl(),
+                    current_return: portfolio.current_return(),
+                },
+                nominal_positions,
+            ));
         }
 
         elapsed += now.elapsed().as_nanos();

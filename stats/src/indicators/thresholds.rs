@@ -19,8 +19,8 @@ impl Thresholds {
         Self {
             high_0,
             low_0,
-            low: 0.0,
-            high: 0.0,
+            low: low_0,
+            high: high_0,
         }
     }
 }
