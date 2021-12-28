@@ -183,9 +183,16 @@ download_binary:
 	aws --profile btcfeed s3 cp --endpoint=https://nyc3.digitaloceanspaces.com s3://btcfeed/binaries/$(target)/$(target)-$(bin_tag) build/binaries/$(target)
 
 
-python_target=python3.9
+python_target=python3.10
+python_arch=linux_x86_64
+python_cp_target=cp310
+python_dylib_v=2021.0.0
+release_python_lib:
+	maturin build --release --no-sdist -i $(python_target) -m python_dylib/Cargo.toml
+
 build_python_lib:
-	maturin build -i $(python_target) --cargo-extra-args="--features=static"
+	maturin build --no-sdist -i $(python_target) -m python_dylib/Cargo.toml && pip3.10 install --force-reinstall $(PWD)/python_dylib/target/wheels/strategy-$(python_dylib_v)-$(python_cp_target)-$(python_cp_target)-$(python_arch).whl
+
 
 ### DOCKER
 
