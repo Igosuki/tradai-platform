@@ -4802,6 +4802,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pythonize"
+version = "0.15.0"
+source = "git+https://github.com/Igosuki/pythonize?rev=d5309ca6491cdfb9e356d38b244e20b29a206bbc#d5309ca6491cdfb9e356d38b244e20b29a206bbc"
+dependencies = [
+ "pyo3",
+ "serde",
+]
+
+[[package]]
 name = "qstring"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5923,6 +5932,7 @@ dependencies = [
  "pyo3-asyncio",
  "pyo3-chrono",
  "pyo3-log",
+ "pythonize",
  "serde",
  "serde_json",
  "stats",

@@ -4,6 +4,7 @@ extern crate maplit;
 extern crate serde;
 #[macro_use]
 extern crate tracing;
+extern crate core;
 
 use std::path::Path;
 use std::sync::Arc;

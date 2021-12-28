@@ -51,3 +51,4 @@ lto = false
 plotly = { git = "https://github.com/igiagkiozis/plotly", branch = "master" }
 actix-cors = { git = "https://github.com/actix/actix-extras", branch = "master" }
 pyo3 = { git = "https://github.com/PyO3/pyo3", rev = "8a989eeb6aeb862c0c518d994ef6e5f967f0dc46", version = "^0.15" }
+pythonize = { git = "https://github.com/Igosuki/pythonize", rev = "d5309ca6491cdfb9e356d38b244e20b29a206bbc", version = "^0.15" }
