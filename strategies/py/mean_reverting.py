@@ -4,12 +4,11 @@ import logging
 from datetime import datetime, date
 
 from strategy import Strategy, signal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
-    OrderType, uuid, ta, windowed_ta, model
+    OrderType, uuid, ta, windowed_ta, model, mstrategy
 
 FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'
 logging.basicConfig(format=FORMAT)
 logging.getLogger().setLevel(logging.INFO)
-
 
 class MeanReverting(Strategy):
     def __new__(cls, conf, ctx):
@@ -124,7 +123,13 @@ MEAN_REVERTING_DRAW_ENTRIES = [(
 ]
 
 PRINT_DRAW_ENTRIES = [("print", lambda x: [("zero", print_and_zero(x))])]
+
 if __name__ == '__main__':
     positions = asyncio.run(backtest_run("mr_py_test", lambda ctx: MeanReverting(
         {}, ctx), date(2021, 8, 1), date(2021, 8, 9), MEAN_REVERTING_DRAW_ENTRIES))
     print('took %d positions' % len(positions))
+
+
+mstrategy("mean_reverting", MeanReverting)
+
+Strat = MeanReverting

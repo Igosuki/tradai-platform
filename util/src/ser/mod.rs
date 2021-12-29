@@ -106,8 +106,8 @@ where
 
 pub fn write_as_seq<P: AsRef<Path>, T: Serialize>(out_file: P, data: &[T]) {
     let logs_f = std::fs::File::create(out_file).unwrap();
-    let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
-    let mut seq = ser.serialize_seq(None).unwrap();
+    let mut serializer = serde_json::Serializer::new(BufWriter::new(logs_f));
+    let mut seq = serializer.serialize_seq(None).unwrap();
     for models in data {
         seq.serialize_element(&models).unwrap();
     }
@@ -157,8 +157,8 @@ impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
     /// Open a new serializer to the file and start writing push values to it
     pub async fn start(&self) {
         let logs_f = std::fs::File::create(&self.out_file).unwrap();
-        let mut ser = serde_json::Serializer::new(BufWriter::new(logs_f));
-        let mut seq = ser.serialize_seq(None).unwrap();
+        let mut serializer = serde_json::Serializer::new(BufWriter::new(logs_f));
+        let mut seq = serializer.serialize_seq(None).unwrap();
         let mut lock = self.stream.write().await;
         let mut finish_lock = self.finish_rx.write().await;
         'stream: loop {

@@ -48,6 +48,7 @@ pub async fn push_metrics(c: Arc<Client>, address: Arc<String>, instance: Arc<St
     }
 }
 impl PrometheusPushActor {
+    #[must_use]
     pub fn new(options: &PrometheusOptions) -> Self {
         PrometheusPushActor {
             push_frequency: time::Duration::from_secs(5),
