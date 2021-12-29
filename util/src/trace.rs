@@ -45,8 +45,8 @@ pub fn print_timings(sid: LayerDowncaster<ByName, ByName>) {
         let layer = sid.downcast(dispatcher).unwrap();
         layer.force_synchronize();
         layer.with_histograms(|hs| {
-            let hkeys: Vec<String> = hs.keys().map(|k| k.to_string()).collect();
-            for hkey in hkeys {
+            let hist_keys: Vec<String> = hs.keys().map(|k| k.to_string()).collect();
+            for hkey in hist_keys {
                 let events_hs = hs.get_mut(hkey.as_str()).unwrap();
                 let keys: Vec<String> = events_hs.keys().map(|k| k.to_string()).collect();
                 for k in keys {

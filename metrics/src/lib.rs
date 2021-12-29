@@ -1,3 +1,10 @@
+#![allow(
+    // noisy
+    clippy::missing_errors_doc,
+    clippy::module_name_repetitions,
+    clippy::let_underscore_drop
+)]
+
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
