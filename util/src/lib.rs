@@ -1,3 +1,8 @@
+#![allow(
+    // noisy
+    clippy::missing_errors_doc
+)]
+
 #[cfg(test)]
 #[macro_use]
 extern crate async_stream;

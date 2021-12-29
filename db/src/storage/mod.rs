@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use ext::{ResultExt, ToAny};
 
-use crate::error::*;
+use crate::error::Result;
 use crate::storage::rocksdb::RocksDbOptions;
 use crate::{MemoryKVStore, RocksDbStorage};
 

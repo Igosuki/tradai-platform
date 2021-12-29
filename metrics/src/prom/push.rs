@@ -17,6 +17,7 @@ use crate::error::Result;
 
 const CLIENT_TIMEOUT_SEC: Duration = Duration::from_secs(2);
 
+#[must_use]
 pub fn make_client() -> Client {
     let conn = awc::Connector::new()
         .conn_lifetime(Duration::from_secs(15))
@@ -75,9 +76,6 @@ async fn push<S: BuildHasher>(
     method: &str,
     basic_auth: Option<BasicAuthentication>,
 ) -> Result<()> {
-    // Suppress clippy warning needless_pass_by_value.
-    let grouping = grouping;
-
     let mut push_url = if url.contains("://") {
         url.to_owned()
     } else {
@@ -101,8 +99,8 @@ async fn push<S: BuildHasher>(
         if lv.contains('/') {
             return Err(Error::Msg(format!("value of grouping label {} contains '/': {}", ln, lv)).into());
         }
-        url_components.push(ln.to_owned());
-        url_components.push(lv.to_owned());
+        url_components.push(ln.clone());
+        url_components.push(lv.clone());
     }
 
     push_url = format!("{}/metrics/job/{}", push_url, url_components.join("/"));
@@ -145,8 +143,7 @@ async fn push<S: BuildHasher>(
     let response = builder.send_body(buf).await.map_err(|e| Error::Msg(format!("{}", e)))?;
 
     match response.status() {
-        StatusCode::ACCEPTED => Ok(()),
-        StatusCode::OK => Ok(()),
+        StatusCode::ACCEPTED | StatusCode::OK => Ok(()),
         _ => Err(Error::Msg(format!(
             "unexpected status code {} while pushing to {}",
             response.status(),
@@ -212,12 +209,13 @@ const DEFAULT_GROUP_LABEL_PAIR: (&str, &str) = ("instance", "unknown");
 ///
 /// Note: This function returns `instance = "unknown"` in Windows.
 #[cfg(not(target_os = "windows"))]
+#[must_use]
 pub fn hostname_grouping_key() -> HashMap<String, String> {
     // Host names are limited to 255 bytes.
     //   ref: http://pubs.opengroup.org/onlinepubs/7908799/xns/gethostname.html
     let max_len = 256;
     let mut name = vec![0u8; max_len];
-    match unsafe { libc::gethostname(name.as_mut_ptr() as *mut libc::c_char, max_len as libc::size_t) } {
+    match unsafe { libc::gethostname(name.as_mut_ptr().cast::<i8>(), max_len as libc::size_t) } {
         0 => {
             let last_char = name.iter().position(|byte| *byte == 0).unwrap_or(max_len);
             labels! {

@@ -27,7 +27,7 @@ where
     S: Into<T>,
 {
     #[inline]
-    fn map_into(self) -> Result<T, E> { self.map(|v| v.into()) }
+    fn map_into(self) -> Result<T, E> { self.map(Into::into) }
 }
 
 impl<S, T> MapInto<Option<T>> for Option<S>
@@ -35,7 +35,7 @@ where
     S: Into<T>,
 {
     #[inline]
-    fn map_into(self) -> Option<T> { self.map(|v| v.into()) }
+    fn map_into(self) -> Option<T> { self.map(Into::into) }
 }
 
 impl<S, T> MapInto<Vec<T>> for Vec<S>
@@ -47,6 +47,9 @@ where
 }
 
 pub trait ResultExt<T, E> {
+    /// # Errors
+    ///
+    /// Will convert the `Err` type to the expected return type if Into exists.
     fn err_into<U>(self) -> Result<T, U>
     where
         E: Into<U>;

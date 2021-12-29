@@ -48,7 +48,7 @@ fn main() -> io::Result<()> {
         let schema_str = fs::read_to_string(file_name)?;
         hasher.update(schema_str.as_bytes());
         let checksum = hasher.finalize();
-        let schema_file_name_str: Option<String> = file_name.to_str().map(|s| s.to_string());
+        let schema_file_name_str: Option<String> = file_name.to_str().map(ToString::to_string);
         let original_checksum = schema_file_name_str
             .clone()
             .and_then(|f| avro_state.get(f.as_str()))
@@ -71,7 +71,7 @@ fn main() -> io::Result<()> {
             ))
             .output();
         if let Err(e) = output {
-            println!("Error generating avro schema : {:?}", e)
+            println!("Error generating avro schema : {:?}", e);
         }
     }
     if any_changes {

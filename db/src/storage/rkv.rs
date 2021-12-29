@@ -21,6 +21,8 @@ pub enum DataStoreError {
     JsonError(#[from] serde_json::error::Error),
     #[error("blob error")]
     BlobError(#[from] bincode::Error),
+    #[error("io error")]
+    IOError(#[from] std::io::Error),
 }
 
 #[derive(Debug, Clone)]
@@ -30,11 +32,13 @@ pub struct Db {
     rwl: Arc<RwLock<RkvLmdb>>,
 }
 
-pub type WriteResult = Result<(), DataStoreError>;
+pub type DbResult<T> = Result<T, DataStoreError>;
+
+pub type WriteResult = DbResult<()>;
 
 impl Db {
-    pub fn new(root: &str, name: String) -> Self {
-        fs::create_dir_all(root).unwrap();
+    pub fn try_new(root: &str, name: String) -> DbResult<Self> {
+        fs::create_dir_all(root)?;
         let path = Path::new(root);
         let root: Box<Path> = Box::from(path);
         // First determine the path to the environment, which is represented
@@ -48,15 +52,13 @@ impl Db {
         // Use it to retrieve the handle to an opened environment—or create one
         // if it hasn't already been opened:
         let created_arc = Manager::<LmdbEnvironment>::singleton()
-            .write()
-            .unwrap()
-            .get_or_create(root.as_ref(), Self::new_rkv)
-            .unwrap();
-        Self {
+            .write()?
+            .get_or_create(root.as_ref(), Self::new_rkv)?;
+        Ok(Self {
             root,
             name,
             rwl: created_arc,
-        }
+        })
     }
 
     fn new_rkv(path: &Path) -> Result<RkvLmdb, StoreError> {
@@ -409,7 +411,7 @@ mod test {
 
     fn db() -> Db {
         let dir = test_dir();
-        Db::new(dir.as_ref().to_str().unwrap(), "mydb".to_string())
+        Db::try_new(dir.as_ref().to_str().unwrap(), "mydb".to_string()).unwrap()
     }
 
     #[derive(Debug, Serialize, Deserialize, PartialEq)]

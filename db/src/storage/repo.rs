@@ -14,9 +14,9 @@ pub struct DefaultRepository {
 }
 
 impl DefaultRepository {
-    pub fn new(db: Arc<dyn Storage>, table: String) -> Self {
-        db.ensure_table(table.as_str()).unwrap();
-        Self { db, table }
+    pub fn try_new(db: Arc<dyn Storage>, table: String) -> Result<Self> {
+        db.ensure_table(table.as_str())?;
+        Ok(Self { db, table })
     }
 
     pub fn get<T: DeserializeOwned>(&self, id: &str) -> Result<T> { self.db.get(self.table.as_str(), id).err_into() }
@@ -25,10 +25,10 @@ impl DefaultRepository {
         self.db.put(self.table.as_str(), key, op).err_into()
     }
 
+    #[must_use]
     pub fn all<T: DeserializeOwned>(&self) -> Vec<T> {
         self.db
             .get_all::<T>(self.table.as_str())
-            .map(|v| v.into_iter().map(|kv| kv.1).collect())
-            .unwrap_or_else(|_| Vec::new())
+            .map_or_else(|_| Vec::new(), |v| v.into_iter().map(|kv| kv.1).collect())
     }
 }
