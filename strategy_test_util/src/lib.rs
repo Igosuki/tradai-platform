@@ -1,3 +1,11 @@
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::module_name_repetitions,
+    clippy::unused_async,
+    clippy::must_use_candidate,
+    clippy::wildcard_imports
+)]
+
 #[macro_use]
 extern crate maplit;
 #[macro_use]

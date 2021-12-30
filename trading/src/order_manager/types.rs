@@ -27,7 +27,7 @@ pub enum Rejection {
 }
 
 impl Rejection {
-    pub(crate) fn from_status(os: ExchangeOrderStatus, reason: Option<String>) -> Self {
+    pub(crate) fn from_status(os: &ExchangeOrderStatus, reason: Option<String>) -> Self {
         match os {
             ExchangeOrderStatus::Rejected => match reason {
                 Some(reason) => Rejection::Other(reason),
@@ -155,12 +155,9 @@ impl From<ExchangeOrderStatus> for OrderStatus {
         match o {
             ExchangeOrderStatus::New => Self::Created,
             ExchangeOrderStatus::PartiallyFilled => Self::PartiallyFilled,
-            ExchangeOrderStatus::Filled => Self::Filled,
-            ExchangeOrderStatus::Canceled => Self::Canceled,
-            ExchangeOrderStatus::PendingCancel => Self::Canceled,
-            ExchangeOrderStatus::Rejected => Self::Rejected,
-            ExchangeOrderStatus::Expired => Self::Rejected,
-            ExchangeOrderStatus::Traded => Self::Filled,
+            ExchangeOrderStatus::Filled | ExchangeOrderStatus::Traded => Self::Filled,
+            ExchangeOrderStatus::Canceled | ExchangeOrderStatus::PendingCancel => Self::Canceled,
+            ExchangeOrderStatus::Rejected | ExchangeOrderStatus::Expired => Self::Rejected,
         }
     }
 }
@@ -229,7 +226,7 @@ impl OrderDetail {
     pub fn is_retryable(&self) -> bool {
         matches!(
             self.rejection_reason,
-            Some(Rejection::Cancelled(_)) | Some(Rejection::Timeout)
+            Some(Rejection::Cancelled(_) | Rejection::Timeout)
         )
     }
 
@@ -313,6 +310,7 @@ impl OrderDetail {
         }
     }
 
+    #[allow(clippy::cast_possible_wrap)]
     pub fn from_fill_update(&mut self, update: OrderUpdate) {
         if self.status == OrderStatus::Filled {
             return;
@@ -352,14 +350,23 @@ impl OrderDetail {
     }
 
     /// Calculate total interest owed, calculated in borrowed asset
-    pub fn total_interest(&self, interest_rate: InterestRate) -> f64 {
+    ///
+    /// # Panics
+    ///
+    /// if `closed_at` is None
+    pub fn total_interest(&self, interest_rate: &InterestRate) -> f64 {
         let hours_elapsed = now().sub(self.closed_at.unwrap());
         let borrowed_amount = self.borrowed_amount.unwrap();
         // The first hour is owed at t0
         interest_rate.resolve(borrowed_amount, hours_elapsed.num_hours() + 1)
     }
 
-    pub fn total_quote_interest(&self, interest_rate: InterestRate) -> f64 {
+    /// Calculate total interest owed, calculated in quote asset
+    ///
+    /// # Panics
+    ///
+    /// if `borrowed_asset` is None
+    pub fn total_quote_interest(&self, interest_rate: &InterestRate) -> f64 {
         let interests = self.total_interest(interest_rate);
         let borrowed_asset = self.borrowed_asset.as_ref().unwrap();
         if borrowed_asset == &self.base_asset {
@@ -373,10 +380,10 @@ impl OrderDetail {
         match status {
             TransactionStatus::New(submission) => self.from_submission(submission),
             TransactionStatus::Filled(update) | TransactionStatus::PartiallyFilled(update) => {
-                self.from_fill_update(update)
+                self.from_fill_update(update);
             }
             TransactionStatus::Rejected(rejection) => self.from_rejected(rejection),
-            _ => {}
+            TransactionStatus::Staged(_) => {}
         }
     }
 
@@ -623,7 +630,7 @@ mod test {
             rate: 0.002,
             period: InterestRatePeriod::Daily,
         };
-        let total_interest = order.total_interest(interest_rate);
+        let total_interest = order.total_interest(&interest_rate);
         assert_eq!(format!("{:.6}", total_interest), "0.000022");
     }
 
@@ -648,6 +655,6 @@ mod test {
         };
         next_order.from_submission(submission);
 
-        assert!(!order.is_same_status(&next_order.status))
+        assert!(!order.is_same_status(&next_order.status));
     }
 }

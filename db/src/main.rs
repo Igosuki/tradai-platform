@@ -19,7 +19,7 @@ struct CliOptions {
 }
 
 arg_enum! {
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Copy)]
     enum DbType {
         Rocksdb,
     }
@@ -73,10 +73,10 @@ fn main() {
             if let Some(t) = table {
                 let db = rocksdb::DB::open_cf(&Options::default(), path, vec![t.clone()]).unwrap();
                 let handle = db.cf_handle(&t).unwrap();
-                db.compact_range_cf(&handle, from, to)
+                db.compact_range_cf(&handle, from, to);
             } else {
                 let db = rocksdb::DB::open(&Options::default(), path).unwrap();
-                db.compact_range(from, to)
+                db.compact_range(from, to);
             };
             println!("Compaction ended");
         }

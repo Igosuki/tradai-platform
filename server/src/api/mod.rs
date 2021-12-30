@@ -76,9 +76,9 @@ async fn graphql(
     order_managers: OrderManagerData,
 ) -> Result<HttpResponse, Error> {
     let ctx = Context {
-        strats: strats.get_ref().to_owned(),
-        exchanges: exchanges.get_ref().to_owned(),
-        order_managers: order_managers.get_ref().to_owned(),
+        strats: strats.get_ref().clone(),
+        exchanges: exchanges.get_ref().clone(),
+        order_managers: order_managers.get_ref().clone(),
     };
     self::graphql::graphql_handler(&schema, &ctx, req, payload).await
 }
@@ -132,6 +132,7 @@ mod tests {
     use actix_web::http::header::ContentType;
     use actix_web::web::Data;
     use actix_web::{http::StatusCode, test, web, App};
+    use coinnect_rt::exchange::manager::ExchangeApiRegistry;
     use tokio::time::timeout;
 
     use coinnect_rt::prelude::*;
@@ -143,11 +144,9 @@ mod tests {
 
     fn strats() -> HashMap<StrategyKey, Trader> { HashMap::new() }
 
-    fn oms() -> Arc<HashMap<Exchange, Addr<OrderManager>>> { Default::default() }
+    fn oms() -> Arc<HashMap<Exchange, Addr<OrderManager>>> { Arc::new(HashMap::default()) }
 
-    type ExchangeApis = Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>;
-
-    async fn test_apis() -> ExchangeApis {
+    async fn test_apis() -> Arc<ExchangeApiRegistry> {
         let exchanges = [(Exchange::Binance, ExchangeSettings {
             orderbook: None,
             orderbook_depth: None,
@@ -171,10 +170,10 @@ mod tests {
         arc.clone()
     }
 
-    fn build_test_api(apis: ExchangeApis, cfg: &mut web::ServiceConfig) {
+    fn build_test_api(apis: Arc<ExchangeApiRegistry>, cfg: &mut web::ServiceConfig) {
         let schema = create_schema();
         let strats: Arc<HashMap<StrategyKey, Trader>> = Arc::new(strats());
-        cfg.app_data(Data::new(apis.clone()))
+        cfg.app_data(Data::new(apis))
             .app_data(Data::new(schema))
             .app_data(Data::new(strats))
             .app_data(Data::new(Arc::new(oms())));
@@ -188,12 +187,12 @@ mod tests {
         let app = test::init_service(app).await;
         let binance_api = apis.get(&Exchange::Binance).unwrap();
         let _ob = binance_api.orderbook("BTC_USDT".into()).await.unwrap();
-        let price = 35000.02000000;
+        let price = 35_000.020_000_00;
         let _o = crate::api::Order {
             exchg: Exchange::Binance,
             t: OrderType::Limit,
             pair: "BTC_USDT".into(),
-            qty: 0.00000100,
+            qty: 0.000_001_00,
             price,
         };
         let string = format!(

@@ -1,4 +1,11 @@
 #![feature(generic_associated_types)]
+#![allow(
+    clippy::wildcard_imports,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::missing_errors_doc
+)]
+
 #[macro_use]
 extern crate async_trait;
 #[macro_use]

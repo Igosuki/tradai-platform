@@ -97,8 +97,8 @@ impl PnLReturnSummary {
             start_timestamp: Utc::now(),
             duration: Duration::zero(),
             trades_per_day: 0.0,
-            total: Default::default(),
-            losses: Default::default(),
+            total: DataSummary::default(),
+            losses: DataSummary::default(),
         }
     }
 
@@ -112,9 +112,10 @@ impl PnLReturnSummary {
         }
     }
 
+    #[allow(clippy::cast_precision_loss)]
     fn update_trades_per_day(&mut self) {
         self.trades_per_day =
-            self.total.count as f64 / (self.duration.num_seconds() as f64 / PnLReturnSummary::SECONDS_IN_DAY)
+            self.total.count as f64 / (self.duration.num_seconds() as f64 / PnLReturnSummary::SECONDS_IN_DAY);
     }
 }
 

@@ -15,6 +15,7 @@ dependencies = [
  "db",
  "env_logger 0.9.0",
  "ext",
+ "float-cmp",
  "futures",
  "prometheus 0.13.0",
  "serde",
@@ -802,10 +803,12 @@ dependencies = [
  "chrono",
  "config 0.11.0",
  "console-subscriber",
+ "dashmap",
  "datafusion",
  "db",
  "env_logger 0.9.0",
  "ext",
+ "float-cmp",
  "futures",
  "hdrhistogram",
  "itertools",
@@ -1336,6 +1339,7 @@ dependencies = [
  "chrono",
  "clap 3.0.0-rc.7",
  "criterion",
+ "dashmap",
  "data-encoding",
  "derivative",
  "derive_more",
@@ -1840,6 +1844,18 @@ dependencies = [
  "rand_core 0.5.1",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "dashmap"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b799062aaf67eb976af3bdca031ee6f846d2f0a5710ddbb0d2efee33f3cc4760"
+dependencies = [
+ "cfg-if 1.0.0",
+ "num_cpus",
+ "parking_lot",
+ "serde",
 ]
 
 [[package]]
@@ -7056,6 +7072,7 @@ checksum = "7cf7d77f457ef8dfa11e4cd5933c5ddb5dc52a94664071951219a97710f0a32b"
 name = "util"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-stream",
  "byte-unit",
  "chrono",

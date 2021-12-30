@@ -24,9 +24,7 @@ async fn dl_test_data(base_path: &str, exchange_name: &str, channel: &str, pair:
     let file = tempfile::tempdir().unwrap();
     let out_file = file.into_path().join(out_file_name);
     let s3_key = &format!("test_data/{}/{}/{}.zip", exchange_name, channel, pair);
-    let output = util::s3::download_file(&s3_key.clone(), out_file.clone())
-        .await
-        .expect("s3 file downloaded");
+    let output = util::s3::download_file(&s3_key.clone(), out_file.clone()).expect("s3 file downloaded");
     if let Some(1) = output.status.code() {
         error!(
             "s3 download failed : {}",
@@ -111,35 +109,39 @@ pub fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
     Ok(vec)
 }
 
+/// # Panics
+///
+/// if glob files cannot be listed
 pub fn load_records_from_csv<R>(
     dr: &DateRange,
     base_path: &Path,
-    pairs: Vec<String>,
+    pairs: &[&str],
     glob_str: &str,
 ) -> Vec<(String, Vec<R>)>
 where
     Vec<R>: FromIterator<CsvRecord>,
 {
     let get_records = move |pair: String| {
-        dr.flat_map(|dt| {
-            let date = dt;
-            let buf = base_path
-                .join(format!("pr={}", pair.clone()))
-                .join(format!("dt={}", date.format("%Y-%m-%d")));
-            let glob_string = format!("{}{}", buf.to_str().unwrap(), glob_str);
-            trace!("Loading csv records from : {:?}", glob_string);
-            let files = glob::glob(&glob_string).unwrap();
-            if files.count() == 0 {
-                trace!("no files found !");
-            }
-            let files = glob::glob(&glob_string).unwrap();
-            files.flat_map(|glob_result| load_records(glob_result.unwrap().to_str().unwrap()))
-        })
-        .collect()
+        dr.into_iter()
+            .flat_map(|dt| {
+                let date = dt;
+                let buf = base_path
+                    .join(format!("pr={}", pair.clone()))
+                    .join(format!("dt={}", date.format("%Y-%m-%d")));
+                let glob_string = format!("{}{}", buf.to_str().unwrap(), glob_str);
+                trace!("Loading csv records from : {:?}", glob_string);
+                let files = glob::glob(&glob_string).unwrap();
+                if files.count() == 0 {
+                    trace!("no files found !");
+                }
+                let files = glob::glob(&glob_string).unwrap();
+                files.flat_map(|glob_result| load_records(glob_result.unwrap().to_str().unwrap()))
+            })
+            .collect()
     };
     pairs
         .iter()
-        .map(|pair| (pair.clone(), get_records(pair.to_string())))
+        .map(|pair| ((*pair).to_string(), get_records((*pair).to_string())))
         .collect()
 }
 
@@ -148,14 +150,17 @@ fn load_records(path: &str) -> Vec<CsvRecord> { read_csv(path).unwrap() }
 // Loads the relevant csv dataset
 // These csv datasets are downsampled feeds generated from avro data by spark the spark_flattener function (see the spark files in the parent project)
 // If the files are missing from $BITCOINS_REPO/data, they will be downloaded from s3 / spaces
+/// # Panics
+///
+/// if the base directory for the dataset cannot be created
 pub async fn load_csv_dataset(
     dr: &DateRange,
-    pairs: Vec<String>,
+    pairs: &[&str],
     exchange: &str,
     channel: &str,
 ) -> Vec<(String, Vec<CsvRecord>)> {
     let base_path = test_data_dir().join(exchange).join(channel);
-    for pair_string in pairs.clone() {
+    for pair_string in pairs {
         let pair_path = base_path.join(&format!("pr={}", pair_string));
         if !base_path.exists() || !pair_path.exists() {
             info!(
@@ -164,12 +169,15 @@ pub async fn load_csv_dataset(
             );
             std::fs::create_dir_all(&base_path).unwrap();
             let dest_dir = test_data_dir().as_path().to_str().unwrap().to_string();
-            dl_test_data(&dest_dir, exchange, channel, pair_string).await;
+            dl_test_data(&dest_dir, exchange, channel, (*pair_string).to_string()).await;
         }
     }
     load_records_from_csv(dr, &base_path, pairs, "*csv")
 }
 
+/// # Panics
+///
+/// if zero csv records are read
 pub async fn load_csv_records(
     from: Date<Utc>,
     to: Date<Utc>,
@@ -180,7 +188,7 @@ pub async fn load_csv_records(
     let now = Instant::now();
     let csv_records = load_csv_dataset(
         &DateRange(from, to, DurationRangeType::Days, 1),
-        pairs.into_iter().map(|s| s.to_string()).collect(),
+        &pairs,
         exchange,
         channel,
     )
@@ -196,6 +204,10 @@ pub async fn load_csv_records(
 }
 
 /// Loads events from csv data, sorted by time
+///
+/// # Panics
+///
+/// if the exchange cannot be parsed
 pub async fn load_csv_events(
     from: Date<Utc>,
     to: Date<Utc>,
@@ -207,7 +219,7 @@ pub async fn load_csv_events(
     let exchange = Exchange::from_str(exchange).unwrap();
     records
         .iter()
-        .map(|(pair, csv_records)| {
+        .flat_map(|(pair, csv_records)| {
             let pair: Pair = pair.as_str().into();
             csv_records.iter().map(move |csvr| {
                 MarketEventEnvelope::new(
@@ -217,6 +229,5 @@ pub async fn load_csv_events(
                 )
             })
         })
-        .flatten()
         .sorted_by(|e1, e2| e1.e.time().cmp(&e2.e.time()))
 }

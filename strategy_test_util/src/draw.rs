@@ -24,14 +24,14 @@ where
     S2: ToString + Sized,
 {
     let graph_dir = format!("{}/graphs", module_path);
-    std::fs::create_dir_all(&graph_dir).unwrap();
+    std::fs::create_dir_all(&graph_dir)?;
     let out_file = format!("{}/plot_{}.html", graph_dir, now_str_files());
     let mut plot = Plot::new();
-    let time: Vec<DateTime<Utc>> = data.iter().map(|x| x.time()).collect();
+    let time: Vec<DateTime<Utc>> = data.iter().map(TimedEntry::time).collect();
     let entry_count = entries.len();
     for (i, (_entry_name, entry_fn)) in entries.iter().enumerate() {
         let mut lines: MultiMap<String, f64> = MultiMap::new();
-        for v in data.iter().map(|v| (entry_fn.as_ref())(v)).flatten() {
+        for v in data.iter().flat_map(|v| (entry_fn.as_ref())(v)) {
             lines.insert(v.0.to_string(), v.1);
         }
         for (_, (line_name, y)) in lines.into_iter().enumerate() {

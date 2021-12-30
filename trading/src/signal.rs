@@ -47,8 +47,8 @@ pub struct TradeSignal {
 impl Default for TradeSignal {
     fn default() -> Self {
         Self {
-            trace_id: Default::default(),
-            pos_kind: Default::default(),
+            trace_id: Uuid::default(),
+            pos_kind: PositionKind::default(),
             op_kind: OperationKind::Open,
             trade_kind: TradeKind::Buy,
             event_time: now(),
@@ -59,7 +59,7 @@ impl Default for TradeSignal {
             exchange: Exchange::Binance,
             instructions: None,
             dry_mode: false,
-            order_type: Default::default(),
+            order_type: OrderType::default(),
             enforcement: None,
             asset_type: None,
             side_effect: None,

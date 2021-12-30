@@ -9,6 +9,7 @@ use futures::FutureExt;
 use prometheus::GaugeVec;
 
 use coinnect_rt::bot::Ping;
+use coinnect_rt::exchange::manager::ExchangeApiRegistry;
 use coinnect_rt::prelude::*;
 use coinnect_rt::types::{AccountPosition, Balance, BalanceUpdate, Balances};
 
@@ -35,7 +36,7 @@ impl BalanceMetrics {
         }
     }
 
-    pub fn free_amount(&self, xchg: Exchange, asset: Asset, amount: f64) {
+    pub fn free_amount(&self, xchg: Exchange, asset: &Asset, amount: f64) {
         self.asset_gauge
             .with_label_values(&[&xchg.to_string(), asset.as_ref()])
             .set(amount);
@@ -109,17 +110,17 @@ pub struct BalanceReporterOptions {
 
 #[derive(Clone)]
 pub struct BalanceReporter {
-    apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
+    apis: Arc<ExchangeApiRegistry>,
     balances: Arc<RwLock<HashMap<Exchange, BalanceReport>>>,
     refresh_rate: Duration,
     metrics: BalanceMetrics,
 }
 
 impl BalanceReporter {
-    pub fn new(apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>, options: BalanceReporterOptions) -> Self {
+    pub fn new(apis: Arc<ExchangeApiRegistry>, options: &BalanceReporterOptions) -> Self {
         Self {
-            apis: apis.clone(),
-            balances: Default::default(),
+            apis,
+            balances: Arc::new(RwLock::new(HashMap::default())),
             refresh_rate: options.refresh_rate,
             metrics: BalanceMetrics::default(),
         }
@@ -131,7 +132,7 @@ impl BalanceReporter {
     {
         let mut writer = self.balances.write().unwrap();
         if writer.get(&xchg).is_none() {
-            writer.insert(xchg, Default::default());
+            writer.insert(xchg, BalanceReport::default());
         }
         if let Some(balance_report) = writer.get_mut(&xchg) {
             f(balance_report);
@@ -145,10 +146,10 @@ impl Actor for BalanceReporter {
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.notify(RefreshBalances);
         ctx.run_interval(self.refresh_rate, move |act, _ctx| {
-            for xchg in act.apis.keys() {
+            for xchg in act.apis.iter().map(|e| e.key()) {
                 act.with_reporter(*xchg, |balance_report| {
                     for (asset, amount) in balance_report.balances.clone() {
-                        act.metrics.free_amount(*xchg, asset, amount.free);
+                        act.metrics.free_amount(*xchg, &asset, amount.free);
                     }
                 });
             }
@@ -195,17 +196,17 @@ impl Handler<RefreshBalances> for BalanceReporter {
                 futures::future::join_all(
                     apis.clone()
                         .iter()
-                        .map(|(&xchg, api)| api.account_balances().map(move |r| (xchg, r))),
+                        .map(|entry| entry.value().account_balances().map(move |r| (*entry.key(), r))),
                 )
                 .await
             }
             .into_actor(self)
             .map(|balances_results, this, _| {
-                for (xchg, balance_result) in balances_results.iter() {
+                for (xchg, balance_result) in balances_results {
                     match balance_result {
                         Ok(balance) => {
-                            this.with_reporter(*xchg, |balance_report| {
-                                balance_report.init(balance);
+                            this.with_reporter(xchg, |balance_report| {
+                                balance_report.init(&balance);
                             });
                         }
                         Err(e) => {
@@ -213,7 +214,7 @@ impl Handler<RefreshBalances> for BalanceReporter {
                                 "BalanceReporter : failed to fetch balance for exchange {xchg} : {err}",
                                 xchg = xchg,
                                 err = e
-                            )
+                            );
                         }
                     }
                 }

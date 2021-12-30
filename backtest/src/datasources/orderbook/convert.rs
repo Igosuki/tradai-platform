@@ -11,11 +11,11 @@ use crate::datafusion_util::{get_col_as, to_struct_array};
 /// Expects a record batch with the following schema :
 /// asks : List(Tuple(f64))
 /// bids : List(Tuple(f64))
-/// event_ts : TimestampMillisecond
+/// `event_ts` : `TimestampMillisecond`
 /// pr : String
 /// xch : String
-pub fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = MarketEventEnvelope> + 'static {
-    let sa: StructArray = to_struct_array(&record_batch);
+pub fn events_from_orderbooks(record_batch: &RecordBatch) -> impl Stream<Item = MarketEventEnvelope> + 'static {
+    let sa: StructArray = to_struct_array(record_batch);
 
     stream! {
         for (i, column) in sa.columns().iter().enumerate() {

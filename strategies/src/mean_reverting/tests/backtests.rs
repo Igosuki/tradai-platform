@@ -8,6 +8,7 @@ use strategy::coinnect::prelude::*;
 use strategy_test_util::draw::StrategyEntry;
 use strategy_test_util::it_backtest::{generic_backtest, BacktestRange, BacktestStratProviderRef, GenericTestContext};
 use strategy_test_util::log::StrategyLog;
+use trading::order_manager::types::OrderDetail;
 use trading::types::{OrderConf, OrderMode};
 
 use crate::mean_reverting::options::Options;
@@ -95,7 +96,7 @@ async fn spot_backtest() {
     assert_eq!(
         Some("87.71".to_string()),
         last_position
-            .and_then(|p| p.close_order.as_ref().map(|o| o.realized_quote_value()))
+            .and_then(|p| p.close_order.as_ref().map(OrderDetail::realized_quote_value))
             .map(|f| format!("{:.2}", f))
     );
     assert_eq!(

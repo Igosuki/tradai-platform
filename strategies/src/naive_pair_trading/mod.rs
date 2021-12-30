@@ -63,6 +63,7 @@ pub struct NaiveTradingStrategy {
 }
 
 impl NaiveTradingStrategy {
+    #[allow(clippy::cast_sign_loss)]
     pub fn new(
         db: Arc<dyn Storage>,
         strat_key: String,
@@ -122,6 +123,7 @@ impl NaiveTradingStrategy {
         )
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn eval_latest(&self, lr: &DualBookPosition, portfolio: &Portfolio) -> Result<Option<[TradeSignal; 2]>> {
         let beta = self.model.beta().unwrap();
         if beta <= 0.0 {
@@ -285,7 +287,7 @@ impl NaiveTradingStrategy {
 
 #[async_trait]
 impl Strategy for NaiveTradingStrategy {
-    fn key(&self) -> String { self.key.to_owned() }
+    fn key(&self) -> String { self.key.clone() }
 
     fn init(&mut self) -> Result<()> {
         self.model.try_load().map_err(|e| {

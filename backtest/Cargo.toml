@@ -59,6 +59,8 @@ env_logger = { version = "0.9", optional = true }
 typed-builder = "0.9"
 itertools = "0.10"
 hdrhistogram = "7.4"
+dashmap = "5"
+float-cmp = "0.9"
 
 # data
 datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "optional_crates", version = "6.0", default-features = false, features = ["avro", "crypto_expressions", "regex_expressions", "unicode_expressions"] }

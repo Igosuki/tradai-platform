@@ -1,5 +1,12 @@
 #![feature(test)]
 #![feature(type_alias_impl_trait)]
+#![allow(
+    clippy::items_after_statements,
+    clippy::unreadable_literal,
+    clippy::wildcard_imports,
+    clippy::must_use_candidate,
+    clippy::module_name_repetitions
+)]
 
 #[cfg(test)]
 #[macro_use]

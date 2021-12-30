@@ -132,7 +132,7 @@ pub async fn poll_pingables(recipients: Vec<Recipient<Ping>>) -> std::io::Result
     let mut interval = tokio::time::interval(Duration::from_secs(10));
     loop {
         interval.tick().await;
-        for recipient in recipients.iter() {
+        for recipient in &recipients {
             recipient
                 .do_send(coinnect_rt::bot::Ping)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;

@@ -49,21 +49,18 @@ impl Range {
 
     /// Iteratively updates the Range given the next value in the dataset.
     pub fn update(&mut self, new_value: f64) {
-        match self.activated {
-            true => {
-                if new_value > self.high {
-                    self.high = new_value;
-                }
-
-                if new_value < self.low {
-                    self.low = new_value;
-                }
-            }
-            false => {
-                self.activated = true;
+        if self.activated {
+            if new_value > self.high {
                 self.high = new_value;
+            }
+
+            if new_value < self.low {
                 self.low = new_value;
             }
+        } else {
+            self.activated = true;
+            self.high = new_value;
+            self.low = new_value;
         }
     }
 
@@ -77,6 +74,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn update_dispersion() {
         let mut dispersion = Dispersion::default();
 
@@ -187,8 +185,8 @@ mod tests {
 
             // Range
             assert_eq!(dispersion.range.activated, out.range.activated);
-            assert_eq!(dispersion.range.high, out.range.high);
-            assert_eq!(dispersion.range.low, out.range.low);
+            assert!(approx_eq!(f64, dispersion.range.high, out.range.high));
+            assert!(approx_eq!(f64, dispersion.range.low, out.range.low));
 
             // Floating Point Comparisons
             let recurrence_diff = dispersion.recurrence_relation_m - out.recurrence_relation_m;
@@ -218,6 +216,7 @@ mod tests {
         };
 
         assert_eq!(actual_range, expected_range);
-        assert_eq!(actual_range.calculate(), 9998.9);
+        let calc = actual_range.calculate();
+        assert!(approx_eq!(f64, calc, 9998.9));
     }
 }

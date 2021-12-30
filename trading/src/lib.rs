@@ -1,4 +1,9 @@
-#![allow(unused_braces)]
+#![allow(
+    unused_braces,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::wildcard_imports
+)]
 
 #[macro_use]
 extern crate anyhow;

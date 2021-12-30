@@ -69,6 +69,9 @@ pub struct MeanRevertingStrategy {
 }
 
 impl MeanRevertingStrategy {
+    /// # Panics
+    ///
+    /// if the strategy fails to load
     pub fn new(
         db: Arc<dyn Storage>,
         strat_key: String,
@@ -77,7 +80,7 @@ impl MeanRevertingStrategy {
         logger: Option<StratEventLoggerRef>,
     ) -> Self {
         let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
-        let model = MeanRevertingModel::new(n, db.clone());
+        let model = MeanRevertingModel::new(n, db);
         let mut strat = Self {
             key: strat_key,
             exchange: n.exchange,
@@ -104,12 +107,12 @@ impl MeanRevertingStrategy {
 
     fn load(&mut self) -> strategy::error::Result<()> {
         self.model.try_load()?;
-        if !self.model.is_loaded() {
+        if self.model.is_loaded() {
+            Ok(())
+        } else {
             Err(Error::ModelLoadError(
                 "models not loaded for unknown reasons".to_string(),
             ))
-        } else {
-            Ok(())
         }
     }
 
@@ -215,7 +218,7 @@ impl MeanRevertingStrategy {
 
     fn can_eval(&self) -> bool { self.model.is_loaded() }
 
-    fn parse_book_position(&self, event: &MarketEventEnvelope) -> Option<BookPosition> {
+    fn parse_book_position(event: &MarketEventEnvelope) -> Option<BookPosition> {
         match &event.e {
             MarketEvent::Orderbook(ob) => ob.try_into().ok(),
             _ => None,
@@ -225,7 +228,7 @@ impl MeanRevertingStrategy {
 
 #[async_trait]
 impl Strategy for MeanRevertingStrategy {
-    fn key(&self) -> String { self.key.to_owned() }
+    fn key(&self) -> String { self.key.clone() }
 
     fn init(&mut self) -> Result<()> { self.load() }
 
@@ -248,7 +251,7 @@ impl Strategy for MeanRevertingStrategy {
         if !self.can_eval() {
             return Ok(None);
         }
-        let book_pos = self.parse_book_position(e);
+        let book_pos = Self::parse_book_position(e);
         if book_pos.is_none() {
             return Ok(None);
         };
