@@ -83,6 +83,7 @@ impl BacktestRunner {
                     if market_event.is_none() {
                         break 'main;
                     }
+                    info!("{:?}", market_event);
                     let start = Instant::now();
                     let market_event = market_event.unwrap();
                     set_current_time(market_event.e.time());

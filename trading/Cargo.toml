@@ -11,6 +11,8 @@ required-features = ["binary"]
 [features]
 binary = ["clap", "structopt"]
 test_util = ["binance-rs-async", "httpmock", "rand", "env_logger", "fake", "quickcheck"]
+release_max_level_debug = ["tracing/release_max_level_debug"]
+release_max_level_trace = ["tracing/release_max_level_trace"]
 
 [dependencies]
 # own
@@ -46,7 +48,7 @@ clap = { version = "2.33", optional = true }
 structopt = { version = "0.3.23", optional = true }
 
 # metrics & tracing
-tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
+tracing = { version = "0.1", features = ["log"] }
 
 # graphql
 juniper = { version = "^0.15", features = ["expose-test-schema"] }

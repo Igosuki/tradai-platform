@@ -2,6 +2,7 @@ use pyo3::exceptions::PyNotImplementedError;
 use std::collections::HashSet;
 
 use pyo3::prelude::*;
+use pyo3_asyncio::TaskLocals;
 
 use ext::ResultExt;
 use strategy::coinnect::prelude::MarketEventEnvelope;
@@ -32,6 +33,7 @@ impl PyStrategy {
 
     fn init(&mut self) -> PyResult<()> { Err(PyNotImplementedError::new_err("init")) }
 
+    /// This is an async function
     fn eval(&mut self, _e: PyObject) -> PyResult<Vec<PyTradeSignal>> { Err(PyNotImplementedError::new_err("eval")) }
 
     fn model(&self) -> PyResult<Vec<(&str, Option<PyObject>)>> { Err(PyNotImplementedError::new_err("model")) }
@@ -83,13 +85,41 @@ impl Strategy for PyStrategyWrapper {
         e: &MarketEventEnvelope,
         ctx: &DefaultStrategyContext,
     ) -> strategy::error::Result<Option<Vec<TradeSignal>>> {
-        self.with_strat(|inner| {
-            let e: PyMarketEvent = e.clone().into();
-            inner.call_method1("eval", (e,)).and_then(|signals| {
-                if signals.is_none() {
+        info!("eval py_strat e = {:?}", e);
+        let e: PyMarketEvent = e.clone().into();
+        let inner = Python::with_gil(|py| self.inner.to_object(py));
+        let py_fut_r = pyo3_asyncio::tokio::get_runtime()
+            .spawn(async move {
+                // let locals = Python::with_gil(|py| {
+                //     let asyncio = py.import("asyncio").unwrap();
+                //     let event_loop = asyncio.call_method0("get_event_loop").unwrap_or_else(|_| {
+                //         let event_loop = asyncio.call_method0("new_event_loop").unwrap();
+                //         asyncio.call_method1("set_event_loop", (event_loop,)).unwrap();
+                //         event_loop
+                //     });
+                //     TaskLocals::new(PyObject::from(event_loop).as_ref(py))
+                //     //pyo3_asyncio::tokio::get_current_locals(py)
+                // });
+                Python::with_gil(|py| {
+                    let py1 = inner.call_method1(py, "eval", (e,))?;
+                    let coro = py1.as_ref(py);
+                    pyo3_asyncio::tokio::into_future(coro)
+                    // pyo3_asyncio::tokio::future_into_py_with_locals(py, locals.clone(), async move {
+                    //
+                    //         }
+                    //     )
+                    // ).await
+                })?
+                .await
+            })
+            .await
+            .unwrap();
+        Python::with_gil(|py| {
+            py_fut_r.and_then(|signals| {
+                if signals.is_none(py) {
                     Ok(None)
                 } else {
-                    let signals: Vec<PyTradeSignal> = signals.extract()?;
+                    let signals: Vec<PyTradeSignal> = signals.extract(py)?;
                     let tss = signals
                         .into_iter()
                         .filter_map(|s| {

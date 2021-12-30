@@ -172,10 +172,10 @@ release_om_tool:
 	make target=om_tool features=rocksdb-vendor,zstd,structopt,binary release
 
 release_backtest:
-	make target=backtest features=env_logger,mock_time,rocksdb-vendor,zstd release
+	make target=backtest features=env_logger,mock_time,rocksdb-vendor,zstd release,release_max_level_debug
 
 release_local_backtest:
-	@$(CARGO_BIN) build --release --bin backtest --features=env_logger,mock_time,binary,console_tracing
+	@$(CARGO_BIN) build --release --bin backtest --features=env_logger,mock_time,binary,console_tracing,release_max_level_trace
 
 bin_tag=latest
 download_binary:

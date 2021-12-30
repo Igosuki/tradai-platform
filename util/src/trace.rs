@@ -1,4 +1,4 @@
-use hdrhistogram::Counter;
+use hdrhistogram::{Counter, Histogram};
 use opentelemetry::KeyValue;
 use std::collections::HashMap;
 use tracing::Level;
@@ -6,8 +6,6 @@ use tracing_subscriber::fmt::Subscriber;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
-use tracing_timing::group::ByName;
-use tracing_timing::{Histogram, LayerDowncaster};
 
 /// # Panics
 ///
@@ -19,50 +17,59 @@ pub fn setup_flame_subscriber() -> impl Drop {
     guard
 }
 
-fn tracing_log_subscriber() -> Subscriber {
+pub fn init_tracing_env_subscriber() {
     tracing_subscriber::fmt()
-        // filter spans/events with level TRACE or higher.
-        .with_max_level(Level::INFO)
-        // build but do not install the subscriber.
+        .with_env_filter(EnvFilter::from_default_env())
         .finish()
+        .init();
 }
 
-///  ```rust
-///  use util::trace::setup_timing_subscriber;
-/// fn do_stuff() {
-///     let sid = setup_timing_subscriber();
-///     // Compute things...
-///     print_timings(sid);
-///  }
-/// ```
-#[must_use]
-#[allow(clippy::missing_panics_doc)]
-pub fn setup_timing_subscriber() -> LayerDowncaster<ByName, ByName> {
-    let timing_subscriber = tracing_timing::Builder::default()
-        .events(tracing_timing::group::ByName)
-        .layer(|| tracing_timing::Histogram::new_with_max(1_000_000, 2).unwrap());
-    let sid = timing_subscriber.downcaster();
-    let l = tracing_log_subscriber().with(timing_subscriber);
-    l.init();
-    sid
-}
+// fn tracing_log_subscriber() -> Subscriber {
+//     tracing_subscriber::fmt()
+//         // filter spans/events with level TRACE or higher.
+//         .with_max_level(Level::INFO)
+//         // build but do not install the subscriber.
+//         .finish()
+// }
 
-#[allow(clippy::missing_panics_doc)]
-pub fn print_timings(sid: LayerDowncaster<ByName, ByName>) {
-    tracing::dispatcher::get_default(|dispatcher| {
-        let layer = sid.downcast(dispatcher).unwrap();
-        layer.force_synchronize();
-        layer.with_histograms(|hs| {
-            for (hkey, events_hs) in hs.iter_mut() {
-                let keys: Vec<String> = events_hs.keys().map(ToString::to_string).collect();
-                for k in keys {
-                    let h = &events_hs[k.as_str()];
-                    println!(" for {} in {} : {}", k, hkey, display_hist_percentiles(h));
-                }
-            }
-        });
-    });
-}
+// use tracing_timing::group::ByName;
+// use tracing_timing::{Histogram, LayerDowncaster};
+// ///  ```rust
+// ///  use util::trace::setup_timing_subscriber;
+// /// fn do_stuff() {
+// ///     let sid = setup_timing_subscriber();
+// ///     // Compute things...
+// ///     print_timings(sid);
+// ///  }
+// /// ```
+// #[must_use]
+// #[allow(clippy::missing_panics_doc)]
+// pub fn setup_timing_subscriber() -> LayerDowncaster<ByName, ByName> {
+//     let timing_subscriber = tracing_timing::Builder::default()
+//         .events(tracing_timing::group::ByName)
+//         .layer(|| tracing_timing::Histogram::new_with_max(1_000_000, 2).unwrap());
+//     let sid = timing_subscriber.downcaster();
+//     let l = tracing_log_subscriber().with(timing_subscriber);
+//     l.init();
+//     sid
+// }
+
+// #[allow(clippy::missing_panics_doc)]
+// pub fn print_timings(sid: LayerDowncaster<ByName, ByName>) {
+//     tracing::dispatcher::get_default(|dispatcher| {
+//         let layer = sid.downcast(dispatcher).unwrap();
+//         layer.force_synchronize();
+//         layer.with_histograms(|hs| {
+//             for (hkey, events_hs) in hs.iter_mut() {
+//                 let keys: Vec<String> = events_hs.keys().map(ToString::to_string).collect();
+//                 for k in keys {
+//                     let h = &events_hs[k.as_str()];
+//                     println!(" for {} in {} : {}", k, hkey, display_hist_percentiles(h));
+//                 }
+//             }
+//         });
+//     });
+// }
 
 #[must_use]
 pub fn display_hist_percentiles<T: Counter>(h: &Histogram<T>) -> String {

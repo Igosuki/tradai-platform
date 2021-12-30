@@ -16,7 +16,9 @@ required-features = ["binary"]
 default = ["env_logger", "mock_time", "binary", "console_tracing"]
 mock_time = ["util/mock_time"]
 binary = ["env_logger", "structopt"]
-console_tracing = ["tokio/tracing", "console-subscriber"]
+console_tracing = ["tokio/tracing", "console-subscriber", "tracing-subscriber"]
+release_max_level_debug = ["util/release_max_level_debug", "tracing/release_max_level_debug"]
+release_max_level_trace = ["util/release_max_level_trace", "tracing/release_max_level_trace"]
 
 [dependencies]
 # trader
@@ -32,11 +34,12 @@ trading = { path = "../trading", features = ["test_util"] }
 # async
 futures = "0.3"
 tokio = "1"
+pyo3-asyncio = { version = "0.15", features = ["attributes", "tokio-runtime"]}
 async-trait = "0.1"
 async-stream = "0.3"
 tokio-stream = { version = "0.1", features = ["sync", "fs", "net", "io-util", "tokio-util", "signal", "time"] }
 console-subscriber = { git = "https://github.com/tokio-rs/console", optional = true, features = ["parking_lot"] }
-
+tracing-subscriber = { version = "0.3", features = ["tracing-log", "env-filter", "parking_lot"], optional = true }
 # actors
 actix = "0.12"
 
@@ -45,7 +48,7 @@ structopt = { version = "0.3", optional = true }
 config = { version = "0.11", features = ["yaml", "toml", "json"], default-features = false }
 
 # logging / monitoring / metrics
-tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
+tracing = { version = "0.1", features = ["log"] }
 
 # std
 thiserror = "1.0"

@@ -23,6 +23,10 @@ struct BacktestCliOptions {
 }
 
 fn main() -> anyhow::Result<()> {
+    strategy_python::prepare();
+    let mut builder = pyo3_asyncio::tokio::re_exports::runtime::Builder::new_multi_thread();
+    builder.enable_all();
+    pyo3_asyncio::tokio::init(builder);
     actix::System::with_tokio_rt(move || {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -34,8 +38,22 @@ fn main() -> anyhow::Result<()> {
 
 async fn run_main() -> anyhow::Result<()> {
     #[cfg(feature = "console_tracing")]
-    console_subscriber::init();
-    env_logger::init();
+    {
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+        info!("Initializing tokio console subscriber");
+        let console_layer = console_subscriber::spawn();
+        let env_filter = tracing_subscriber::EnvFilter::from_default_env();
+        tracing_subscriber::registry()
+            .with(console_layer)
+            .with(tracing_subscriber::fmt::layer())
+            .with(env_filter)
+            .init();
+    }
+    #[cfg(not(feature = "console_tracing"))]
+    {
+        init_tracing_env_subscriber();
+    }
     let opts = BacktestCliOptions::from_args();
     let conf = BacktestConfig::new(opts.config)?;
     match opts.cmd.unwrap_or(BacktestCmd::Run) {

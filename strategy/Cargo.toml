@@ -16,6 +16,8 @@ backtests = ["util/mock_time"]
 live_e2e_tests = []
 manual_e2e_tests = []
 python = ["pyo3"]
+release_max_level_debug = ["tracing/release_max_level_debug"]
+release_max_level_trace = ["tracing/release_max_level_trace"]
 
 [dependencies]
 # trader
@@ -65,7 +67,7 @@ juniper = { version = "^0.15", features = ["expose-test-schema"] }
 # metrics and tracing
 opentelemetry = { version = "^0.15", default-features = false, features = ["trace"] }
 opentelemetry-jaeger = "0.14"
-tracing = { version = "0.1", features = ["release_max_level_debug"] }
+tracing = { version = "0.1", features = ["log"] }
 tracing-futures = "0.2"
 
 # metrics

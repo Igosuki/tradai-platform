@@ -28,17 +28,19 @@ futures = "0.3"
 
 # Tracing / Logging
 pretty_env_logger = "0.4"
-opentelemetry = { version = "^0.15", default-features = false, features = ["trace"] }
-opentelemetry-jaeger = "0.14"
-tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
-tracing-flame = "0.1"
+opentelemetry = { version = "^0.16", default-features = false, features = ["trace"] }
+opentelemetry-jaeger = "0.15"
+tracing = { version = "0.1", features = ["log"] }
+tracing-flame = "0.2"
 tracing-log = { version = "0.1", features = ["env_logger"] }
-tracing-opentelemetry = "0.14"
-tracing-subscriber = { version = "0.2", features = ["tracing-log", "env-filter"] }
-tracing-timing = "0.5"
+tracing-opentelemetry = "0.16"
+tracing-subscriber = { version = "0.3", features = ["tracing-log", "env-filter", "parking_lot"] }
+#tracing-timing = "0.5"
 
 [features]
 mock_time = []
+release_max_level_debug = ["tracing/release_max_level_debug"]
+release_max_level_trace = ["tracing/release_max_level_trace"]
 
 [dev-dependencies]
 async-stream = "0.3"
