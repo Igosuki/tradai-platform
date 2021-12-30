@@ -5,6 +5,10 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[example]]
+name = "pyo3_async"
+path = "examples/pyo3_async.rs"
+
 [lib]
 path = "src/lib.rs"
 name = "strategy_python"

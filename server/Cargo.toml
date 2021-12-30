@@ -21,6 +21,8 @@ gprof = ["gperftools"]
 zstd = ["awc/compress-zstd", "actix-web/compress-zstd"]
 checkers_alloc = ["checkers"]
 dialog_cli = ["dialoguer", "glob"]
+release_max_level_debug = ["tracing/release_max_level_debug"]
+release_max_level_trace = ["tracing/release_max_level_trace"]
 
 [dependencies]
 # Self crates
@@ -94,7 +96,7 @@ sha2 = "0.9"
 
 # Log / Monitoring / Tracing
 env_logger = "0.9"
-tracing = { version = "0.1", features = ["release_max_level_debug", "log"] }
+tracing = { version = "0.1", features = ["log"] }
 prometheus = { version = "0.12", features = ["nightly", "push", "process", "gen"] }
 online = "3.0"
 measure_time = "0.7"

@@ -94,3 +94,5 @@ pub fn strat(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_submodule(model)?;
     Ok(())
 }
+
+pub fn prepare() { pyo3::prepare_freethreaded_python(); }

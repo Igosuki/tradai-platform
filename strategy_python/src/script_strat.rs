@@ -49,6 +49,7 @@ impl PyScriptStrategyProvider {
         let py_ctx = driver_ctx.into_py(py);
         context.run_with_gil(py, python! {
             from _dyn_strat_mod import __strat_class__ as Strat
+
             strat = Strat('py_conf, 'py_ctx)
         });
         Ok(Self { context })
