@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 from datetime import datetime, date
 
@@ -54,10 +53,10 @@ class MeanReverting(Strategy):
             self.apo_model.try_load()
             self.threshold_model.try_load()
             self.initialized = True
-            f"Initialized {self.whoami()}"
+            print(f"Initialized {self.whoami()}")
 
     def eval(self, event):
-        # event.debug()
+        #event.debug()
         self.apo_model.next(event.vwap())
         apo = self.apo_model.values()[0]
         if apo is None:

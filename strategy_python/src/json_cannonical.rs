@@ -4,7 +4,6 @@ use pyo3::{types::{PyAny, PyDict, PyFloat, PyList, PyTuple},
            wrap_pyfunction};
 use serde_json::ser::to_string;
 use serde_json::Error as CanonicalJSONError;
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum PyCanonicalJSONError {
@@ -152,11 +151,4 @@ pub fn to_json(py: Python, obj: &PyObject) -> Result<serde_json::Value, PyCanoni
     Err(PyCanonicalJSONError::InvalidCast {
         typename: obj.as_ref(py).get_type().name()?.to_owned(),
     })
-}
-
-pub fn from_json(py: Python, map: HashMap<String, serde_json::Value>) -> Result<&PyDict, PyCanonicalJSONError> {
-    if map.is_empty() {
-        return Ok(PyDict::new(py));
-    }
-    Ok(PyDict::new(py))
 }
