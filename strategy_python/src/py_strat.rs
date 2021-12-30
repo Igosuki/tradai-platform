@@ -1,3 +1,4 @@
+use pyo3::exceptions::PyNotImplementedError;
 use std::collections::HashSet;
 
 use pyo3::prelude::*;
@@ -29,22 +30,18 @@ impl PyStrategy {
 
     fn whoami(&self) -> PyResult<&'static str> { Ok("PythonStrat") }
 
-    fn init(&mut self) -> PyResult<()> { unimplemented!() }
+    fn init(&mut self) -> PyResult<()> { Err(PyNotImplementedError::new_err("init")) }
 
-    fn eval(&mut self, _e: PyObject) -> PyResult<Vec<PyTradeSignal>> { unimplemented!() }
+    fn eval(&mut self, _e: PyObject) -> PyResult<Vec<PyTradeSignal>> { Err(PyNotImplementedError::new_err("eval")) }
 
-    fn model(&self) -> PyResult<Vec<(&str, Option<PyObject>)>> { unimplemented!() }
+    fn model(&self) -> PyResult<Vec<(&str, Option<PyObject>)>> { Err(PyNotImplementedError::new_err("model")) }
 
-    fn channels(&self) -> PyResult<Vec<PyChannel>> { unimplemented!() }
+    fn channels(&self) -> PyResult<Vec<PyChannel>> { Err(PyNotImplementedError::new_err("channels")) }
 }
 
 #[pyclass(name = "StrategyWrapper", module = "strategy")]
 pub(crate) struct PyStrategyWrapper {
     inner: PyObject,
-}
-
-impl ToPyObject for PyStrategyWrapper {
-    fn to_object(&self, py: Python) -> PyObject { self.inner.to_object(py) }
 }
 
 impl PyStrategyWrapper {
@@ -57,6 +54,10 @@ impl PyStrategyWrapper {
             f(py_strat)
         })
     }
+}
+
+impl ToPyObject for PyStrategyWrapper {
+    fn to_object(&self, py: Python) -> PyObject { self.inner.to_object(py) }
 }
 
 #[pymethods]
@@ -137,8 +138,6 @@ impl Strategy for PyStrategyWrapper {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
-
     use inline_python::Context;
     use pyo3::{PyObject, Python};
 
@@ -146,7 +145,6 @@ mod test {
     use strategy::driver::Strategy;
     use strategy::Channel;
 
-    use crate::json_cannonical::from_json;
     use crate::util::register_strat_module;
     use crate::PyStrategyWrapper;
 
@@ -156,8 +154,6 @@ mod test {
         let py = guard.python();
         let context = Context::new_with_gil(py);
         register_strat_module(py).unwrap();
-        let conf: HashMap<String, serde_json::Value> = HashMap::default();
-        let py_conf = from_json(py, conf).unwrap();
 
         context.run_with_gil(py, python! {
             from strategy import Strategy, Channel
@@ -170,7 +166,7 @@ mod test {
                 def channels(self):
                     return (Channel(), Channel(),)
 
-            strat = MyStrat('py_conf)
+            strat = MyStrat({})
 
             channels = strat.channels()
         });
