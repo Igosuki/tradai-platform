@@ -49,6 +49,7 @@ async fn run_main() -> anyhow::Result<()> {
                     },
                     _ = tokio::signal::ctrl_c().fuse() =>  {
                         info!("Backtest interrupted.");
+                        actix::System::current().stop();
                         break 'run;
                     }
                 }

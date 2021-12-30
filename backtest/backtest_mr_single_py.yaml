@@ -39,7 +39,7 @@ input_dataset: orderbooks_by_minute
 #input_dataset: orderbooks_raw
 input_sample_rate: 1min
 
-db_path: /media/ramdisk/strat_backtest_dbs
+db_path: .local_data/strat_backtest_dbs
 
 data_dir: /home/geps/dev/bitcoins/data_cache/data
 
