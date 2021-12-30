@@ -1,9 +1,11 @@
 #[macro_use]
 extern crate tracing;
-
-use structopt::StructOpt;
+#[macro_use]
+extern crate futures;
 
 use backtest::{Backtest, BacktestConfig};
+use futures::FutureExt;
+use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
 enum BacktestCmd {
@@ -39,8 +41,18 @@ async fn run_main() -> anyhow::Result<()> {
     match opts.cmd.unwrap_or(BacktestCmd::Run) {
         BacktestCmd::Run => {
             let mut bt = Backtest::try_new(&conf).await?;
-            bt.run().await?;
-            info!("Backtest finished.");
+            'run: loop {
+                select! {
+                    r = bt.run().fuse() => {
+                        r?;
+                        info!("Backtest finished.");
+                    },
+                    _ = tokio::signal::ctrl_c().fuse() =>  {
+                        info!("Backtest interrupted.");
+                        break 'run;
+                    }
+                }
+            }
         }
         BacktestCmd::GenReport => {
             Backtest::gen_report(&conf).await;
