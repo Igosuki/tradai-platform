@@ -90,7 +90,8 @@ impl BacktestRunner {
                     // If there is an ongoing operation, resolve orders
                     let mut tries = 0;
                     'resolve: loop {
-                        if tries > 5 {
+                        if tries > 3 {
+                            debug!("reached maximum tries");
                             break 'resolve;
                         }
                         if driver.is_locked().await {
