@@ -16,6 +16,7 @@ pub mod fs;
 pub mod input;
 pub mod it_backtest;
 pub mod log;
+pub mod plugin;
 
 pub fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 

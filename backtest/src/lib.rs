@@ -33,6 +33,8 @@ use strategies::naive_pair_trading;
 use strategy::coinnect::prelude::*;
 use strategy::plugin::plugin_registry;
 use strategy::prelude::*;
+#[allow(unused_imports)]
+use strategy_python::script_strat;
 use trading::engine::{mock_engine, TradingEngine};
 use util::test::test_dir;
 use util::time::TimedData;
@@ -198,7 +200,7 @@ async fn spawn_runner(
     settings: StrategyDriverSettings,
 ) -> Arc<RwLock<BacktestRunner>> {
     let receiver = stop_tx.subscribe();
-    let logger: Arc<StreamWriterLogger<TimedData<StratEvent>>> = Arc::new(StreamWriterLogger::default());
+    let logger: Arc<StreamWriterLogger<TimedData<StratEvent>>> = Arc::new(StreamWriterLogger::new());
     let logger2 = logger.clone();
     let strategy_driver = task::spawn_blocking(move || {
         let plugin = plugin_registry().get(settings.strat.strat_type.as_str()).unwrap();

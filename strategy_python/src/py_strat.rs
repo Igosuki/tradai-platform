@@ -43,8 +43,12 @@ pub(crate) struct PyStrategyWrapper {
     inner: PyObject,
 }
 
+impl ToPyObject for PyStrategyWrapper {
+    fn to_object(&self, py: Python) -> PyObject { self.inner.to_object(py) }
+}
+
 impl PyStrategyWrapper {
-    fn with_strat<F, T>(&self, f: F) -> T
+    pub(crate) fn with_strat<F, T>(&self, f: F) -> T
     where
         F: Fn(&PyAny) -> T,
     {
@@ -144,7 +148,7 @@ mod test {
     use strategy::Channel;
 
     use crate::json_cannonical::from_json;
-    use crate::util::register_strat;
+    use crate::util::register_strat_module;
     use crate::PyStrategyWrapper;
 
     #[test]
@@ -152,7 +156,7 @@ mod test {
         let guard = Python::acquire_gil();
         let py = guard.python();
         let context = Context::new_with_gil(py);
-        register_strat(py).unwrap();
+        register_strat_module(py).unwrap();
         let conf: HashMap<String, serde_json::Value> = Default::default();
         let py_conf = from_json(py, conf).unwrap();
 
