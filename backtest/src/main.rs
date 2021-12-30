@@ -23,10 +23,6 @@ struct BacktestCliOptions {
 }
 
 fn main() -> anyhow::Result<()> {
-    strategy_python::prepare();
-    let mut builder = pyo3_asyncio::tokio::re_exports::runtime::Builder::new_multi_thread();
-    builder.enable_all();
-    pyo3_asyncio::tokio::init(builder);
     actix::System::with_tokio_rt(move || {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -37,6 +33,10 @@ fn main() -> anyhow::Result<()> {
 }
 
 async fn run_main() -> anyhow::Result<()> {
+    strategy_python::prepare();
+    let mut builder = pyo3_asyncio::tokio::re_exports::runtime::Builder::new_multi_thread();
+    builder.enable_all();
+    pyo3_asyncio::tokio::init(builder);
     #[cfg(feature = "console_tracing")]
     {
         use tracing_subscriber::layer::SubscriberExt;
