@@ -16,6 +16,9 @@ pub fn trades_history(history: &[Position]) -> Vec<(OperationEvent, TradeEvent)>
     trade_events.into_iter().sorted_by_key(|o| o.1.at).collect()
 }
 
+/// # Panics
+///
+/// If the open order has no closed timestamp
 pub fn open_events(pos: &Position) -> Option<(OperationEvent, TradeEvent)> {
     pos.open_order.as_ref().map(|order| {
         (
@@ -29,7 +32,7 @@ pub fn open_events(pos: &Position) -> Option<(OperationEvent, TradeEvent)> {
                 qty: order.base_qty.unwrap_or(0.0),
                 pair: pos.symbol.to_string(),
                 price: order.price.unwrap_or(0.0),
-                strat_value: pos.meta.exit_equity_point.as_ref().map(|ep| ep.equity).unwrap_or(0.0),
+                strat_value: pos.meta.exit_equity_point.as_ref().map_or(0.0, |ep| ep.equity),
                 at: order.closed_at.unwrap(),
                 borrowed: order.borrowed_amount,
                 interest: None,
@@ -38,6 +41,9 @@ pub fn open_events(pos: &Position) -> Option<(OperationEvent, TradeEvent)> {
     })
 }
 
+/// # Panics
+///
+/// if the close order has no close timestamp
 pub fn close_events(pos: &Position) -> Option<(OperationEvent, TradeEvent)> {
     pos.close_order.as_ref().map(|order| {
         (
@@ -51,7 +57,7 @@ pub fn close_events(pos: &Position) -> Option<(OperationEvent, TradeEvent)> {
                 qty: order.base_qty.unwrap_or(0.0),
                 pair: pos.symbol.to_string(),
                 price: order.price.unwrap_or(0.0),
-                strat_value: pos.meta.exit_equity_point.as_ref().map(|ep| ep.equity).unwrap_or(0.0),
+                strat_value: pos.meta.exit_equity_point.as_ref().map_or(0.0, |ep| ep.equity),
                 at: order.closed_at.unwrap(),
                 borrowed: order.borrowed_amount,
                 interest: Some(pos.interests),

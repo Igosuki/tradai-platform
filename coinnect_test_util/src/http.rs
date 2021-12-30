@@ -14,7 +14,7 @@ use std::ops::Deref;
     dyn Fn(ws::Frame) -> Box<dyn Future<Output = Result<ws::Message, io::Error>>> + Send + Sync,
 >;*/
 
-pub async fn ws_it_server<F: Sized, R: Sized>(service: Box<F>) -> TestServer
+pub async fn ws_it_server<F, R>(service: Box<F>) -> TestServer
 where
     F: Fn(ws::Frame) -> R + Send + Sync + Clone + Sized + 'static,
     R: Future<Output = Result<ws::Message, io::Error>> + Sized,

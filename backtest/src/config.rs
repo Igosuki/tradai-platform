@@ -62,6 +62,9 @@ pub struct BacktestConfig {
 }
 
 impl BacktestConfig {
+    /// # Panics
+    ///
+    /// if the config file does not exist
     pub fn new(config_file_name: String) -> Result<Self> {
         let mut s = Config::new();
 
@@ -71,7 +74,7 @@ impl BacktestConfig {
         s.set("__config_file", config_file_name)?;
 
         // You can deserialize (and thus freeze) the entire configuration as
-        s.try_into().map_err(|e| e.into())
+        s.try_into().map_err(Into::into)
     }
 
     pub fn output_dir(&self) -> PathBuf {

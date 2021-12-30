@@ -20,7 +20,7 @@ use crate::notify::DiscordNotifierOptions;
 pub struct FileRotation {
     /// Max file size in bytes
     #[serde(deserialize_with = "decode_file_size")]
-    pub max_file_size: u64,
+    pub max_file_size: u128,
     /// Max time before closing file
     #[serde(deserialize_with = "decode_duration")]
     pub max_file_time: Duration,
@@ -144,6 +144,9 @@ pub struct Settings {
 }
 
 impl Settings {
+    /// # Panics
+    ///
+    /// if the configuration files cannot be read, merged and parsed
     pub fn new(config_file_name: String) -> Result<Self, ConfigError> {
         let mut s = Config::new();
 

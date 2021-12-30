@@ -126,11 +126,13 @@ impl From<IndicatorWindowedModel<f64, WindowedTechnicalIndicator>> for PyWindowe
 }
 
 fn to_py_json<T: Serialize>(t: Option<T>) -> PyJsonValue {
-    t.map(|m| {
-        let ser: serde_json::Value = serde_json::to_value(m).unwrap();
-        ser.into()
-    })
-    .unwrap_or_else(|| serde_json::Value::Null.into())
+    t.map_or_else(
+        || serde_json::Value::Null.into(),
+        |m| {
+            let ser: serde_json::Value = serde_json::to_value(m).unwrap();
+            ser.into()
+        },
+    )
 }
 
 #[doc = "Persist a windowed technical indicator"]

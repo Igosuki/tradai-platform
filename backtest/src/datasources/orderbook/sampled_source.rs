@@ -26,7 +26,7 @@ pub fn sampled_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
         stream! {
             let now = Instant::now();
             let mut ctx = ExecutionContext::new();
-            let (ext, file_format) = df_format(format);
+            let (ext, file_format) = df_format(&format);
             let listing_options = ListingOptions {
                 file_extension: ext.to_string(),
                 format: file_format,
@@ -100,12 +100,11 @@ pub async fn sampled_orderbooks_pairs(
                     let pairs = df2.collect().await?;
                     let pairs: Vec<String> = pairs
                         .iter()
-                        .map(|rb| {
+                        .flat_map(|rb| {
                             let pr = rb.column(0).as_any().downcast_ref::<StringArray>().unwrap();
                             pr
                         })
-                        .flatten()
-                        .filter_map(|s| s.map(|s| s.to_string()))
+                        .filter_map(|s| s.map(ToString::to_string))
                         .collect();
                     eprintln!("pairs = {:?}", pairs);
                     pairs

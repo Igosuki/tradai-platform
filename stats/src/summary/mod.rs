@@ -9,8 +9,8 @@ pub mod tradings;
 pub trait PositionSummariser {
     fn update(&mut self, position: &Position);
     fn generate_summary(&mut self, positions: &[Position]) {
-        for position in positions.iter() {
-            self.update(position)
+        for position in positions {
+            self.update(position);
         }
     }
 }

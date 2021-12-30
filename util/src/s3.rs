@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::process::{Command, Output};
 
-pub async fn download_file(key: &str, dest: PathBuf) -> std::io::Result<Output> {
+pub fn download_file(key: &str, dest: PathBuf) -> std::io::Result<Output> {
     let profile = "btcfeed";
     let from_path = format!("s3://btcfeed/{}", key);
     Command::new("aws")

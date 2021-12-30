@@ -61,6 +61,7 @@ impl FileLoggerMetrics {
         }
     }
 
+    #[allow(clippy::cast_precision_loss)]
     pub(crate) fn event_lag(&self, millis: i64) {
         self.event_lag.with_label_values(&[]).set(millis);
         self.event_lag_hist.with_label_values(&[]).observe(millis as f64);

@@ -19,8 +19,8 @@ pub(crate) struct StrategyState {
 impl StrategyState {
     fn as_input(&self) -> TypeAndKeyInput {
         TypeAndKeyInput {
-            t: self.t.to_owned(),
-            id: self.id.to_owned(),
+            t: self.t.clone(),
+            id: self.id.clone(),
         }
     }
 }

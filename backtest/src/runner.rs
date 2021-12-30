@@ -37,8 +37,8 @@ impl BacktestRunner {
     ) -> Self {
         let (events_sink, events_stream) = channel::<MarketEventEnvelope>(1000);
         Self {
-            strategy_events_logger,
             strategy,
+            strategy_events_logger,
             events_stream,
             events_sink,
             close_sink,

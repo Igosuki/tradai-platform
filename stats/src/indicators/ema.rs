@@ -12,23 +12,22 @@ pub struct ExponentialMovingAverage {
 
 impl ExponentialMovingAverage {
     pub fn new(smoothing: f64, length: u32) -> anyhow::Result<Self> {
-        match length {
-            0 => Err(Error::InvalidParameter {
+        if length == 0 {
+            Err(Error::InvalidParameter {
                 name: "length".to_string(),
                 expected: "!= 0".to_string(),
                 found: format!("{}", length),
             }
-            .into()),
-            _ => {
-                let k = smoothing / (length as f64 + 1f64);
-                let indicator = Self {
-                    length,
-                    k,
-                    current: 0f64,
-                    is_new: true,
-                };
-                Ok(indicator)
-            }
+            .into())
+        } else {
+            let k = smoothing / (f64::from(length) + 1f64);
+            let indicator = Self {
+                length,
+                k,
+                current: 0f64,
+                is_new: true,
+            };
+            Ok(indicator)
         }
     }
 

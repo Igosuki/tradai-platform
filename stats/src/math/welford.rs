@@ -18,18 +18,22 @@ pub fn calculate_recurrence_relation_m(prev_m: f64, prev_mean: f64, new_value: f
 /// Calculates the next unbiased 'Sample' Variance using Bessel's correction (count - 1), and the
 /// Welford Online recurrence relation M.
 #[cfg(test)]
+#[allow(clippy::cast_precision_loss)]
 pub fn calculate_sample_variance(recurrence_relation_m: f64, count: u64) -> f64 {
-    match count < 2 {
-        true => 0.0,
-        false => recurrence_relation_m / (count as f64 - 1.0),
+    if count < 2 {
+        0.0
+    } else {
+        recurrence_relation_m / (count as f64 - 1.0)
     }
 }
 
 /// Calculates the next biased 'Population' Variance using the Welford Online recurrence relation M.
+#[allow(clippy::cast_precision_loss)]
 pub fn calculate_population_variance(recurrence_relation_m: f64, count: u64) -> f64 {
-    match count < 1 {
-        true => 0.0,
-        false => recurrence_relation_m / count as f64,
+    if count < 1 {
+        0.0
+    } else {
+        recurrence_relation_m / count as f64
     }
 }
 
@@ -173,7 +177,7 @@ mod tests {
             let actual_m =
                 calculate_recurrence_relation_m(input.prev_m, input.prev_mean, input.new_value, input.new_mean);
 
-            assert_eq!(actual_m, expected)
+            assert!(approx_eq!(f64, actual_m, expected));
         }
     }
 
@@ -191,7 +195,7 @@ mod tests {
 
         for (input, expected) in inputs.iter().zip(expected.into_iter()) {
             let actual_variance = calculate_sample_variance(input.0, input.1);
-            assert_eq!(actual_variance, expected);
+            assert!(approx_eq!(f64, actual_variance, expected));
         }
     }
 
@@ -209,7 +213,7 @@ mod tests {
 
         for (input, expected) in inputs.iter().zip(expected.into_iter()) {
             let actual_variance = calculate_population_variance(input.0, input.1);
-            assert_eq!(actual_variance, expected);
+            assert!(approx_eq!(f64, actual_variance, expected));
         }
     }
 }

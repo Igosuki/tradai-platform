@@ -68,7 +68,7 @@ impl PyStrategyWrapper {
 #[async_trait]
 impl Strategy for PyStrategyWrapper {
     fn key(&self) -> String {
-        self.with_strat(|inner| inner.call_method0("whoami").and_then(|v| v.extract()))
+        self.with_strat(|inner| inner.call_method0("whoami").and_then(PyAny::extract))
             .expect("expected a string")
     }
 
@@ -113,25 +113,24 @@ impl Strategy for PyStrategyWrapper {
         let exported: PyJsonValue = self.with_strat(|inner| {
             inner
                 .call_method0("models")
-                .and_then(|v| v.extract())
+                .and_then(PyAny::extract)
                 .unwrap_or_else(|_| serde_json::Value::Null.into())
         });
         let inner: serde_json::Value = exported.into();
-        inner
-            .as_object()
-            .map(|v| v.into_iter().map(|(k, v)| (k.clone(), Some(v.clone()))).collect())
-            .unwrap_or_else(Vec::new)
+        inner.as_object().map_or_else(Vec::new, |v| {
+            v.into_iter().map(|(k, v)| (k.clone(), Some(v.clone()))).collect()
+        })
     }
 
     fn channels(&self) -> HashSet<Channel> {
         self.with_strat(|inner| {
             inner
                 .call_method0("channels")
-                .and_then(|v| v.extract())
-                .unwrap_or_else(|_| vec![])
+                .and_then(PyAny::extract)
+                .unwrap_or_else(|_| Vec::<PyChannel>::new())
         })
         .into_iter()
-        .map(|sc: PyChannel| sc.into())
+        .map(Into::<Channel>::into)
         .collect()
     }
 }
@@ -157,7 +156,7 @@ mod test {
         let py = guard.python();
         let context = Context::new_with_gil(py);
         register_strat_module(py).unwrap();
-        let conf: HashMap<String, serde_json::Value> = Default::default();
+        let conf: HashMap<String, serde_json::Value> = HashMap::default();
         let py_conf = from_json(py, conf).unwrap();
 
         context.run_with_gil(py, python! {
@@ -186,6 +185,6 @@ mod test {
                 xch: Exchange::Binance,
                 pair: "BTC_USDT".into()
             })
-        )
+        );
     }
 }

@@ -14,6 +14,7 @@ use tokio::sync::RwLock;
 
 use coinnect_rt::bot::Ping;
 use coinnect_rt::error::Error as CoinnectError;
+use coinnect_rt::exchange::manager::ExchangeApiRegistry;
 use coinnect_rt::prelude::*;
 use coinnect_rt::types::{Order, OrderStatus, OrderUpdate};
 use db::{get_or_create, DbOptions};
@@ -153,7 +154,7 @@ pub enum DataQuery {
 
 #[derive(Debug, Clone)]
 pub struct OrderManager {
-    apis: HashMap<Exchange, Arc<dyn ExchangeApi>>,
+    apis: ExchangeApiRegistry,
     orders: Arc<RwLock<HashMap<String, TransactionStatus>>>,
     pub transactions_wal: Arc<Wal>,
     pub repo: OrderRepository,
@@ -161,7 +162,7 @@ pub struct OrderManager {
 
 impl OrderManager {
     pub fn new<S: AsRef<Path>, S2: AsRef<Path>>(
-        apis: HashMap<Exchange, Arc<dyn ExchangeApi>>,
+        apis: ExchangeApiRegistry,
         db_options: &DbOptions<S>,
         db_path: S2,
     ) -> Self {
@@ -179,13 +180,13 @@ impl OrderManager {
         }
     }
 
-    fn get_api(&self, xch: Exchange) -> &Arc<dyn ExchangeApi> { self.apis.get(&xch).unwrap() }
+    fn get_api(&self, xch: Exchange) -> &Arc<dyn ExchangeApi> { self.apis.get(&xch).unwrap().value() }
 
     /// Updates an already registered order
     pub(crate) async fn update_order(&mut self, order: OrderUpdate) -> Result<()> {
         let order_id = order.orig_order_id.clone();
         let tr = if order.new_status.is_rejection() {
-            TransactionStatus::Rejected(Rejection::from_status(order.new_status, order.rejection_reason))
+            TransactionStatus::Rejected(Rejection::from_status(&order.new_status, order.rejection_reason))
         } else if order.new_status == OrderStatus::PartiallyFilled {
             TransactionStatus::PartiallyFilled(order)
         } else if order.new_status == OrderStatus::Filled {
@@ -218,7 +219,7 @@ impl OrderManager {
         } else {
             // Here the order is truncated according to the exchange configuration
             let pair_conf = coinnect_rt::pair::pair_conf(&order.query.xch(), &order.query.pair())?;
-            let query = order.query.truncate(pair_conf);
+            let query = order.query.truncate(&pair_conf);
             let order_info = self.get_api(query.xch()).order(query).await;
             match order_info {
                 Ok(o) => TransactionStatus::New(o),
@@ -267,13 +268,10 @@ impl OrderManager {
     /// Registers a transaction
     #[tracing::instrument(skip(self), level = "info")]
     pub(crate) async fn register(&mut self, order_id: String, tr: TransactionStatus) -> Result<()> {
-        self.transactions_wal.append(order_id.clone(), tr.clone())?;
+        self.transactions_wal.append(order_id.as_str(), tr.clone())?;
         let should_write = {
             let orders = self.orders.read().await;
-            orders
-                .get(&order_id)
-                .map(|status| status.is_before(&tr))
-                .unwrap_or(true)
+            orders.get(&order_id).map_or(true, |status| status.is_before(&tr))
         };
         let order = self.get_order_from_storage(&order_id);
         let result = match (tr.clone(), order) {
@@ -295,7 +293,7 @@ impl OrderManager {
             _ => Err(Error::OrderNotFound(order_id.clone())),
         };
         if let Err(e) = result {
-            tracing::error!(order_id = %order_id, error = %e, "Failed to update order in order table")
+            tracing::error!(order_id = %order_id, error = %e, "Failed to update order in order table");
         }
         if should_write {
             let mut writer = self.orders.write().await;
@@ -339,6 +337,7 @@ impl OrderManager {
 
     /// Checks that any transactions have corresponding order detail,
     /// and refresh any unfinished order from remote
+    ///
     pub async fn repair_orders(&self) -> Vec<AccountEventEnveloppe> {
         {
             let mut writer = self.orders.write().await;
@@ -376,14 +375,10 @@ impl OrderManager {
                     });
                     order
                         .and_then(|o| {
-                            pair.map(|pair| {
-                                self.fetch_order(
-                                    tr_id.clone(),
-                                    Exchange::from_str(&o.exchange).unwrap(),
-                                    pair,
-                                    o.asset_type,
-                                )
-                                .boxed()
+                            pair.and_then(|pair| {
+                                Ok(self
+                                    .fetch_order(tr_id.clone(), Exchange::from_str(&o.exchange)?, pair, o.asset_type)
+                                    .boxed())
                             })
                         })
                         .unwrap_or_else(|e| {
@@ -394,7 +389,7 @@ impl OrderManager {
             ))
             .await;
         let mut notifications = vec![];
-        for order in non_filled_order_futs.into_iter() {
+        for order in non_filled_order_futs {
             match order {
                 Ok(order) => {
                     let account_type = if order.asset_type.is_margin() {
@@ -450,7 +445,7 @@ impl Actor for OrderManager {
                 .into_actor(self)
                 .map(|notifications, _, ctx| {
                     for notification in notifications {
-                        ctx.notify(notification)
+                        ctx.notify(notification);
                     }
                 });
         ctx.spawn(Box::pin(refresh_orders));

@@ -2,7 +2,8 @@
     // noisy
     clippy::missing_errors_doc,
     clippy::module_name_repetitions,
-    clippy::let_underscore_drop
+    clippy::let_underscore_drop,
+    clippy::needless_pass_by_value
 )]
 
 #[macro_use]
@@ -33,12 +34,13 @@ pub trait MetricGaugeProvider<T> {
     fn log_all_with_providers(&self, gauges: &[MetricProviderFn<T>], v: &T, labels: &[&str]) {
         for (gauge_name, gauge_fn) in gauges {
             if let Some(g) = self.gauges().get(gauge_name) {
-                g.with_label_values(labels).set(gauge_fn(v))
+                g.with_label_values(labels).set(gauge_fn(v));
             }
         }
     }
 }
 
+#[allow(clippy::implicit_hasher)]
 pub fn make_gauges<T>(
     const_labels: HashMap<&str, &str>,
     labels: &[&str],

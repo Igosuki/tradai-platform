@@ -126,7 +126,7 @@ async fn test_register_transactions() {
         compacted.unwrap().get(&order_id.clone()),
         statuses.last(),
         "Compacted record should be the highest inserted status"
-    )
+    );
 }
 
 async fn pass_spot_order_and_expect_status(
@@ -136,7 +136,7 @@ async fn pass_spot_order_and_expect_status(
     expected: OrderStatus,
 ) -> Result<()> {
     let staged_detail = OrderDetail::from_query(None, request.clone());
-    let mocked_pass_order = create_ok_order_mock(server, staged_detail);
+    let mocked_pass_order = create_ok_order_mock(server, &staged_detail);
     pass_mock_order_and_expect_status(om, mocked_pass_order, request, expected).await
 }
 

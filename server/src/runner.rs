@@ -28,6 +28,9 @@ struct CliOptions {
     version: bool,
 }
 
+/// # Panics
+///
+/// if the config file cannot be read
 pub async fn with_config<F, T>(system_fn: F) -> anyhow::Result<()>
 where
     F: FnOnce(Arc<RwLock<Settings>>) -> T,

@@ -38,6 +38,10 @@ impl BacktestRange {
 pub type BacktestStratProvider<'a> = dyn Fn(GenericTestContext) -> Box<dyn Strategy> + 'a;
 pub type BacktestStratProviderRef = Arc<dyn Fn(GenericTestContext) -> Box<dyn Strategy> + Send + Sync>;
 
+/// # Panics
+///
+/// if creating the strat or any loop breaks
+#[allow(clippy::too_many_lines)]
 pub async fn generic_backtest<'a, S2>(
     test_name: &'a str,
     provider: BacktestStratProviderRef,

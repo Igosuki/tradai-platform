@@ -57,7 +57,7 @@ where
             let mut fd = next_file.try_clone()?;
             fd.write_all(h.as_ref())?;
             fd.flush()?;
-            drop(fd)
+            drop(fd);
         }
         self.inner = next_file;
         Ok(())
@@ -86,7 +86,7 @@ pub trait RotationPolicy {
 
 #[derive(Clone)]
 pub struct SizeAndExpirationPolicy {
-    pub max_size_b: u64,
+    pub max_size_b: u128,
     pub max_time_ms: Duration,
     pub last_flush: Option<DateTime<Utc>>,
 }
@@ -94,20 +94,18 @@ pub struct SizeAndExpirationPolicy {
 impl RotationPolicy for SizeAndExpirationPolicy {
     fn set_last_flush(&mut self, d: DateTime<Utc>) { self.last_flush = Some(d); }
 
+    #[allow(clippy::cast_lossless)]
     fn should_rotate(&mut self, _path: &Path, file: &File) -> io::Result<bool> {
-        match self.last_flush {
+        if let Some(dt) = self.last_flush {
             // If last flush happened, check if the rotation policy applies
-            Some(dt) => {
-                let metadata = file.metadata()?;
-                let now = Utc::now();
-                let elapsed = now - dt;
-                Ok(self.max_size_b < metadata.len() || self.max_time_ms < elapsed)
-            }
+            let metadata = file.metadata()?;
+            let now = Utc::now();
+            let elapsed = now - dt;
+            Ok(self.max_size_b < metadata.len() as u128 || self.max_time_ms < elapsed)
+        } else {
             // If never flushed, start counting from now
-            None => {
-                self.set_last_flush(Utc::now());
-                Ok(false)
-            }
+            self.set_last_flush(Utc::now());
+            Ok(false)
         }
     }
 }

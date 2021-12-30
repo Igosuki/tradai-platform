@@ -47,6 +47,9 @@ pub enum StrategyCopySettings {
 }
 
 impl StrategyCopySettings {
+    /// # Panics
+    ///
+    /// if the exchange cannot be parsed
     pub fn exchanges(&self) -> Vec<Exchange> {
         match self {
             StrategyCopySettings::MarketReplica { exchanges, .. } => exchanges
@@ -55,6 +58,10 @@ impl StrategyCopySettings {
                 .collect(),
         }
     }
+
+    /// # Panics
+    ///
+    /// if pair filtering breaks
     pub fn all(&self) -> Result<Vec<StrategyDriverSettings>> {
         match self {
             StrategyCopySettings::MarketReplica {
@@ -70,7 +77,7 @@ impl StrategyCopySettings {
                 let known_exchanges = exchanges.iter().filter_map(|s| Exchange::from_str(s.as_str()).ok());
                 let strats = known_exchanges
                     .into_iter()
-                    .map(|exchange| {
+                    .flat_map(|exchange| {
                         let pairs = filter_pairs(&exchange, pairs).unwrap();
                         conf.replicate_for_pairs(pairs)
                             .into_iter()
@@ -82,7 +89,6 @@ impl StrategyCopySettings {
                                 }),
                             })
                     })
-                    .flatten()
                     .collect();
 
                 Ok(strats)
@@ -126,17 +132,14 @@ pub fn from_driver_settings<S: AsRef<Path>>(
     let inner: Box<dyn crate::driver::Strategy> = plugin.strat(&strat_key, ctx, s.strat.options.clone())?;
 
     let driver = match &s.driver {
-        StrategyDriverOptions::Generic(options) => Box::new(
-            crate::generic::GenericDriver::try_new(
-                inner.channels().into_iter().collect(),
-                db,
-                options,
-                inner,
-                engine,
-                logger,
-            )
-            .unwrap(),
-        ),
+        StrategyDriverOptions::Generic(options) => Box::new(crate::generic::GenericDriver::try_new(
+            inner.channels().into_iter().collect(),
+            db,
+            options,
+            inner,
+            engine,
+            logger,
+        )?),
     };
     info!("Creating strategy : {}", strat_key);
     Ok(driver)

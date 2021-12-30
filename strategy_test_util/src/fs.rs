@@ -1,5 +1,8 @@
 use std::path::PathBuf;
 
+/// # Panics
+///
+/// if the parent directories to the destination file cannot be crated
 pub fn copy_file(from: &str, to: &str) {
     let pb = PathBuf::from(from);
     let pbt = PathBuf::from(to);

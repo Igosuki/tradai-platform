@@ -4,6 +4,16 @@
 #![feature(result_cloned)]
 #![feature(map_try_insert)]
 #![cfg_attr(feature = "flame_it", feature(proc_macro_hygiene))]
+#![allow(
+    clippy::doc_markdown,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::type_repetition_in_bounds,
+    clippy::missing_errors_doc,
+    clippy::implicit_hasher,
+    clippy::unused_async,
+    clippy::wildcard_imports
+)]
 
 #[macro_use]
 extern crate anyhow;

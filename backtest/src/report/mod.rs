@@ -17,6 +17,7 @@ mod single;
 
 pub type StrategyEntry<'a, T> = (&'a str, Vec<fn(&T) -> f64>);
 
+#[allow(clippy::needless_pass_by_value)]
 fn draw_entries<T>(plot: &mut Plot, trace_offset: usize, data: &[TimedData<T>], entries: Vec<StrategyEntry<'_, T>>) {
     let skipped_data = data.iter();
     for (i, line_specs) in entries.iter().enumerate() {

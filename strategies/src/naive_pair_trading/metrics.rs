@@ -73,8 +73,8 @@ impl NaiveStrategyMetrics {
             }
         }
         let portfolio_gauges: Vec<PortfolioIndicatorFn> = vec![
-            ("value_strat".to_string(), |x| x.value()),
-            ("pnl".to_string(), |x| x.pnl()),
+            ("value_strat".to_string(), Portfolio::value),
+            ("pnl".to_string(), Portfolio::pnl),
         ];
         let position_gauges: Vec<PositionIndicatorFn> = vec![
             ("return".to_string(), |x| x.unreal_profit_loss),
@@ -121,22 +121,22 @@ impl NaiveStrategyMetrics {
 
     pub(super) fn log_mid_price(&self, lr: &DualBookPosition) {
         if let Some(g) = self.gauges.get(LEFT_MID) {
-            g.with_label_values(&[]).set(lr.left.mid)
+            g.with_label_values(&[]).set(lr.left.mid);
         };
         if let Some(g) = self.gauges.get(RIGHT_MID) {
-            g.with_label_values(&[]).set(lr.right.mid)
+            g.with_label_values(&[]).set(lr.right.mid);
         };
     }
 
     pub(super) fn log_ratio(&self, spread: f64) {
         if let Some(g) = self.gauges.get(SPREAD_RATIO) {
-            g.with_label_values(&[]).set(spread)
+            g.with_label_values(&[]).set(spread);
         };
     }
 
     pub(super) fn relative_spread(&self, spread: f64) {
         if let Some(g) = self.gauges.get(RELATIVE_SPREAD) {
-            g.with_label_values(&[]).set(spread)
+            g.with_label_values(&[]).set(spread);
         };
     }
 

@@ -15,6 +15,8 @@ pub enum Error {
     IoError(#[from] std::io::Error),
     #[error("invalid book position")]
     BookError(#[from] BookError),
+    #[error("other error")]
+    AnyhowError(#[from] anyhow::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
