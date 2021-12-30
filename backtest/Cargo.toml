@@ -22,6 +22,7 @@ console_tracing = ["tokio/tracing", "console-subscriber"]
 # trader
 strategy = { path = "../strategy" }
 strategies = { path = "../strategies" }
+strategy_python = { path = "../strategy_python" }
 util = { path = "../util" }
 ext = { path = "../ext" }
 db = { path = "../db" }

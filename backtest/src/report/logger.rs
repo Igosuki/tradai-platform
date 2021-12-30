@@ -20,6 +20,9 @@ impl<T: Clone> Default for StreamWriterLogger<T> {
 }
 
 impl<T: 'static + Clone + Send> StreamWriterLogger<T> {
+    /// Broadcasts logs to all its subscribers
+    pub fn new() -> Self { Self::default() }
+
     /// Return a new stream subscription
     pub fn subscription(&self) -> BroadcastStream<T> { BroadcastStream::new(self.events_tx.subscribe()) }
 

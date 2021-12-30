@@ -15,6 +15,7 @@ use py_strat::*;
 
 use crate::channel::PyChannel;
 use crate::coinnect::PyMarketEvent;
+use crate::script_strat::*;
 use crate::trading::*;
 
 mod backtest;
@@ -24,7 +25,7 @@ mod error;
 mod json_cannonical;
 mod model;
 mod py_strat;
-mod script_strat;
+pub mod script_strat;
 mod stats;
 mod ta;
 mod test_util;
@@ -54,6 +55,7 @@ pub fn strat(py: Python, m: &PyModule) -> PyResult<()> {
     m.add("ModelError", py.get_type::<ModelError>())?;
     m.add("EvalError", py.get_type::<EvalError>())?;
     m.add_function(wrap_pyfunction!(signal, m)?)?;
+    m.add_function(wrap_pyfunction!(mstrategy, m)?)?;
 
     // Register backtest as a submodule
     let backtest = PyModule::new(py, "backtest")?;
