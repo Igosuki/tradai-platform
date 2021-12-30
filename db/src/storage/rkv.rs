@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
+use crate::rkv::DataStoreError::LockError;
 use rkv::backend::{BackendDatabase, BackendEnvironmentBuilder, BackendRwTransaction, Lmdb, LmdbDatabase,
                    LmdbEnvironment, LmdbRwTransaction};
 use rkv::{Manager, OwnedValue, Rkv, SingleStore, StoreError, StoreOptions, Value, Writer};
@@ -23,6 +24,8 @@ pub enum DataStoreError {
     BlobError(#[from] bincode::Error),
     #[error("io error")]
     IOError(#[from] std::io::Error),
+    #[error("lock poison error")]
+    LockError,
 }
 
 #[derive(Debug, Clone)]
@@ -52,7 +55,8 @@ impl Db {
         // Use it to retrieve the handle to an opened environment—or create one
         // if it hasn't already been opened:
         let created_arc = Manager::<LmdbEnvironment>::singleton()
-            .write()?
+            .write()
+            .map_err(|_| LockError)?
             .get_or_create(root.as_ref(), Self::new_rkv)?;
         Ok(Self {
             root,

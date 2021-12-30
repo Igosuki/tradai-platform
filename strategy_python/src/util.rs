@@ -1,7 +1,7 @@
 use pyo3::types::PyDict;
 use pyo3::{PyResult, Python};
 
-pub(crate) fn register_strat(py: Python) -> PyResult<()> {
+pub(crate) fn register_strat_module(py: Python) -> PyResult<()> {
     use crate::PyInit_strat;
     let m = wrap_pymodule!(strat)(py);
     Python::with_gil(|py| {

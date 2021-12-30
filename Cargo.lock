@@ -817,6 +817,7 @@ dependencies = [
  "stats",
  "strategies",
  "strategy",
+ "strategy_python",
  "structopt",
  "thiserror",
  "tokio",

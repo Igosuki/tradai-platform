@@ -130,6 +130,6 @@ if __name__ == '__main__':
     print('took %d positions' % len(positions))
 
 
-mstrategy("mean_reverting", MeanReverting)
+mstrategy(MeanReverting)
 
 Strat = MeanReverting
