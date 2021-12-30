@@ -48,7 +48,7 @@ create_exception!(strat, ModelError, pyo3::exceptions::PyException);
 create_exception!(strat, EvalError, pyo3::exceptions::PyException);
 
 #[pymodule]
-#[pyo3(name = "strat")]
+#[pyo3(name = "strategy")]
 pub fn strat(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyStrategy>()?;
     m.add_class::<PyTradeSignal>()?;
@@ -62,6 +62,7 @@ pub fn strat(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyMarginSideEffect>()?;
     m.add_class::<PyAssetType>()?;
     m.add_class::<PyOrderEnforcement>()?;
+    m.add_class::<LoggingStdout>()?;
     m.add("ModelError", py.get_type::<ModelError>())?;
     m.add("EvalError", py.get_type::<EvalError>())?;
     m.add_function(wrap_pyfunction!(signal, m)?)?;

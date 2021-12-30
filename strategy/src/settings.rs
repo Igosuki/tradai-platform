@@ -141,6 +141,6 @@ pub fn from_driver_settings<S: AsRef<Path>>(
             logger,
         )?),
     };
-    info!("Creating strategy : {}", strat_key);
+    info!("Created strategy : {}", strat_key);
     Ok(driver)
 }
