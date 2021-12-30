@@ -33,6 +33,9 @@ pub fn account_ws() -> Box<WSEndpoint> {
     Box::new(closure)
 }
 
+/// # Panics
+///
+/// If the api cannot be created
 pub async fn local_api() -> (MockServer, Arc<dyn ExchangeApi>) {
     let server = MockServer::start();
     let creds: Box<dyn Credentials> = Box::new(BasicCredentials::empty(Exchange::Binance));

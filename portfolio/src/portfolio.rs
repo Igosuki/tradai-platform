@@ -1,7 +1,6 @@
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
-use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -42,12 +41,12 @@ pub struct PositionLock {
     pub order_id: String,
 }
 
-/// A [`Portfolio`] has real time access to accounts, and keeps track of PnL,
+/// A [`Portfolio`] has real time access to accounts, and keeps track of `PnL`,
 /// value, and positions.
 /// [`TradeSignal`]s typically go through the [`Portfolio`] to determine whether or not they
 /// can be converted into an order after assessing allocation and risk.
 /// A typical workflow is the following :
-/// - Receive a TradeSignal
+/// - Receive a [`TradeSignal`]
 /// - Maybe emit an order and lock the position
 /// - When the order is filled, unlock the position and set it to open or closed accordingly
 /// - When closing, update the position and indicators
@@ -74,6 +73,9 @@ pub struct PortfolioVars {
 }
 
 impl Portfolio {
+    /// # Errors
+    ///
+    /// The portfolio repo fails to load existing data
     pub fn try_new(
         initial_value: f64,
         fees_rate: f64,
@@ -87,10 +89,10 @@ impl Portfolio {
             pnl: initial_value,
             key,
             repo,
-            open_positions: Default::default(),
+            open_positions: BTreeMap::default(),
             risk,
             risk_threshold: 0.5,
-            locks: Default::default(),
+            locks: BTreeMap::default(),
             interest_rates,
             fees_rate,
         };
@@ -110,6 +112,11 @@ impl Portfolio {
 
     /// Convert the signal to a request if it passes checks and no locks exist for the target market
     /// Sets a lock for the market, which can be removed by filling the order
+    ///
+    /// # Errors
+    ///
+    /// If the position is already locked, or the signal is incompatible with the existing state
+    #[allow(clippy::missing_panics_doc)]
     pub async fn maybe_convert(&mut self, signal: &TradeSignal) -> Result<Option<AddOrderRequest>> {
         // Determine whether position can be opened or closed
         let pos_key = signal.xch_and_pair();
@@ -141,7 +148,7 @@ impl Portfolio {
         };
         // Default quantity allocation is portfolio value / price
         if request.quantity.is_none() {
-            request.quantity = Some(self.value / signal.price)
+            request.quantity = Some(self.value / signal.price);
         }
         if request.quantity.unwrap() <= 0.0 {
             return Err(Error::ZeroOrNegativeOrderQty);
@@ -160,8 +167,12 @@ impl Portfolio {
 
     /// Update the position from an order, closing or opening with the wrong side and kind will
     /// result in error. The lock will be released if the order is filled
-    pub fn update_position(&mut self, order: OrderDetail) -> Result<Option<Position>> {
-        let pos_key: PositionKey = pos_key_from_order(&order)?;
+    ///
+    /// # Errors
+    ///
+    /// If a lock did not exist or is incompatible for a position corresponding to the order
+    pub fn update_position(&mut self, order: &OrderDetail) -> Result<Option<Position>> {
+        let pos_key: PositionKey = pos_key_from_order(order)?;
         // TODO: Using SQL could get rid of this, if performance allows
         if let Some(PositionLock { order_id, .. }) = self.locks.get(&pos_key) {
             if order_id != &order.id {
@@ -176,21 +187,21 @@ impl Portfolio {
             ) && pos.is_opened()
             {
                 let value_strat_before = self.value;
-                pos.close(self.value, &order);
+                pos.close(self.value, order);
                 if order.is_filled() {
                     match pos.kind {
                         PositionKind::Short => self.value -= order.quote_value(),
                         PositionKind::Long => self.value += order.realized_quote_value(),
                     }
                 }
-                Self::log_position(&order, value_strat_before, self.value, pos.kind, pos.quantity);
+                Self::log_position(order, value_strat_before, self.value, pos.kind, pos.quantity);
             } else {
                 return Err(Error::BadSideForPosition("close", pos.kind, order.side));
             }
         } else {
             // Open
             if order.is_filled() {
-                let pos = Position::open(&order);
+                let pos = Position::open(order);
                 let qty = pos.quantity;
                 let kind = pos.kind;
                 self.open_positions.insert(pos_key.clone(), pos);
@@ -203,7 +214,7 @@ impl Portfolio {
                         PositionKind::Short => self.value += order.realized_quote_value(),
                         PositionKind::Long => self.value -= order.quote_value(),
                     }
-                    Self::log_position(&order, value_strat_before, self.value, kind, qty);
+                    Self::log_position(order, value_strat_before, self.value, kind, qty);
                 } else {
                     return Err(Error::BadSideForPosition("open", kind, order.side));
                 }
@@ -253,6 +264,10 @@ impl Portfolio {
     }
 
     /// Update the corresponding position with the latest event (typically the price)
+    ///
+    /// # Errors
+    ///
+    /// Interest rates could not be fetched
     pub async fn update_from_market(&mut self, event: &MarketEventEnvelope) -> Result<()> {
         // This ugly bit of code is because of the mutable borrow, it should be refactored away
         let interests = if let Some(p) = self.open_positions.get(&(event.xch, event.pair.clone())) {
@@ -295,6 +310,10 @@ impl Portfolio {
     }
 
     /// Unlock a previously locked position
+    ///
+    /// # Errors
+    ///
+    /// The position could not be unlocked or closed (if it was only opened)
     pub fn unlock_position(&mut self, xch: Exchange, pair: Pair) -> Result<()> {
         let position_key = (xch, pair);
         match self.locks.get(&position_key) {
@@ -313,6 +332,10 @@ impl Portfolio {
     }
 
     /// Force close a currently open position
+    ///
+    /// # Panics
+    ///
+    /// if the position can be closed, unimplemented
     pub fn force_close(&mut self, xch: Exchange, pair: Pair) -> Result<()> {
         let position_key = (xch, pair);
         match self.open_positions.get(&position_key) {
@@ -384,8 +407,8 @@ impl Portfolio {
 
 fn bad_signal(pos: &Position, signal: &TradeSignal) -> Error {
     Error::BadSignal(
-        pos.open_order.as_ref().map(|o| o.is_filled()).unwrap_or(false),
-        pos.close_order.as_ref().map(|o| o.is_filled()).unwrap_or(false),
+        pos.open_order.as_ref().map_or(false, OrderDetail::is_filled),
+        pos.close_order.as_ref().map_or(false, OrderDetail::is_filled),
         pos.kind,
         signal.op_kind,
     )
@@ -429,6 +452,9 @@ pub struct PortfolioRepoImpl {
 }
 
 impl PortfolioRepoImpl {
+    /// # Panics
+    ///
+    /// if tables cannot be ensured
     pub fn new(db: Arc<dyn Storage>) -> Self {
         for table in &[
             POSITION_LOCKS_TABLE,
@@ -516,7 +542,7 @@ impl PortfolioRepo for PortfolioRepoImpl {
             p.value = vars.value;
         }
         for (pos_id, _) in self.db.get_all::<bool>(OPEN_POSITIONS_TABLE)? {
-            let pos_id = Uuid::from_slice(pos_id.deref())?;
+            let pos_id = Uuid::from_slice(&*pos_id)?;
             if let Some(pos) = self.get_position(pos_id)? {
                 error!("failed to retrieve open position {} from storage", pos_id);
                 p.open_positions.insert(pos_key_from_position(&pos), pos);
@@ -526,7 +552,7 @@ impl PortfolioRepo for PortfolioRepoImpl {
             self.db
                 .get_all::<PositionLock>(POSITION_LOCKS_TABLE)?
                 .into_iter()
-                .map(|(k, v)| (Self::parse_key_string(std::str::from_utf8(k.deref()).unwrap()), v)),
+                .map(|(k, v)| (Self::parse_key_string(std::str::from_utf8(&*k).unwrap()), v)),
         );
         Ok(())
     }
@@ -632,8 +658,8 @@ mod repository_test {
         let arc = portfolio.repo.clone();
         let load = arc.load(&mut portfolio);
         assert_matches!(load, Ok(_));
-        assert_eq!(portfolio.pnl, 100.0);
-        assert_eq!(portfolio.value, 100.0);
+        assert!(approx_eq!(f64, portfolio.pnl, 100.0));
+        assert!(approx_eq!(f64, portfolio.value, 100.0));
         assert!(portfolio.open_positions.is_empty());
         assert!(portfolio.locks.is_empty());
         let pos = Position::default();
@@ -652,8 +678,8 @@ mod repository_test {
         assert_matches!(locked, Ok(_));
         let load = arc.load(&mut portfolio);
         assert_matches!(load, Ok(_));
-        assert_eq!(portfolio.pnl, 200.0);
-        assert_eq!(portfolio.value, 400.0);
+        assert!(approx_eq!(f64, portfolio.pnl, 200.0));
+        assert!(approx_eq!(f64, portfolio.value, 400.0));
         let mut expected = BTreeMap::new();
         expected.insert(pos_key.clone(), pos);
         assert_eq!(portfolio.open_positions, expected);

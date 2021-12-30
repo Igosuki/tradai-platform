@@ -1,3 +1,4 @@
+use float_cmp::approx_eq;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
 use std::path::{Path, PathBuf};
@@ -6,6 +7,7 @@ use std::sync::Arc;
 use itertools::Itertools;
 use plotly::layout::{GridPattern, LayoutGrid};
 use plotly::{Layout, Plot};
+use serde_json::Value;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
 
@@ -32,7 +34,7 @@ pub(crate) struct BacktestReportMiscStats {
 impl BacktestReportMiscStats {
     fn update(&mut self, new_pnl: f64) {
         if let Some(last_pnl) = self.last_pnl {
-            if last_pnl != new_pnl {
+            if !approx_eq!(f64, last_pnl, new_pnl) {
                 self.pnl_std_dev_last = self.pnl_std_dev.next(new_pnl);
                 self.count += 1;
                 if new_pnl < last_pnl {
@@ -97,7 +99,7 @@ const REPORT_HTML_FILE: &str = "report.html";
 impl BacktestReport {
     /// Create a new backtest report
     /// Call [`start`] to enable writing data to files
-    /// [`start`]: fn@self::BacktestReport::start
+    /// [`start`]: `fn@self::BacktestReport::start`
     pub fn new<P: AsRef<Path>>(base_output_dir: P, key: String) -> Self {
         let report_dir = base_output_dir.as_ref().to_path_buf().join(key.clone());
         Self {
@@ -109,28 +111,30 @@ impl BacktestReport {
             misc_stats: BacktestReportMiscStats::default(),
             key,
             failures: Default::default(),
-            execution_hist: Default::default(),
+            execution_hist: HashMap::default(),
             last_ptf_snapshot: None,
         }
     }
 
     /// Push a model to the report
-    pub fn push_model(&self, v: TimedData<BTreeMap<String, Option<serde_json::Value>>>) { self.model_ss.push(v); }
+    pub fn push_model(&self, v: TimedData<BTreeMap<String, Option<serde_json::Value>>>) {
+        self.model_ss.push(v).unwrap();
+    }
 
     /// Push a portfolio snapshot to the report
     pub fn push_snapshot(&mut self, v: TimedData<PortfolioSnapshot>) {
-        self.snapshots_ss.push(v);
+        self.snapshots_ss.push(v).unwrap();
         // Only compute stddev if values change
         self.misc_stats.update(v.value.pnl);
         self.last_ptf_snapshot = Some(v);
     }
 
     /// Push a market stat to the report
-    pub fn push_market_stat(&self, v: TimedData<MarketStat>) { self.market_stats_ss.push(v); }
+    pub fn push_market_stat(&self, v: TimedData<MarketStat>) { self.market_stats_ss.push(v).unwrap(); }
 
     /// Push a strat event to the report
     #[allow(dead_code)]
-    pub fn push_strat_event(&self, v: TimedData<StratEvent>) { self.events_ss.push(v); }
+    pub fn push_strat_event(&self, v: TimedData<StratEvent>) { self.events_ss.push(v).unwrap(); }
 
     /// Get a strat event sink to forward to
     pub fn strat_event_sink(&self) -> UnboundedSender<TimedData<StratEvent>> { self.events_ss.sink() }
@@ -152,16 +156,16 @@ impl BacktestReport {
     /// Finish writing the report
     pub async fn finish(&self) -> Result<()> {
         let report_dir = self.output_dir.clone();
-        write_as_seq(report_dir.join(REPORT_FILE), vec![self].as_slice());
+        write_as_seq(report_dir.join(REPORT_FILE), vec![self].as_slice())?;
         self.model_ss.close().await;
         self.snapshots_ss.close().await;
         self.market_stats_ss.close().await;
         self.events_ss.close().await;
-        self.write_html_report().unwrap();
+        self.write_html_report();
         Ok(())
     }
 
-    fn write_html_report(&self) -> std::result::Result<String, Box<dyn std::error::Error>> {
+    fn write_html_report(&self) -> String {
         let output_dir = self.output_dir.clone();
         let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), REPORT_HTML_FILE);
         let mut plot = Plot::new();
@@ -187,13 +191,13 @@ impl BacktestReport {
         let layout = Layout::new().grid(LayoutGrid::new().rows(5).columns(1).pattern(GridPattern::Independent));
         plot.set_layout(layout);
         plot.to_html(&out_file);
-        Ok(out_file)
+        out_file
     }
 
     pub async fn reload<P: AsRef<Path>>(key: &str, path: P) -> Self {
         let report = BacktestReport::new(path.as_ref().to_path_buf(), key.to_string());
         task::spawn_blocking(move || {
-            report.write_html_report().unwrap();
+            report.write_html_report();
             report
         })
         .await
@@ -221,6 +225,6 @@ fn stop_event_ratio(events: &[StratEvent]) -> usize {
 fn extract_f64(m: &BTreeMap<String, Option<serde_json::Value>>, key: &str) -> f64 {
     m.get(key)
         .as_ref()
-        .and_then(|t| t.as_ref().and_then(|v| v.as_f64()))
+        .and_then(|t| t.as_ref().and_then(Value::as_f64))
         .unwrap_or(0.0)
 }

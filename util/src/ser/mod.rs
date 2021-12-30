@@ -7,13 +7,14 @@ use chrono::Duration;
 use serde::de::Error;
 use serde::ser::SerializeSeq;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedSender};
 use tokio::sync::RwLock;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 
 #[allow(dead_code)]
-fn round_serialize<S>(x: &f64, s: S) -> std::result::Result<S::Ok, S::Error>
+fn round_serialize<S>(x: f64, s: S) -> std::result::Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -44,7 +45,9 @@ pub mod date_time_format {
         let pr = s.parse::<i64>();
         pr.map(|millis| Utc.timestamp_millis(millis))
             .or_else(|_| {
-                Decimal::from_scientific(s.as_str()).map(|decimal| Utc.timestamp_millis(decimal.to_i64().unwrap()))
+                Decimal::from_scientific(s.as_str())
+                    .and_then(|d| d.to_i64().ok_or(rust_decimal::Error::ExceedsMaximumPossibleValue))
+                    .map(|decimal| Utc.timestamp_millis(decimal))
             })
             .or_else(|_| Utc.datetime_from_str(&s, DATE_FORMAT))
             .map_err(serde::de::Error::custom)
@@ -68,13 +71,13 @@ where
     Ok(Duration::seconds(val))
 }
 
-pub fn decode_file_size<'de, D>(deserializer: D) -> Result<u64, D::Error>
+pub fn decode_file_size<'de, D>(deserializer: D) -> Result<u128, D::Error>
 where
     D: Deserializer<'de>,
 {
     let val: String = Deserialize::deserialize(deserializer)?;
     let size_bytes = Byte::from_str(val).map_err(|e| de::Error::custom(format!("{:?}", e)))?;
-    Ok(size_bytes.get_bytes() as u64)
+    Ok(size_bytes.get_bytes())
 }
 
 pub fn decode_duration_str<'de, D>(deserializer: D) -> Result<Duration, D::Error>
@@ -104,14 +107,15 @@ where
     }
 }
 
-pub fn write_as_seq<P: AsRef<Path>, T: Serialize>(out_file: P, data: &[T]) {
-    let logs_f = std::fs::File::create(out_file).unwrap();
+pub fn write_as_seq<P: AsRef<Path>, T: Serialize>(out_file: P, data: &[T]) -> Result<(), anyhow::Error> {
+    let logs_f = std::fs::File::create(out_file)?;
     let mut serializer = serde_json::Serializer::new(BufWriter::new(logs_f));
-    let mut seq = serializer.serialize_seq(None).unwrap();
+    let mut seq = serializer.serialize_seq(None)?;
     for models in data {
-        seq.serialize_element(&models).unwrap();
+        seq.serialize_element(&models)?;
     }
-    SerializeSeq::end(seq).unwrap();
+    SerializeSeq::end(seq)?;
+    Ok(())
 }
 
 pub struct StreamSerializerWriter<T> {
@@ -142,12 +146,15 @@ impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
     }
 
     /// Push a new value to be serialized and written
-    pub fn push(&self, value: T) { self.sink.send(value).unwrap(); }
+    pub fn push(&self, value: T) -> Result<(), SendError<T>> { self.sink.send(value) }
 
     /// Get the sink
     pub fn sink(&self) -> UnboundedSender<T> { self.sink.clone() }
 
     /// Ask the stream to finish and close the serializer, this will wait until the serializer has finished writing
+    /// # Panics
+    ///
+    /// Will panic if the close channel is already closed
     pub async fn close(&self) {
         self.finish_tx.send(true).await.unwrap();
         let mut end = self.finish_resp_rx.write().await;
@@ -155,6 +162,9 @@ impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
     }
 
     /// Open a new serializer to the file and start writing push values to it
+    /// # Panics
+    ///
+    /// Will panic if `out_file` cannot be opened and written to
     pub async fn start(&self) {
         let logs_f = std::fs::File::create(&self.out_file).unwrap();
         let mut serializer = serde_json::Serializer::new(BufWriter::new(logs_f));
@@ -167,7 +177,7 @@ impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
                 next = lock.next() => {
                     if let Some(value) = next {
                         tokio::task::block_in_place(|| {
-                            seq.serialize_element(&value).unwrap()
+                            seq.serialize_element(&value).unwrap();
                         });
                     } else {
                         break 'stream;
@@ -212,7 +222,7 @@ mod test {
         };
         stream
             .map(|td| {
-                serializer.push(td);
+                serializer.push(td).unwrap();
                 Ok(())
             })
             .forward(futures::sink::drain())

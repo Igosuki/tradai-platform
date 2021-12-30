@@ -10,6 +10,7 @@ pub struct MACDApo {
 }
 
 impl MACDApo {
+    #[allow(clippy::missing_panics_doc)]
     pub fn new(long_window: u32, short_window: u32) -> MACDApo {
         MACDApo {
             long_ema: ExponentialMovingAverage::new(2.0, long_window).unwrap(),

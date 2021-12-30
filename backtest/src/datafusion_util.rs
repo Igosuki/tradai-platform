@@ -27,7 +27,7 @@ pub fn to_struct_array(batch: &RecordBatch) -> StructArray {
         .into()
 }
 
-pub fn df_format(format: String) -> (&'static str, Arc<dyn FileFormat>) {
+pub fn df_format(format: &str) -> (&'static str, Arc<dyn FileFormat>) {
     match format.to_lowercase().as_str() {
         "avro" => ("avro", Arc::new(AvroFormat::default())),
         "parquet" => ("parquet", Arc::new(ParquetFormat::default())),

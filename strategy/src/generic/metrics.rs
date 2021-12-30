@@ -82,9 +82,9 @@ impl GenericDriverMetrics {
         let signal_gauges = make_gauges(const_labels.clone(), &["skey", "xch", "mkt", "pos", "op"], &signal_fns);
 
         let portfolio_fns: Vec<PortfolioIndicatorFn> = vec![
-            ("ptf_value".to_string(), |x| x.value()),
-            ("ptf_pnl".to_string(), |x| x.pnl()),
-            ("ptf_current_return".to_string(), |x| x.current_return()),
+            ("ptf_value".to_string(), Portfolio::value),
+            ("ptf_pnl".to_string(), Portfolio::pnl),
+            ("ptf_current_return".to_string(), Portfolio::current_return),
         ];
         let portfolio_gauges = make_gauges(const_labels.clone(), &["skey"], &portfolio_fns);
 
@@ -121,19 +121,19 @@ impl GenericDriverMetrics {
         }
     }
 
-    pub(super) fn log_lock(&self, xch: &Exchange, pair: &Pair) {
+    pub(super) fn log_lock(&self, xch: Exchange, pair: &Pair) {
         self.lock_counters
             .with_label_values(&[xch.as_ref(), pair.as_ref()])
             .set(1.0);
     }
 
-    pub(super) fn log_failed_position(&self, xch: &Exchange, pair: &Pair) {
+    pub(super) fn log_failed_position(&self, xch: Exchange, pair: &Pair) {
         self.failed_position_counters
             .with_label_values(&[xch.as_ref(), pair.as_ref()])
             .set(1.0);
     }
 
-    pub(super) fn signal_error(&self, xch: &Exchange, pair: &Pair) {
+    pub(super) fn signal_error(&self, xch: Exchange, pair: &Pair) {
         self.signal_errors
             .with_label_values(&[xch.as_ref(), pair.as_ref()])
             .inc();

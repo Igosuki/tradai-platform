@@ -53,7 +53,7 @@ pub fn write_models(dest_dir: &str, log: &[StrategyLog]) {
             .sorted()
             .collect::<Vec<String>>();
         let mut csv_keys = vec!["ts", "portfolio_value"];
-        csv_keys.extend(model_keys.iter().map(|s| s.as_str()));
+        csv_keys.extend(model_keys.iter().map(String::as_str));
         write_csv(
             format!("{}/model_values.csv", dest_dir),
             &csv_keys,
@@ -66,14 +66,14 @@ pub fn write_models(dest_dir: &str, log: &[StrategyLog]) {
                     values.push(
                         r.model
                             .get(k)
-                            .and_then(|o| o.as_ref())
+                            .and_then(Option::as_ref)
                             .unwrap_or(&Value::Null)
                             .to_string(),
                     );
                 }
                 values
             }),
-        )
+        );
     } else {
         error!("no model values to write");
     }
@@ -113,6 +113,9 @@ pub fn write_trade_events(test_results_dir: &str, trade_events: &[(OperationEven
 }
 
 #[allow(dead_code)]
+/// # Panics
+///
+/// if the file cannot be created
 pub fn write_csv<I, J, S>(path: S, header: &[&str], records: I)
 where
     I: Iterator<Item = J>,

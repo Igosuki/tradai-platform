@@ -8,6 +8,7 @@ use strategy::coinnect::prelude::*;
 use strategy_test_util::draw::StrategyEntry;
 use strategy_test_util::it_backtest::{generic_backtest, BacktestRange, BacktestStratProviderRef, GenericTestContext};
 use strategy_test_util::log::StrategyLog;
+use trading::order_manager::types::OrderDetail;
 use trading::types::{OrderConf, OrderMode};
 
 use crate::naive_pair_trading::options::Options;
@@ -20,7 +21,7 @@ static RIGHT_PAIR: &str = "BTC_USDT";
 fn get_f64(model: &HashMap<String, Option<Value>>, key: &str) -> f64 {
     model
         .get(key)
-        .and_then(|v| v.as_ref().and_then(|o| o.as_f64()))
+        .and_then(|v| v.as_ref().and_then(Value::as_f64))
         .unwrap_or(f64::NAN)
 }
 
@@ -117,7 +118,7 @@ async fn spot_backtest() {
             position1
                 .close_order
                 .as_ref()
-                .map(|o| o.realized_quote_value())
+                .map(OrderDetail::realized_quote_value)
                 .map(|f| format!("{:.2}", f))
         );
         assert_eq!("87.87".to_string(), format!("{:.2}", position1.current_value_gross()));

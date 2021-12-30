@@ -9,7 +9,7 @@ use chrono::{Duration, TimeZone, Utc};
 use coinnect_rt::prelude::*;
 
 use crate::avro_gen::{self,
-                      models::{LiveTrade as LT, Orderbook as OB}};
+                      models::{Candle as AvroCandle, LiveTrade as AvroTrade, Orderbook as AvroOrderbook}};
 use crate::file::file_actor::{AvroFileActor, Error, ToAvroSchema};
 use crate::file::{Partition, Partitioner};
 
@@ -32,8 +32,7 @@ impl Partitioner<MarketEventEnvelope> for MarketEventPartitioner {
         match &data.e {
             MarketEvent::Orderbook(ob) => Some((ob.timestamp, "order_books", ob.pair.clone())),
             MarketEvent::Trade(t) => Some((t.event_ms, "trades", t.pair.clone())),
-            // No partitioning for this event
-            _ => None,
+            MarketEvent::CandleTick(ct) => Some((ct.event_time.timestamp_millis(), "candles", ct.pair.clone())),
         }
         .map(|(ts, channel, pair)| {
             let ts = Utc.timestamp_millis(ts);
@@ -57,7 +56,7 @@ impl ToAvroSchema for MarketEventEnvelope {
         match &self.e {
             MarketEvent::Trade(_) => Some(&*avro_gen::models::LIVETRADE_SCHEMA),
             MarketEvent::Orderbook(_) => Some(&*avro_gen::models::ORDERBOOK_SCHEMA),
-            _ => None,
+            MarketEvent::CandleTick(_) => Some(&*avro_gen::models::CANDLE_SCHEMA),
         }
     }
 }
@@ -65,6 +64,7 @@ impl ToAvroSchema for MarketEventEnvelope {
 impl Handler<Arc<MarketEventEnvelope>> for AvroFileActor<MarketEventEnvelope> {
     type Result = anyhow::Result<()>;
 
+    #[allow(clippy::cast_possible_wrap)]
     fn handle(&mut self, msg: Arc<MarketEventEnvelope>, _ctx: &mut Self::Context) -> Self::Result {
         let rc = self.writer_for(&msg);
         if let Err(rc_err) = rc {
@@ -77,7 +77,7 @@ impl Handler<Arc<MarketEventEnvelope>> for AvroFileActor<MarketEventEnvelope> {
         let now = Utc::now();
         let appended = match &msg.e {
             MarketEvent::Trade(lt) => {
-                let lt = LT {
+                let lt = AvroTrade {
                     pair: lt.pair.to_string(),
                     tt: lt.tt.into(),
                     price: lt.price,
@@ -89,7 +89,7 @@ impl Handler<Arc<MarketEventEnvelope>> for AvroFileActor<MarketEventEnvelope> {
             }
             MarketEvent::Orderbook(lt) => {
                 self.metrics.event_lag(now.timestamp_millis() - lt.timestamp);
-                let orderbook = OB {
+                let orderbook = AvroOrderbook {
                     pair: lt.pair.to_string(),
                     event_ms: lt.timestamp,
                     asks: lt.asks.iter().map(|(p, v)| vec![*p, *v]).collect(),
@@ -97,7 +97,25 @@ impl Handler<Arc<MarketEventEnvelope>> for AvroFileActor<MarketEventEnvelope> {
                 };
                 self.append_log(&mut writer, orderbook)
             }
-            _ => Ok(0),
+
+            MarketEvent::CandleTick(ct) => {
+                self.metrics
+                    .event_lag(now.timestamp_millis() - ct.event_time.timestamp_millis());
+                let candle = AvroCandle {
+                    pair: ct.pair.to_string(),
+                    start_ms: ct.start_time.timestamp_millis(),
+                    end_ms: ct.end_time.timestamp_millis(),
+                    open: ct.open,
+                    high: ct.high,
+                    low: ct.low,
+                    close: ct.close,
+                    volume: ct.volume,
+                    quote_volume: ct.quote_volume,
+                    event_ms: ct.event_time.timestamp_millis(),
+                    trade_count: ct.trade_count as i64,
+                };
+                self.append_log(&mut writer, candle)
+            }
         };
         if let Err(e) = appended.and_then(|_| writer.flush().map_err(|_e| Error::Writer)) {
             self.metrics.flush_failure();

@@ -1,3 +1,13 @@
+#![allow(
+    clippy::wildcard_imports,
+    clippy::module_name_repetitions,
+    clippy::missing_errors_doc,
+    clippy::must_use_candidate,
+    clippy::unused_self,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
 #![feature(box_patterns)]
 #![feature(map_try_insert)]
 #![feature(path_try_exists)]
@@ -14,7 +24,7 @@ extern crate tokio;
 #[macro_use]
 extern crate tracing;
 
-use std::collections::HashMap;
+use dashmap::DashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -67,6 +77,9 @@ pub struct Backtest {
 }
 
 impl Backtest {
+    /// # Panics
+    ///
+    /// if copying strats and spawning runners fail
     pub async fn try_new(conf: &BacktestConfig) -> Result<Self> {
         let db_path = conf.db_path.clone().unwrap_or_else(|| test_dir().into_path());
         if let Ok(true) = std::fs::try_exists(db_path.clone()) {
@@ -83,11 +96,10 @@ impl Backtest {
         let exchanges = vec![Exchange::Binance];
         let mock_engine = Arc::new(mock_engine(db_path.clone(), &exchanges));
         let (stop_tx, _) = tokio::sync::broadcast::channel(1);
-        let db_conf = conf
-            .db_conf
-            .as_ref()
-            .map(|eo| DbOptions::new_with_options(db_path.clone(), eo.clone()))
-            .unwrap_or_else(|| default_db_conf(db_path));
+        let db_conf = conf.db_conf.as_ref().map_or_else(
+            || default_db_conf(db_path.clone()),
+            |eo| DbOptions::new_with_options(db_path.clone(), eo.clone()),
+        );
         let runners: Vec<_> = tokio_stream::iter(all_strategy_settings.into_iter())
             .map(|s| spawn_runner(stop_tx.clone(), db_conf.clone(), mock_engine.clone(), s))
             .buffer_unordered(10)
@@ -108,6 +120,9 @@ impl Backtest {
         })
     }
 
+    /// # Panics
+    ///
+    /// Writing the global report fails
     pub async fn run(&mut self) -> Result<()> {
         let mut broker = ChannelMessageBroker::new();
         for runner in &self.runners {
@@ -157,6 +172,9 @@ impl Backtest {
         Ok(())
     }
 
+    /// # Panics
+    ///
+    /// typically if loading old backtest data fails
     pub async fn gen_report(conf: &BacktestConfig) {
         let mut output_dir = conf.output_dir();
         output_dir.push("latest");
@@ -179,12 +197,12 @@ impl Backtest {
         for report in fetches.await {
             global_report.add_report(report);
         }
-        global_report.write_global_report(output_dir.as_path()).unwrap();
+        global_report.write_global_report(output_dir.as_path());
     }
 }
 
 async fn init_coinnect(xchs: &[Exchange]) {
-    let mut exchange_apis: HashMap<Exchange, Arc<dyn ExchangeApi>> = HashMap::new();
+    let exchange_apis: DashMap<Exchange, Arc<dyn ExchangeApi>> = DashMap::new();
     let manager = Coinnect::new_manager();
     for xch in xchs {
         let api = manager.build_public_exchange_api(xch, false).await.unwrap();

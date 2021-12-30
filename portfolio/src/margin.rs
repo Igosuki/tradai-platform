@@ -9,6 +9,7 @@ use futures::FutureExt;
 use prometheus::GaugeVec;
 
 use coinnect_rt::bot::Ping;
+use coinnect_rt::exchange::manager::ExchangeApiRegistry;
 use coinnect_rt::prelude::*;
 use coinnect_rt::types::{BalanceUpdate, MarginAccountDetails, MarginAsset};
 
@@ -152,17 +153,17 @@ pub struct MarginAccountReporterOptions {
 
 #[derive(Clone)]
 pub struct MarginAccountReporter {
-    apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
+    apis: Arc<ExchangeApiRegistry>,
     balances: Arc<RwLock<HashMap<Exchange, MarginAccountReport>>>,
     refresh_rate: Duration,
     metrics: MarginAccountMetrics,
 }
 
 impl MarginAccountReporter {
-    pub fn new(apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>, options: MarginAccountReporterOptions) -> Self {
+    pub fn new(apis: Arc<ExchangeApiRegistry>, options: &MarginAccountReporterOptions) -> Self {
         Self {
-            apis: apis.clone(),
-            balances: Default::default(),
+            apis,
+            balances: Arc::new(RwLock::new(HashMap::default())),
             refresh_rate: options.refresh_rate,
             metrics: MarginAccountMetrics::default(),
         }
@@ -174,7 +175,7 @@ impl MarginAccountReporter {
     {
         let mut writer = self.balances.write().unwrap();
         if writer.get(&xchg).is_none() {
-            writer.insert(xchg, Default::default());
+            writer.insert(xchg, MarginAccountReport::default());
         }
         if let Some(balance_report) = writer.get_mut(&xchg) {
             f(balance_report);
@@ -188,7 +189,7 @@ impl Actor for MarginAccountReporter {
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.notify(RefreshBalances);
         ctx.run_interval(self.refresh_rate, move |act, _ctx| {
-            for xchg in act.apis.keys() {
+            for xchg in act.apis.iter().map(|e| e.key()) {
                 act.with_reporter(*xchg, |balance_report| {
                     for (_, margin_asset) in balance_report.balances.clone() {
                         act.metrics.report_asset(*xchg, &margin_asset);
@@ -234,17 +235,17 @@ impl Handler<RefreshBalances> for MarginAccountReporter {
                 futures::future::join_all(
                     apis.clone()
                         .iter()
-                        .map(|(&xchg, api)| api.margin_account(None).map(move |r| (xchg, r))),
+                        .map(|entry| entry.value().margin_account(None).map(move |r| (*entry.key(), r))),
                 )
                 .await
             }
             .into_actor(self)
             .map(|margin_account_results, this, _| {
-                for (xchg, margin_account_result) in margin_account_results.iter() {
+                for (xchg, margin_account_result) in margin_account_results {
                     match margin_account_result {
                         Ok(margin_account_details) => {
-                            this.with_reporter(*xchg, |balance_report| {
-                                balance_report.init(margin_account_details);
+                            this.with_reporter(xchg, |balance_report| {
+                                balance_report.init(&margin_account_details);
                             });
                         }
                         Err(e) => {
@@ -252,7 +253,7 @@ impl Handler<RefreshBalances> for MarginAccountReporter {
                                 "MarginAccountReporter : failed to fetch balance for exchange {xchg} : {err}",
                                 xchg = xchg,
                                 err = e
-                            )
+                            );
                         }
                     }
                 }

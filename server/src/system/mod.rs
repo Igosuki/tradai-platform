@@ -17,7 +17,7 @@ use coinnect_rt::broker::{ActixMessageBroker, Broker, MarketEventEnvelopeMsg};
 // use actix::System;
 // use tokio::select;
 // use tokio::signal::unix::{signal, SignalKind};
-use coinnect_rt::exchange::manager::ExchangeManager;
+use coinnect_rt::exchange::manager::{ExchangeApiRegistry, ExchangeManager};
 use coinnect_rt::prelude::*;
 use db::DbOptions;
 use logging::prelude::*;
@@ -25,6 +25,7 @@ use metrics::prom::PrometheusPushActor;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use portfolio::margin::{MarginAccountReporter, MarginAccountReporterOptions};
 use strategy::plugin::plugin_registry;
+use strategy::prelude::StrategyCopySettings;
 use strategy::{self, Channel, StrategyKey, Trader};
 use trading::engine::{new_trading_engine, TradingEngine};
 use trading::interest::MarginInterestRateProvider;
@@ -37,6 +38,10 @@ use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSe
 
 pub mod bots;
 
+/// # Panics
+///
+/// The system fails to boot
+#[allow(clippy::too_many_lines)]
 pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     let settings_v = settings.read().await;
 
@@ -65,9 +70,9 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     let mut broadcast_recipients: Vec<Recipient<Arc<MarketEventEnvelope>>> = Vec::new();
     let mut strat_recipients: Vec<Recipient<Arc<MarketEventEnvelope>>> = Vec::new();
     let mut spot_account_recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>> =
-        apis.keys().map(|xch| (*xch, vec![])).collect();
+        apis.iter().map(|e| (*e.key(), vec![])).collect();
     let mut margin_account_recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>> =
-        apis.keys().map(|xch| (*xch, vec![])).collect();
+        spot_account_recipients.clone();
     let mut traders = vec![];
 
     // strategies, cf strategies crate
@@ -76,19 +81,19 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     for output in settings_v.outputs.clone() {
         match output {
             OutputSettings::AvroFileLogger(logger_settings) => {
-                broadcast_recipients.push(file_actor(logger_settings).recipient())
+                broadcast_recipients.push(file_actor(logger_settings).recipient());
             }
             OutputSettings::Nats(nats_settings) => {
                 let producer = NatsProducer::new(&nats_settings.host, &nats_settings.username, &nats_settings.password)
                     .map_err(|e| std::io::Error::new(std::io::ErrorKind::NotConnected, e))?;
-                broadcast_recipients.push(NatsProducer::start(producer).recipient())
+                broadcast_recipients.push(NatsProducer::start(producer).recipient());
             }
             OutputSettings::Strategies => {
                 let om = order_manager(&settings_v.storage, manager.clone()).await;
                 termination_handles.push(Box::pin(bots::poll_pingables(vec![om.clone().recipient()])));
-                for xch in manager.exchange_apis().keys() {
+                for entry in manager.exchange_apis().iter() {
                     spot_account_recipients
-                        .get_mut(xch)
+                        .get_mut(entry.key())
                         .unwrap()
                         .push(om.clone().recipient());
                 }
@@ -112,7 +117,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     if let Some(balance_reporter_opts) = &settings_v.balance_reporter {
         info!("starting balance reporter");
         let reporter_addr = balance_reporter(balance_reporter_opts, apis.clone()).await?;
-        for xch in apis.keys() {
+        for xch in apis.iter().map(|e| e.key()) {
             spot_account_recipients
                 .get_mut(xch)
                 .unwrap()
@@ -125,7 +130,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     if let Some(margin_account_reporter_opts) = &settings_v.margin_account_reporter {
         info!("starting margin account reporter");
         let reporter_addr = margin_account_reporter(margin_account_reporter_opts, apis.clone()).await?;
-        for xch in apis.keys() {
+        for xch in apis.iter().map(|e| e.key()) {
             margin_account_recipients
                 .get_mut(xch)
                 .unwrap()
@@ -280,7 +285,13 @@ fn file_actor(settings: AvroFileLoggerSettings) -> Addr<AvroFileActor<MarketEven
 async fn make_traders(settings: Arc<RwLock<Settings>>, engine: Arc<TradingEngine>) -> Vec<Trader> {
     let settings_v = settings.read().await;
     let mut drivers_settings = settings_v.strategies.clone();
-    drivers_settings.extend(settings_v.strategies_copy.iter().map(|sc| sc.all()).flatten().flatten());
+    drivers_settings.extend(
+        settings_v
+            .strategies_copy
+            .iter()
+            .flat_map(StrategyCopySettings::all)
+            .flatten(),
+    );
     let storage = Arc::new(settings_v.storage.clone());
     let traders = futures::future::join_all(drivers_settings.into_iter().map(move |driver_settings| {
         let db = storage.clone();
@@ -304,18 +315,18 @@ async fn make_traders(settings: Arc<RwLock<Settings>>, engine: Arc<TradingEngine
 
 async fn balance_reporter(
     options: &BalanceReporterOptions,
-    apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
+    apis: Arc<ExchangeApiRegistry>,
 ) -> anyhow::Result<Addr<BalanceReporter>> {
-    let balance_reporter = BalanceReporter::new(apis.clone(), options.clone());
+    let balance_reporter = BalanceReporter::new(apis.clone(), options);
     let balance_reporter_addr = BalanceReporter::start(balance_reporter);
     Ok(balance_reporter_addr)
 }
 
 async fn margin_account_reporter(
     options: &MarginAccountReporterOptions,
-    apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
+    apis: Arc<ExchangeApiRegistry>,
 ) -> anyhow::Result<Addr<MarginAccountReporter>> {
-    let margin_account_reporter = MarginAccountReporter::new(apis.clone(), options.clone());
+    let margin_account_reporter = MarginAccountReporter::new(apis.clone(), options);
     let margin_account_reporter_addr = MarginAccountReporter::start(margin_account_reporter);
     Ok(margin_account_reporter_addr)
 }
@@ -327,9 +338,7 @@ async fn order_manager(db: &DbOptions<String>, exchange_manager: Arc<ExchangeMan
     OrderManager::start(order_manager)
 }
 
-fn margin_interest_rate_provider(
-    apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
-) -> Addr<MarginInterestRateProvider> {
+fn margin_interest_rate_provider(apis: Arc<ExchangeApiRegistry>) -> Addr<MarginInterestRateProvider> {
     let provider = MarginInterestRateProvider::new(apis);
     MarginInterestRateProvider::start(provider)
 }

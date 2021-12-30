@@ -1,6 +1,8 @@
 #![allow(
     // noisy
-    clippy::missing_errors_doc
+    clippy::missing_errors_doc,
+    clippy::module_name_repetitions,
+    clippy::implicit_hasher
 )]
 
 #[cfg(test)]

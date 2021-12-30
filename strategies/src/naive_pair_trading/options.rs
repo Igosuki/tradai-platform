@@ -51,7 +51,7 @@ impl Options {
             stop_loss: -0.1,
             stop_gain: 0.075,
             initial_cap: 100.0,
-            order_conf: Default::default(),
+            order_conf: OrderConf::default(),
             max_pos_duration: None,
         }
     }

@@ -1,4 +1,4 @@
-use std::ops::{Deref, Index};
+use std::ops::Index;
 use std::slice::SliceIndex;
 use std::sync::Arc;
 
@@ -39,6 +39,9 @@ pub struct PersistentModel<T> {
 }
 
 impl<T: DeserializeOwned + Serialize + Copy> PersistentModel<T> {
+    /// # Panics
+    ///
+    /// if the table cannot be ensured
     pub fn new(db: Arc<dyn Storage>, key: &str, init: Option<ModelValue<T>>) -> Self {
         //let db = get_or_create(db_path, vec![MODELS_TABLE_NAME.to_string()]);
         db.ensure_table(MODELS_TABLE_NAME).unwrap();
@@ -123,6 +126,9 @@ impl<T, I: SliceIndex<[TimedValue<T>]>> Index<I> for PersistentVec<T> {
 
 /// Values are written and sorted by time
 impl<T: DeserializeOwned + Serialize> PersistentVec<T> {
+    /// # Panics
+    ///
+    /// if the table cannot be ensured
     pub fn new(db: Arc<dyn Storage>, key: &str, max_size: usize, window_size: usize) -> Self {
         db.ensure_table(key).unwrap();
         assert!(max_size > window_size);
@@ -154,7 +160,7 @@ impl<T: DeserializeOwned + Serialize> PersistentVec<T> {
     pub fn push_all(&mut self, row: Vec<TimedValue<T>>) -> Result<()> {
         self.rows.extend(row.into_iter());
         self.rows.sort_by_key(|t| t.0);
-        for row in self.rows.iter() {
+        for row in &self.rows {
             let x: &str = &row.0.to_string();
             self.db.put(&self.key, x, &row.1)?;
         }
@@ -179,12 +185,15 @@ impl<T: DeserializeOwned + Serialize> PersistentVec<T> {
 
     pub fn is_empty(&self) -> bool { self.rows.is_empty() }
 
+    /// # Panics
+    ///
+    /// If record keys cannot be parsed as i64 timestamps
     pub fn load(&mut self) -> crate::error::Result<()> {
         self.rows = self
             .db
             .get_all(&self.key)?
             .into_iter()
-            .map(|v| TimedValue(std::str::from_utf8(v.0.deref()).unwrap().parse::<i64>().unwrap(), v.1))
+            .map(|v| TimedValue(std::str::from_utf8(&*v.0).unwrap().parse::<i64>().unwrap(), v.1))
             .sorted_by_key(|t| t.0)
             .collect();
         self.last_load_attempt = Some(Utc::now());
@@ -279,7 +288,7 @@ mod test {
             let mut table = PersistentVec::new(db.clone(), id, max_size, max_size / 2);
             let mut gen = Gen::new(500);
             for _ in 0..max_size {
-                table.push(TestRow::arbitrary(&mut gen))
+                table.push(TestRow::arbitrary(&mut gen));
             }
             table.window().cloned().collect()
         };

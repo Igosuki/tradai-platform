@@ -1,6 +1,14 @@
 #![feature(test)]
 #![feature(btree_drain_filter)]
-#![allow(incomplete_features, clippy::wildcard_imports, clippy::missing_errors_doc)]
+#![allow(
+    incomplete_features,
+    clippy::wildcard_imports,
+    clippy::missing_errors_doc,
+    clippy::module_name_repetitions,
+    clippy::needless_pass_by_value,
+    clippy::unnecessary_wraps,
+    clippy::let_underscore_drop
+)]
 
 ///! Key/Value based storage interfaces
 ///! Main implementations are rkv-lmdb, rocksdb and in-memory

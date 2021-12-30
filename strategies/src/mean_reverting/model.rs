@@ -78,7 +78,7 @@ impl MeanRevertingModel {
             n.threshold_window_size.map(|thresold_window_size| {
                 PersistentWindowedModel::new(
                     &format!("thresholds_{}", n.pair.as_ref()),
-                    db.clone(),
+                    db,
                     thresold_window_size,
                     Some(thresold_window_size * 2),
                     threshold,
@@ -144,25 +144,25 @@ impl MeanRevertingModel {
                 threshold_table.try_load()?;
             }
         }
-        if !self.is_loaded() {
-            Err(Error::ModelLoadError("models still not loaded loading".to_string()))
-        } else {
+        if self.is_loaded() {
             Ok(())
+        } else {
+            Err(Error::ModelLoadError("models still not loaded loading".to_string()))
         }
     }
 
     pub(crate) fn is_loaded(&self) -> bool {
-        self.apo.is_loaded() && self.thresholds.as_ref().map(|t| t.is_loaded()).unwrap_or(true)
+        self.apo.is_loaded() && self.thresholds.as_ref().map_or(true, Model::is_loaded)
     }
 
     // TODO: use this in the new trait that will be returned to the driver
     #[allow(dead_code)]
-    pub(crate) fn reset(&mut self, name: Option<String>) -> Result<()> {
-        if name == Some("apo".to_string()) || name.is_none() {
+    pub(crate) fn reset(&mut self, name: Option<&str>) -> Result<()> {
+        if name == Some("apo") || name.is_none() {
             self.apo.wipe()?;
         }
-        if name == Some("thresholds".to_string()) || name.is_none() {
-            self.thresholds.as_mut().map(|t| t.wipe()).transpose()?;
+        if name == Some("thresholds") || name.is_none() {
+            self.thresholds.as_mut().map(Model::wipe).transpose()?;
         }
         Ok(())
     }
@@ -222,13 +222,13 @@ impl LoadableModel for MeanRevertingModel {
         };
         let models: HashMap<String, serde_json::Value> = serde_json::from_reader(reader)?;
         if let Some(model) = models.get("apo") {
-            self.apo.import(model.to_owned())?;
+            self.apo.import(model.clone())?;
         }
         if let (Some(thresholds_model), Some(thresholds_table)) =
             (models.get("thresholds"), models.get("thresholds_table"))
         {
             if let Some(thresholds) = self.thresholds.as_mut() {
-                thresholds.import(thresholds_model.to_owned(), thresholds_table.to_owned())?;
+                thresholds.import(thresholds_model.clone(), thresholds_table.clone())?;
             }
         }
         Ok(())
@@ -323,7 +323,7 @@ mod test {
 
         let mut model_values_file_path = results_dir;
         model_values_file_path.push("model_values.json");
-        write_as_seq(model_values_file_path, model_values.as_slice());
+        write_as_seq(model_values_file_path, model_values.as_slice()).unwrap();
         Ok(())
     }
 }

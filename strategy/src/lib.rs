@@ -2,6 +2,12 @@
 // TODO: See regression in nightly: https://github.com/rust-lang/rust/issues/70814
 #![allow(unused_braces)]
 #![allow(incomplete_features)]
+#![allow(
+    clippy::wildcard_imports,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::missing_errors_doc
+)]
 #![feature(test)]
 #![feature(async_closure)]
 #![feature(type_alias_impl_trait)]
@@ -92,19 +98,19 @@ pub enum Channel {
 impl Channel {
     pub fn exchange(&self) -> Exchange {
         match self {
-            Channel::Orders { xch, .. } => *xch,
-            Channel::Trades { xch, .. } => *xch,
-            Channel::Orderbooks { xch, .. } => *xch,
-            Channel::Candles { xch, .. } => *xch,
+            Channel::Orders { xch, .. }
+            | Channel::Trades { xch, .. }
+            | Channel::Orderbooks { xch, .. }
+            | Channel::Candles { xch, .. } => *xch,
         }
     }
 
     pub fn pair(&self) -> Pair {
         match self {
-            Channel::Orders { pair, .. } => pair.clone(),
-            Channel::Trades { pair, .. } => pair.clone(),
-            Channel::Orderbooks { pair, .. } => pair.clone(),
-            Channel::Candles { pair, .. } => pair.clone(),
+            Channel::Orders { pair, .. }
+            | Channel::Trades { pair, .. }
+            | Channel::Orderbooks { pair, .. }
+            | Channel::Candles { pair, .. } => pair.clone(),
         }
     }
 
@@ -199,6 +205,9 @@ pub struct Trader {
 }
 
 impl Trader {
+    /// # Panics
+    ///
+    /// if creating the strategy fails
     pub fn try_new(
         plugins: &StrategyPluginRegistry<'static>,
         db_opts: &DbOptions<String>,

@@ -26,8 +26,8 @@ pub struct MeanRevertingStrategyMetrics {
 }
 
 impl MeanRevertingStrategyMetrics {
-    pub fn for_strat(_registry: &Registry, pair: &str) -> MeanRevertingStrategyMetrics {
-        metric_store().get_or_create(pair.to_string(), || Self::new_metrics(_registry, pair))
+    pub fn for_strat(registry: &Registry, pair: &str) -> MeanRevertingStrategyMetrics {
+        metric_store().get_or_create(pair.to_string(), || Self::new_metrics(registry, pair))
     }
 
     fn new_metrics(_registry: &Registry, pair: &str) -> MeanRevertingStrategyMetrics {
@@ -86,16 +86,16 @@ impl MeanRevertingStrategyMetrics {
 
     pub(super) fn log_thresholds(&self, threshold_short: f64, threshold_long: f64) {
         if let Some(g) = self.common_gauges.get("mr_threshold_short") {
-            g.with_label_values(&[]).set(threshold_short)
+            g.with_label_values(&[]).set(threshold_short);
         }
         if let Some(g) = self.common_gauges.get("mr_threshold_long") {
-            g.with_label_values(&[]).set(threshold_long)
+            g.with_label_values(&[]).set(threshold_long);
         }
     }
     pub(super) fn log_model(&self, model: &MACDApo) {
         for (gauge_name, model_gauge_fn) in &self.model_indicator_fns {
             if let Some(g) = self.common_gauges.get(gauge_name) {
-                g.with_label_values(&[]).set(model_gauge_fn(model))
+                g.with_label_values(&[]).set(model_gauge_fn(model));
             }
         }
     }

@@ -20,10 +20,11 @@ pub(crate) struct GlobalReport {
 
 impl GlobalReport {
     pub(crate) fn new(output_dir: PathBuf) -> Self {
+        let output_dir_path = output_dir.join(now_str());
         Self {
             reports: vec![],
-            base_dir: output_dir.clone(),
-            output_dir: output_dir.join(now_str()),
+            base_dir: output_dir,
+            output_dir: output_dir_path,
         }
     }
 
@@ -32,7 +33,7 @@ impl GlobalReport {
     pub(crate) async fn write(&mut self) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let output_dir = self.output_dir.clone();
         tokio_stream::iter(self.reports.as_slice().iter())
-            .map(|report| report.finish())
+            .map(BacktestReport::finish)
             .buffer_unordered(10)
             .map(|x| {
                 x.unwrap();
@@ -40,25 +41,21 @@ impl GlobalReport {
             })
             .forward(futures::sink::drain())
             .await?;
-        self.write_global_report(output_dir.clone())?;
+        self.write_global_report(output_dir.clone());
         self.symlink_dir(output_dir)?;
         Ok(())
     }
 
     pub(crate) fn len(&self) -> usize { self.reports.len() }
 
-    pub fn write_global_report<P: AsRef<Path>>(
-        &mut self,
-        report_dir: P,
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        self.write_pnl_report(&report_dir, "report.html", self.reports_by_pnl(10))?;
-        self.write_pnl_report(&report_dir, "report_stddev.html", self.report_by_pnl_stddev(10))?;
+    pub fn write_global_report<P: AsRef<Path>>(&mut self, report_dir: P) {
+        self.write_pnl_report(&report_dir, "report.html", self.reports_by_pnl(10));
+        self.write_pnl_report(&report_dir, "report_stddev.html", self.report_by_pnl_stddev(10));
         self.write_pnl_report(
             &report_dir,
             "report_increase_ratio.html",
             self.report_by_pnl_increase_ratio(10),
-        )?;
-        Ok(())
+        );
     }
 
     fn symlink_dir(&mut self, report_dir: PathBuf) -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -79,7 +76,7 @@ impl GlobalReport {
         output_dir: P,
         report_filename: &str,
         reports: impl Iterator<Item = (usize, &'a BacktestReport)>,
-    ) -> std::result::Result<String, Box<dyn std::error::Error>> {
+    ) -> String {
         let out_file = format!("{}/{}", output_dir.as_ref().to_str().unwrap(), report_filename);
         let mut plot = Plot::new();
         for (i, report) in reports {
@@ -101,16 +98,16 @@ impl GlobalReport {
             .legend(Legend::new().font(Font::new().size(10)));
         plot.set_layout(layout);
         plot.to_html(&out_file);
-        Ok(out_file)
+        out_file
     }
 
     fn report_by_pnl_stddev(&self, top_n: usize) -> impl Iterator<Item = (usize, &BacktestReport)> {
         self.reports
             .iter()
-            .filter(has_pnl_change)
+            .filter(|br| has_pnl_change(*br))
             .sorted_by_key(|r| (r.misc_stats.pnl_std_dev_last * 1000.0) as u64)
             .take(top_n)
-            .sorted_by_key(last_pnl)
+            .sorted_by_key(|br| last_pnl(*br))
             .rev()
             .enumerate()
     }
@@ -118,10 +115,10 @@ impl GlobalReport {
     fn report_by_pnl_increase_ratio(&self, top_n: usize) -> impl Iterator<Item = (usize, &BacktestReport)> {
         self.reports
             .iter()
-            .filter(has_pnl_change)
+            .filter(|br| has_pnl_change(*br))
             .sorted_by_key(|m| (m.misc_stats.pnl_inc_ratio * 1000.0) as u64)
             .take(top_n)
-            .sorted_by_key(last_pnl)
+            .sorted_by_key(|br| last_pnl(*br))
             .rev()
             .enumerate()
     }
@@ -129,8 +126,8 @@ impl GlobalReport {
     fn reports_by_pnl(&self, top_n: usize) -> impl Iterator<Item = (usize, &BacktestReport)> {
         self.reports
             .iter()
-            .filter(has_pnl_change)
-            .sorted_by_key(last_pnl)
+            .filter(|br| has_pnl_change(*br))
+            .sorted_by_key(|br| last_pnl(*br))
             .rev()
             .take(top_n)
             .rev()
@@ -138,6 +135,6 @@ impl GlobalReport {
     }
 }
 
-fn has_pnl_change(r: &&BacktestReport) -> bool { r.misc_stats.count > 2 }
+fn has_pnl_change(r: &BacktestReport) -> bool { r.misc_stats.count > 2 }
 
-fn last_pnl(r: &&BacktestReport) -> u64 { r.misc_stats.last_pnl.unwrap_or(0.0) as u64 }
+fn last_pnl(r: &BacktestReport) -> u64 { r.misc_stats.last_pnl.unwrap_or(0.0) as u64 }

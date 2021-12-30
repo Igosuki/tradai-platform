@@ -28,4 +28,18 @@ protocol Simple {
     array<array<double>> asks;
     array<array<double>> bids;
   }
+
+  record Candle {
+    long event_ms;
+    string pair;
+    long start_ms;
+    long end_ms;
+    double open;
+    double high;
+    double low;
+    double close;
+    double volume;
+    double quote_volume;
+    long trade_count;
+  }
 }

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -9,6 +8,7 @@ use httpmock::{Mock, MockServer};
 use rand::random;
 
 use binance::rest_model::TimeInForce;
+use coinnect_rt::exchange::manager::ExchangeApiRegistry;
 use coinnect_rt::exchange::MockExchangeApi;
 use coinnect_rt::pair::register_pair_default;
 use coinnect_rt::prelude::*;
@@ -20,6 +20,9 @@ use crate::order_manager::{OrderManager, OrderManagerClient};
 
 pub fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
+/// # Panics
+///
+/// if the exchange cannot be buitl
 pub async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
     keys_file: S2,
     dir: S,
@@ -29,13 +32,13 @@ pub async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
         .build_exchange_api(keys_file.as_ref().to_path_buf(), &exchange, true)
         .await
         .unwrap();
-    let mut apis: HashMap<Exchange, Arc<dyn ExchangeApi>> = Default::default();
+    let apis = ExchangeApiRegistry::new();
     apis.insert(api.exchange(), api);
     OrderManager::new(apis, &DbOptions::new(dir), "order_manager")
 }
 
 pub fn local_manager<S: AsRef<Path>>(path: S, api: Arc<dyn ExchangeApi>) -> Addr<OrderManager> {
-    let mut apis: HashMap<Exchange, Arc<dyn ExchangeApi>> = Default::default();
+    let apis = ExchangeApiRegistry::new();
     apis.insert(api.exchange(), api);
     let order_manager = OrderManager::new(apis, &DbOptions::new(path), "");
     OrderManager::start(order_manager)
@@ -51,7 +54,11 @@ fn expected_ok_status(order: &OrderDetail) -> binance::rest_model::OrderStatus {
     }
 }
 
-pub fn create_ok_order_mock(server: &MockServer, order: OrderDetail) -> Mock<'_> {
+/// # Panics
+///
+/// if the request to the mock server fails
+#[allow(clippy::cast_sign_loss)]
+pub fn create_ok_order_mock<'a>(server: &'a MockServer, order: &'a OrderDetail) -> Mock<'a> {
     let symbol = format!("{}{}", order.base_asset, order.quote_asset);
     register_pair_default(Exchange::Binance, &symbol, &order.pair);
     let price = order.price.unwrap_or_else(random);
@@ -66,7 +73,7 @@ pub fn create_ok_order_mock(server: &MockServer, order: OrderDetail) -> Mock<'_>
         orig_qty: qty,
         executed_qty: qty,
         cummulative_quote_qty: quote_qty,
-        status: expected_ok_status(&order),
+        status: expected_ok_status(order),
         time_in_force: order.enforcement.map_into().unwrap_or(TimeInForce::FOK),
         order_type: order.order_type.into(),
         side: order.side.into(),
@@ -93,6 +100,10 @@ pub fn create_ok_order_mock(server: &MockServer, order: OrderDetail) -> Mock<'_>
     })
 }
 
+/// # Panics
+///
+/// if the request to the mock server fails
+#[allow(clippy::cast_sign_loss)]
 pub fn create_ok_margin_order_mock(server: &MockServer, order: OrderDetail) -> Mock<'_> {
     let symbol = format!("{}{}", order.base_asset, order.quote_asset);
     register_pair_default(Exchange::Binance, &symbol, &order.pair);
@@ -144,7 +155,7 @@ pub fn create_ok_margin_order_mock(server: &MockServer, order: OrderDetail) -> M
 
 pub fn new_mock_manager<S: AsRef<Path>>(path: S) -> OrderManager {
     let api: Arc<dyn ExchangeApi> = Arc::new(MockExchangeApi::default());
-    let mut apis: HashMap<Exchange, Arc<dyn ExchangeApi>> = Default::default();
+    let apis = ExchangeApiRegistry::new();
     apis.insert(api.exchange(), api);
     OrderManager::new(apis, &DbOptions::new(path), "")
 }

@@ -115,7 +115,7 @@ impl From<TradeOperation> for AddOrderRequest {
 
 pub type FeeAmount = f64;
 
-/// All potential fees incurred by a [FillEvent].
+/// All potential fees incurred by a [`FillEvent`].
 #[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq, Serialize, Deserialize)]
 pub struct Fees {
     /// Fee taken by the exchange/broker (eg/ commission).
@@ -170,14 +170,16 @@ pub struct MarketStat {
 }
 
 impl MarketStat {
+    /// # Panics
+    ///
+    /// trade and candle ticks don't implement market stat
     pub fn from_market_event(e: &MarketEvent) -> Self {
         match e {
-            MarketEvent::Trade(_) => unimplemented!(),
             MarketEvent::Orderbook(o) => MarketStat {
                 w_price: BookPosition::mid(&o.asks, &o.bids),
                 vol: BookPosition::vol(&o.asks, &o.bids),
             },
-            MarketEvent::CandleTick(_) => unimplemented!(),
+            _ => unimplemented!(),
         }
     }
 }

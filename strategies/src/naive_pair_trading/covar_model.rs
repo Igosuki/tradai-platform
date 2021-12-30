@@ -90,26 +90,23 @@ impl LinearSpreadModel {
     pub(super) fn should_eval(&self, event_time: DateTime<Utc>) -> bool {
         let model_time = self.last_sample_time_at_eval;
         let sample_freq = self.sampler.freq();
-        self.linear_model
-            .value()
-            .map(|lm| {
-                let mt_obsolescence = if lm.beta < 0.0 {
-                    // When beta is negative the evaluation frequency is ten times lower
-                    model_time.add(sample_freq.mul(self.beta_eval_freq / 10))
-                } else {
-                    // Model obsolescence is defined here as event time being greater than the sample window
-                    model_time.add(sample_freq.mul(self.beta_eval_freq))
-                };
-                let should_eval_model = event_time.ge(&mt_obsolescence);
-                if should_eval_model {
-                    debug!(
-                        "model obsolete, eval time reached : {} > {} with model_time = {}, beta_val = {}",
-                        event_time, mt_obsolescence, model_time, lm.beta
-                    );
-                }
-                should_eval_model
-            })
-            .unwrap_or(true)
+        self.linear_model.value().map_or(true, |lm| {
+            let mt_obsolescence = if lm.beta < 0.0 {
+                // When beta is negative the evaluation frequency is ten times lower
+                model_time.add(sample_freq.mul(self.beta_eval_freq / 10))
+            } else {
+                // Model obsolescence is defined here as event time being greater than the sample window
+                model_time.add(sample_freq.mul(self.beta_eval_freq))
+            };
+            let should_eval_model = event_time.ge(&mt_obsolescence);
+            if should_eval_model {
+                debug!(
+                    "model obsolete, eval time reached : {} > {} with model_time = {}, beta_val = {}",
+                    event_time, mt_obsolescence, model_time, lm.beta
+                );
+            }
+            should_eval_model
+        })
     }
 
     pub(super) fn predict(&self, current_price: f64) -> Option<f64> {
@@ -142,27 +139,25 @@ impl LinearSpreadModel {
             .last_model_time()
             .unwrap_or_else(|| Utc.timestamp_millis(0));
         trace!(loaded_model_time = %self.last_sample_time_at_eval, "model loaded");
-        if !self.linear_model.is_loaded() {
+        if self.linear_model.is_loaded() {
+            Ok(())
+        } else {
             Err(strategy::error::Error::ModelLoadError(
                 "models not loaded for unknown reasons".to_string(),
             ))
-        } else {
-            Ok(())
         }
     }
 
-    /// Check that model is more recent than sample freq * (eval frequency + CUTOFF_RATIO%)
+    /// Check that model is more recent than sample freq * (eval frequency + `CUTOFF_RATIO`%)
+    #[allow(clippy::cast_possible_truncation, clippy::cast_lossless)]
     pub(super) fn is_obsolete(&self) -> bool {
-        self.linear_model
-            .last_model_time()
-            .map(|at| {
-                at.gt(&now().sub(
-                    self.sampler
-                        .freq()
-                        .mul((self.beta_eval_freq as f64 * (1.0 + LM_AGE_CUTOFF_RATIO)) as i32),
-                ))
-            })
-            .unwrap_or(false)
+        self.linear_model.last_model_time().map_or(false, |at| {
+            at.gt(&now().sub(
+                self.sampler
+                    .freq()
+                    .mul((self.beta_eval_freq as f64 * (1.0 + LM_AGE_CUTOFF_RATIO)) as i32),
+            ))
+        })
     }
 
     pub(super) fn has_model(&self) -> bool { self.linear_model.has_model() && self.linear_model.is_loaded() }

@@ -26,6 +26,11 @@ pub struct IndicatorWindowedModel<T: Serialize + DeserializeOwned, M: Serialize 
 impl<'a, T: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOwned + Copy + Next<Window<'a, T>>>
     IndicatorWindowedModel<T, M>
 {
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
     pub fn new(id: &str, db: Arc<dyn Storage>, window_size: usize, max_size_o: Option<usize>, init: M) -> Self {
         let max_size = max_size_o.unwrap_or_else(|| (1.2 * window_size as f64) as usize);
         Self {

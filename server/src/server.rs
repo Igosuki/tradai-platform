@@ -5,8 +5,8 @@ use actix_cors::Cors;
 use actix_web::middleware::{Compat, Logger};
 use actix_web::web::Data;
 use actix_web::{http, HttpServer};
+use coinnect_rt::exchange::manager::ExchangeApiRegistry;
 
-use coinnect_rt::prelude::*;
 use strategy::{StrategyKey, Trader};
 
 use crate::graphql_schemas::root::create_schema;
@@ -15,7 +15,7 @@ use crate::settings::{ApiSettings, CorsMode, Version};
 pub async fn httpserver(
     settings: &ApiSettings,
     version: Option<Version>,
-    apis: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
+    apis: Arc<ExchangeApiRegistry>,
     strategies: Arc<HashMap<StrategyKey, Trader>>,
 ) -> std::io::Result<()> {
     // Make and start the api

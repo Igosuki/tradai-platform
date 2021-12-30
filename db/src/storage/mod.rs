@@ -192,11 +192,13 @@ impl<S: AsRef<Path>> DbOptions<S> {
 /// use db::{get_or_create, DbOptions, DbEngineOptions, RocksDbOptions};
 /// get_or_create::<&str, &str>(&DbOptions{path: "/tmp/db", engine: DbEngineOptions::RocksDb(RocksDbOptions::default())}, "mydb", vec!["mytable".to_string()]);
 /// ```
+#[allow(clippy::missing_panics_doc)]
 pub fn get_or_create<S: AsRef<Path>, S2: AsRef<Path>>(
     options: &DbOptions<S>,
     path: S2,
     tables: Vec<String>,
 ) -> Arc<dyn Storage> {
+    // TODO: this should obviously return a result
     match options.engine {
         DbEngineOptions::RocksDb(ref opt) => {
             let mut pb: PathBuf = PathBuf::from(options.path.as_ref());

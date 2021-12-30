@@ -20,6 +20,7 @@ pub trait Mean<A = Self> {
 }
 
 impl Mean for f64 {
+    #[allow(clippy::cast_precision_loss)]
     fn mean<I>(iter: I) -> Self
     where
         I: Iterator<Item = f64>,
@@ -45,7 +46,7 @@ impl<'a> Mean<&'a f64> for f64 {
     where
         I: Iterator<Item = &'a f64>,
     {
-        iter.cloned().mean()
+        iter.mean()
     }
 }
 
@@ -68,6 +69,7 @@ pub trait Variance<A = Self> {
 }
 
 impl Variance for f64 {
+    #[allow(clippy::cast_precision_loss)]
     fn variance<I>(iter: I) -> Self
     where
         I: Iterator<Item = f64>,
@@ -94,7 +96,7 @@ impl<'a> Variance<&'a f64> for f64 {
     where
         I: Iterator<Item = &'a f64>,
     {
-        iter.cloned().variance()
+        iter.variance()
     }
 }
 
@@ -117,6 +119,7 @@ pub trait Covariance<B, A = Self> {
 }
 
 impl Covariance<f64, (f64, f64)> for (f64, f64) {
+    #[allow(clippy::cast_precision_loss)]
     // sum((x[i] - mean(x)) * (y[i] - mean(y) )) / n ?
     fn covariance<I>(iter: I) -> f64
     where
@@ -183,7 +186,7 @@ impl<'a> Quantile<&'a f64> for f64 {
     where
         I: Iterator<Item = &'a f64>,
     {
-        iter.cloned().quantile(prob)
+        iter.quantile(prob)
     }
 }
 

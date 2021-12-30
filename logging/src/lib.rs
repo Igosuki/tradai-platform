@@ -1,4 +1,9 @@
-#![allow(clippy::derivable_impls)]
+#![allow(
+    clippy::derivable_impls,
+    clippy::similar_names,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate
+)]
 
 #[macro_use]
 extern crate anyhow;

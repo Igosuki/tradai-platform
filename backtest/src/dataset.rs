@@ -28,29 +28,27 @@ impl Dataset {
             let orderbook_partitions: HashSet<(PathBuf, Vec<(&'static str, String)>)> = broker
                 .subjects()
                 .filter(|c| matches!(c, Channel::Orderbooks { .. }))
-                .map(|c| match c {
+                .filter_map(|c| match c {
                     Channel::Orderbooks { xch, pair } => {
                         Some(self.ds_type.partition(self.base_dir.clone(), dt, *xch, pair))
                     }
                     _ => None,
                 })
-                .flatten()
                 .collect();
             match self.ds_type {
                 DatasetType::OrderbooksByMinute | DatasetType::OrderbooksBySecond => {
                     let input_format = self.input_format.to_string();
                     let event_stream = sampled_orderbooks_df(orderbook_partitions, input_format)
-                        .map(events_from_orderbooks)
+                        .map(|rb| events_from_orderbooks(&rb))
                         .flatten();
                     event_stream.for_each(|event| broker.broadcast(event)).await;
                 }
-                DatasetType::OrderbooksRaw => match self.input_format {
-                    DatasetInputFormat::Csv => {
+                DatasetType::OrderbooksRaw => {
+                    if let DatasetInputFormat::Csv = self.input_format {
                         let records = csv_orderbooks_df(orderbook_partitions).await?;
                         let event_stream = tokio_stream::iter(records).map(events_from_csv_orderbooks).flatten();
                         event_stream.for_each(|event| broker.broadcast(event)).await;
-                    }
-                    _ => {
+                    } else {
                         let records = raw_orderbooks_df(
                             orderbook_partitions,
                             self.input_sample_rate,
@@ -58,11 +56,13 @@ impl Dataset {
                             &self.input_format.to_string(),
                         )
                         .await?;
-                        let event_stream = tokio_stream::iter(records).map(events_from_orderbooks).flatten();
+                        let event_stream = tokio_stream::iter(records)
+                            .map(|rb| events_from_orderbooks(&rb))
+                            .flatten();
                         event_stream.for_each(|event| broker.broadcast(event)).await;
                     }
-                },
-                _ => panic!("order books channel requires an order books dataset"),
+                }
+                DatasetType::Trades => panic!("order books channel requires an order books dataset"),
             };
         }
         Ok(())
@@ -96,7 +96,7 @@ impl DatasetType {
     ///
     /// ```
     pub(crate) fn partition(
-        &self,
+        self,
         base_dir: PathBuf,
         date: Date<Utc>,
         xch: Exchange,

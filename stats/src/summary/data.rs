@@ -12,6 +12,7 @@ pub struct DataSummary {
 }
 
 impl DataSummary {
+    #[allow(clippy::cast_precision_loss)]
     pub fn update(&mut self, next_value: f64) {
         // Increment counter
         self.count += 1;
@@ -140,8 +141,16 @@ mod tests {
                 "Count Input: {:?}",
                 index
             );
-            assert_eq!(data_summary.sum, test.expected_summary.sum, "Sum Input: {:?}", index);
-            assert_eq!(data_summary.mean, test.expected_summary.mean, "Mean Input: {:?}", index);
+            assert!(
+                approx_eq!(f64, data_summary.sum, test.expected_summary.sum),
+                "Sum Input: {:?}",
+                index
+            );
+            assert!(
+                approx_eq!(f64, data_summary.mean, test.expected_summary.mean),
+                "Mean Input: {:?}",
+                index
+            );
 
             let recurrence_diff =
                 data_summary.dispersion.recurrence_relation_m - test.expected_summary.dispersion.recurrence_relation_m;

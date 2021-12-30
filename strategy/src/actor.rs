@@ -50,6 +50,9 @@ impl StrategyActor {
         Self::new_with_uuid(spawner, options, Uuid::new_v4())
     }
 
+    /// # Panics
+    ///
+    /// If the connection backoff cannot be parsed
     pub fn new_with_uuid(spawner: Box<StrategySpawner>, options: &StrategyActorOptions, session_uuid: Uuid) -> Self {
         let inner = spawner();
         let channels = inner.channels();
@@ -246,6 +249,7 @@ mod actor_test {
 
     #[test]
     #[ignore]
+    #[allow(clippy::items_after_statements)]
     fn test_actor() {
         let _ = env_logger::builder().is_test(true).try_init();
 

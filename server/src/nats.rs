@@ -77,6 +77,9 @@ pub struct NatsConsumer {
 }
 
 impl NatsConsumer {
+    /// # Panics
+    ///
+    /// if it cannot acquire a connection to NATS
     pub fn new<T: 'static>(
         nats_host: &str,
         username: &str,
@@ -89,12 +92,13 @@ impl NatsConsumer {
         <T as Message>::Result: Send,
     {
         let connection = nats_conn(nats_host, username, password)?;
+        let recipients = Arc::new(recipients);
         for topic in topics {
-            let recipients = Arc::new(recipients.clone());
+            let arc = recipients.clone();
             connection.subscribe(&topic)?.with_handler(move |msg| {
                 let v: T = serde_json::from_slice(msg.data.as_slice())?;
                 let av = Arc::new(v);
-                for recipient in recipients.as_ref() {
+                for recipient in arc.as_ref() {
                     recipient.do_send(av.clone()).unwrap();
                 }
                 Ok(())

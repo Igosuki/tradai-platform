@@ -2,12 +2,12 @@
 
 # juniper_actix
 
-This repository contains the [actix][actix] web server integration for
-[Juniper][Juniper], a [GraphQL][GraphQL] implementation for Rust, its inspired and some parts are copied from [juniper_warp][juniper_warp]
+This repository contains the [`actix`][`actix`] web server integration for
+[`Juniper`][`Juniper`], a [`GraphQL`][`GraphQL`] implementation for Rust, its inspired and some parts are copied from [juniper_warp][juniper_warp]
 
 ## Documentation
 
-For documentation, including guides and examples, check out [Juniper][Juniper].
+For documentation, including guides and examples, check out [`Juniper`][`Juniper`].
 
 A basic usage example can also be found in the [API documentation][documentation].
 
@@ -18,9 +18,9 @@ server with GraphQL handlers.
 
 ## Links
 
-* [Juniper][Juniper]
+* [`Juniper`][`Juniper`]
 * [API Reference][documentation]
-* [actix][actix]
+* [`actix`][`actix`]
 
 ## License
 
@@ -28,9 +28,9 @@ This project is under the BSD-2 license.
 
 Check the LICENSE file for details.
 
-[actix]: https://github.com/actix/actix-web
-[Juniper]: https://github.com/graphql-rust/juniper
-[GraphQL]: http://graphql.org
+[`actix`]: https://github.com/actix/actix-web
+[`Juniper`]: https://github.com/graphql-rust/juniper
+[`GraphQL`]: http://graphql.org
 [documentation]: https://docs.rs/juniper_actix
 [example]: https://github.com/graphql-rust/juniper/blob/master/juniper_actix/examples/actix_server.rs
 [juniper_warp]: https://github.com/graphql-rust/juniper/juniper_warp
@@ -117,9 +117,10 @@ where
     let req = GraphQLRequest::from(get_req.into_inner());
     let gql_response = req.execute(schema, context).await;
     let body_response = serde_json::to_string(&gql_response)?;
-    let mut response = match gql_response.is_ok() {
-        true => HttpResponse::Ok(),
-        false => HttpResponse::BadRequest(),
+    let mut response = if gql_response.is_ok() {
+        HttpResponse::Ok()
+    } else {
+        HttpResponse::BadRequest()
     };
     Ok(response.content_type("application/json").body(body_response))
 }
@@ -156,9 +157,10 @@ where
     }?;
     let gql_batch_response = req.execute(schema, context).await;
     let gql_response = serde_json::to_string(&gql_batch_response)?;
-    let mut response = match gql_batch_response.is_ok() {
-        true => HttpResponse::Ok(),
-        false => HttpResponse::BadRequest(),
+    let mut response = if gql_batch_response.is_ok() {
+        HttpResponse::Ok()
+    } else {
+        HttpResponse::BadRequest()
     };
     Ok(response.content_type("application/json").body(gql_response))
 }
@@ -177,7 +179,7 @@ where
 /// let app = App::new()
 ///          .route("/", web::get().to(|| graphiql_handler("/graphql", Some("/graphql/subscriptions"))));
 /// ```
-#[allow(dead_code)]
+#[allow(dead_code, clippy::unused_async)]
 pub async fn graphiql_handler(
     graphql_endpoint_url: &str,
     subscriptions_endpoint_url: Option<&'static str>,
@@ -187,6 +189,7 @@ pub async fn graphiql_handler(
 }
 
 /// Create a handler that replies with an HTML page containing GraphQL Playground. This does not handle routing, so you cant mount it on any endpoint.
+#[allow(dead_code, clippy::unused_async)]
 pub async fn playground_handler(
     graphql_endpoint_url: &str,
     subscriptions_endpoint_url: Option<&'static str>,

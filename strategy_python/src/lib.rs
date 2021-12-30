@@ -1,3 +1,13 @@
+#![allow(
+    clippy::wildcard_imports,
+    clippy::used_underscore_binding,
+    clippy::unnecessary_wraps,
+    clippy::module_name_repetitions,
+    clippy::needless_pass_by_value,
+    clippy::unused_self,
+    clippy::missing_errors_doc
+)]
+
 #[macro_use]
 extern crate async_trait;
 #[macro_use]

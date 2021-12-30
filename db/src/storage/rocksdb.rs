@@ -25,21 +25,25 @@ pub struct RocksDbOptions {
 }
 
 impl RocksDbOptions {
+    #[must_use]
     pub fn read_only(mut self, read_only: bool) -> Self {
         self.read_only = read_only;
         self
     }
 
+    #[must_use]
     pub fn max_log_file_size(mut self, max_log_file_size: usize) -> Self {
         self.max_log_file_size = Some(max_log_file_size);
         self
     }
 
+    #[must_use]
     pub fn keep_log_file_num(mut self, keep_log_file_num: usize) -> Self {
         self.keep_log_file_num = Some(keep_log_file_num);
         self
     }
 
+    #[must_use]
     pub fn max_total_wal_size(mut self, max_total_wal_size: usize) -> Self {
         self.max_total_wal_size = Some(max_total_wal_size);
         self
@@ -326,6 +330,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::cast_sign_loss)]
     fn delete_ranged_cf() {
         init();
         let table = "rows";

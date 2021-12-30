@@ -81,10 +81,10 @@ fn it_backtest_wrapper<'p>(
                 .await;
                 debug!("positions = {:?}", positions);
                 tx.send(positions).await.unwrap();
-            })
+            });
         });
         let positions = rx.recv().await.unwrap_or_default();
-        let py_positions: Vec<PyPosition> = positions.into_iter().map(|v| v.into()).collect();
+        let py_positions: Vec<PyPosition> = positions.into_iter().map(Into::into).collect();
         Python::with_gil(|py| Ok(py_positions.into_py(py)))
     })
 }

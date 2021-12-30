@@ -35,9 +35,10 @@ impl SharpeRatio {
         self.trades_per_day = pnl_returns.trades_per_day;
 
         // Calculate Sharpe Ratio Per Trade
-        self.sharpe_ratio_per_trade = match pnl_returns.total.dispersion.std_dev == 0.0 {
-            true => 0.0,
-            false => (pnl_returns.total.mean - self.risk_free_return) / pnl_returns.total.dispersion.std_dev,
+        self.sharpe_ratio_per_trade = if pnl_returns.total.dispersion.std_dev == 0.0 {
+            0.0
+        } else {
+            (pnl_returns.total.mean - self.risk_free_return) / pnl_returns.total.dispersion.std_dev
         };
     }
 }
@@ -69,9 +70,10 @@ impl SortinoRatio {
         self.trades_per_day = pnl_returns.trades_per_day;
 
         // Calculate Sortino Ratio Per Trade
-        self.sortino_ratio_per_trade = match pnl_returns.losses.dispersion.std_dev == 0.0 {
-            true => 0.0,
-            false => (pnl_returns.total.mean - self.risk_free_return) / pnl_returns.losses.dispersion.std_dev,
+        self.sortino_ratio_per_trade = if pnl_returns.losses.dispersion.std_dev == 0.0 {
+            0.0
+        } else {
+            (pnl_returns.total.mean - self.risk_free_return) / pnl_returns.losses.dispersion.std_dev
         };
     }
 }
@@ -103,9 +105,10 @@ impl CalmarRatio {
         self.trades_per_day = pnl_returns.trades_per_day;
 
         // Calculate Calmar Ratio Per Trade
-        self.calmar_ratio_per_trade = match max_drawdown == 0.0 {
-            true => 0.0,
-            false => (pnl_returns.total.mean - self.risk_free_return) / max_drawdown.abs(),
+        self.calmar_ratio_per_trade = if max_drawdown == 0.0 {
+            0.0
+        } else {
+            (pnl_returns.total.mean - self.risk_free_return) / max_drawdown.abs()
         };
     }
 }
@@ -113,7 +116,7 @@ impl CalmarRatio {
 pub fn calculate_daily(ratio_per_trade: f64, trades_per_day: f64) -> f64 { ratio_per_trade * trades_per_day.sqrt() }
 
 pub fn calculate_annual(ratio_per_trade: f64, trades_per_day: f64, trading_days: u32) -> f64 {
-    calculate_daily(ratio_per_trade, trades_per_day) * (trading_days as f64).sqrt()
+    calculate_daily(ratio_per_trade, trades_per_day) * f64::from(trading_days).sqrt()
 }
 
 #[cfg(test)]
@@ -355,7 +358,7 @@ mod tests {
 
         for test in test_cases {
             let actual = calculate_daily(test.ratio_per_trade, test.trades_per_day);
-            assert_eq!(actual, test.expected_daily)
+            assert!(approx_eq!(f64, actual, test.expected_daily));
         }
     }
 
@@ -421,7 +424,7 @@ mod tests {
 
         for test in test_cases {
             let actual = calculate_annual(test.ratio_per_trade, test.trades_per_day, test.trading_days);
-            assert_eq!(actual, test.expected_annual)
+            assert!(approx_eq!(f64, actual, test.expected_annual));
         }
     }
 }

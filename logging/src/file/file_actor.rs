@@ -1,6 +1,7 @@
 use std::cell::{RefCell, RefMut};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -25,7 +26,7 @@ type RotatingWriter = Writer<'static, RotatingFile<SizeAndExpirationPolicy>>;
 pub struct FileActorOptions<T> {
     pub base_dir: String,
     /// Max file size in bytes
-    pub max_file_size: u64,
+    pub max_file_size: u128,
     /// Max time before closing file
     pub max_file_time: Duration,
     /// Record partitioner
@@ -78,7 +79,7 @@ where
 
     /// Finds the next incremental file name for this path
     fn next_file_part_name(previous: &Path) -> Option<PathBuf> {
-        let previous_name = previous.file_stem().and_then(|os_str| os_str.to_str())?;
+        let previous_name = previous.file_stem().and_then(OsStr::to_str)?;
         let i = previous_name.rfind('-')?;
         let (stem, num) = previous_name.split_at(i + 1);
         let next_name = format!("{}{:04}.{}", stem, num.parse::<i32>().ok()? + 1, AVRO_EXTENSION);
@@ -113,7 +114,7 @@ where
                     Box::new(file_path),
                     self.rotation_policy.clone(),
                     AvroFileActor::<T>::next_file_part_name,
-                    Some(avro_header(schema, marker.clone())?),
+                    Some(avro_header(schema, &marker)?),
                 )
                 .map_err(Error::IO)?;
 
@@ -135,6 +136,10 @@ where
     }
 
     /// Append an avro serializable to this writer
+    ///
+    /// # Errors
+    ///
+    /// Writer fails to append
     pub fn append_log<S: std::fmt::Debug + Serialize, W: Write>(
         &self,
         writer: &mut RefMut<'_, Writer<'_, W>>,
@@ -188,7 +193,7 @@ impl<T> Drop for AvroFileActor<T> {
 const AVRO_OBJECT_HEADER: &[u8] = &[b'O', b'b', b'j', 1u8];
 
 /// Get a byte array of avro file header with byte encoded metadata
-fn avro_header(schema: &Schema, marker: Vec<u8>) -> Result<Vec<u8>, Error> {
+fn avro_header(schema: &Schema, marker: &[u8]) -> Result<Vec<u8>, Error> {
     let schema_bytes = serde_json::to_string(schema)
         .map_err(|_e| Error::NoSchema)?
         .into_bytes();
@@ -200,7 +205,7 @@ fn avro_header(schema: &Schema, marker: Vec<u8>) -> Result<Vec<u8>, Error> {
     let mut header = Vec::new();
     header.extend_from_slice(AVRO_OBJECT_HEADER);
     encode(&metadata.into(), &Schema::Map(Box::new(Schema::Bytes)), &mut header);
-    header.extend_from_slice(&marker);
+    header.extend_from_slice(marker);
 
     Ok(header)
 }
@@ -248,20 +253,20 @@ mod test {
                 vec![(0.1, 0.1), (0.2, 0.2)],
             ));
             println!("Sending...");
-            for _ in 0..100000 {
+            for _ in 0..100_000 {
                 addr.do_send(order_book_event.clone());
             }
             thread::sleep(std::time::Duration::from_secs(2));
-            for _ in 0..100000 {
+            for _ in 0..100_000 {
                 addr.do_send(order_book_event.clone());
             }
             thread::sleep(std::time::Duration::from_secs(2));
-            for _ in 0..100000 {
+            for _ in 0..100_000 {
                 addr.do_send(order_book_event.clone());
             }
             System::current().stop();
         });
         let content = get_dir_content(x).unwrap();
-        assert_eq!(content.files.len(), 2)
+        assert_eq!(content.files.len(), 2);
     }
 }

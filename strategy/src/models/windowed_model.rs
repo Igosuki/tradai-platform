@@ -28,6 +28,11 @@ pub struct PersistentWindowedModel<T: Serialize + DeserializeOwned, M: Serialize
 impl<'a, T: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOwned + Default + Copy>
     PersistentWindowedModel<T, M>
 {
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )]
     pub fn new(
         id: &str,
         db: Arc<dyn Storage>,
@@ -48,7 +53,7 @@ impl<'a, T: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOw
         if self.is_filled() && !self.has_model() {
             self.model.set_last_model(M::default());
         }
-        self.model.update(self.window_fn, self.rows.window()).unwrap();
+        self.model.update(self.window_fn, self.rows.window())?;
         Ok(())
     }
 
@@ -161,7 +166,7 @@ mod test {
         let mut table = PersistentWindowedModel::new(id, db, 1000, Some(max_size), sum_window, None);
         let mut gen = Gen::new(500);
         for _ in 0..max_size {
-            table.push(TestRow::arbitrary(&mut gen))
+            table.push(TestRow::arbitrary(&mut gen));
         }
         b.iter(|| {
             table.update().unwrap();

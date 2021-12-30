@@ -99,6 +99,7 @@ pub(crate) fn mstrategy(py: Python, class: PyObject) -> PyResult<()> {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
     use strategy::coinnect::exchange::Exchange;
 
     use strategy::driver::Strategy;
@@ -122,7 +123,7 @@ mod test {
     #[test]
     fn test_python_from_python() {
         let python_script = python_script("calls").unwrap();
-        let strat_wrapper = PyScriptStrategyProvider::new(default_test_context(), Default::default(), python_script);
+        let strat_wrapper = PyScriptStrategyProvider::new(default_test_context(), HashMap::default(), python_script);
         let strat = strat_wrapper.wrapped();
         let whoami: String = strat.with_strat(|py_strat| {
             let r = py_strat.call_method0("whoami");
@@ -136,13 +137,13 @@ mod test {
             'strat.models()
             'strat.channels()
             import sys; sys.stdout.flush()
-        })
+        });
     }
 
     #[tokio::test]
     async fn test_python_baseline_impl() -> strategy::error::Result<()> {
         let python_script = python_script("calls").unwrap();
-        let strat_wrapper = PyScriptStrategyProvider::new(default_test_context(), Default::default(), python_script);
+        let strat_wrapper = PyScriptStrategyProvider::new(default_test_context(), HashMap::default(), python_script);
         let mut strat = strat_wrapper.wrapped();
         strat.init()?;
         strat.model();
@@ -154,11 +155,11 @@ mod test {
     #[should_panic]
     fn test_fail_unimplemented() {
         let python_script = python_script("unimplemented").unwrap();
-        let strat_wrapper = PyScriptStrategyProvider::new(default_test_context(), Default::default(), python_script);
+        let strat_wrapper = PyScriptStrategyProvider::new(default_test_context(), HashMap::default(), python_script);
         let strat = strat_wrapper.wrapped();
         strat.with_strat(|py_strat| {
             let r = py_strat.call_method0("init");
-            assert!(r.is_ok())
+            assert!(r.is_ok());
         });
     }
 }

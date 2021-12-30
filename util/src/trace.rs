@@ -9,10 +9,14 @@ use tracing_subscriber::EnvFilter;
 use tracing_timing::group::ByName;
 use tracing_timing::{Histogram, LayerDowncaster};
 
+/// # Panics
+///
+/// Panics if the flame file cannot be created at './tracing.folded'
+#[must_use]
 pub fn setup_flame_subscriber() -> impl Drop {
-    let (flame_layer, _guard) = tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
+    let (flame_layer, guard) = tracing_flame::FlameLayer::with_file("./tracing.folded").unwrap();
     tracing_subscriber::registry().with(flame_layer).init();
-    _guard
+    guard
 }
 
 fn tracing_log_subscriber() -> Subscriber {
@@ -24,12 +28,15 @@ fn tracing_log_subscriber() -> Subscriber {
 }
 
 ///  ```rust
-///  fn do_stuff() {
+///  use util::trace::setup_timing_subscriber;
+/// fn do_stuff() {
 ///     let sid = setup_timing_subscriber();
 ///     // Compute things...
 ///     print_timings(sid);
 ///  }
 /// ```
+#[must_use]
+#[allow(clippy::missing_panics_doc)]
 pub fn setup_timing_subscriber() -> LayerDowncaster<ByName, ByName> {
     let timing_subscriber = tracing_timing::Builder::default()
         .events(tracing_timing::group::ByName)
@@ -40,15 +47,14 @@ pub fn setup_timing_subscriber() -> LayerDowncaster<ByName, ByName> {
     sid
 }
 
+#[allow(clippy::missing_panics_doc)]
 pub fn print_timings(sid: LayerDowncaster<ByName, ByName>) {
     tracing::dispatcher::get_default(|dispatcher| {
         let layer = sid.downcast(dispatcher).unwrap();
         layer.force_synchronize();
         layer.with_histograms(|hs| {
-            let hist_keys: Vec<String> = hs.keys().map(|k| k.to_string()).collect();
-            for hkey in hist_keys {
-                let events_hs = hs.get_mut(hkey.as_str()).unwrap();
-                let keys: Vec<String> = events_hs.keys().map(|k| k.to_string()).collect();
+            for (hkey, events_hs) in hs.iter_mut() {
+                let keys: Vec<String> = events_hs.keys().map(ToString::to_string).collect();
                 for k in keys {
                     let h = &events_hs[k.as_str()];
                     println!(" for {} in {} : {}", k, hkey, display_hist_percentiles(h));
@@ -58,6 +64,7 @@ pub fn print_timings(sid: LayerDowncaster<ByName, ByName>) {
     });
 }
 
+#[must_use]
 pub fn display_hist_percentiles<T: Counter>(h: &Histogram<T>) -> String {
     format!(
         "count: {}, mean: {:.1}µs, p50: {}µs, p90: {}µs, p99: {}µs, p999: {}µs, max: {}µs",
@@ -71,10 +78,14 @@ pub fn display_hist_percentiles<T: Counter>(h: &Histogram<T>) -> String {
     )
 }
 
+#[must_use]
+#[allow(clippy::missing_panics_doc)]
 pub fn microtime_histogram() -> Histogram<u64> {
     Histogram::<u64>::new_with_max(60 * 60 * 1000 * 1000 * 1000, 2).unwrap()
 }
 
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
 pub fn microtime_percentiles<T: Counter>(h: &Histogram<T>) -> HashMap<String, f64> {
     hashmap! {
         "mean".to_string() => h.mean() / 1000.0,
@@ -87,6 +98,9 @@ pub fn microtime_percentiles<T: Counter>(h: &Histogram<T>) -> HashMap<String, f6
     }
 }
 
+/// # Panics
+///
+/// Panics if the open telemetry pipeline cannot be created
 pub fn setup_opentelemetry(agent_endpoints: String, service_name: String, tags: HashMap<String, String>) {
     let tags: Vec<KeyValue> = tags.into_iter().map(|(k, v)| KeyValue::new(k, v)).collect();
     let tracer = opentelemetry_jaeger::new_pipeline()

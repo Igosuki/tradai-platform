@@ -80,7 +80,7 @@ impl GenericDriver {
             inner: RwLock::new(strat),
             initialized: false,
             start_trading: driver_options.start_trading,
-            status: Default::default(),
+            status: StrategyStatus::default(),
             portfolio,
             engine,
             strat_key,
@@ -167,18 +167,18 @@ impl GenericDriver {
         };
         metrics::get().log_is_trading(self.strat_key.as_str(), self.is_trading());
         if self.portfolio.has_any_failed_position() {
-            metrics::get().log_failed_position(&le.xch, &le.pair);
+            metrics::get().log_failed_position(le.xch, &le.pair);
             return Ok(());
         }
         if !self.portfolio.locks().is_empty() {
-            metrics::get().log_lock(&le.xch, &le.pair);
+            metrics::get().log_lock(le.xch, &le.pair);
             return Ok(());
         }
         if self.is_trading() {
             if let Some(signals) = signals {
                 if !signals.is_empty() {
                     if let Err(e) = self.process_signals(signals.as_slice()).await {
-                        metrics::get().signal_error(&le.xch, &le.pair);
+                        metrics::get().signal_error(le.xch, &le.pair);
                         metrics::get().log_error(e.short_name());
                         error!(err = %e, "error processing signals");
                     }
@@ -285,7 +285,7 @@ impl StrategyDriver for GenericDriver {
         let locked_ids: Vec<String> = self.portfolio.locks().values().map(|v| v.order_id.clone()).collect();
         for lock in &locked_ids {
             match self.engine.order_executor.get_order(lock.as_str()).await {
-                Ok((order, _)) => match self.portfolio.update_position(order) {
+                Ok((order, _)) => match self.portfolio.update_position(&order) {
                     Ok(Some(pos)) => {
                         if let Some(logger) = self.logger.as_ref() {
                             if let Ok(strat_event) = pos.try_into() {

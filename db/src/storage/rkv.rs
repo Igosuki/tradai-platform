@@ -1,8 +1,11 @@
+use itertools::Itertools;
 use std::fs;
 use std::path::Path;
+use std::str::Utf8Error;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 use crate::rkv::DataStoreError::LockError;
+use ext::ResultExt;
 use rkv::backend::{BackendDatabase, BackendEnvironmentBuilder, BackendRwTransaction, Lmdb, LmdbDatabase,
                    LmdbEnvironment, LmdbRwTransaction};
 use rkv::{Manager, OwnedValue, Rkv, SingleStore, StoreError, StoreOptions, Value, Writer};
@@ -26,6 +29,8 @@ pub enum DataStoreError {
     IOError(#[from] std::io::Error),
     #[error("lock poison error")]
     LockError,
+    #[error("failed to decode utf8")]
+    DecodeError(#[from] Utf8Error),
 }
 
 #[derive(Debug, Clone)]
@@ -72,18 +77,18 @@ impl Db {
 
         let mut builder = Rkv::environment_builder::<Lmdb>();
         builder.set_max_dbs(5);
-        builder.set_map_size(10_i32.pow(8) as usize);
+        builder.set_map_size(10_u32.pow(8) as usize);
         Rkv::from_builder(path, builder)
     }
 
-    pub fn with_db<F, B>(&self, process: F) -> B
+    pub fn with_db<F, B>(&self, process: F) -> DbResult<B>
     where
-        F: Fn(RwLockReadGuard<'_, RkvLmdb>, SingleStore<LmdbDatabase>) -> B,
+        F: Fn(RwLockReadGuard<'_, RkvLmdb>, SingleStore<LmdbDatabase>) -> DbResult<B>,
     {
-        let env = self.rwl.read().unwrap();
+        let env = self.rwl.read().map_err(|_| DataStoreError::LockError)?;
         // Then you can use the environment handle to get a handle to a datastore:
         let x: &str = &self.name;
-        let store = env.open_single(x, StoreOptions::create()).unwrap();
+        let store = env.open_single(x, StoreOptions::create())?;
         process(env, store)
     }
 
@@ -93,28 +98,28 @@ impl Db {
         E: Into<DataStoreError>,
     {
         self.with_db(|env, store| {
-            let mut w = env.write().unwrap();
-            process(&mut w, store).map_err(|e| e.into())?;
-            w.commit().map_err(|e| e.into())
+            let mut w = env.write().map_err(|_| DataStoreError::LockError)?;
+            process(&mut w, store).map_err(Into::into)?;
+            w.commit().map_err(Into::into)
         })
     }
 
-    pub fn all(&self) -> Vec<String> {
+    pub fn all(&self) -> DbResult<Vec<String>> {
         self.with_db(|env, store| {
-            let reader = env.read().unwrap();
+            let reader = env.read().map_err(|_| DataStoreError::LockError)?;
             let mut strings: Vec<String> = Vec::new();
-            for (kb, ov) in store.iter_start(&reader).unwrap().flatten() {
+            for (kb, ov) in store.iter_start(&reader)?.flatten() {
                 let result: Option<&str> = std::str::from_utf8(kb).ok();
-                strings.push(format!("{:?}:{:?}", result, ov))
+                strings.push(format!("{:?}:{:?}", result, ov));
             }
-            strings
+            Ok(strings)
         })
     }
 
-    pub fn read_json_vec<T: DeserializeOwned>(&self, key: &str) -> Vec<T> {
+    pub fn read_json_vec<T: DeserializeOwned>(&self, key: &str) -> DbResult<Vec<T>> {
         self.with_db(|env, store| {
-            let reader = env.read().expect("reader");
-            let iter = store.iter_from(&reader, key).unwrap();
+            let reader = env.read().map_err(|_| DataStoreError::LockError)?;
+            let iter = store.iter_from(&reader, key)?;
             let x: Vec<T> = iter
                 .flat_map(|r| {
                     r.map_err(DataStoreError::StoreError).and_then(|v| match v.1 {
@@ -128,62 +133,68 @@ impl Db {
                     })
                 })
                 .collect();
-            x
+            Ok(x)
         })
     }
 
-    pub fn read_all_json<T: DeserializeOwned>(&self) -> Vec<(String, T)> {
+    pub fn read_all_json<T: DeserializeOwned>(&self) -> DbResult<Vec<(String, T)>> {
         self.with_db(|env, store| {
-            let reader = env.read().expect("reader");
-            let iter = store.iter_start(&reader).unwrap();
-            iter.map(|r| {
-                r.map_err(DataStoreError::StoreError).and_then(|v| match v.1 {
-                    rkv::value::Value::Json(json_str) => {
-                        let t = serde_json::from_str::<T>(json_str).map_err(DataStoreError::JsonError);
-                        t.map(|record| (std::str::from_utf8(v.0).unwrap().to_string(), record))
+            let reader = env.read()?;
+            let iter = store.iter_start(&reader)?;
+            let x = iter
+                .filter_map_ok(|v| {
+                    match v.1 {
+                        rkv::value::Value::Json(json_str) => {
+                            let t = serde_json::from_str::<T>(json_str).map_err(DataStoreError::JsonError);
+                            t.and_then(|record| std::str::from_utf8(v.0).map(|s| (s.to_string(), record)).err_into())
+                        }
+                        rkv::value::Value::Blob(str) => {
+                            let t = bincode::deserialize::<T>(str).map_err(DataStoreError::BlobError);
+                            t.and_then(|record| std::str::from_utf8(v.0).map(|s| (s.to_string(), record)).err_into())
+                        }
+                        _ => Err(DataStoreError::ExpectedJson),
                     }
-                    rkv::value::Value::Blob(str) => {
-                        let t = bincode::deserialize::<T>(str).map_err(DataStoreError::BlobError);
-                        t.map(|record| (std::str::from_utf8(v.0).unwrap().to_string(), record))
-                    }
-                    _ => Err(DataStoreError::ExpectedJson),
+                    .ok()
                 })
-            })
-            .filter_map(|r| r.ok())
-            .collect()
+                .flatten()
+                .collect();
+            Ok(x)
         })
     }
 
-    pub fn read_json<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
+    pub fn read_json<T: DeserializeOwned>(&self, key: &str) -> DbResult<Option<T>> {
         self.with_db(|env, store| {
-            let reader = env.read().expect("reader");
-            store.get(&reader, key).unwrap().and_then(|v| match v {
-                rkv::value::Value::Json(json_str) => serde_json::from_str::<T>(json_str).ok(),
+            let reader = env.read().map_err(|_| DataStoreError::LockError)?;
+            let v = match store.get(&reader, key)? {
+                Some(rkv::value::Value::Json(json_str)) => serde_json::from_str::<T>(json_str).ok(),
                 _ => None,
-            })
+            };
+            Ok(v)
         })
     }
 
-    pub fn read_string(&self, key: &str) -> Option<String> {
+    pub fn read_string(&self, key: &str) -> DbResult<Option<String>> {
         self.with_db(|env, store| {
-            let reader = env.read().expect("reader");
-            store.get(&reader, key).unwrap().and_then(|v| match v {
-                rkv::value::Value::Str(s) => Some(s.to_string()),
+            let reader = env.read().map_err(|_| DataStoreError::LockError)?;
+            let v = match store.get(&reader, key)? {
+                Some(rkv::value::Value::Str(s)) => Some(s.to_string()),
                 _ => None,
-            })
+            };
+            Ok(v)
         })
     }
 
-    pub fn read_b<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
+    pub fn read_b<T: DeserializeOwned>(&self, key: &str) -> DbResult<Option<T>> {
         self.with_db(|env, store| {
-            let reader = env.read().expect("reader");
-            store.get(&reader, key).unwrap().and_then(|v| match v {
-                rkv::value::Value::Blob(s) => {
-                    let v: T = bincode::deserialize(s).unwrap();
+            let reader = env.read().map_err(|_| DataStoreError::LockError)?;
+            let v = match store.get(&reader, key)? {
+                Some(rkv::value::Value::Blob(s)) => {
+                    let v: T = bincode::deserialize(s)?;
                     Some(v)
                 }
                 _ => None,
-            })
+            };
+            Ok(v)
         })
     }
 
@@ -192,21 +203,23 @@ impl Db {
     }
 
     pub fn put_json<T: Serialize>(&self, key: &str, v: T) -> WriteResult {
-        self.write(|writer, store| {
-            let result = serde_json::to_string(&v).unwrap();
-            store.put(writer, &key, &Value::Json(&result))
+        self.write::<_, DataStoreError>(|writer, store| {
+            let result = serde_json::to_string(&v)?;
+            store.put(writer, &key, &Value::Json(&result)).err_into()
         })
     }
 
     pub fn put_all_json<T: Serialize>(&self, key: &str, v: &[T]) -> WriteResult {
-        self.write::<_, rkv::StoreError>(|writer, store| {
+        self.write::<_, DataStoreError>(|writer, store| {
             v.iter()
                 .enumerate()
                 .map(|(i, v)| {
-                    let result = serde_json::to_string(&v).unwrap();
-                    store.put(writer, &format!("{}{}", key, i), &Value::Json(&result))
+                    let result = serde_json::to_string(&v)?;
+                    store
+                        .put(writer, &format!("{}{}", key, i), &Value::Json(&result))
+                        .err_into()
                 })
-                .collect::<Result<Vec<()>, rkv::StoreError>>()?;
+                .collect::<Result<Vec<()>, DataStoreError>>()?;
             Ok(())
         })
     }
@@ -230,27 +243,27 @@ impl Db {
 
     pub fn replace_all<T: Serialize>(&self, key: &str, v: &[T]) -> WriteResult {
         self.with_db(|env, store| {
-            let reader = env.read().unwrap();
-            let mut iter = store.iter_from(&reader, key).unwrap();
-            let mut writer = env.write().unwrap();
+            let reader = env.read().map_err(|_| DataStoreError::LockError)?;
+            let mut iter = store.iter_from(&reader, key)?;
+            let mut writer = env.write().map_err(|_| DataStoreError::LockError)?;
             while let Some(Ok((k, _v))) = iter.next() {
-                store.delete(&mut writer, std::str::from_utf8(k).unwrap()).unwrap();
-                //Self::safe_delete(store, writer, str::from_utf8(k).unwrap())?;
+                store.delete(&mut writer, std::str::from_utf8(k)?)?;
             }
             v.iter()
                 .enumerate()
                 .map(|(i, v)| {
-                    let encoded: Vec<u8> = bincode::serialize(&v).unwrap();
-                    store.put(&mut writer, &format!("{}{}", key, i), &Value::Blob(&encoded))
+                    let encoded: Vec<u8> = bincode::serialize(&v)?;
+                    store
+                        .put(&mut writer, &format!("{}{}", key, i), &Value::Blob(&encoded))
+                        .err_into()
                 })
-                .collect::<Result<Vec<()>, rkv::StoreError>>()
-                .unwrap();
+                .collect::<Result<Vec<()>, DataStoreError>>()?;
             Ok(writer.commit()?)
         })
     }
 
     pub fn put_b<T: Serialize>(&self, key: &str, v: &T) -> WriteResult {
-        let encoded: Vec<u8> = bincode::serialize(&v).unwrap();
+        let encoded: Vec<u8> = bincode::serialize(&v)?;
         self.put(key, &OwnedValue::Blob(encoded))
     }
 
@@ -273,11 +286,13 @@ mod test {
     use rkv::backend::LmdbDatabase;
     use rkv::{SingleStore, Value};
 
+    use crate::rkv::{DataStoreError, DbResult};
     use util::test::test_dir;
 
     use super::{Db, RkvLmdb};
 
-    fn make_db_test(env: RwLockReadGuard<'_, RkvLmdb>, store: SingleStore<LmdbDatabase>) {
+    #[allow(clippy::unreadable_literal)]
+    fn make_db_test(env: RwLockReadGuard<'_, RkvLmdb>, store: SingleStore<LmdbDatabase>) -> DbResult<()> {
         {
             // Use a write transaction to mutate the store via a `Writer`.
             // There can be only one writer for a given environment, so opening
@@ -310,7 +325,7 @@ mod test {
             // Use a read transaction to query the store via a `Reader`.
             // There can be multiple concurrent readers for a store, and readers
             // never block on a writer nor other readers.
-            let reader = env.read().expect("reader");
+            let reader = env.read().map_err(|_| DataStoreError::LockError).unwrap();
 
             // Keys are `AsRef<u8>`, and the return value is `Result<Option<Value>, StoreError>`.
             println!("Get int {:?}", store.get(&reader, "int").unwrap());
@@ -338,7 +353,7 @@ mod test {
             let mut writer = env.write().unwrap();
             store.put(&mut writer, "foo", &Value::Str("bar")).unwrap();
             writer.abort();
-            let reader = env.read().expect("reader");
+            let reader = env.read().map_err(|_| DataStoreError::LockError).unwrap();
             println!("It should be None! ({:?})", store.get(&reader, "foo").unwrap());
         }
 
@@ -350,7 +365,7 @@ mod test {
                 let mut writer = env.write().unwrap();
                 store.put(&mut writer, "foo", &Value::Str("bar")).unwrap();
             }
-            let reader = env.read().expect("reader");
+            let reader = env.read().map_err(|_| DataStoreError::LockError).unwrap();
             println!("It should be None! ({:?})", store.get(&reader, "foo").unwrap());
         }
 
@@ -373,13 +388,13 @@ mod test {
             // But a reader won't see that change until the write transaction
             // is committed.
             {
-                let reader = env.read().expect("reader");
+                let reader = env.read().map_err(|_| DataStoreError::LockError).unwrap();
                 println!("Get foo {:?}", store.get(&reader, "foo").unwrap());
                 println!("Get bar {:?}", store.get(&reader, "bar").unwrap());
             }
             writer.commit().unwrap();
             {
-                let reader = env.read().expect("reader");
+                let reader = env.read().map_err(|_| DataStoreError::LockError).unwrap();
                 println!("It should be None! ({:?})", store.get(&reader, "foo").unwrap());
                 println!("Get bar {:?}", store.get(&reader, "bar").unwrap());
             }
@@ -406,11 +421,12 @@ mod test {
             }
 
             {
-                let reader = env.read().expect("reader");
+                let reader = env.read().map_err(|_| DataStoreError::LockError).unwrap();
                 println!("It should be None! ({:?})", store.get(&reader, "foo").unwrap());
                 println!("It should be None! ({:?})", store.get(&reader, "bar").unwrap());
             }
         }
+        Ok(())
     }
 
     fn db() -> Db {
@@ -424,7 +440,7 @@ mod test {
         number: i32,
     }
 
-    fn insert_json(env: RwLockReadGuard<'_, RkvLmdb>, store: SingleStore<LmdbDatabase>) {
+    fn insert_json(env: RwLockReadGuard<'_, RkvLmdb>, store: SingleStore<LmdbDatabase>) -> DbResult<()> {
         let mut writer = env.write().unwrap();
         store
             .put(&mut writer, "jsona", &Value::Json(r#"{"foo":"bar", "number": 1}"#))
@@ -433,13 +449,14 @@ mod test {
             .put(&mut writer, "jsonb", &Value::Json(r#"{"foo":"bar", "number": 2}"#))
             .unwrap();
         writer.commit().unwrap();
+        Ok(())
     }
 
     #[test]
     fn db_json_fetch() {
         let db = db();
-        db.with_db(insert_json);
-        let vec: Vec<Foobar> = db.read_json_vec("json");
+        db.with_db(insert_json).unwrap();
+        let vec: Vec<Foobar> = db.read_json_vec("json").unwrap();
         assert_eq!(vec, [
             Foobar {
                 foo: "bar".to_string(),
@@ -449,13 +466,13 @@ mod test {
                 foo: "bar".to_string(),
                 number: 2,
             }
-        ])
+        ]);
     }
 
     #[test]
     fn db_json_put_all_max() {
         let db = db();
-        db.with_db(insert_json);
+        db.with_db(insert_json).unwrap();
         let mut vec: Vec<Foobar> = Vec::new();
         for i in 0..10000 {
             vec.push(Foobar {
@@ -470,13 +487,13 @@ mod test {
     #[test]
     fn db_test_basics() {
         let db = db();
-        db.with_db(make_db_test);
+        db.with_db(make_db_test).unwrap();
     }
 
     #[test]
     fn db_insert_large_array() {
         let db = db();
-        let size = 100000;
+        let size = 100_000;
         let mut vals: Vec<(f64, f64)> = Vec::with_capacity(size);
         let now = Instant::now();
         for _i in 0..10000 {
@@ -499,9 +516,9 @@ mod test {
         //db.replace_all("row", vals.as_slice());
 
         let now = Instant::now();
-        let read_values: Vec<(f64, f64)> = db.read_b("row").unwrap();
+        let read_values: Vec<(f64, f64)> = db.read_b("row").unwrap().unwrap();
         println!("read larger array in {}", now.elapsed().as_millis());
-        assert_eq!(read_values.len(), size)
+        assert_eq!(read_values.len(), size);
     }
 
     // #[test]

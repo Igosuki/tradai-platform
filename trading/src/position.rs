@@ -78,9 +78,9 @@ pub struct PositionMeta {
 impl Default for PositionMeta {
     fn default() -> Self {
         Self {
-            enter_trace_id: Default::default(),
+            enter_trace_id: Uuid::default(),
             open_at: Utc::now(),
-            last_update_trace_id: Default::default(),
+            last_update_trace_id: Uuid::default(),
             last_update: Utc::now(),
             close_trace_id: None,
             close_at: None,
@@ -154,7 +154,7 @@ impl Default for Position {
     fn default() -> Self {
         Self {
             id: Uuid::new_v4(),
-            meta: Default::default(),
+            meta: PositionMeta::default(),
             exchange: Exchange::Binance,
             symbol: "BTC_USDT".into(),
             kind: PositionKind::default(),
@@ -170,6 +170,11 @@ impl Default for Position {
 }
 
 impl Position {
+    /// Builds a position from an opening order
+    ///
+    /// # Panics
+    ///
+    /// if the exchange string cannot be parsed
     pub fn open(order: &OrderDetail) -> Self {
         let kind = match order.side {
             TradeType::Sell => PositionKind::Short,
@@ -226,15 +231,14 @@ impl Position {
     }
 
     pub fn current_value_gross(&self) -> f64 {
-        self.open_order
-            .as_ref()
-            .map(|o| o.total_executed_qty)
-            .unwrap_or(0.0)
-            .abs()
-            * self.current_symbol_price
+        self.open_order.as_ref().map_or(0.0, |o| o.total_executed_qty).abs() * self.current_symbol_price
     }
 
-    /// Calculate the approximate [Position::unreal_profit_loss] of a [Position].
+    /// Calculate the approximate [`Position::unreal_profit_loss`] of a [`Position`].
+    ///
+    /// # Panics
+    ///
+    /// if there is no open order (this should not happen as an open order is required to create a position)
     pub fn calculate_unreal_profit_loss(&self, fees_rate: f64, interests: f64) -> f64 {
         // (open_qty * price) - fees
         let enter_value = self.open_quote_value();
@@ -249,11 +253,16 @@ impl Position {
         }
     }
 
-    fn open_quote_value(&self) -> f64 { self.open_order.as_ref().map(|o| o.realized_quote_value()).unwrap() }
+    fn open_quote_value(&self) -> f64 { self.open_order.as_ref().map(OrderDetail::realized_quote_value).unwrap() }
 
-    fn close_quote_value(&self) -> f64 { self.close_order.as_ref().map(|o| o.realized_quote_value()).unwrap() }
+    fn close_quote_value(&self) -> f64 {
+        self.close_order
+            .as_ref()
+            .map(OrderDetail::realized_quote_value)
+            .unwrap()
+    }
 
-    /// Calculate the exact [Position::result_profit_loss] of a [Position].
+    /// Calculate the exact [`Position::result_profit_loss`] of a [`Position`].
     pub fn calculate_result_profit_loss(&self) -> f64 {
         let exit_value = self.close_quote_value();
         let enter_value = self.open_quote_value();
@@ -263,29 +272,27 @@ impl Position {
         }
     }
 
-    /// Calculate the PnL return of a closed [Position] - assumed [Position::result_profit_loss] is
+    /// Calculate the `PnL` return of a closed [`Position`] - assumed [`Position::result_profit_loss`] is
     /// appropriately calculated.
     pub fn calculate_profit_loss_return(&self) -> f64 { self.result_profit_loss / self.open_quote_value() }
 
     pub fn is_failed_open(&self) -> bool {
         self.open_order
             .as_ref()
-            .map(|o| o.is_rejected() || o.is_bad_request())
-            .unwrap_or(false)
+            .map_or(false, |o| o.is_rejected() || o.is_bad_request())
     }
 
     pub fn is_failed_close(&self) -> bool {
         self.close_order
             .as_ref()
-            .map(|o| o.is_rejected() || o.is_bad_request())
-            .unwrap_or(false)
+            .map_or(false, |o| o.is_rejected() || o.is_bad_request())
     }
 
-    pub fn is_opened(&self) -> bool { self.open_order.as_ref().map(|o| o.is_filled()).unwrap_or(false) }
+    pub fn is_opened(&self) -> bool { self.open_order.as_ref().map_or(false, OrderDetail::is_filled) }
 
-    pub fn is_closed(&self) -> bool { self.close_order.as_ref().map(|o| o.is_filled()).unwrap_or(false) }
+    pub fn is_closed(&self) -> bool { self.close_order.as_ref().map_or(false, OrderDetail::is_filled) }
 
-    pub fn quantity(&self) -> f64 { self.open_order.as_ref().map(|o| o.total_executed_qty).unwrap_or(0.0) }
+    pub fn quantity(&self) -> f64 { self.open_order.as_ref().map_or(0.0, |o| o.total_executed_qty) }
 
     pub fn is_short(&self) -> bool { self.kind == PositionKind::Short }
 
@@ -319,7 +326,7 @@ impl Default for EquityPoint {
 }
 
 impl EquityPoint {
-    /// Updates using the input [Position]'s PnL & associated timestamp.
+    /// Updates using the input [`Position`]'s `PnL` & associated timestamp.
     pub fn update(&mut self, position: &Position) {
         match position.meta.close_at {
             None => {
