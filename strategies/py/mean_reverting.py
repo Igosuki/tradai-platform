@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import json
 from datetime import datetime, date
 
 from strategy import Strategy, signal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
@@ -11,14 +12,15 @@ logging.getLogger().setLevel(logging.INFO)
 
 class MeanReverting(Strategy):
     def __new__(cls, conf, ctx):
+        print(json.dumps(conf))
         dis = super().__new__(cls, conf)
         dis.conf = {
-            'pair': 'BTC_USDT',
+            'pair': 'BURGER_USDT',
             'short_window_size': 100,
             'long_window_size': 1000,
             'sample_freq': 60,  # seconds
-            'threshold_short': 0.01,
-            'threshold_long': -0.01,
+            'threshold_short': 0.02,
+            'threshold_long': -0.02,
             'threshold_eval_freq': 1,
             'dynamic_threshold': True,
             'threshold_window_size': 1000,
@@ -56,7 +58,7 @@ class MeanReverting(Strategy):
             print(f"Initialized {self.whoami()}")
 
     async def eval(self, event):
-        event.debug()
+        #event.debug()
         self.apo_model.next(event.vwap())
         apo = self.apo_model.values()[0]
         if apo is None:
@@ -124,8 +126,28 @@ MEAN_REVERTING_DRAW_ENTRIES = [(
 PRINT_DRAW_ENTRIES = [("print", lambda x: [("zero", print_and_zero(x))])]
 
 if __name__ == '__main__':
+    conf = {
+        'pair': 'BTC_USDT',
+        'short_window_size': 100,
+        'long_window_size': 1000,
+        'sample_freq': 60,  # seconds
+        'threshold_short': 0.01,
+        'threshold_long': -0.01,
+        'threshold_eval_freq': 1,
+        'dynamic_threshold': True,
+        'threshold_window_size': 1000,
+        'stop_loss': 0.1,
+        'stop_gain': 0.075,
+        'xch': 'Binance',
+        'order_conf': {
+            'dry_mode': True,
+            'order_mode': 'limit',
+            'asset_type': AssetType.Spot,
+            'execution_instruction': None
+        }
+    }
     positions = asyncio.run(backtest_run("mr_py_test", lambda ctx: MeanReverting(
-        {}, ctx), date(2021, 8, 1), date(2021, 8, 9), MEAN_REVERTING_DRAW_ENTRIES))
+        conf, ctx), date(2021, 8, 1), date(2021, 8, 9), MEAN_REVERTING_DRAW_ENTRIES))
     print('took %d positions' % len(positions))
 
 
