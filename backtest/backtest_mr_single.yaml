@@ -11,8 +11,8 @@ strats:
       short_window_size: 100
       long_window_size: 1000
       sample_freq: 1min
-      threshold_short: 0.01
-      threshold_long: -0.01
+      threshold_short: 0.02
+      threshold_long: -0.02
       threshold_eval_freq: 1
       dynamic_threshold: true
       threshold_window_size: 1000
@@ -29,7 +29,7 @@ fees: 0.001
 period:
   type: interval
   from: 2021-10-18
-  to: 2021-12-15
+  to: 2021-12-28
 
 input_format: avro
 input_dataset: orderbooks_by_minute

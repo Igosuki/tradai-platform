@@ -5,6 +5,12 @@ authors = ["Guillaume Balaine <igosuki@gmail.com>"]
 edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+mock_time = []
+release_max_level_debug = ["tracing/release_max_level_debug"]
+release_max_level_trace = ["tracing/release_max_level_trace"]
+console_tracing = ["tokio/tracing", "console-subscriber"]
+
 [dependencies]
 # std
 chrono = { version = "0.4", features = ["serde"] }
@@ -35,12 +41,8 @@ tracing-flame = "0.2"
 tracing-log = { version = "0.1", features = ["env_logger"] }
 tracing-opentelemetry = "0.16"
 tracing-subscriber = { version = "0.3", features = ["tracing-log", "env-filter", "parking_lot"] }
+console-subscriber = { git = "https://github.com/tokio-rs/console", optional = true, features = ["parking_lot"] }
 #tracing-timing = "0.5"
-
-[features]
-mock_time = []
-release_max_level_debug = ["tracing/release_max_level_debug"]
-release_max_level_trace = ["tracing/release_max_level_trace"]
 
 [dev-dependencies]
 async-stream = "0.3"
