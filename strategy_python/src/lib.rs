@@ -96,4 +96,9 @@ pub fn strat(py: Python, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
-pub fn prepare() { pyo3::prepare_freethreaded_python(); }
+pub fn prepare() {
+    pyo3::prepare_freethreaded_python();
+    let mut builder = pyo3_asyncio::tokio::re_exports::runtime::Builder::new_multi_thread();
+    builder.enable_all();
+    pyo3_asyncio::tokio::init(builder);
+}

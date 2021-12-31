@@ -24,17 +24,17 @@ extern crate tokio;
 #[macro_use]
 extern crate tracing;
 
-use dashmap::DashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use futures::StreamExt;
 use tokio::sync::broadcast::Sender;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task;
 
-use db::{DbEngineOptions, DbOptions, RocksDbOptions};
+use db::DbOptions;
 // TODO: https://github.com/rust-lang/rust/issues/47384
 #[allow(unused_imports)]
 use strategies::mean_reverting;
@@ -46,7 +46,6 @@ use strategy::prelude::*;
 #[allow(unused_imports)]
 use strategy_python::script_strat;
 use trading::engine::{mock_engine, TradingEngine};
-use util::test::test_dir;
 use util::time::TimedData;
 
 use crate::coinnect::broker::{Broker, ChannelMessageBroker};
@@ -81,26 +80,12 @@ impl Backtest {
     ///
     /// if copying strats and spawning runners fail
     pub async fn try_new(conf: &BacktestConfig) -> Result<Self> {
-        let db_path = conf.db_path.clone().unwrap_or_else(|| test_dir().into_path());
-        if let Ok(true) = std::fs::try_exists(db_path.clone()) {
-            std::fs::remove_dir_all(db_path.clone()).unwrap();
-        }
         let output_path = conf.output_dir();
-        let mut all_strategy_settings: Vec<StrategyDriverSettings> = vec![];
-        all_strategy_settings.extend_from_slice(conf.strats.as_slice());
-        if let Some(copy) = conf.strat_copy.as_ref() {
-            init_coinnect(&copy.exchanges()).await;
-            all_strategy_settings.extend_from_slice(copy.all().unwrap().as_slice());
-        }
-        //let exchanges: Vec<Exchange> = all_strategy_settings.iter().map(|s| s.exchange()).collect();
-        let exchanges = vec![Exchange::Binance];
-        let mock_engine = Arc::new(mock_engine(db_path.clone(), &exchanges));
+        let all_strategy_settings = all_strategy_settings(conf).await;
+        let db_conf = conf.db_conf();
+        let mock_engine = Arc::new(mock_engine(db_conf.path.clone(), &[Exchange::Binance]));
         let (stop_tx, _) = tokio::sync::broadcast::channel(1);
-        let db_conf = conf.db_conf.as_ref().map_or_else(
-            || default_db_conf(db_path.clone()),
-            |eo| DbOptions::new_with_options(db_path.clone(), eo.clone()),
-        );
-        let runners: Vec<_> = tokio_stream::iter(all_strategy_settings.into_iter())
+        let runners: Vec<_> = tokio_stream::iter(all_strategy_settings)
             .map(|s| spawn_runner(stop_tx.clone(), db_conf.clone(), mock_engine.clone(), s))
             .buffer_unordered(10)
             .collect()
@@ -135,16 +120,7 @@ impl Backtest {
         // Start runners
         let (reports_tx, mut reports_rx) = tokio::sync::mpsc::unbounded_channel();
         let mut global_report = GlobalReport::new(self.output_dir.clone());
-        for runner in &self.runners {
-            let reports_tx = reports_tx.clone();
-            let runner = runner.clone();
-            let output_dir = global_report.output_dir.clone();
-            tokio::task::spawn(async move {
-                let mut runner = runner.write().await;
-                let report = runner.run(output_dir).await;
-                reports_tx.send(report).unwrap();
-            });
-        }
+        self.spawn_runners(&global_report, reports_tx).await;
         // Read input datasets
         let before_read = Instant::now();
         self.dataset.read_channels(broker).await?;
@@ -199,15 +175,23 @@ impl Backtest {
         }
         global_report.write_global_report(output_dir.as_path());
     }
+
+    async fn spawn_runners(&self, global_report: &GlobalReport, tx: UnboundedSender<BacktestReport>) {
+        for runner in &self.runners {
+            let reports_tx = tx.clone();
+            let runner = runner.clone();
+            let output_dir = global_report.output_dir.clone();
+            tokio::task::spawn(async move {
+                let mut runner = runner.write().await;
+                let report = runner.run(output_dir).await;
+                reports_tx.send(report).unwrap();
+            });
+        }
+    }
 }
 
 async fn init_coinnect(xchs: &[Exchange]) {
-    let exchange_apis: DashMap<Exchange, Arc<dyn ExchangeApi>> = DashMap::new();
-    let manager = Coinnect::new_manager();
-    for xch in xchs {
-        let api = manager.build_public_exchange_api(xch, false).await.unwrap();
-        exchange_apis.insert(*xch, api);
-    }
+    let exchange_apis = Coinnect::public_apis(xchs).await;
     Coinnect::load_pair_registries(Arc::new(exchange_apis)).await.unwrap();
 }
 
@@ -230,14 +214,12 @@ async fn spawn_runner(
     Arc::new(RwLock::new(runner))
 }
 
-fn default_db_conf<S: AsRef<Path>>(local_db_path: S) -> DbOptions<S> {
-    DbOptions {
-        path: local_db_path,
-        engine: DbEngineOptions::RocksDb(
-            RocksDbOptions::default()
-                .max_log_file_size(10 * 1024 * 1024)
-                .keep_log_file_num(2)
-                .max_total_wal_size(10 * 1024 * 1024),
-        ),
+async fn all_strategy_settings(conf: &BacktestConfig) -> Vec<StrategyDriverSettings> {
+    let mut all_strategy_settings: Vec<StrategyDriverSettings> = vec![];
+    all_strategy_settings.extend_from_slice(conf.strats.as_slice());
+    if let Some(copy) = conf.strat_copy.as_ref() {
+        init_coinnect(&copy.exchanges()).await;
+        all_strategy_settings.extend_from_slice(copy.all().unwrap().as_slice());
     }
+    all_strategy_settings
 }

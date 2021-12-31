@@ -34,42 +34,24 @@ fn main() -> anyhow::Result<()> {
 
 async fn run_main() -> anyhow::Result<()> {
     strategy_python::prepare();
-    let mut builder = pyo3_asyncio::tokio::re_exports::runtime::Builder::new_multi_thread();
-    builder.enable_all();
-    pyo3_asyncio::tokio::init(builder);
     #[cfg(feature = "console_tracing")]
-    {
-        use tracing_subscriber::layer::SubscriberExt;
-        use tracing_subscriber::util::SubscriberInitExt;
-        info!("Initializing tokio console subscriber");
-        let console_layer = console_subscriber::spawn();
-        let env_filter = tracing_subscriber::EnvFilter::from_default_env();
-        tracing_subscriber::registry()
-            .with(console_layer)
-            .with(tracing_subscriber::fmt::layer())
-            .with(env_filter)
-            .init();
-    }
+    util::trace::init_console_subscriber();
     #[cfg(not(feature = "console_tracing"))]
-    {
-        init_tracing_env_subscriber();
-    }
+    util::trace::init_tracing_env_subscriber();
+
     let opts = BacktestCliOptions::from_args();
     let conf = BacktestConfig::new(opts.config)?;
     match opts.cmd.unwrap_or(BacktestCmd::Run) {
         BacktestCmd::Run => {
             let mut bt = Backtest::try_new(&conf).await?;
-            'run: loop {
-                select! {
-                    r = bt.run().fuse() => {
-                        r?;
-                        info!("Backtest finished.");
-                    },
-                    _ = tokio::signal::ctrl_c().fuse() =>  {
-                        info!("Backtest interrupted.");
-                        actix::System::current().stop();
-                        break 'run;
-                    }
+            select! {
+                r = bt.run().fuse() => {
+                    r?;
+                    info!("Backtest finished.");
+                },
+                _ = tokio::signal::ctrl_c().fuse() =>  {
+                    info!("Backtest interrupted.");
+                    actix::System::current().stop();
                 }
             }
         }
