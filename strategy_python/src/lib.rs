@@ -28,6 +28,7 @@ use crate::coinnect::PyMarketEvent;
 use crate::script_strat::*;
 use crate::trading::*;
 
+mod asyncio;
 mod backtest;
 mod channel;
 mod coinnect;
