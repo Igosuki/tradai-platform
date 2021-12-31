@@ -2,8 +2,6 @@ use pyo3::exceptions::PyNotImplementedError;
 use std::collections::HashSet;
 
 use pyo3::prelude::*;
-use pyo3_asyncio::TaskLocals;
-use tokio::runtime::Handle;
 
 use ext::ResultExt;
 use strategy::coinnect::prelude::MarketEventEnvelope;
@@ -86,62 +84,25 @@ impl Strategy for PyStrategyWrapper {
         e: &MarketEventEnvelope,
         ctx: &DefaultStrategyContext,
     ) -> strategy::error::Result<Option<Vec<TradeSignal>>> {
-        info!("eval py_strat e = {:?}", e);
         let e: PyMarketEvent = e.clone().into();
         let inner = Python::with_gil(|py| self.inner.to_object(py));
-        let locals = Python::with_gil(|py| {
-            let asyncio = py.import("asyncio").unwrap();
-            let event_loop = asyncio.call_method0("get_event_loop").unwrap_or_else(|_| {
-                let event_loop = asyncio.call_method0("new_event_loop").unwrap();
-                asyncio.call_method1("set_event_loop", (event_loop,)).unwrap();
-                event_loop
-            });
-            TaskLocals::new(PyObject::from(event_loop).as_ref(py))
-            //pyo3_asyncio::tokio::get_current_locals(py)
-        });
-        let event_loop = Python::with_gil(|py| {
-            let asyncio = py.import("asyncio").unwrap();
-            asyncio
-                .call_method0("get_event_loop")
-                .unwrap_or_else(|_| {
-                    let event_loop = asyncio.call_method0("new_event_loop").unwrap();
-                    asyncio.call_method1("set_event_loop", (event_loop,)).unwrap();
-                    event_loop
-                })
-                .into_py(py)
-        });
-        let py_fut_r = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            Python::with_gil(|py| {
-                let asyncio = py.import("asyncio").unwrap();
-                let event_loop = asyncio.call_method0("get_event_loop").unwrap_or_else(|_| {
-                    let event_loop = asyncio.call_method0("new_event_loop").unwrap();
-                    asyncio.call_method1("set_event_loop", (event_loop,)).unwrap();
-                    event_loop
-                });
-                let coro = inner.call_method1(py, "eval", (e,))?;
-                pyo3_asyncio::tokio::run_until_complete(event_loop, async move {
-                    pyo3_asyncio::tokio::into_future(coro.as_ref(py))?.await
+        let py_fut_r = pyo3_asyncio::tokio::get_runtime()
+            .spawn_blocking(move || {
+                Python::with_gil(|py| {
+                    let asyncio = py.import("asyncio").unwrap();
+                    let event_loop = asyncio.call_method0("get_event_loop").unwrap_or_else(|_| {
+                        let event_loop = asyncio.call_method0("new_event_loop").unwrap();
+                        asyncio.call_method1("set_event_loop", (event_loop,)).unwrap();
+                        event_loop
+                    });
+                    let coro = inner.call_method1(py, "eval", (e,))?;
+                    pyo3_asyncio::tokio::run_until_complete(event_loop, async move {
+                        Python::with_gil(|py| pyo3_asyncio::tokio::into_future(coro.as_ref(py)))?.await
+                    })
                 })
             })
-        });
-
-        // let py_fut_r = tokio::task::spawn_blocking(move || {
-        //     tokio::task::block_in_place(move || {
-        //         Handle::current().block_on(async move {
-        //             pyo3_asyncio::tokio::scope_local(locals.clone(), async move {
-        //                 Python::with_gil(|py| {
-        //                     let py1 = inner.call_method1(py, "eval", (e,))?;
-        //                     let coro = py1.as_ref(py);
-        //                     pyo3_asyncio::tokio::into_future(coro)
-        //                 })?
-        //                 .await
-        //             })
-        //             .await
-        //         })
-        //     })
-        // })
-        // .await
-        // .unwrap();
+            .await
+            .unwrap();
         Python::with_gil(|py| {
             py_fut_r.and_then(|signals| {
                 if signals.is_none(py) {
