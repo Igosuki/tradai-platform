@@ -46,7 +46,7 @@ impl<'a> Mean<&'a f64> for f64 {
     where
         I: Iterator<Item = &'a f64>,
     {
-        iter.mean()
+        iter.copied().mean()
     }
 }
 
@@ -96,7 +96,7 @@ impl<'a> Variance<&'a f64> for f64 {
     where
         I: Iterator<Item = &'a f64>,
     {
-        iter.variance()
+        iter.copied().variance()
     }
 }
 
@@ -186,7 +186,7 @@ impl<'a> Quantile<&'a f64> for f64 {
     where
         I: Iterator<Item = &'a f64>,
     {
-        iter.quantile(prob)
+        iter.copied().quantile(prob)
     }
 }
 
