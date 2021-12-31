@@ -3,6 +3,7 @@ use std::collections::HashSet;
 
 use pyo3::prelude::*;
 
+use crate::asyncio::get_event_loop;
 use ext::ResultExt;
 use strategy::coinnect::prelude::MarketEventEnvelope;
 use strategy::driver::{DefaultStrategyContext, Strategy};
@@ -42,6 +43,7 @@ impl PyStrategy {
 
 #[pyclass(name = "StrategyWrapper", module = "strategy")]
 pub(crate) struct PyStrategyWrapper {
+    event_loop_hdl: PyObject,
     inner: PyObject,
 }
 
@@ -64,7 +66,12 @@ impl ToPyObject for PyStrategyWrapper {
 #[pymethods]
 impl PyStrategyWrapper {
     #[new]
-    pub(crate) fn new(inner: PyObject) -> Self { Self { inner } }
+    pub(crate) fn new(inner: PyObject) -> Self {
+        Self {
+            inner,
+            event_loop_hdl: get_event_loop(),
+        }
+    }
 }
 
 #[async_trait]
@@ -86,17 +93,12 @@ impl Strategy for PyStrategyWrapper {
     ) -> strategy::error::Result<Option<Vec<TradeSignal>>> {
         let e: PyMarketEvent = e.clone().into();
         let inner = Python::with_gil(|py| self.inner.to_object(py));
+        let event_loop_hdl = self.event_loop_hdl.clone();
         let py_fut_r = pyo3_asyncio::tokio::get_runtime()
             .spawn_blocking(move || {
                 Python::with_gil(|py| {
-                    let asyncio = py.import("asyncio").unwrap();
-                    let event_loop = asyncio.call_method0("get_event_loop").unwrap_or_else(|_| {
-                        let event_loop = asyncio.call_method0("new_event_loop").unwrap();
-                        asyncio.call_method1("set_event_loop", (event_loop,)).unwrap();
-                        event_loop
-                    });
                     let coro = inner.call_method1(py, "eval", (e,))?;
-                    pyo3_asyncio::tokio::run_until_complete(event_loop, async move {
+                    pyo3_asyncio::tokio::run_until_complete(event_loop_hdl.as_ref(py), async move {
                         Python::with_gil(|py| pyo3_asyncio::tokio::into_future(coro.as_ref(py)))?.await
                     })
                 })
