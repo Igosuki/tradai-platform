@@ -1,8 +1,6 @@
 use hdrhistogram::{Counter, Histogram};
 use opentelemetry::KeyValue;
 use std::collections::HashMap;
-use tracing::Level;
-use tracing_subscriber::fmt::Subscriber;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
