@@ -56,7 +56,7 @@ class MeanReverting(Strategy):
             print(f"Initialized {self.whoami()}")
 
     async def eval(self, event):
-        #event.debug()
+        event.debug()
         self.apo_model.next(event.vwap())
         apo = self.apo_model.values()[0]
         if apo is None:
@@ -85,7 +85,6 @@ class MeanReverting(Strategy):
         return signals
 
     def models(self):
-        print("models")
         return self.apo_model.export() + self.threshold_model.export()
 
     def channels(self):
