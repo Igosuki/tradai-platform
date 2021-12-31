@@ -1,12 +1,12 @@
 use std::ops::Sub;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use ::config::{Config, File};
 use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use parse_duration::parse;
 use typed_builder::TypedBuilder;
 
-use db::DbEngineOptions;
+use db::{DbEngineOptions, DbOptions, RocksDbOptions};
 use strategy::settings::StrategyCopySettings;
 use strategy::settings::StrategyDriverSettings;
 use util::test::test_dir;
@@ -84,5 +84,34 @@ impl BacktestConfig {
             p
         })
     }
+
+    pub fn db_path(&self) -> PathBuf {
+        let db_path = self.db_path.clone().unwrap_or_else(|| test_dir().into_path());
+        if let Ok(true) = std::fs::try_exists(db_path.clone()) {
+            std::fs::remove_dir_all(db_path.clone()).unwrap();
+        }
+        db_path
+    }
+
+    pub fn db_conf(&self) -> DbOptions<PathBuf> {
+        let db_path = self.db_path();
+        self.db_conf.as_ref().map_or_else(
+            || default_db_conf(db_path.clone()),
+            |eo| DbOptions::new_with_options(db_path.clone(), eo.clone()),
+        )
+    }
+
     //pub fn sample_rate(&self) -> Duration { Duration::from_std(parse(&self.input_sample_rate).unwrap()).unwrap() }
+}
+
+fn default_db_conf<S: AsRef<Path>>(local_db_path: S) -> DbOptions<S> {
+    DbOptions {
+        path: local_db_path,
+        engine: DbEngineOptions::RocksDb(
+            RocksDbOptions::default()
+                .max_log_file_size(10 * 1024 * 1024)
+                .keep_log_file_num(2)
+                .max_total_wal_size(10 * 1024 * 1024),
+        ),
+    }
 }
