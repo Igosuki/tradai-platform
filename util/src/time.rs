@@ -16,31 +16,21 @@ pub enum DurationRangeType {
 #[derive(Clone, Copy)]
 pub struct DateRange(pub Date<Utc>, pub Date<Utc>, pub DurationRangeType, pub i64);
 
-pub struct DateRangeIter(DateRange);
-
-impl Iterator for DateRangeIter {
+impl Iterator for DateRange {
     type Item = Date<Utc>;
-
     fn next(&mut self) -> Option<Self::Item> {
-        let mut iter = self.0;
-        if iter.0 <= iter.1 {
-            let d = match iter.2 {
-                DurationRangeType::Days => Duration::days(iter.3),
-                DurationRangeType::Seconds => Duration::seconds(iter.3),
-                DurationRangeType::Millis => Duration::milliseconds(iter.3),
+        if self.0 <= self.1 {
+            let d = match self.2 {
+                DurationRangeType::Days => Duration::days(self.3),
+                DurationRangeType::Seconds => Duration::seconds(self.3),
+                DurationRangeType::Millis => Duration::milliseconds(self.3),
             };
-            let next = iter.0 + d;
-            Some(mem::replace(&mut iter.0, next))
+            let next = self.0 + d;
+            Some(mem::replace(&mut self.0, next))
         } else {
             None
         }
     }
-}
-
-impl IntoIterator for DateRange {
-    type Item = Date<Utc>;
-    type IntoIter = DateRangeIter;
-    fn into_iter(self) -> Self::IntoIter { DateRangeIter(self) }
 }
 
 pub const TIMESTAMP_FORMAT: &str = "%Y%m%d %H:%M:%S";
