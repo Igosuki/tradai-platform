@@ -86,20 +86,20 @@ serde_json = { version = "1.0", features = ["float_roundtrip"] }
 
 # CLI
 config = { version = "0.11", features = ["yaml", "toml", "json"], default-features = false }
-clap = "3.0.0-beta.1"
-dialoguer = { version = "0.8", optional = true }
+clap = "3.0"
+dialoguer = { version = "0.9", optional = true }
 structopt = "0.3"
 
 # Crypto
 data-encoding = "2.2"
-sha2 = "0.9"
+sha2 = "0.10"
 
 # Log / Monitoring / Tracing
 env_logger = "0.9"
 tracing = { version = "0.1", features = ["log"] }
-prometheus = { version = "0.12", features = ["nightly", "push", "process", "gen"] }
+prometheus = { version = "0.13", features = ["nightly", "push", "process", "gen"] }
 online = "3.0"
-measure_time = "0.7"
+measure_time = "0.8"
 
 # Profiling
 flame = { version = "0.2", optional = true }
@@ -108,9 +108,9 @@ gperftools = { version = "0.2", optional = true, features = ["heap"] }
 checkers = { version = "0.6", optional = true, features = ["zeroed", "backtrace", "checkers-macros", "fxhash", "macros", "realloc"] }
 
 # Queues
-nats = "0.10"
+nats = "0.16"
 
 [dev-dependencies]
-pretty_assertions = "0.7"
+pretty_assertions = "1.0"
 fs_extra = "1.2"
 tempdir = "0.3"

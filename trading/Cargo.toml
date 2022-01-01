@@ -29,8 +29,8 @@ thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 itertools = "0.10"
-strum = "0.21"
-strum_macros = "0.21"
+strum = "0.23"
+strum_macros = "0.23"
 uuid = { version = "0.8", features = ["v4"] }
 derive_more = "0.99"
 anyhow = "1.0"
@@ -44,8 +44,8 @@ async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
 
 # bin
-clap = { version = "2.33", optional = true }
-structopt = { version = "0.3.23", optional = true }
+clap = { version = "3.0", optional = true }
+structopt = { version = "0.3", optional = true }
 
 # metrics & tracing
 tracing = { version = "0.1", features = ["log"] }

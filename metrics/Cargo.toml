@@ -11,7 +11,7 @@ release_max_level_debug = ["tracing/release_max_level_debug"]
 release_max_level_trace = ["tracing/release_max_level_trace"]
 
 [dependencies]
-prometheus = "0.13"
+prometheus = { version = "0.13", features = ["nightly", "push", "process", "gen"] }
 actix = "0.12"
 awc = { version = "3.0.0-beta.7", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
 thiserror = "1.0"
