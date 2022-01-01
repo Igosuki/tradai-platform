@@ -173,8 +173,8 @@ impl BacktestReport {
             super::read_json_file(output_dir.as_path(), MODEL_FILE);
         super::draw_entries(&mut plot, 0, models.as_slice(), vec![("model", vec![
             |m| extract_f64(m, "apo"),
-            |m| extract_f64(m, "threshold_short"),
-            |m| extract_f64(m, "threshold_long"),
+            |m| extract_f64(m, "high"),
+            |m| extract_f64(m, "low"),
         ])]);
         drop(models);
         let market_stats: Vec<TimedData<MarketStat>> = super::read_json_file(output_dir.as_path(), MARKET_STATS_FILE);

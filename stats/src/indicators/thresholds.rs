@@ -8,9 +8,14 @@ use crate::iter::QuantileExt;
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, Default)]
 pub struct Thresholds {
+    // TODO: temporarily for deserialization
+    #[serde(alias = "short_0")]
     pub high_0: f64,
+    #[serde(alias = "long_0")]
     pub low_0: f64,
+    #[serde(alias = "long")]
     pub low: f64,
+    #[serde(alias = "short")]
     pub high: f64,
 }
 
