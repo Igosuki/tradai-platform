@@ -1,3 +1,4 @@
+use once_cell::sync::OnceCell;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
@@ -69,8 +70,6 @@ pub fn gather_plugins() -> StrategyPluginRegistry<'static> {
         .collect()
 }
 
-lazy_static! {
-    static ref PLUGIN_REGISTRY: StrategyPluginRegistry<'static> = { gather_plugins() };
-}
+static PLUGIN_REGISTRY: OnceCell<StrategyPluginRegistry<'static>> = OnceCell::new();
 
-pub fn plugin_registry() -> &'static StrategyPluginRegistry<'static> { &PLUGIN_REGISTRY }
+pub fn plugin_registry() -> &'static StrategyPluginRegistry<'static> { PLUGIN_REGISTRY.get_or_init(gather_plugins) }

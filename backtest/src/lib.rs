@@ -12,6 +12,8 @@
 #![feature(map_try_insert)]
 #![feature(path_try_exists)]
 #![feature(exact_size_is_empty)]
+// TODO: https://github.com/rust-lang/rust/issues/47384
+#![allow(clippy::single_component_path_imports)]
 
 #[macro_use]
 extern crate async_stream;
@@ -37,14 +39,13 @@ use tokio::task;
 use db::DbOptions;
 // TODO: https://github.com/rust-lang/rust/issues/47384
 #[allow(unused_imports)]
-use strategies::mean_reverting;
-#[allow(unused_imports)]
-use strategies::naive_pair_trading;
+use strategies;
 use strategy::coinnect::prelude::*;
 use strategy::plugin::plugin_registry;
 use strategy::prelude::*;
+// TODO: https://github.com/rust-lang/rust/issues/47384
 #[allow(unused_imports)]
-use strategy_python::script_strat;
+use strategy_python;
 use trading::engine::{mock_engine, TradingEngine};
 use util::time::TimedData;
 
