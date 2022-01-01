@@ -11,7 +11,7 @@ use options::Options;
 use stats::Next;
 use strategy::coinnect::prelude::*;
 use strategy::db::Storage;
-use strategy::driver::{DefaultStrategyContext, Strategy};
+use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::*;
 use strategy::plugin::{provide_options, StrategyPlugin};
 use strategy::prelude::*;
@@ -296,11 +296,7 @@ impl Strategy for NaiveTradingStrategy {
         })
     }
 
-    async fn eval(
-        &mut self,
-        le: &MarketEventEnvelope,
-        ctx: &DefaultStrategyContext,
-    ) -> Result<Option<Vec<TradeSignal>>> {
+    async fn eval(&mut self, le: &MarketEventEnvelope, ctx: &DefaultStrategyContext) -> Result<Option<TradeSignals>> {
         if let MarketEvent::Orderbook(ob) = &le.e {
             let string = ob.pair.clone();
             if string == self.left_pair {
@@ -328,7 +324,7 @@ impl Strategy for NaiveTradingStrategy {
             }
             if self.can_eval(ctx.portfolio) {
                 if let Some(signals) = self.eval_latest(&dbp, ctx.portfolio).await? {
-                    return Ok(Some(signals.into()));
+                    return Ok(Some(TradeSignals::from(signals.as_slice())));
                 }
             }
         }

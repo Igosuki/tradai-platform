@@ -9,7 +9,7 @@ use model::MeanRevertingModel;
 use options::Options;
 use strategy::coinnect::prelude::*;
 use strategy::db::Storage;
-use strategy::driver::{DefaultStrategyContext, Strategy};
+use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::*;
 use strategy::models::io::{IterativeModel, SerializedModel};
 use strategy::models::Sampler;
@@ -232,11 +232,7 @@ impl Strategy for MeanRevertingStrategy {
 
     fn init(&mut self) -> Result<()> { self.load() }
 
-    async fn eval(
-        &mut self,
-        e: &MarketEventEnvelope,
-        ctx: &DefaultStrategyContext,
-    ) -> Result<Option<Vec<TradeSignal>>> {
+    async fn eval(&mut self, e: &MarketEventEnvelope, ctx: &DefaultStrategyContext) -> Result<Option<TradeSignals>> {
         if let Err(e) = self.model.next_model(e) {
             self.metrics.log_error(e.short_name());
             return Ok(None);
@@ -247,7 +243,7 @@ impl Strategy for MeanRevertingStrategy {
             self.metrics.log_model(&apo);
         }
 
-        let mut signals = vec![];
+        let mut signals = TradeSignals::new();
         if !self.can_eval() {
             return Ok(None);
         }

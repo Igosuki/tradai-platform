@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use crate::asyncio::get_event_loop;
 use ext::ResultExt;
 use strategy::coinnect::prelude::MarketEventEnvelope;
-use strategy::driver::{DefaultStrategyContext, Strategy};
+use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::models::io::SerializedModel;
 use strategy::Channel;
 use trading::position::OperationKind;
@@ -90,7 +90,7 @@ impl Strategy for PyStrategyWrapper {
         &mut self,
         e: &MarketEventEnvelope,
         ctx: &DefaultStrategyContext,
-    ) -> strategy::error::Result<Option<Vec<TradeSignal>>> {
+    ) -> strategy::error::Result<Option<TradeSignals>> {
         let e: PyMarketEvent = e.clone().into();
         let inner = Python::with_gil(|py| self.inner.to_object(py));
         let event_loop_hdl = self.event_loop_hdl.clone();
