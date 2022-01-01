@@ -155,8 +155,8 @@ profile=release
 target_arch=x86_64-unknown-linux-gnu
 .PHONY: release
 release:
-	docker run --cpus=$(shell nproc) --rm -it -v "$(PWD)/build/cargo-git":/home/rust/.cargo/git -v "$(PWD)/build/cargo-registry":/home/rust/.cargo/registry -v "$(PWD)/build/cargo-target":/home/rust/src/target -v "$(PWD)":/home/rust/src -v "$(PWD)/config_release.toml":/home/rust/src/.cargo/config.toml -e LIB_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -e BUILD_GIT_SHA="$(GIT_SHA)" -e CFLAGS=-I/usr/local/musl/include -e CC=musl-gcc rust-musl-builder-nightly cargo build --bin $(target) --profile $(profile) --target=$(target_arch) --no-default-features --features=$(features) -Z unstable-options
 	mkdir -p build/binaries
+	docker run --cpus=$(shell nproc) --rm -it -v "$(PWD)/build/cargo-git":/home/rust/.cargo/git:rw -v "$(PWD)/build/cargo-registry":/home/rust/.cargo/registry -v "$(PWD)/build/cargo-target":/home/rust/src/target -v "$(PWD)":/home/rust/src -v "$(PWD)/config_release.toml":/home/rust/src/.cargo/config.toml -e LIB_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -e BUILD_GIT_SHA="$(GIT_SHA)" -e CFLAGS=-I/usr/local/musl/include -e CC=musl-gcc rust-musl-builder-nightly cargo build --bin $(target) --profile $(profile) --target=$(target_arch) --no-default-features --features=$(features) -Z unstable-options
 	cp build/cargo-target/$(target_arch)/release/$(target) build/binaries/$(target)
 
 release_trader_musl:
