@@ -1,3 +1,17 @@
+/*!
+A collection of pre-developped strategies
+
+# Overview
+
+Mean Reverting : a MACD variant to enter a position if the oscillator goes over a threshold
+Naive Spread : a linear regression that enters a position depending on the direction of spread between two markets
+
+# Nota Bene
+
+Python equivalents can be found in `py/`
+
+ */
+
 #![feature(generic_associated_types)]
 #![allow(
     clippy::wildcard_imports,

@@ -1,3 +1,15 @@
+/*!
+This crate exists solely to export the `strategy_python` crate as a dynamic library for maturin,
+and to hold pure python code that is to be packaged along with the library.
+
+# Overview
+
+A logger is pre-installed to output rust logs to python loggers
+
+The exported cpython module is defined by [`fn@strategy`]
+
+ */
+
 #[macro_use]
 extern crate pyo3;
 

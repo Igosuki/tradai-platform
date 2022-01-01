@@ -1,3 +1,13 @@
+/*!
+Common trade engine functionality, gathered in `TradingEngine`
+
+# Overview
+
+All tools that allow to safely trade should be confined to this crate.
+Handling orders, stopping/resuming trading, calculating interest rates, positions/signals etc.
+
+ */
+
 #![allow(
     unused_braces,
     clippy::module_name_repetitions,

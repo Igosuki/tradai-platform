@@ -1,3 +1,17 @@
+/*!
+Defines a backtesting tool for all strategies available through `StrategyPlugin`
+
+# Overview
+
+A backtest spawns all configured strategies, feeds them market events from available datasources, and
+outputs the state of each strategy to reports after every iteration.
+Additionally, the strategies are ranked by PnL in a global report.
+
+If using persistent storage, the databases can be re-used by a trading server directly to run a strategy
+with the same configuration as the backtest.
+
+ */
+
 #![allow(
     clippy::wildcard_imports,
     clippy::module_name_repetitions,

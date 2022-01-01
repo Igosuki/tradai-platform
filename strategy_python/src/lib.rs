@@ -1,3 +1,14 @@
+/*!
+The SDK that exports functionality from all other crates to Python.
+
+# Overview
+
+Currently all functionality is available through a common module named strategy defined by [`fn@strat`]
+Currently, this is mostly a read only API that cannot modify the system outside of implementing strategies and defining models and signals.
+For instance, overriding strategy driver behavior is not yet available to python.
+
+ */
+
 #![allow(
     clippy::wildcard_imports,
     clippy::used_underscore_binding,

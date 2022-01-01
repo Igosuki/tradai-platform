@@ -1,3 +1,14 @@
+/*!
+A collection of statistical tools related to trading
+
+# Overview
+
+Indicators : re-exports of the `ta` library plus some more technical indicators
+Math : optimal algorithms for common math functions
+Summary : statistical tools to summarize data series
+
+ */
+
 #![feature(test)]
 #![feature(type_alias_impl_trait)]
 #![allow(
