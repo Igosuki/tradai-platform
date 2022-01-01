@@ -5,6 +5,8 @@ HOOKS := .git/hooks/pre-commit
 $(VENV): .requirements-precommit.txt
 	virtualenv -p python3 $(VENV)
 	$(VENV)/bin/pip install -r .requirements-precommit.txt
+	pre-commit install --hook-type commit-msg
+	pre-commit install --hook-type prepare-commit-msg
 
 .PHONY: env
 env: $(VENV)
