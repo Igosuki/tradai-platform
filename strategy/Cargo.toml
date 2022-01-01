@@ -46,12 +46,12 @@ itertools = "0.10"
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "0.8", features = ["v4"] }
-backoff = "0.3"
+backoff = "0.4"
 lazy_static = "1.4"
 ordered-float = "2.1"
 parse_duration = "2.1"
-strum = "0.21"
-strum_macros = "0.21"
+strum = "0.23"
+strum_macros = "0.23"
 thiserror = "1.0"
 inventory = "0.2"
 typed-builder = "0.9"
@@ -96,14 +96,14 @@ awc = { version = "3.0.0-beta.10", features = ["openssl", "compress-brotli", "co
 
 # plots
 hdrhistogram = "7"
-plotly = { version = "0.6.0", features = ["kaleido"] }
+plotly = { version = "0.7", features = ["kaleido"] }
 
 # test
 fake = { version = "2.4", features = ['chrono'] }
 tempdir = "0.3"
 test-env-log = "0.2"
 quickcheck = "1.0"
-pretty_assertions = "0.7"
+pretty_assertions = "1.0"
 insta = "1.8"
 
 # std
