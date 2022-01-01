@@ -42,8 +42,8 @@ trading = { path = "../trading" }
 actix = "0.12"
 actix-rt = "2.5"
 actix-codec = "0.4"
-actix-cors = { version = "0.6.0-beta.4", default-features = false }
-actix-web = { version = "4.0.0-beta.14", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
+actix-cors = { version = "0.6.0-beta.8", default-features = false }
+actix-web = { version = "4.0.0-beta.17", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
 actix_derive = "0.6"
 awc = { version = "3.0.0-beta.13", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
 
@@ -111,6 +111,4 @@ checkers = { version = "0.6", optional = true, features = ["zeroed", "backtrace"
 nats = "0.16"
 
 [dev-dependencies]
-pretty_assertions = "1.0"
-fs_extra = "1.2"
 tempdir = "0.3"
