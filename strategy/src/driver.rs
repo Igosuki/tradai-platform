@@ -1,3 +1,4 @@
+use smallvec::SmallVec;
 use std::collections::HashSet;
 
 use coinnect_rt::types::MarketEventEnvelope;
@@ -44,6 +45,8 @@ pub trait StrategyDriver: Send + Sync {
     async fn is_locked(&self) -> bool;
 }
 
+pub type TradeSignals = SmallVec<[TradeSignal; 10]>;
+
 #[async_trait]
 pub trait Strategy: Sync + Send {
     //async fn try_new(&self, conf: serde_json::Value) -> Self;
@@ -55,8 +58,7 @@ pub trait Strategy: Sync + Send {
     fn init(&mut self) -> Result<()>;
 
     /// Evaluate this market event
-    async fn eval(&mut self, e: &MarketEventEnvelope, ctx: &DefaultStrategyContext)
-        -> Result<Option<Vec<TradeSignal>>>;
+    async fn eval(&mut self, e: &MarketEventEnvelope, ctx: &DefaultStrategyContext) -> Result<Option<TradeSignals>>;
 
     /// Exports a serialized view of the model
     fn model(&self) -> SerializedModel;
