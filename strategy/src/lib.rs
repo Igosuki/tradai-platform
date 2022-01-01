@@ -1,3 +1,34 @@
+/*!
+Contains the Strategy API, which defines plumbing code to manage drivers, state, queries, and models
+
+# Overview
+
+The `Strategy` interface in this crate can be implemented to add a new runnable trading strategy.
+Typically, a strategy is wrapped in a driver, which is handled by an actor.
+All of this behavior can be overridden by implementing the common traits for the `StrategyDriver` and `StrategyActor`.
+
+# Components
+
+## Driver
+
+The driver is responsible for invoking and managing the lifecycle of the strategy, as well as any outside interaction.
+It also passes orders, manages the portfolio, and handles strategy events.
+
+## Strategy
+
+A strategy defines its model, which may or may not be indicator based, and emits trading signals. While the strategy
+can define any custom behavior, it is best to use the driver and already defined to override predefined behavior.
+
+## Queries
+
+Through a single method, drivers can receive queries and mutations to get the specific state or trade history of a single strategy.
+
+## Models
+
+Specific APIs exist to facilitate persisting time based statistical models.
+
+ */
+
 #![deny(unused_must_use, unused_mut, unused_imports, unused_import_braces)]
 // TODO: See regression in nightly: https://github.com/rust-lang/rust/issues/70814
 #![allow(unused_braces)]

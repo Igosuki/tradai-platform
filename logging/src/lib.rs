@@ -1,3 +1,12 @@
+/*!
+Defines common data logging output
+
+# Overview
+
+Currently logs events to files in AVRO binary format
+
+ */
+
 #![allow(
     clippy::derivable_impls,
     clippy::similar_names,

@@ -1,3 +1,8 @@
+/*!
+Extensions to the standard library that are commonly used are gathered in this crate
+
+ */
+
 ///! Standard library extensions through traits
 ///! use [`ext`]
 use std::any::Any;

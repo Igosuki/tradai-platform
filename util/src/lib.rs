@@ -1,3 +1,12 @@
+/*!
+Defines common standard functionality used by other crates.
+
+# Overview
+
+Utility functions are typically formatting, logging, timing, tracing and ser/deserializing
+
+ */
+
 #![allow(
     // noisy
     clippy::missing_errors_doc,
