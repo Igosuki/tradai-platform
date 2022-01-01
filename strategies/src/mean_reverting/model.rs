@@ -1,88 +1,45 @@
-use std::cmp::{max, min};
 use std::collections::{BTreeMap, HashMap};
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::sync::Arc;
 
 use chrono::{TimeZone, Utc};
-use itertools::Itertools;
-use ordered_float::OrderedFloat;
 use serde::ser::SerializeStruct;
 use serde::ser::Serializer;
 
 use ext::ResultExt;
 use stats::indicators::macd_apo::MACDApo;
-use stats::iter::QuantileExt;
+use stats::indicators::thresholds::Thresholds;
 use strategy::coinnect::types::{MarketEvent, MarketEventEnvelope};
 use strategy::db::Storage;
 use strategy::error::{Error, Result};
+use strategy::models::indicator_windowed_model::IndicatorWindowedModel;
 use strategy::models::io::{IterativeModel, LoadableModel};
-use strategy::models::{IndicatorModel, PersistentWindowedModel, Sampler, TimedValue, Window, WindowedModel};
+use strategy::models::{IndicatorModel, Sampler, TimedValue, WindowedModel};
 use strategy::prelude::*;
 use strategy::trading::book::BookPosition;
 
 use super::options::Options;
 
-pub fn ema_indicator_model(
-    pair: &str,
-    db: Arc<dyn Storage>,
-    short_window_size: u32,
-    long_window_size: u32,
-) -> IndicatorModel<MACDApo, f64> {
-    let init = MACDApo::new(long_window_size, short_window_size);
-    IndicatorModel::new(&format!("model_{}", pair), db, init)
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, Default)]
-pub struct ApoThresholds {
-    pub short_0: f64,
-    pub long_0: f64,
-    pub long: f64,
-    pub short: f64,
-}
-
-impl ApoThresholds {
-    pub fn new(short_0: f64, long_0: f64) -> Self {
-        Self {
-            short_0,
-            long_0,
-            long: 0.0,
-            short: 0.0,
-        }
-    }
-}
-
-pub fn threshold<'a>(m: &'a mut ApoThresholds, wdw: Window<'_, f64>) -> &'a ApoThresholds {
-    let (threshold_short_iter, threshold_long_iter) = wdw.tee();
-    let threshold_short = max(m.short_0.into(), OrderedFloat(threshold_short_iter.quantile(0.99))).into();
-    let threshold_long = min(m.long_0.into(), OrderedFloat(threshold_long_iter.quantile(0.01))).into();
-    *m = ApoThresholds {
-        short: threshold_short,
-        long: threshold_long,
-        ..*m
-    };
-    m
-}
-
 #[derive(Debug)]
 pub struct MeanRevertingModel {
     sampler: Sampler,
     apo: IndicatorModel<MACDApo, f64>,
-    thresholds: Option<PersistentWindowedModel<f64, ApoThresholds>>,
+    thresholds: Option<IndicatorWindowedModel<f64, Thresholds>>,
     thresholds_0: (f64, f64),
 }
 
 impl MeanRevertingModel {
     pub fn new(n: &Options, db: Arc<dyn Storage>) -> Self {
-        let ema_model = ema_indicator_model(n.pair.as_ref(), db.clone(), n.short_window_size, n.long_window_size);
+        let macd_apo = MACDApo::new(n.long_window_size, n.short_window_size);
+        let ema_model = IndicatorModel::new(&format!("model_{}", n.pair), db.clone(), macd_apo);
         let threshold_table = if n.dynamic_threshold() {
             n.threshold_window_size.map(|thresold_window_size| {
-                PersistentWindowedModel::new(
+                IndicatorWindowedModel::new(
                     &format!("thresholds_{}", n.pair.as_ref()),
                     db,
                     thresold_window_size,
                     Some(thresold_window_size * 2),
-                    threshold,
-                    Some(ApoThresholds::new(n.threshold_short, n.threshold_long)),
+                    Thresholds::new(n.threshold_short, n.threshold_long),
                 )
             })
         } else {
@@ -142,6 +99,10 @@ impl MeanRevertingModel {
         {
             if let Some(threshold_table) = &mut self.thresholds {
                 threshold_table.try_load()?;
+                if let Some(thresholds) = threshold_table.value().as_mut() {
+                    thresholds.high_0 = self.thresholds_0.0;
+                    thresholds.low_0 = self.thresholds_0.1;
+                }
             }
         }
         if self.is_loaded() {
@@ -189,13 +150,13 @@ impl MeanRevertingModel {
                 "threshold_short".to_string(),
                 self.thresholds
                     .as_ref()
-                    .and_then(|t| t.value().and_then(|m| serde_json::to_value(m.short).ok())),
+                    .and_then(|t| t.value().and_then(|m| serde_json::to_value(m.high).ok())),
             ),
             (
                 "threshold_long".to_string(),
                 self.thresholds
                     .as_ref()
-                    .and_then(|t| t.value().and_then(|m| serde_json::to_value(m.long).ok())),
+                    .and_then(|t| t.value().and_then(|m| serde_json::to_value(m.low).ok())),
             ),
         ]
     }
@@ -206,7 +167,7 @@ impl MeanRevertingModel {
 
     pub(crate) fn thresholds(&self) -> (f64, f64) {
         match self.thresholds.as_ref() {
-            Some(t) if t.is_filled() => t.value().map(|m| (m.short, m.long)),
+            Some(t) if t.is_filled() => t.value().map(|m| (m.high, m.low)),
             _ => None,
         }
         .unwrap_or(self.thresholds_0)
