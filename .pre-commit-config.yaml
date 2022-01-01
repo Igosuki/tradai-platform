@@ -15,3 +15,11 @@ repos:
           pass_filenames: false
           types: [file, rust]
           language: system
+#      -   id: add-commit-labels
+#          name: Add commit labels
+#          description: Preprends labels depending on modified files to the commit message before it is written
+#          types: [file]
+#          language: js
+#          stages: [prepare-commit-msg]
+
+
