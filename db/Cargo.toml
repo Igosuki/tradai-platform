@@ -44,7 +44,6 @@ rocksdb = { git = "https://github.com/Igosuki/rust-rocksdb.git", branch = "libro
 
 [dev-dependencies]
 env_logger = "0.9"
-pretty_assertions = "1.0"
 rand = "0.8"
 tempdir = "0.3"
 util = { path = "../util" }
