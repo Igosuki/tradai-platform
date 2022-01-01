@@ -5776,6 +5776,7 @@ dependencies = [
  "rand 0.8.4",
  "serde",
  "serde_json",
+ "smallvec",
  "snap 1.0.5",
  "socket2",
  "stats",
