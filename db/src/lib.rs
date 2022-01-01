@@ -1,3 +1,13 @@
+/*!
+Common traits for persistent storage
+
+# Overview
+
+While this is called `db` it currently only gathers common behavior for key value based storage.
+Currently `rkv`, `rocksdb` and `memory` can be used as backends.
+
+ */
+
 #![feature(test)]
 #![feature(btree_drain_filter)]
 #![allow(

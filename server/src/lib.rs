@@ -1,3 +1,18 @@
+/*!
+Server to spawn and query the trading system
+
+# Overview
+
+The system uses actix as a backend for intra-process communication and actix-web for the http server.
+On top of the http api, the server also proposes a graphql api to query running strategy drivers.
+The main layout of the system is : Spawn actors which produce data, then actors which consume it, and finally actors that output data
+
+# Common pitflalls
+
+The server is currently not made to run in distributed mode
+
+ */
+
 #![deny(unused_must_use, unused_mut, unused_imports, unused_import_braces)]
 #![feature(try_trait_v2)]
 #![feature(async_closure)]

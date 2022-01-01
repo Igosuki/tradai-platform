@@ -1,3 +1,8 @@
+/*!
+Test utils for `strategy` isolated in a crate so as not to pollute the crate with feature toggles
+
+ */
+
 #![allow(
     clippy::missing_errors_doc,
     clippy::module_name_repetitions,

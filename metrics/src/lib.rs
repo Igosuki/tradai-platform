@@ -1,3 +1,12 @@
+/*!
+Defines how to store application metrics
+
+# Overview
+
+Mostly just plumbing code to interact with the `prometheus` library
+
+ */
+
 #![allow(
     // noisy
     clippy::missing_errors_doc,
