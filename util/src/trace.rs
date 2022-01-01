@@ -17,8 +17,6 @@ pub fn setup_flame_subscriber() -> impl Drop {
 
 #[cfg(feature = "console_tracing")]
 pub fn init_console_subscriber() {
-    use tracing_subscriber::layer::SubscriberExt;
-    use tracing_subscriber::util::SubscriberInitExt;
     let console_layer = console_subscriber::spawn();
     let env_filter = tracing_subscriber::EnvFilter::from_default_env();
     tracing_subscriber::registry()
