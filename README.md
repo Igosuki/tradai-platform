@@ -146,6 +146,15 @@ cargo install flamegraph
 cargo flamegraph --bin=trader -- [args]
 ``` 
 
+And not forgetting proper rust flags, for instance : 
+```~/.cargo/config.toml
+[target.x86_64-unknown-linux-gnu]
+#linker="clang"
+rustflags = [
+    "-Clink-arg=-fuse-ld=lld", "-Clink-arg=-Wl,--no-rosegment", "--cfg", "tokio_unstable", "-g"
+]
+```
+
 #### Profiler links
 
 - https://github.com/flamegraph-rs/flamegraph
@@ -168,6 +177,10 @@ Get the rr gdb configuration
 Follow the steps here https://github.com/rr-debugger/rr/wiki/Using-rr-in-an-IDE
 and this specifically for rust https://gist.github.com/spacejam/15f27007c0b1bcc1d6b4c9169b18868c
 
+#### Profilign with cargo 
+
+See https://github.com/svenstaro/cargo-profiler
+
 #### Profiling heap allocations
 
 ```RUST_LOG=debug heaptrack ./target/release/trader -c $config```
@@ -175,6 +188,14 @@ and this specifically for rust https://gist.github.com/spacejam/15f27007c0b1bcc1
 #### Profiling with valgrind
 
 ```RUST_LOG=debug valgrind --tool=massif ./target/debug/trader -c $config```
+
+#### Profiling with cachegrind 
+
+```RUST_LOG=debug valgrind --tool=cachegrind ./target/debug/trader -c $config```
+
+#### Profiling with oprofile
+
+```RUST_LOG=debug operf ./target/debug/trader -c $config```
 
 #### Code coverage
 
