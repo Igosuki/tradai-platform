@@ -1,10 +1,9 @@
-use datafusion::arrow::array::{ArrayRef, StructArray};
-use datafusion::arrow::datatypes::Field;
-use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow::array::StructArray;
 use datafusion::datasource::file_format::avro::AvroFormat;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
+use datafusion::StructArrayExt;
 use itertools::Itertools;
 use std::sync::Arc;
 
@@ -14,17 +13,6 @@ pub fn get_col_as<'a, T: 'static>(sa: &'a StructArray, name: &str) -> &'a T {
         .as_any()
         .downcast_ref::<T>()
         .unwrap_or_else(|| panic!("column {}", name))
-}
-
-pub fn to_struct_array(batch: &RecordBatch) -> StructArray {
-    batch
-        .schema()
-        .fields()
-        .iter()
-        .zip(batch.columns().iter())
-        .map(|t| (t.0.clone(), t.1.clone()))
-        .collect::<Vec<(Field, ArrayRef)>>()
-        .into()
 }
 
 pub fn df_format(format: &str) -> (&'static str, Arc<dyn FileFormat>) {

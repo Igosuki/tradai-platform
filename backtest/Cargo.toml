@@ -20,6 +20,8 @@ console_tracing = ["util/console_tracing"]
 release_max_level_debug = ["util/release_max_level_debug", "tracing/release_max_level_debug"]
 release_max_level_trace = ["util/release_max_level_trace", "tracing/release_max_level_trace"]
 
+release_default = ["env_logger", "mock_time", "binary", "console_tracing", "release_max_level_trace"]
+
 [dependencies]
 # trader
 strategy = { path = "../strategy" }
@@ -34,7 +36,7 @@ trading = { path = "../trading", features = ["test_util"] }
 # async
 futures = "0.3"
 tokio = "1"
-pyo3-asyncio = { version = "0.15", features = ["attributes", "tokio-runtime"]}
+pyo3-asyncio = { version = "0.15", features = ["attributes", "tokio-runtime"] }
 async-trait = "0.1"
 async-stream = "0.3"
 tokio-stream = { version = "0.1", features = ["sync", "fs", "net", "io-util", "tokio-util", "signal", "time"] }
@@ -65,6 +67,6 @@ dashmap = "5"
 float-cmp = "0.9"
 
 # data
-datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "optional_crates", version = "6.0", default-features = false, features = ["avro", "crypto_expressions", "regex_expressions", "unicode_expressions"] }
-#datafusion = { path = "/home/geps/dev/oss/arrow-datafusion/datafusion", version = "5.1", default-features = false, features = ["avro"] }
+datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow22r", version = "6.0", default-features = false, features = ["avro", "crypto_expressions", "regex_expressions", "unicode_expressions"] }
+arrow2 = { git = "https://github.com/Igosuki/arrow2.git", branch = "decimal" }
 plotly = { version = "0.7", features = ["kaleido"] }
