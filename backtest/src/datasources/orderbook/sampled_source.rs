@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::path::Path;
 use std::time::Instant;
 
-use datafusion::arrow::array::StringArray;
+use datafusion::arrow::array::Utf8Array;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::listing::ListingOptions;
 use datafusion::execution::context::ExecutionContext;
@@ -101,7 +101,7 @@ pub async fn sampled_orderbooks_pairs(
                     let pairs: Vec<String> = pairs
                         .iter()
                         .flat_map(|rb| {
-                            let pr = rb.column(0).as_any().downcast_ref::<StringArray>().unwrap();
+                            let pr = rb.column(0).as_any().downcast_ref::<Utf8Array<i32>>().unwrap();
                             pr
                         })
                         .filter_map(|s| s.map(ToString::to_string))

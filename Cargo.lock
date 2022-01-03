@@ -360,6 +360,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloc-no-stdlib"
+version = "2.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35ef4730490ad1c4eae5c4325b2a95f521d023e5c885853ff7aca0a6a1631db3"
+
+[[package]]
+name = "alloc-stdlib"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "697ed7edc0f1711de49ce108c541623a0af97c6c60b2f6e2b65229847ac843c2"
+dependencies = [
+ "alloc-no-stdlib",
+]
+
+[[package]]
 name = "ansi_term"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -393,27 +408,45 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 
 [[package]]
-name = "arrow"
-version = "6.5.0"
+name = "arrow-format"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "216c6846a292bdd93c2b93c1baab58c32ff50e2ab5e8d50db333ab518535dd8b"
+checksum = "9f7da2d9660bfaebbdb0a44a33b3bd1dcb5a952fafa02c0dfc6a51ea471fef2a"
 dependencies = [
- "bitflags",
+ "flatbuffers",
+]
+
+[[package]]
+name = "arrow2"
+version = "0.8.1"
+source = "git+https://github.com/Igosuki/arrow2.git?branch=decimal#58eaf17c3fe2a8a82deff2cddde5419cfb0c4caf"
+dependencies = [
+ "ahash",
+ "arrow-format",
+ "async-stream",
+ "avro-schema",
+ "base64",
  "chrono",
  "comfy-table",
+ "crc",
  "csv",
- "flatbuffers",
- "hex",
+ "fallible-streaming-iterator",
+ "futures",
+ "hash_hasher",
  "indexmap",
- "lazy_static 1.4.0",
+ "itertools",
  "lexical-core 0.8.2",
+ "libflate",
  "multiversion",
- "num 0.4.0",
- "rand 0.8.4",
+ "num-traits",
+ "parquet2",
  "regex",
  "serde",
- "serde_derive",
  "serde_json",
+ "simdutf8",
+ "snap",
+ "streaming-iterator",
+ "strength_reduce",
 ]
 
 [[package]]
@@ -685,37 +718,13 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 [[package]]
 name = "avro-rs"
 version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ece550dd6710221de9bcdc1697424d8eee4fc4ca7e017479ea9d50c348465e37"
-dependencies = [
- "byteorder",
- "crc",
- "digest 0.9.0",
- "lazy_static 1.4.0",
- "libflate",
- "num-bigint 0.2.6",
- "rand 0.7.3",
- "serde",
- "serde_json",
- "snap 0.2.5",
- "strum 0.18.0",
- "strum_macros 0.18.0",
- "thiserror",
- "typed-builder 0.5.1",
- "uuid",
- "zerocopy",
-]
-
-[[package]]
-name = "avro-rs"
-version = "0.13.0"
 source = "git+https://github.com/Igosuki/avro-rs.git?branch=master_merge#c03f02e2b44b2921ad239802a0967429198190e8"
 dependencies = [
  "byteorder",
  "digest 0.9.0",
  "lazy_static 1.4.0",
  "libflate",
- "num-bigint 0.2.6",
+ "num-bigint",
  "rand 0.7.3",
  "regex",
  "serde",
@@ -726,6 +735,16 @@ dependencies = [
  "typed-builder 0.5.1",
  "uuid",
  "zerocopy",
+]
+
+[[package]]
+name = "avro-schema"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d38707606731f68521a6f43d8089cee0278fbb235a967bc214dcb3238a1567c8"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -792,6 +811,7 @@ version = "0.1.0"
 dependencies = [
  "actix",
  "anyhow",
+ "arrow2",
  "async-stream",
  "async-trait",
  "chrono",
@@ -941,6 +961,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
+name = "bitpacking"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8c7d2ac73c167c06af4a5f37e6e59d84148d57ccbe4480b76f0273eefea82d7"
+dependencies = [
+ "crunchy",
+]
+
+[[package]]
 name = "bitvec"
 version = "0.19.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1039,6 +1068,27 @@ dependencies = [
  "fastrand",
  "futures-lite",
  "once_cell",
+]
+
+[[package]]
+name = "brotli"
+version = "3.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71cb90ade945043d3d53597b2fc359bb063db8ade2bcffe7997351d0756e9d50"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
+ "brotli-decompressor",
+]
+
+[[package]]
+name = "brotli-decompressor"
+version = "2.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59ad2d4653bf5ca36ae797b1f4bb4dbddb60ce49ca4aed8a2ce4829f60425b80"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
 ]
 
 [[package]]
@@ -1491,9 +1541,9 @@ dependencies = [
 
 [[package]]
 name = "const_fn"
-version = "0.4.8"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f92cfa0fd5690b3cf8c1ef2cabbd9b7ef22fa53cf5e1f92b05103f6d5d1cf6e7"
+checksum = "fbdcdcb6d86f71c5e97409ad45898af11cbc995b4ee8112d59095a28d376c935"
 
 [[package]]
 name = "constant_time_eq"
@@ -1654,6 +1704,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "crunchy"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
+
+[[package]]
 name = "crypto-common"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1769,12 +1825,12 @@ checksum = "3ee2393c4a91429dffb4bedf19f4d6abf27d8a732c8ce4980305d782e5426d57"
 [[package]]
 name = "datafusion"
 version = "6.0.0"
-source = "git+https://github.com/Igosuki/arrow-datafusion?branch=optional_crates#634715c88d3450b93236192eae5ebb473890ab4d"
+source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow22r#ffb5c13fce304a654153733e96cfb823da2ec854"
 dependencies = [
  "ahash",
- "arrow",
+ "arrow2",
  "async-trait",
- "avro-rs 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "avro-schema",
  "blake2",
  "blake3",
  "chrono",
@@ -1786,7 +1842,7 @@ dependencies = [
  "num-traits",
  "num_cpus",
  "ordered-float 2.8.0",
- "parquet",
+ "parquet2",
  "paste 1.0.6",
  "pin-project-lite",
  "rand 0.8.4",
@@ -2094,6 +2150,12 @@ name = "fake-simd"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e88a8acf291dafb59c2d96e8f59828f3838bb1a70398823ade51a84de6a6deed"
+
+[[package]]
+name = "fallible-streaming-iterator"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
 
 [[package]]
 name = "fancy-regex"
@@ -2551,6 +2613,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eabb4a44450da02c90444cf74558da904edde8fb4e9035a9a6a4e15445af0bd7"
 
 [[package]]
+name = "hash_hasher"
+version = "2.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74721d007512d0cb3338cd20f0654ac913920061a4c4d0d8708edb3f2a698c0c"
+
+[[package]]
 name = "hashbrown"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2861,6 +2929,16 @@ name = "integer-encoding"
 version = "1.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48dc51180a9b377fd75814d0cc02199c20f8e99433d6762f650d39cdbbd3b56f"
+
+[[package]]
+name = "integer-encoding"
+version = "3.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90c11140ffea82edce8dcd74137ce9324ec24b3cf0175fc9d7e29164da9915b8"
+dependencies = [
+ "async-trait",
+ "futures-util",
+]
 
 [[package]]
 name = "inventory"
@@ -3502,7 +3580,7 @@ version = "0.1.0"
 dependencies = [
  "actix",
  "anyhow",
- "avro-rs 0.13.0 (git+https://github.com/Igosuki/avro-rs.git?branch=master_merge)",
+ "avro-rs",
  "chrono",
  "coinnect_rt",
  "crc32fast",
@@ -3710,25 +3788,11 @@ version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8536030f9fea7127f841b45bb6243b27255787fb4eb83958aa1ef9d2fdc0c36"
 dependencies = [
- "num-bigint 0.2.6",
- "num-complex 0.2.4",
+ "num-bigint",
+ "num-complex",
  "num-integer",
  "num-iter",
- "num-rational 0.2.4",
- "num-traits",
-]
-
-[[package]]
-name = "num"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43db66d1170d347f9a065114077f7dccb00c1b9478c89384490a3425279a4606"
-dependencies = [
- "num-bigint 0.4.3",
- "num-complex 0.4.0",
- "num-integer",
- "num-iter",
- "num-rational 0.4.0",
+ "num-rational",
  "num-traits",
 ]
 
@@ -3744,32 +3808,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "num-bigint"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f93ab6289c7b344a8a9f60f88d80aa20032336fe78da341afc91c8a2341fc75f"
-dependencies = [
- "autocfg",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
 name = "num-complex"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
 dependencies = [
  "autocfg",
- "num-traits",
-]
-
-[[package]]
-name = "num-complex"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26873667bbbb7c5182d4a37c1add32cdf09f841af72da53318fdb81543c15085"
-dependencies = [
  "num-traits",
 ]
 
@@ -3801,19 +3845,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c000134b5dbf44adc5cb772486d335293351644b801551abe8f75c84cfa4aef"
 dependencies = [
  "autocfg",
- "num-bigint 0.2.6",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-rational"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d41702bd167c2df5520b384281bc111a4b5efcf7fbc4c9c222c815b07e0a6a6a"
-dependencies = [
- "autocfg",
- "num-bigint 0.4.3",
+ "num-bigint",
  "num-integer",
  "num-traits",
 ]
@@ -4027,31 +4059,34 @@ dependencies = [
 ]
 
 [[package]]
-name = "parquet"
-version = "6.5.0"
+name = "parquet-format-async-temp"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "788d9953f4cfbe9db1beff7bebd54299d105e34680d78b82b1ddc85d432cac9d"
+checksum = "03abc2f9c83fe9ceec83f47c76cc071bfd56caba33794340330f35623ab1f544"
 dependencies = [
- "arrow",
- "base64",
+ "async-trait",
  "byteorder",
- "chrono",
- "flate2",
- "lz4",
- "num-bigint 0.4.3",
- "parquet-format",
- "rand 0.8.4",
- "snap 1.0.5",
- "thrift",
+ "futures",
+ "integer-encoding 3.0.2",
+ "ordered-float 1.1.1",
 ]
 
 [[package]]
-name = "parquet-format"
-version = "2.6.1"
+name = "parquet2"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5bc6b23543b5dedc8f6cce50758a35e5582e148e0cfa26bd0cacd569cda5b71"
+checksum = "57e98d7da0076cead49c49580cc5771dfe0ba8a93cadff9b47c1681a4a78e1f9"
 dependencies = [
- "thrift",
+ "async-stream",
+ "bitpacking",
+ "brotli",
+ "flate2",
+ "futures",
+ "lz4",
+ "parquet-format-async-temp",
+ "snap",
+ "streaming-decompression",
+ "zstd",
 ]
 
 [[package]]
@@ -4070,7 +4105,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7037e5e93e0172a5a96874380bf73bc6ecef022e26fa25f2be26864d6b3ba95d"
 dependencies = [
  "lazy_static 1.4.0",
- "num 0.2.1",
+ "num",
  "regex",
 ]
 
@@ -5009,7 +5044,7 @@ name = "rsgen-avro"
 version = "0.9.5"
 source = "git+https://github.com/Igosuki/rsgen-avro.git?branch=master_merge#eb1b3fef5953734f82f33b98f59a0bc124547ee5"
 dependencies = [
- "avro-rs 0.13.0 (git+https://github.com/Igosuki/avro-rs.git?branch=master_merge)",
+ "avro-rs",
  "docopt",
  "glob",
  "heck",
@@ -5223,9 +5258,9 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "serde"
-version = "1.0.132"
+version = "1.0.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b9875c23cf305cd1fd7eb77234cbb705f21ea6a72c637a5c6db5fe4b8e7f008"
+checksum = "97565067517b60e2d1ea8b268e59ce036de907ac523ad83a0475da04e818989a"
 dependencies = [
  "serde_derive",
 ]
@@ -5253,9 +5288,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.132"
+version = "1.0.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecc0db5cb2556c0e558887d9bbdcf6ac4471e83ff66cf696e5419024d1606276"
+checksum = "ed201699328568d8d08208fdd080e3ff594e6c422e438b6705905da01005d537"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5453,6 +5488,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02658e48d89f2bec991f9a78e69cfa4c316f8d6a6c4ec12fae1aeb263d486788"
 
 [[package]]
+name = "simdutf8"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c970da16e7c682fa90a261cf0724dee241c9f7831635ecc4e988ae8f3b505559"
+
+[[package]]
 name = "siphasher"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5497,16 +5538,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31aa6a31c0c2b21327ce875f7e8952322acfcfd0c27569a6e18a647281352c9b"
 dependencies = [
  "static_assertions",
-]
-
-[[package]]
-name = "snap"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95d697d63d44ad8b78b8d235bf85b34022a78af292c8918527c5f0cffdde7f43"
-dependencies = [
- "byteorder",
- "lazy_static 1.4.0",
 ]
 
 [[package]]
@@ -5644,7 +5675,7 @@ dependencies = [
  "prometheus",
  "serde",
  "serde_json",
- "snap 1.0.5",
+ "snap",
  "stats",
  "strategy",
  "strategy_test_util",
@@ -5773,6 +5804,27 @@ dependencies = [
  "typed-builder 0.9.1",
  "util",
 ]
+
+[[package]]
+name = "streaming-decompression"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9bc687acd5dc742c4a7094f2927a8614a68e4743ef682e7a2f9f0f711656cc92"
+dependencies = [
+ "fallible-streaming-iterator",
+]
+
+[[package]]
+name = "streaming-iterator"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "303235c177994a476226b80d076bd333b7b560fb05bd242a10609d11b07f81f5"
+
+[[package]]
+name = "strength_reduce"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3ff2f71c82567c565ba4b3009a9350a96a7269eaa4001ebedae926230bc2254"
 
 [[package]]
 name = "string_cache"
@@ -6099,7 +6151,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c6d965454947cc7266d22716ebfd07b18d84ebaf35eec558586bbb2a8cb6b5b"
 dependencies = [
  "byteorder",
- "integer-encoding",
+ "integer-encoding 1.1.7",
  "log",
  "ordered-float 1.1.1",
  "threadpool",
@@ -6505,7 +6557,7 @@ dependencies = [
  "actix-web",
  "actix_derive",
  "anyhow",
- "avro-rs 0.13.0 (git+https://github.com/Igosuki/avro-rs.git?branch=master_merge)",
+ "avro-rs",
  "awc",
  "byte-unit",
  "bytes",
