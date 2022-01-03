@@ -135,25 +135,13 @@ impl MeanRevertingModel {
                 self.apo.value().and_then(|v| serde_json::to_value(v.apo).ok()),
             ),
             (
-                "short_ema".to_string(),
-                self.apo
-                    .value()
-                    .and_then(|v| serde_json::to_value(v.short_ema.current).ok()),
-            ),
-            (
-                "long_ema".to_string(),
-                self.apo
-                    .value()
-                    .and_then(|v| serde_json::to_value(v.long_ema.current).ok()),
-            ),
-            (
-                "threshold_short".to_string(),
+                "high".to_string(),
                 self.thresholds
                     .as_ref()
                     .and_then(|t| t.value().and_then(|m| serde_json::to_value(m.high).ok())),
             ),
             (
-                "threshold_long".to_string(),
+                "low".to_string(),
                 self.thresholds
                     .as_ref()
                     .and_then(|t| t.value().and_then(|m| serde_json::to_value(m.low).ok())),

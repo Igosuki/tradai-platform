@@ -48,7 +48,7 @@ class MeanReverting(Strategy):
         pass
 
     def whoami(self):
-        return "mean_reverting_%s" % (self.conf['pair'],)
+        return "py_mean_reverting_%s" % (self.conf['pair'],)
 
     def init(self):
         if self.initialized is not True:
