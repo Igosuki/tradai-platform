@@ -67,16 +67,30 @@ All features
 make build_all
 ```
 
-#### N.B.
+Individual builds for all targets are available as show in the makefile.
 
-Currently the build will on pass on LINUX with multiple-definitions enabled :
+#### Multiple symbol issue
+
+In case of multiple symbols for C library bindings, use the following rust flags.
 
 ```
 # .cargo/config.toml
 rustflags = ["-Clink-arg=-Wl,--allow-multiple-definition"]
 ```
 
-### Releasing
+### Releases
+
+#### Binaries
+
+Check out the makefile or cargo for the list of available binaries and necessary features
+
+#### Linkers
+
+In order to make releases building faster, you can use alternative linkers to llvm such as mold (linux, https://github.com/rui314/mold) or zld (mac, https://github.com/michaeleisel/zld) or lld.
+
+Check out the config.toml.sample file for rustc flags
+
+#### Releasing builds with docker
 
 If missing, build the rust-musl-builder-nightly docker image :
 
@@ -102,9 +116,7 @@ rust-musl-builder-nightly cargo build --release --target=x86_64-unknown-linux-gn
 
 #### Requirements
 
-The env var BITCOINS_TEST_RAMFS_DIR set to a ramfs disk, example :
-
-```sudo mount -t tmpfs -o size=2048M tmpfs /media/ramdisk```
+The environment variable BITCOINS_TEST_RAMFS_DIR must be set to a ram disk if you want to speed up integration tests. See the macramdisk and linuxramdisk makefile targets for reference.
 
 #### Run
 
