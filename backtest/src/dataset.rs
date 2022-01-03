@@ -39,7 +39,7 @@ impl Dataset {
                 DatasetType::OrderbooksByMinute | DatasetType::OrderbooksBySecond => {
                     let input_format = self.input_format.to_string();
                     let event_stream = sampled_orderbooks_df(orderbook_partitions, input_format)
-                        .map(|rb| events_from_orderbooks(&rb))
+                        .map(events_from_orderbooks)
                         .flatten();
                     event_stream.for_each(|event| broker.broadcast(event)).await;
                 }
@@ -56,9 +56,7 @@ impl Dataset {
                             &self.input_format.to_string(),
                         )
                         .await?;
-                        let event_stream = tokio_stream::iter(records)
-                            .map(|rb| events_from_orderbooks(&rb))
-                            .flatten();
+                        let event_stream = tokio_stream::iter(records).map(events_from_orderbooks).flatten();
                         event_stream.for_each(|event| broker.broadcast(event)).await;
                     }
                 }

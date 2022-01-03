@@ -1,5 +1,4 @@
-use datafusion::arrow::array::{Array, PrimitiveArray, StringArray, StructArray, TimestampMillisecondArray};
-use datafusion::arrow::datatypes::Float64Type;
+use datafusion::arrow::array::{Array, PrimitiveArray, StructArray, Utf8Array};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::execution::context::ExecutionContext;
 use futures::Stream;
@@ -10,7 +9,7 @@ use std::str::FromStr;
 
 use strategy::coinnect::prelude::{Exchange, MarketEventEnvelope};
 
-use crate::datafusion_util::{get_col_as, to_struct_array, where_clause};
+use crate::datafusion_util::{get_col_as, where_clause};
 use crate::error::*;
 
 pub async fn csv_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
@@ -38,11 +37,11 @@ pub async fn csv_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
 
 pub fn events_from_csv_orderbooks(records: RecordBatch) -> impl Stream<Item = MarketEventEnvelope> {
     stream! {
-        let sa: StructArray = to_struct_array(&records);
-        let _asks_col = get_col_as::<PrimitiveArray<Float64Type>>(&sa, "a1");
-        let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ms");
-        let pair_col = get_col_as::<StringArray>(&sa, "pr");
-        let xch_col = get_col_as::<StringArray>(&sa, "xch");
+        let sa: StructArray = records.into();
+        let _asks_col = get_col_as::<PrimitiveArray<f64>>(&sa, "a1");
+        let event_ms_col = get_col_as::<PrimitiveArray<i64>>(&sa, "event_ms");
+        let pair_col = get_col_as::<Utf8Array<i32>>(&sa, "pr");
+        let xch_col = get_col_as::<Utf8Array<i32>>(&sa, "xch");
         for i in 0..sa.len() {
             let bids = vec![];
             let asks = vec![];

@@ -177,7 +177,7 @@ release_backtest:
 	make target=backtest features=env_logger,mock_time,rocksdb-vendor,zstd release,release_max_level_debug
 
 release_local_backtest:
-	@$(CARGO_BIN) build --release --bin backtest --features=env_logger,mock_time,binary,console_tracing,release_max_level_trace
+	@$(CARGO_BIN) build --release --bin backtest --features=release_default
 
 bin_tag=latest
 download_binary:
