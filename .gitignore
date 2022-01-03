@@ -41,3 +41,8 @@ flame-graph.html
 # python
 __pycache__
 *.cpython*
+
+#profiling
+flamegraph.svg
+perf.data
+perf.data.old
