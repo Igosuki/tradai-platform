@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::RwLock;
 
 use crate::error::{Error, Result};
-use crate::storage::Bytes;
+use crate::storage::{BatchOperation, Bytes};
 use crate::Storage;
 
 type InMemoryTable = BTreeMap<Vec<u8>, Vec<u8>>;
@@ -39,9 +39,13 @@ impl Storage for MemoryKVStore {
         Ok(())
     }
 
-    fn _put_all(&self, table: &str, values: &[(&[u8], &[u8])]) -> Result<()> {
-        for (k, v) in values {
-            self._put(table, k, v)?;
+    fn _batch(&self, values: &[BatchOperation]) -> Result<()> {
+        for (table, k, v) in values {
+            if let Some(v) = v {
+                self._put(table, k, v)?;
+            } else {
+                self._delete(table, k)?;
+            }
         }
         Ok(())
     }
