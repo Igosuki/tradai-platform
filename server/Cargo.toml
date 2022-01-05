@@ -23,6 +23,7 @@ checkers_alloc = ["checkers"]
 dialog_cli = ["dialoguer", "glob"]
 release_max_level_debug = ["tracing/release_max_level_debug"]
 release_max_level_trace = ["tracing/release_max_level_trace"]
+release_default = ["release_max_level_debug", "zstd"]
 
 [dependencies]
 # Self crates
