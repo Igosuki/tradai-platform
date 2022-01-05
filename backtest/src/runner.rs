@@ -14,7 +14,6 @@ use strategy::event::{close_events, open_events};
 use strategy::query::{DataQuery, DataResult};
 use strategy::types::{OperationEvent, StratEvent, TradeEvent};
 use strategy::Channel;
-use trading::types::MarketStat;
 use util::time::{set_current_time, TimedData};
 use util::trace::{display_hist_percentiles, microtime_histogram, microtime_percentiles};
 
@@ -103,7 +102,7 @@ impl BacktestRunner {
                         }
                     }
                     if let MarketEvent::Orderbook(_) = &market_event.e {
-                        report.push_market_stat(TimedData::new(market_event.e.time(), MarketStat::from_market_event(&market_event.e)));
+                        report.push_market_stat(TimedData::new(market_event.e.time(), (&market_event.e).into()));
                     }
                     match driver.data(DataQuery::Models).await {
                         Ok(DataResult::Models(models)) => report
@@ -121,7 +120,7 @@ impl BacktestRunner {
                     execution_hist += start.elapsed().as_nanos() as u64;
                 },
                 _ = self.close_sink.recv() => {
-                    info!("Closing {}", key);
+                    info!("Closing {}.", key);
                     break 'main;
                 }
             }
