@@ -16,7 +16,6 @@ use strategy::models::indicator_windowed_model::IndicatorWindowedModel;
 use strategy::models::io::{IterativeModel, LoadableModel};
 use strategy::models::{IndicatorModel, Sampler, TimedValue, WindowedModel};
 use strategy::prelude::*;
-use strategy::trading::book::BookPosition;
 
 use super::options::Options;
 
@@ -53,17 +52,18 @@ impl MeanRevertingModel {
         }
     }
 
-    pub fn next(&mut self, e: &MarketEvent) -> Result<()> {
-        let book_pos: BookPosition = if let MarketEvent::Orderbook(ob) = e {
-            ob.try_into()?
-        } else {
-            return Ok(());
-        };
-        if !self.sampler.sample(book_pos.event_time) {
+    pub fn next(&mut self, e: &MarketEventEnvelope) -> Result<()> {
+        let event = &e.e;
+        if !self.sampler.sample(event.time()) {
             return Ok(());
         }
+        let ob = match event {
+            MarketEvent::Orderbook(ob) if ob.has_bids_and_asks() => ob,
+            _ => return Ok(()),
+        };
+        let vwap = ob.vwap().unwrap();
         self.apo
-            .update(book_pos.mid)
+            .update(vwap)
             .err_into()
             .and_then(|_| {
                 self.apo
@@ -211,7 +211,7 @@ impl LoadableModel for MeanRevertingModel {
 impl IterativeModel for MeanRevertingModel {
     type ExportValue = BTreeMap<String, Option<serde_json::Value>>;
 
-    fn next_model(&mut self, e: &MarketEventEnvelope) -> Result<()> { self.next(&e.e) }
+    fn next_model(&mut self, e: &MarketEventEnvelope) -> Result<()> { self.next(e) }
 
     fn export_values(&self) -> Result<Self::ExportValue> { Ok(self.values().into_iter().collect()) }
 }
@@ -255,7 +255,7 @@ mod test {
         let mut model_values = vec![];
 
         for event in events {
-            model.next(&event.e).unwrap();
+            model.next(&event).unwrap();
             model_values.push(model.export_values().unwrap());
         }
         let results_dir = PathBuf::from(test_results_dir(module_path!()));
