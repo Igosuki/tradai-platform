@@ -1862,6 +1862,7 @@ dependencies = [
  "bincode",
  "chrono",
  "env_logger 0.9.0",
+ "erased-serde",
  "ext",
  "itertools",
  "lmdb-rkv",
@@ -2110,6 +2111,15 @@ dependencies = [
  "log",
  "regex",
  "termcolor",
+]
+
+[[package]]
+name = "erased-serde"
+version = "0.3.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44a5d80251b806a14cd3e4e1a582e912d5cbf6904ab19fdefbd7a56adca088e1"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
