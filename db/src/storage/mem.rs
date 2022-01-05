@@ -39,6 +39,13 @@ impl Storage for MemoryKVStore {
         Ok(())
     }
 
+    fn _put_all(&self, table: &str, values: &[(&[u8], &[u8])]) -> Result<()> {
+        for (k, v) in values {
+            self._put(table, k, v)?;
+        }
+        Ok(())
+    }
+
     fn _get(&self, table: &str, key: &[u8]) -> Result<Vec<u8>> {
         self.with_table(table, |t| t.get(table.as_bytes()).cloned())
             .ok_or_else(|| Error::NotFound(key.to_vec()))

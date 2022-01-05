@@ -3,7 +3,7 @@ use std::iter::FromIterator;
 use std::path::Path;
 use std::sync::Arc;
 
-use rocksdb::{BoundColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode, Options, DB};
+use rocksdb::{BoundColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode, Options, WriteBatch, DB};
 
 use ext::ResultExt;
 
@@ -109,6 +109,15 @@ impl Storage for RocksDbStorage {
     fn _put(&self, table: &str, key: &[u8], value: &[u8]) -> Result<()> {
         let cf = self.cf(table)?;
         Ok(self.inner.put_cf(&cf, key, value)?)
+    }
+
+    fn _put_all(&self, table: &str, values: &[(&[u8], &[u8])]) -> Result<()> {
+        let cf = self.cf(table)?;
+        let mut batch = WriteBatch::default();
+        for (k, v) in values {
+            batch.put_cf(&cf, k, v);
+        }
+        self.inner.write(batch).err_into()
     }
 
     fn _get(&self, table: &str, key: &[u8]) -> Result<Vec<u8>> {
