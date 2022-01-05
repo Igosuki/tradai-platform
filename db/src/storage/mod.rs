@@ -19,10 +19,12 @@ pub mod rocksdb;
 
 pub type Bytes = Box<[u8]>;
 
+pub type BatchOperation<'a> = (&'a str, &'a [u8], Option<Vec<u8>>);
+
 pub trait Storage: Send + Sync + Debug + ToAny {
     fn _put(&self, table: &str, key: &[u8], value: &[u8]) -> Result<()>;
 
-    fn _put_all(&self, table: &str, values: &[(&[u8], &[u8])]) -> Result<()>;
+    fn _batch(&self, values: &[BatchOperation]) -> Result<()>;
 
     fn _get(&self, table: &str, key: &[u8]) -> Result<Vec<u8>>;
 
@@ -45,6 +47,10 @@ pub trait StorageExt {
     where
         K: AsRef<[u8]>,
         V: Serialize;
+
+    fn batch<K>(&self, values: &[(&str, K, Option<serde_json::Value>)]) -> Result<()>
+    where
+        K: AsRef<[u8]>;
 
     fn get<K, V>(&self, table: &str, key: K) -> Result<V>
     where
@@ -83,6 +89,17 @@ impl<T: Storage + ?Sized> StorageExt for T {
     {
         let serialized = serde_json::to_vec::<V>(&value)?;
         self._put(table, key.as_ref(), serialized.as_slice())
+    }
+
+    fn batch<K>(&self, values: &[(&str, K, Option<serde_json::Value>)]) -> Result<()>
+    where
+        K: AsRef<[u8]>,
+    {
+        let vec: Vec<BatchOperation> = values
+            .iter()
+            .map(|(t, k, v)| (*t, k.as_ref(), v.as_ref().map(|v| serde_json::to_vec(v).unwrap())))
+            .collect();
+        self._batch(&vec)
     }
 
     fn get<K, V>(&self, table: &str, key: K) -> Result<V>
