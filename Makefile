@@ -122,11 +122,15 @@ bench:
 profile:
 	@$(CARGO_BIN) flamegraph --dev --bin=trader --features flame_it
 
-.PHONY: flamegraph
-flamegraph:
+.PHONY: flamegraph_stack
+flamegraph_stack:
 	perf script | inferno-collapse-perf > stacks.folded
 	inferno-flamegraph stacks.folded > flamegraph.svg
 	firefox flamegraph.svg
+
+.PHONE: flamegraph
+flamegraph:
+        CARGO_PROFILE_RELEASE_DEBUG=true RUST_BACKTRACE=1 RUST_LOG=info cargo flamegraph --bin=$(target) --features=$(features) -- $(args)
 
 .PHONY: filt
 filt:
