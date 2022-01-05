@@ -592,7 +592,7 @@ mod repository_test {
         assert_eq!(get_pos.unwrap().unwrap(), pos);
         let is_open = repo.is_open(&pos.id);
         assert_matches!(is_open, Ok(true));
-        pos.close_order = Some(OrderDetail::from_query(None, AddOrderRequest {
+        pos.close_order = Some(OrderDetail::from_query(AddOrderRequest {
             pair: pos.symbol.clone(),
             ..AddOrderRequest::default()
         }));
