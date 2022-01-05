@@ -5,7 +5,6 @@ use uuid::Uuid;
 use coinnect_rt::types::{AddOrderRequest, AssetType, MarginSideEffect, MarketEvent, OrderEnforcement, OrderType,
                          TradeType};
 
-use crate::book::BookPosition;
 use crate::signal::ExecutionInstruction;
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize, EnumString, AsRefStr, juniper::GraphQLEnum)]
@@ -169,17 +168,20 @@ pub struct MarketStat {
     pub vol: f64,
 }
 
-impl MarketStat {
-    /// # Panics
-    ///
-    /// trade and candle ticks don't implement market stat
-    pub fn from_market_event(e: &MarketEvent) -> Self {
-        match e {
-            MarketEvent::Orderbook(o) => MarketStat {
-                w_price: BookPosition::mid(&o.asks, &o.bids),
-                vol: BookPosition::vol(&o.asks, &o.bids),
-            },
-            _ => unimplemented!(),
+impl From<MarketEvent> for MarketStat {
+    fn from(e: MarketEvent) -> Self {
+        Self {
+            w_price: e.vwap(),
+            vol: e.vol(),
+        }
+    }
+}
+
+impl From<&MarketEvent> for MarketStat {
+    fn from(e: &MarketEvent) -> Self {
+        Self {
+            w_price: e.vwap(),
+            vol: e.vol(),
         }
     }
 }
