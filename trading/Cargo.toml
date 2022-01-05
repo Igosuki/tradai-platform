@@ -13,7 +13,7 @@ binary = ["clap", "structopt"]
 test_util = ["binance-rs-async", "httpmock", "rand", "env_logger", "fake", "quickcheck"]
 release_max_level_debug = ["tracing/release_max_level_debug"]
 release_max_level_trace = ["tracing/release_max_level_trace"]
-
+release_default=["structopt","binary"]
 [dependencies]
 # own
 ext = { path = "../ext" }

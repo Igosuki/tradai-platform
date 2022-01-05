@@ -130,7 +130,7 @@ flamegraph_stack:
 
 .PHONE: flamegraph
 flamegraph:
-        CARGO_PROFILE_RELEASE_DEBUG=true RUST_BACKTRACE=1 RUST_LOG=info cargo flamegraph --bin=$(target) --features=$(features) -- $(args)
+	CARGO_PROFILE_RELEASE_DEBUG=true RUST_BACKTRACE=1 RUST_LOG=info cargo flamegraph --bin=$(target) --features=$(features) -- $(args)
 
 .PHONY: filt
 filt:
@@ -154,7 +154,7 @@ clean-lint:
 ## alias rust-musl-builder-nightly='docker run --cpus=$(nproc) --rm -it --user rust $MUSL_FLAGS -v "$HOME/.cargo/git":/home/rust/.cargo/git -v "$(pwd)/cargo-registry":/home/rust/.cargo/registry -v "$(pwd)/cargo-target":/home/rust/src/target -v "$(pwd)":/home/rust/src ekidd/rust-musl-builder:nightly-2020-06-17'
 #$(rust-musl-builder-nightly) cargo build --release --target=x86_64-unknown-linux-gnu
 target=trader
-features=rocksdb-vendor,zstd
+features=release_default
 profile=release
 target_arch=x86_64-unknown-linux-gnu
 .PHONY: release
@@ -166,19 +166,20 @@ release:
 release_trader_musl:
 	make target_arch=x86_64-unknown-linux-musl release
 
-release_trader: release
+release_trader:
+	make target=trader release
 
 release_debug_trader:
 	make profile=release-debug release
 
 release_db_tool:
-	make target=db_tool features=rocksdb-vendor,zstd,structopt release
+	make target=db_tool release
 
 release_om_tool:
-	make target=om_tool features=rocksdb-vendor,zstd,structopt,binary release
+	make target=om_tool release
 
 release_backtest:
-	make target=backtest features=env_logger,mock_time,rocksdb-vendor,zstd release,release_max_level_debug
+	make target=backtest
 
 release_local_backtest:
 	@$(CARGO_BIN) build --release --bin backtest --features=release_default

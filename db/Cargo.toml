@@ -19,7 +19,7 @@ rocksdb-vendor = []
 rkv-lmdb = ["rkv", "lmdb-rkv", "tracing"]
 release_max_level_debug = ["tracing/release_max_level_debug"]
 release_max_level_trace = ["tracing/release_max_level_trace"]
-
+release_default = ["structopt"]
 [dependencies]
 # trader
 ext = { path = "../ext" }
