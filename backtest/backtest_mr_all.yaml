@@ -2,7 +2,7 @@ strats: []
 
 strat_copy:
   type: market_replica
-  pairs: ['.*_USDT']
+  pairs: ['.*(?<!BEAR|BULL|UP|DOWN)_USDT']
   exchanges: ['Binance']
   base:
     driver:
