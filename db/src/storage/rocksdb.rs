@@ -8,7 +8,7 @@ use rocksdb::{BoundColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode
 use ext::ResultExt;
 
 use crate::error::*;
-use crate::storage::Storage;
+use crate::storage::{BatchOperation, Storage};
 
 type Bytes = Box<[u8]>;
 
@@ -111,11 +111,15 @@ impl Storage for RocksDbStorage {
         Ok(self.inner.put_cf(&cf, key, value)?)
     }
 
-    fn _put_all(&self, table: &str, values: &[(&[u8], &[u8])]) -> Result<()> {
-        let cf = self.cf(table)?;
+    fn _batch(&self, values: &[BatchOperation]) -> Result<()> {
         let mut batch = WriteBatch::default();
-        for (k, v) in values {
-            batch.put_cf(&cf, k, v);
+        for (table, k, v) in values {
+            let cf = self.cf(table)?;
+            if let Some(v) = v {
+                batch.put_cf(&cf, k, v);
+            } else {
+                batch.delete_cf(&cf, k);
+            }
         }
         self.inner.write(batch).err_into()
     }
