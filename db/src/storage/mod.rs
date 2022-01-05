@@ -22,6 +22,8 @@ pub type Bytes = Box<[u8]>;
 pub trait Storage: Send + Sync + Debug + ToAny {
     fn _put(&self, table: &str, key: &[u8], value: &[u8]) -> Result<()>;
 
+    fn _put_all(&self, table: &str, values: &[(&[u8], &[u8])]) -> Result<()>;
+
     fn _get(&self, table: &str, key: &[u8]) -> Result<Vec<u8>>;
 
     fn _get_ranged(&self, table: &str, from: &[u8]) -> Result<Vec<Box<[u8]>>>;
