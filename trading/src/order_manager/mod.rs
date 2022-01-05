@@ -276,7 +276,7 @@ impl OrderManager {
         let order = self.get_order_from_storage(&order_id);
         let result = match (tr.clone(), order) {
             (TransactionStatus::Staged(OrderQuery::AddOrder(add_order)), _) => {
-                self.repo.put(OrderDetail::from_query(None, add_order))
+                self.repo.put(OrderDetail::from_query(add_order))
             }
             (TransactionStatus::New(submission), Ok(mut order)) => {
                 order.from_submission(submission);
@@ -363,7 +363,7 @@ impl OrderManager {
                         let staged_tr = iter.find(staged_order_predicate);
                         let other_trs = iter2.filter(|ts| !staged_order_predicate(ts));
                         if let Some(TransactionStatus::Staged(OrderQuery::AddOrder(request))) = staged_tr {
-                            let mut od = OrderDetail::from_query(None, request);
+                            let mut od = OrderDetail::from_query(request);
                             for tr in other_trs {
                                 od.from_status(tr);
                             }
