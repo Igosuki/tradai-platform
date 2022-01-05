@@ -228,6 +228,7 @@ impl Portfolio {
             if order.is_filled() {
                 resp = Ok(Some(pos.clone()));
                 if pos.is_closed() {
+                    self.repo.close_position(pos)?;
                     pos_entry.remove();
                     if self.open_positions.is_empty() {
                         self.pnl = self.value;
