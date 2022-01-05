@@ -9,17 +9,11 @@ use coinnect_rt::types::Orderbook;
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct BookPosition {
     pub mid: f64,
-    // mid = (top_ask + top_bid) / 2, alias: crypto1_m
     pub ask: f64,
-    // crypto_a
     pub ask_q: f64,
-    // crypto_a_q
     pub bid: f64,
-    // crypto_b
     pub bid_q: f64,
-    // crypto_b_q
     pub event_time: DateTime<Utc>,
-    // trade_id
     pub trace_id: Uuid,
 }
 
@@ -45,6 +39,7 @@ impl BookPosition {
             / asks_iter2.interleave(bids_iter2).map(|t| t.1).sum::<f64>()
     }
 
+    #[allow(dead_code)]
     pub(crate) fn vol(asks: &[(f64, f64)], bids: &[(f64, f64)]) -> f64 {
         asks.iter()
             .map(|v| v.1)
@@ -56,17 +51,7 @@ impl BookPosition {
 impl TryFrom<Orderbook> for BookPosition {
     type Error = BookError;
 
-    fn try_from(t: Orderbook) -> Result<Self, Self::Error> {
-        if t.asks.is_empty() {
-            return Err(BookError::MissingAsks);
-        }
-        if t.bids.is_empty() {
-            return Err(BookError::MissingBids);
-        }
-        let event_time = Utc.timestamp_millis(t.timestamp);
-        // TODO: trace_id should come from event envelope
-        Ok(BookPosition::new(Uuid::new_v4(), event_time, &t.asks, &t.bids))
-    }
+    fn try_from(t: Orderbook) -> Result<Self, Self::Error> { (&t).try_into() }
 }
 
 impl<'a> TryFrom<&'a Orderbook> for BookPosition {
@@ -128,4 +113,6 @@ pub enum BookError {
     MissingBids,
     #[error("at least one ask expected")]
     MissingAsks,
+    #[error("at least one ask expected")]
+    NotAnOrderbook,
 }
