@@ -224,15 +224,17 @@ impl Portfolio {
         let mut resp = Ok(None);
         if let Entry::Occupied(pos_entry) = self.open_positions.entry(pos_key.clone()) {
             let pos = pos_entry.get();
-            self.repo.put_position(pos)?;
             if order.is_filled() {
                 resp = Ok(Some(pos.clone()));
                 if pos.is_closed() {
                     self.repo.close_position(pos)?;
                     pos_entry.remove();
+                    // TODO: this isn't the right way to manage multiple positions, as the pnl should be the sum of all gains and losses
                     if self.open_positions.is_empty() {
                         self.pnl = self.value;
                     }
+                } else if pos.is_opened() {
+                    self.repo.open_position(pos)?;
                 }
                 self.repo.update_vars(self)?;
             }
@@ -424,7 +426,7 @@ pub trait PortfolioRepo: Debug + Send + Sync {
     /// Is this position open
     fn is_open(&self, pos_id: &Uuid) -> Result<bool>;
     /// Save a position
-    fn put_position(&self, pos: &Position) -> Result<()>;
+    fn put_position(&self, pos: &Position, is_open: bool) -> Result<()>;
     /// Get a position
     fn get_position(&self, pos_id: Uuid) -> Result<Option<Position>>;
     /// Get all positions
@@ -441,8 +443,8 @@ pub trait PortfolioRepo: Debug + Send + Sync {
     fn load(&self, _: &mut Portfolio) -> Result<()>;
 }
 
-static POSITIONS_ARCHIVE_TABLE: &str = "positions";
-static OPEN_POSITIONS_TABLE: &str = "open_positions";
+static POSITIONS_TABLE: &str = "positions";
+static OPEN_POSITIONS_INDEX: &str = "open_pos_idx";
 static POSITION_LOCKS_TABLE: &str = "locks";
 static PORTFOLIO_VARS: &str = "vars";
 
@@ -459,9 +461,9 @@ impl PortfolioRepoImpl {
     pub fn new(db: Arc<dyn Storage>) -> Self {
         for table in &[
             POSITION_LOCKS_TABLE,
-            POSITIONS_ARCHIVE_TABLE,
+            POSITIONS_TABLE,
             PORTFOLIO_VARS,
-            OPEN_POSITIONS_TABLE,
+            OPEN_POSITIONS_INDEX,
         ] {
             db.ensure_table(table).unwrap();
         }
@@ -477,29 +479,33 @@ impl PortfolioRepoImpl {
 }
 
 impl PortfolioRepo for PortfolioRepoImpl {
-    fn open_position(&self, pos: &Position) -> Result<()> {
-        self.put_position(pos)?;
-        self.db.put(OPEN_POSITIONS_TABLE, pos.id.as_bytes(), true).err_into()
-    }
+    fn open_position(&self, pos: &Position) -> Result<()> { self.put_position(pos, true) }
 
-    fn close_position(&self, pos: &Position) -> Result<()> {
-        self.put_position(pos)?;
-        self.db.delete(OPEN_POSITIONS_TABLE, pos.id.as_bytes()).err_into()
-    }
+    fn close_position(&self, pos: &Position) -> Result<()> { self.put_position(pos, false) }
 
     fn is_open(&self, pos_id: &Uuid) -> Result<bool> {
-        match self.db.get(OPEN_POSITIONS_TABLE, pos_id.as_bytes()) {
+        match self.db.get(OPEN_POSITIONS_INDEX, pos_id.as_bytes()) {
             Err(db::Error::NotFound(_)) => Ok(false),
             r => r.err_into(),
         }
     }
 
-    fn put_position(&self, pos: &Position) -> Result<()> {
-        self.db.put(POSITIONS_ARCHIVE_TABLE, pos.id.as_bytes(), pos).err_into()
+    fn put_position(&self, pos: &Position, is_open: bool) -> Result<()> {
+        let pos_id = pos.id.as_bytes();
+        self.db
+            .batch(&[
+                (POSITIONS_TABLE, pos_id, Some(Box::new(pos.clone()))),
+                (
+                    OPEN_POSITIONS_INDEX,
+                    pos_id,
+                    if is_open { Some(Box::new(is_open)) } else { None },
+                ),
+            ])
+            .err_into()
     }
 
     fn get_position(&self, pos_id: Uuid) -> Result<Option<Position>> {
-        match self.db.get(POSITIONS_ARCHIVE_TABLE, pos_id.as_bytes()) {
+        match self.db.get(POSITIONS_TABLE, pos_id.as_bytes()) {
             Err(db::Error::NotFound(_)) => Ok(None),
             r => r.err_into(),
         }
@@ -508,14 +514,17 @@ impl PortfolioRepo for PortfolioRepoImpl {
     fn all_positions(&self) -> Result<Vec<Position>> {
         Ok(self
             .db
-            .get_all::<Position>(POSITIONS_ARCHIVE_TABLE)?
+            .get_all::<Position>(POSITIONS_TABLE)?
             .into_iter()
             .map(|(_, pos)| pos)
             .collect())
     }
 
     fn delete_position(&self, pos_id: Uuid) -> Result<()> {
-        self.db.delete(POSITIONS_ARCHIVE_TABLE, pos_id.as_bytes()).err_into()
+        let pos_id = pos_id.as_bytes();
+        self.db
+            .batch(&[(POSITIONS_TABLE, pos_id, None), (OPEN_POSITIONS_INDEX, pos_id, None)])
+            .err_into()
     }
 
     fn set_lock(&self, key: &PositionKey, lock: &PositionLock) -> Result<()> {
@@ -542,7 +551,7 @@ impl PortfolioRepo for PortfolioRepoImpl {
             p.pnl = vars.pnl;
             p.value = vars.value;
         }
-        for (pos_id, _) in self.db.get_all::<bool>(OPEN_POSITIONS_TABLE)? {
+        for (pos_id, _) in self.db.get_all::<bool>(OPEN_POSITIONS_INDEX)? {
             let pos_id = Uuid::from_slice(&*pos_id)?;
             if let Some(pos) = self.get_position(pos_id)? {
                 error!("failed to retrieve open position {} from storage", pos_id);
@@ -625,7 +634,7 @@ mod repository_test {
     async fn put_and_delete_position() {
         let repo = make_test_repo();
         let pos = Position::default();
-        let put = repo.put_position(&pos);
+        let put = repo.put_position(&pos, true);
         assert_matches!(put, Ok(_));
         let pos_id = pos.id;
         let get_pos = repo.get_position(pos_id);

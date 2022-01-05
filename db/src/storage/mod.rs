@@ -42,13 +42,15 @@ pub trait Storage: Send + Sync + Debug + ToAny {
     fn ensure_table(&self, name: &str) -> Result<()>;
 }
 
+pub type BatchOperationSer<'a, K> = (&'a str, K, Option<Box<dyn erased_serde::Serialize>>);
+
 pub trait StorageExt {
     fn put<K, V>(&self, table: &str, key: K, value: V) -> Result<()>
     where
         K: AsRef<[u8]>,
         V: Serialize;
 
-    fn batch<K>(&self, values: &[(&str, K, Option<serde_json::Value>)]) -> Result<()>
+    fn batch<K>(&self, values: &[BatchOperationSer<'_, K>]) -> Result<()>
     where
         K: AsRef<[u8]>;
 
@@ -91,13 +93,19 @@ impl<T: Storage + ?Sized> StorageExt for T {
         self._put(table, key.as_ref(), serialized.as_slice())
     }
 
-    fn batch<K>(&self, values: &[(&str, K, Option<serde_json::Value>)]) -> Result<()>
+    fn batch<K>(&self, values: &[BatchOperationSer<K>]) -> Result<()>
     where
         K: AsRef<[u8]>,
     {
         let vec: Vec<BatchOperation> = values
             .iter()
-            .map(|(t, k, v)| (*t, k.as_ref(), v.as_ref().map(|v| serde_json::to_vec(v).unwrap())))
+            .map(|(t, k, v)| {
+                (
+                    *t,
+                    k.as_ref(),
+                    v.as_ref().map(|v| serde_json::to_vec(v.as_ref()).unwrap()),
+                )
+            })
             .collect();
         self._batch(&vec)
     }
