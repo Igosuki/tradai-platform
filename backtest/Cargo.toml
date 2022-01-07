@@ -16,11 +16,11 @@ required-features = ["binary"]
 default = ["env_logger", "mock_time", "binary"]
 mock_time = ["util/mock_time"]
 binary = ["env_logger", "structopt"]
-console_tracing = ["util/console_tracing"]
+console = ["util/console_tracing"]
 release_max_level_debug = ["util/release_max_level_debug", "tracing/release_max_level_debug"]
 release_max_level_trace = ["util/release_max_level_trace", "tracing/release_max_level_trace"]
 
-release_default = ["env_logger", "mock_time", "binary", "console_tracing", "release_max_level_trace"]
+release_default = ["env_logger", "mock_time", "binary", "release_max_level_trace"]
 
 [dependencies]
 # trader

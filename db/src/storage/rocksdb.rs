@@ -22,6 +22,8 @@ pub struct RocksDbOptions {
     max_log_file_size: Option<usize>,
     keep_log_file_num: Option<usize>,
     max_total_wal_size: Option<usize>,
+    write_buffer_size: Option<usize>,
+    db_write_buffer_size: Option<usize>,
 }
 
 impl RocksDbOptions {
@@ -48,6 +50,18 @@ impl RocksDbOptions {
         self.max_total_wal_size = Some(max_total_wal_size);
         self
     }
+
+    #[must_use]
+    pub fn write_buffer_size(mut self, write_buffer_size: usize) -> Self {
+        self.write_buffer_size = Some(write_buffer_size);
+        self
+    }
+
+    #[must_use]
+    pub fn db_write_buffer_size(mut self, db_write_buffer_size: usize) -> Self {
+        self.db_write_buffer_size = Some(db_write_buffer_size);
+        self
+    }
 }
 
 #[derive(Debug)]
@@ -69,6 +83,12 @@ impl RocksDbStorage {
         }
         if let Some(max_total_wal_size) = rocksdb_options.max_total_wal_size {
             options.set_max_total_wal_size(max_total_wal_size as u64);
+        }
+        if let Some(write_buffer_size) = rocksdb_options.write_buffer_size {
+            options.set_write_buffer_size(write_buffer_size);
+        }
+        if let Some(db_write_buffer_size) = rocksdb_options.db_write_buffer_size {
+            options.set_db_write_buffer_size(db_write_buffer_size);
         }
         let mut tables: HashSet<String> = HashSet::from_iter(tables);
         let query = DB::list_cf(&options, db_path.as_ref());
