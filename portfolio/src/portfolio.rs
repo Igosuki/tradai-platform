@@ -5,6 +5,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
+use itertools::Itertools;
 use uuid::Uuid;
 
 use coinnect_rt::prelude::{Exchange, TradeType};
@@ -406,6 +407,22 @@ impl Portfolio {
     }
 
     pub fn positions_history(&self) -> Result<Vec<Position>> { self.repo.all_positions() }
+
+    pub fn position_avg_price(&self) -> f64 {
+        self.open_positions
+            .values()
+            .map(|pos| pos.open_order.as_ref().unwrap().price.unwrap())
+            .sum::<f64>()
+            / self.open_positions.values().len() as f64
+    }
+
+    pub fn last_position(&self) -> Option<&Position> {
+        self.open_positions
+            .values()
+            .sorted_by_key(|pos| pos.meta.open_at)
+            .rev()
+            .last()
+    }
 }
 
 fn bad_signal(pos: &Position, signal: &TradeSignal) -> Error {

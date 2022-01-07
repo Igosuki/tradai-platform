@@ -67,7 +67,19 @@ All features
 make build_all
 ```
 
+
+
+
 Individual builds for all targets are available as show in the makefile.
+#### Avoiding rebuilding pyo3 libraries
+
+There is a known issue where pyo3 triggers a rebuild of itself (and thus all the dependent crates) with cargo (https://github.com/PyO3/pyo3/issues/1708).
+
+Set target-dir in the project file `.cargo/config.toml` to avoid this issue : 
+```
+# .cargo/config.toml
+target-dir = "target"
+```
 
 #### Multiple symbol issue
 
@@ -177,9 +189,11 @@ Get the rr gdb configuration
 Follow the steps here https://github.com/rr-debugger/rr/wiki/Using-rr-in-an-IDE
 and this specifically for rust https://gist.github.com/spacejam/15f27007c0b1bcc1d6b4c9169b18868c
 
-#### Profilign with cargo 
+#### Profiling with cargo instead of valgrind directly 
 
 See https://github.com/svenstaro/cargo-profiler
+
+e.g.: ``` cargo profiler cachegrind --bin ./target/debug/rsmat -n 10 --sort dr```
 
 #### Profiling heap allocations
 

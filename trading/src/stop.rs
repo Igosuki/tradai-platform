@@ -1,3 +1,5 @@
+use crate::position::PositionKind;
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum StopEvent {
@@ -22,6 +24,22 @@ impl<T: std::cmp::PartialOrd + Copy> Stopper<T> {
             Some(StopEvent::Loss)
         } else {
             None
+        }
+    }
+}
+
+pub struct PositionStopper {
+    pos_price: f64,
+    pos_kind: PositionKind,
+}
+
+impl PositionStopper {
+    pub fn new(pos_price: f64, pos_kind: PositionKind) -> Self { Self { pos_price, pos_kind } }
+
+    pub fn should_stop(&self, new_stop_price: f64) -> bool {
+        match self.pos_kind {
+            PositionKind::Short => new_stop_price > self.pos_price,
+            PositionKind::Long => new_stop_price < self.pos_price,
         }
     }
 }

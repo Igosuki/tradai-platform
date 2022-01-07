@@ -30,9 +30,13 @@ extern crate serde_derive;
 extern crate test;
 #[macro_use]
 extern crate thiserror;
+#[macro_use]
+extern crate anyhow;
 
 pub use ta::indicators::*;
-pub use ta::*;
+pub use ta::{Close, High, Low, Next, Open, Period, Reset, Volume};
+pub use yata::core::{Action, Method, Window};
+pub use yata::methods::{LowerReversalSignal, UpperReversalSignal};
 
 mod dispersion;
 mod error;
