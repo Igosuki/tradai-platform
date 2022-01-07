@@ -15,7 +15,6 @@ use strategy::settings::{StrategyOptions, StrategySettingsReplicator};
 use strategy::{Channel, StrategyKey};
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::new_trade_signal;
-use trading::stop::PositionStopper;
 use trading::types::OrderConf;
 use util::time::now;
 
@@ -105,10 +104,12 @@ pub struct BreakoutStrategy {
     /// Pivot High
     pl: LowerReversalSignal,
     ma_cross: CrossUnder,
+    #[allow(dead_code)]
     buy_cross: CrossAbove,
     use_ma_filter: bool,
     use_adr_filter: bool,
     trail_ma_input: u8,
+    #[allow(dead_code)]
     ticker_time_frame: Duration,
     adr_perc: f64,
     lows: Window<f64>,
