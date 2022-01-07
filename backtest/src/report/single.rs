@@ -181,12 +181,14 @@ impl BacktestReport {
         super::draw_entries(&mut plot, 2, market_stats.as_slice(), vec![("stats", vec![|ms| {
             ms.w_price
         }])]);
+        drop(market_stats);
         let indicators: Vec<TimedData<PortfolioSnapshot>> = super::read_json_file(output_dir, SNAPSHOTS_FILE);
         super::draw_entries(&mut plot, 3, indicators.as_slice(), vec![
             ("pnl", vec![|i| i.pnl]),
             ("value", vec![|i| i.value]),
             ("return", vec![|i| i.current_return]),
         ]);
+        drop(indicators);
 
         let layout = Layout::new().grid(LayoutGrid::new().rows(5).columns(1).pattern(GridPattern::Independent));
         plot.set_layout(layout);

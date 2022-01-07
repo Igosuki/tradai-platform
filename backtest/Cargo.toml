@@ -65,6 +65,7 @@ itertools = "0.10"
 hdrhistogram = "7.4"
 dashmap = "5"
 float-cmp = "0.9"
+num_cpus = "1.13"
 
 # data
 datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow22r", version = "6.0", default-features = false, features = ["avro", "crypto_expressions", "regex_expressions", "unicode_expressions"] }

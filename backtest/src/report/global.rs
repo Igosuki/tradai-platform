@@ -16,15 +16,19 @@ pub(crate) struct GlobalReport {
     pub reports: Vec<BacktestReport>,
     pub output_dir: PathBuf,
     pub base_dir: PathBuf,
+    parallelism: usize,
 }
 
 impl GlobalReport {
-    pub(crate) fn new(output_dir: PathBuf) -> Self {
+    pub(crate) fn new(output_dir: PathBuf) -> Self { Self::new_with(output_dir, None) }
+
+    pub(crate) fn new_with(output_dir: PathBuf, parallelism: Option<usize>) -> Self {
         let output_dir_path = output_dir.join(now_str());
         Self {
             reports: vec![],
             base_dir: output_dir,
             output_dir: output_dir_path,
+            parallelism: parallelism.unwrap_or_else(num_cpus::get),
         }
     }
 
@@ -34,7 +38,7 @@ impl GlobalReport {
         let output_dir = self.output_dir.clone();
         tokio_stream::iter(self.reports.as_slice().iter())
             .map(BacktestReport::finish)
-            .buffer_unordered(10)
+            .buffer_unordered(self.parallelism)
             .map(|x| {
                 x.unwrap();
                 Ok(())
