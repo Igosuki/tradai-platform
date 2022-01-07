@@ -184,6 +184,9 @@ release_backtest:
 release_local_backtest:
 	@$(CARGO_BIN) build --release --bin backtest --features=release_default
 
+release_local_backtest_debug:
+	CARGO_PROFILE_RELEASE_DEBUG=true CARGO_HOME=.cargo_debug @$(CARGO_BIN) build --release --bin backtest --features=release_default,console
+
 bin_tag=latest
 download_binary:
 	mkdir -p build/binaries
