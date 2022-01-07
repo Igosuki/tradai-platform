@@ -826,6 +826,7 @@ dependencies = [
  "futures",
  "hdrhistogram",
  "itertools",
+ "num_cpus",
  "parse_duration",
  "plotly",
  "pyo3-asyncio",
