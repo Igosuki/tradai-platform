@@ -1,5 +1,7 @@
+pub mod cross;
 pub mod drawdown;
-mod ema;
+pub mod ema;
 pub mod macd_apo;
+pub mod momentum;
 pub mod ratio;
 pub mod thresholds;

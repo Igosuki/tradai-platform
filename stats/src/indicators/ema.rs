@@ -2,6 +2,13 @@ use crate::error::Error;
 use crate::{Close, Next, Reset};
 use std::fmt;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MovingAverageType {
+    Simple,
+    Exponential,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 pub struct ExponentialMovingAverage {
     length: u32,

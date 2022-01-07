@@ -144,3 +144,8 @@ impl Interval {
         Some(i)
     }
 }
+
+pub enum BarMerge {
+    GapsOff,
+    LookaheadOn,
+}
