@@ -89,6 +89,13 @@ where
     Duration::from_std(parse_duration::parse(&val).map_err(serde::de::Error::custom)?).map_err(serde::de::Error::custom)
 }
 
+pub fn encode_duration_str<S>(x: &Duration, s: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_str(&format!("{}ms", x.num_milliseconds()))
+}
+
 #[derive(Deserialize, Debug)]
 #[serde(untagged)]
 enum F64Helper {
