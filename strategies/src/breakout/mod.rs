@@ -169,10 +169,11 @@ impl Strategy for BreakoutStrategy {
         ctx: &DefaultStrategyContext,
     ) -> strategy::error::Result<Option<TradeSignals>> {
         let mut signals = TradeSignals::new();
-        let vwap = e.e.vwap();
-        self.last_close = e.e.close();
-        let oldest_low = self.lows.push(e.e.low());
-        let oldest_high = self.highs.push(e.e.high());
+        let market_event = &e.e;
+        let vwap = market_event.vwap();
+        self.last_close = market_event.close();
+        let oldest_low = self.lows.push(market_event.low());
+        let oldest_high = self.highs.push(market_event.high());
         // TODO: Make a candler aggregator from trades with GapsOff for gaps, LookAheadOn for lookahead and ticker_time_frame for time frame
 
         // --- Model
@@ -184,17 +185,17 @@ impl Strategy for BreakoutStrategy {
             2 => ma_2,
             _ => unreachable!(),
         };
-        let ma_crossed = self.ma_cross.next((e.e.low(), trail_ma));
+        let ma_crossed = self.ma_cross.next((market_event.low(), trail_ma));
         let ma_cross_level = if ma_crossed {
             self.ma_crossed_at = now();
-            e.e.low()
+            market_event.low()
         } else {
             0.0
         };
         //let ma_cross_pc = Change::new(maCrossLevel) != 0 ? na : color.new(color.blue, 0); //Removes color when there is a change to ensure only the levels are shown (i.e. no diagonal lines connecting the levels)
-        let ph = self.ph.next(&e.e.high());
+        let ph = self.ph.next(&market_event.high());
         self.high_level = if let Action::Buy(_) = ph { oldest_high } else { 0.0 };
-        let pl = self.pl.next(&e.e.low());
+        let pl = self.pl.next(&market_event.low());
         self.low_level = if let Action::Sell(_) = ph { oldest_low } else { 0.0 };
 
         // --- Decisions
@@ -205,7 +206,9 @@ impl Strategy for BreakoutStrategy {
 
         // long entry
         let buy_level = if let Action::Buy(_) = ph { oldest_high } else { 0.0 };
-        let adr_value = self.adr.next((e.e.high() - e.e.low()) / e.e.low().abs() * 100.0);
+        let adr_value = self
+            .adr
+            .next((market_event.high() - market_event.low()) / market_event.low().abs() * 100.0);
         let adr_compare = (self.adr_perc * adr_value) / 100.0;
         let buy_conditions = if self.use_ma_filter { buy_level > ma_3 } else { true }
             && if self.use_adr_filter {
@@ -219,11 +222,11 @@ impl Strategy for BreakoutStrategy {
                 self.pair.clone(),
                 self.exchange,
                 &self.order_conf,
-                e.e.time(),
+                market_event.time(),
                 e.trace_id,
                 OperationKind::Open,
                 PositionKind::Long,
-                e.e.close(),
+                market_event.close(),
                 None,
             ));
         }
@@ -241,11 +244,11 @@ impl Strategy for BreakoutStrategy {
                 self.pair.clone(),
                 self.exchange,
                 &self.order_conf,
-                e.e.time(),
+                market_event.time(),
                 e.trace_id,
                 OperationKind::Close,
                 PositionKind::Long,
-                e.e.close(),
+                market_event.close(),
                 None,
             ));
         }
@@ -277,16 +280,16 @@ impl Strategy for BreakoutStrategy {
                 stop_level
             };
 
-            if e.e.close() > stop_gain_level {
+            if market_event.close() > stop_gain_level {
                 signals.push(new_trade_signal(
                     self.pair.clone(),
                     self.exchange,
                     &self.order_conf,
-                    e.e.time(),
+                    market_event.time(),
                     e.trace_id,
                     OperationKind::Close,
                     PositionKind::Long,
-                    e.e.close(),
+                    market_event.close(),
                     None,
                 ));
             }
