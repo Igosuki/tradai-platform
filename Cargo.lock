@@ -1409,6 +1409,7 @@ dependencies = [
  "libc",
  "libflate",
  "multimap",
+ "once_cell",
  "ordered-float 2.8.0",
  "prometheus",
  "regex",
@@ -5605,6 +5606,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "criterion",
  "float-cmp",
  "itertools",
  "num-traits",
