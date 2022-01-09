@@ -60,9 +60,9 @@ impl Compression {
             .and_then(|os_str| os_str.to_str())
             .unwrap_or("");
         let ext = if current_ext.is_empty() {
-            format!("{}.{}", current_ext, ext)
-        } else {
             ext.to_string()
+        } else {
+            format!("{}.{}", current_ext, ext)
         };
         current_path.with_extension(ext)
     }
