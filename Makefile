@@ -130,7 +130,7 @@ flamegraph_stack:
 
 .PHONE: flamegraph
 flamegraph:
-	CARGO_PROFILE_RELEASE_DEBUG=true RUST_BACKTRACE=1 RUST_LOG=info cargo flamegraph --bin=$(target) --features=$(features) -- $(args)
+	LD_LIBRARY_PATH=/usr/local/lib CARGO_PROFILE_RELEASE_DEBUG=true RUST_BACKTRACE=1 RUST_LOG=info CARGO_HOME=.cargo_debug $(CARGO_BIN) flamegraph --bin $(target) --features=$(features) -- $(args)
 
 .PHONY: filt
 filt:
@@ -164,7 +164,7 @@ release:
 	cp build/cargo-target/$(target_arch)/release/$(target) build/binaries/$(target)
 
 release_local_debug:
-	CARGO_PROFILE_RELEASE_DEBUG=true CARGO_HOME=.cargo_debug $(CARGO_BIN) build --release --bin $(target) --features=$(features)
+	LD_LIBRARY_PATH=/usr/local/lib CARGO_PROFILE_RELEASE_DEBUG=true CARGO_HOME=.cargo_debug $(CARGO_BIN) build --release --bin $(target) --features=$(features)
 
 release_trader_musl:
 	make target_arch=x86_64-unknown-linux-musl release
