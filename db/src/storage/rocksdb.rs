@@ -232,7 +232,7 @@ mod test {
     use crate::error::Error;
     use crate::storage::rocksdb::{RocksDbOptions, RocksDbStorage};
     use crate::storage::Storage;
-    use crate::StorageExt;
+    use crate::JsonStorageExt;
 
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
