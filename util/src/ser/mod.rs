@@ -238,8 +238,7 @@ fn read_json_file<P: AsRef<Path>, T: DeserializeOwned>(
     filename: &str,
     compression: Compression,
 ) -> Result<T, serde_json::Error> {
-    let mut file = compression.wrap_ext(base_path);
-    file.push(filename);
+    let file = compression.wrap_ext(base_path.as_ref().join(filename));
     let read = BufReader::new(File::open(file).unwrap());
     let mut reader = compression.wrap_reader(read);
     serde_json::from_reader(&mut reader)

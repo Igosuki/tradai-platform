@@ -48,12 +48,22 @@ impl Compression {
     }
 
     pub fn wrap_ext<P: AsRef<Path>>(&self, path: P) -> PathBuf {
+        let current_path = path.as_ref();
         let ext = match self.algorithm {
-            CompressionType::Gz => ".gz",
-            CompressionType::Z => ".z",
-            CompressionType::Deflate => ".df",
+            CompressionType::Gz => "gz",
+            CompressionType::Z => "z",
+            CompressionType::Deflate => "df",
             CompressionType::None => "",
         };
-        path.as_ref().join(ext)
+        let current_ext = current_path
+            .extension()
+            .and_then(|os_str| os_str.to_str())
+            .unwrap_or("");
+        let ext = if current_ext.is_empty() {
+            format!("{}.{}", current_ext, ext)
+        } else {
+            ext.to_string()
+        };
+        current_path.with_extension(ext)
     }
 }
