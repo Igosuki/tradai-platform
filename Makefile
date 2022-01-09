@@ -106,7 +106,7 @@ test_strats: ## Tests strategies
 
 .PHONY: coverage
 coverage: ## Tests all features
-	@$(CARGO_BIN) tarpaulin -v --avoid-cfg-tarpaulin -o Html --skip-clean --release
+	@$(CARGO_BIN) tarpaulin -v --avoid-cfg-tarpaulin -o Html --skip-clean --ignore-tests
 
 .PHONY: test_watcher ## Starts funzzy, test watcher, to run the tests on every change
 test_watcher:
