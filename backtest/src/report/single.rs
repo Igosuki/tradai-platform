@@ -16,7 +16,7 @@ use strategy::query::PortfolioSnapshot;
 use strategy::types::StratEvent;
 use trading::types::MarketStat;
 use util::compress::Compression;
-use util::ser::{write_as_seq, StreamSerializerWriter};
+use util::ser::{write_as_seq, StreamDeserializer, StreamSerializerWriter};
 
 use crate::error::Result;
 
@@ -184,47 +184,25 @@ impl BacktestReport {
         let output_dir = self.output_dir.clone();
         let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), REPORT_HTML_FILE);
         let mut plot = Plot::new();
-        {
-            match super::read_json_file::<_, Vec<TimedData<BTreeMap<String, Option<serde_json::Value>>>>>(
-                output_dir.as_path(),
-                MODEL_FILE,
-                self.compression,
-            ) {
-                Ok(models) => super::draw_entries(&mut plot, 0, models.as_slice(), vec![("model", vec![
-                    |m| extract_f64(m, "apo"),
-                    |m| extract_f64(m, "high"),
-                    |m| extract_f64(m, "low"),
-                ])]),
-                Err(e) => warn!("Failed to read {} {}", MODEL_FILE, e),
-            }
+        let deser = StreamDeserializer::new(output_dir.as_path(), self.compression);
+        if let Ok(models) = deser.read_all::<Vec<TimedData<BTreeMap<String, Option<serde_json::Value>>>>>(MODEL_FILE) {
+            super::draw_entries(&mut plot, 0, models.as_slice(), vec![("model", vec![
+                |m| extract_f64(m, "apo"),
+                |m| extract_f64(m, "high"),
+                |m| extract_f64(m, "low"),
+            ])]);
         }
-        {
-            match super::read_json_file::<_, Vec<TimedData<MarketStat>>>(
-                output_dir.as_path(),
-                MARKET_STATS_FILE,
-                self.compression,
-            ) {
-                Ok(market_stats) => {
-                    super::draw_entries(&mut plot, 2, market_stats.as_slice(), vec![("stats", vec![|ms| {
-                        ms.w_price
-                    }])])
-                }
-                Err(e) => warn!("Failed to read {} {}", MARKET_STATS_FILE, e),
-            }
+        if let Ok(market_stats) = deser.read_all::<Vec<TimedData<MarketStat>>>(MARKET_STATS_FILE) {
+            super::draw_entries(&mut plot, 2, market_stats.as_slice(), vec![("stats", vec![|ms| {
+                ms.w_price
+            }])]);
         }
-        {
-            match super::read_json_file::<_, Vec<TimedData<PortfolioSnapshot>>>(
-                output_dir.as_path(),
-                SNAPSHOTS_FILE,
-                self.compression,
-            ) {
-                Ok(indicators) => super::draw_entries(&mut plot, 3, indicators.as_slice(), vec![
-                    ("pnl", vec![|i| i.pnl]),
-                    ("value", vec![|i| i.value]),
-                    ("return", vec![|i| i.current_return]),
-                ]),
-                Err(e) => warn!("Failed to read {} {}", SNAPSHOTS_FILE, e),
-            }
+        if let Ok(snapshots) = deser.read_all::<Vec<TimedData<PortfolioSnapshot>>>(SNAPSHOTS_FILE) {
+            super::draw_entries(&mut plot, 3, snapshots.as_slice(), vec![
+                ("pnl", vec![|i| i.pnl]),
+                ("value", vec![|i| i.value]),
+                ("return", vec![|i| i.current_return]),
+            ]);
         }
 
         let layout = Layout::new().grid(LayoutGrid::new().rows(5).columns(1).pattern(GridPattern::Independent));
