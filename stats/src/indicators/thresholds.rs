@@ -1,6 +1,5 @@
 use std::cmp::{max, min};
 
-use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use ta::Next;
 
@@ -30,13 +29,15 @@ impl Thresholds {
     }
 }
 
+const QUANTILES: [f64; 2] = [0.01, 0.99];
+
 impl<'a, I: Iterator<Item = &'a f64>> Next<I> for Thresholds {
     type Output = (f64, f64);
 
     fn next(&mut self, input: I) -> Self::Output {
-        let (high_iter, low_iter) = input.tee();
-        let high = max(self.high_0.into(), OrderedFloat(high_iter.quantile(0.99))).into();
-        let low = min(self.low_0.into(), OrderedFloat(low_iter.quantile(0.01))).into();
+        let quants: Vec<f64> = input.copied().quantiles::<f64>(QUANTILES.to_vec());
+        let high = max(self.high_0.into(), OrderedFloat(quants[1])).into();
+        let low = min(self.low_0.into(), OrderedFloat(quants[0])).into();
         self.high = high;
         self.low = low;
         (low, high)
