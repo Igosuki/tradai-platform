@@ -87,12 +87,17 @@ impl GlobalReport {
         let out_file = format!("{}/{}", output_dir.as_ref().to_str().unwrap(), report_filename);
         let mut plot = Plot::new();
         for (i, report) in reports {
-            let snapshots: Vec<TimedData<PortfolioSnapshot>> =
-                super::read_json_file(report.output_dir.clone(), "snapshots.json", self.compression);
-            super::draw_entries(&mut plot, i, snapshots.as_slice(), vec![(
-                &format!("{}.pnl", report.key),
-                vec![|i| i.pnl],
-            )]);
+            match super::read_json_file::<_, Vec<TimedData<PortfolioSnapshot>>>(
+                report.output_dir.clone(),
+                "snapshots.json",
+                self.compression,
+            ) {
+                Ok(snapshots) => super::draw_entries(&mut plot, i, snapshots.as_slice(), vec![(
+                    &format!("{}.pnl", report.key),
+                    vec![|i| i.pnl],
+                )]),
+                Err(e) => warn!("Failed to read snapshots {}", e),
+            }
         }
         let layout = Layout::new()
             .grid(

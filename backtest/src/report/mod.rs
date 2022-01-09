@@ -3,9 +3,11 @@ use std::io::BufReader;
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
+use ext::ResultExt;
 use plotly::{Plot, Scatter};
 use serde::de::DeserializeOwned;
 
+use crate::error::Result;
 pub(crate) use global::GlobalReport;
 pub(crate) use logger::StreamWriterLogger;
 pub(crate) use single::BacktestReport;
@@ -40,10 +42,14 @@ fn draw_entries<T>(plot: &mut Plot, trace_offset: usize, data: &[TimedData<T>], 
     }
 }
 
-fn read_json_file<P: AsRef<Path>, T: DeserializeOwned>(base_path: P, filename: &str, compression: Compression) -> T {
+fn read_json_file<P: AsRef<Path>, T: DeserializeOwned>(
+    base_path: P,
+    filename: &str,
+    compression: Compression,
+) -> Result<T> {
     let mut file = base_path.as_ref().to_path_buf();
     file.push(filename);
     let read = BufReader::new(File::open(file).unwrap());
     let mut reader = compression.wrap_reader(read);
-    serde_json::from_reader(&mut reader).expect(filename)
+    serde_json::from_reader(&mut reader).err_into()
 }
