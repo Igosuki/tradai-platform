@@ -136,7 +136,11 @@ impl Backtest {
 
         // Start runners
         let (reports_tx, mut reports_rx) = tokio::sync::mpsc::unbounded_channel();
-        let mut global_report = GlobalReport::new_with(self.output_dir.clone(), self.report_conf.parallelism);
+        let mut global_report = GlobalReport::new_with(
+            self.output_dir.clone(),
+            self.report_conf.parallelism,
+            self.report_conf.compression,
+        );
         self.spawn_runners(&global_report, reports_tx).await;
         // Read input datasets
         let before_read = Instant::now();
@@ -179,7 +183,7 @@ impl Backtest {
                 let string = dir_entry.file_name();
                 let key = string.to_str().unwrap();
                 info!("Reading report at {}", key);
-                Some(BacktestReport::reload(key, output_dir.clone()).await)
+                Some(BacktestReport::reload(key, output_dir.clone(), conf.report.compression).await)
             } else {
                 None
             }
@@ -198,9 +202,10 @@ impl Backtest {
             let reports_tx = tx.clone();
             let runner = runner.clone();
             let output_dir = global_report.output_dir.clone();
+            let compression = self.report_conf.compression;
             tokio::task::spawn(async move {
                 let mut runner = runner.write().await;
-                let report = runner.run(output_dir).await;
+                let report = runner.run(output_dir, compression).await;
                 reports_tx.send(report).unwrap();
             });
         }

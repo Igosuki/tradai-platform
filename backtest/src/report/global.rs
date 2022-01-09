@@ -7,6 +7,7 @@ use plotly::layout::{GridPattern, LayoutGrid, Legend, RowOrder};
 use plotly::{Layout, Plot};
 
 use strategy::query::PortfolioSnapshot;
+use util::compress::Compression;
 use util::time::now_str;
 
 use super::single::BacktestReport;
@@ -17,18 +18,20 @@ pub(crate) struct GlobalReport {
     pub output_dir: PathBuf,
     pub base_dir: PathBuf,
     parallelism: usize,
+    compression: Compression,
 }
 
 impl GlobalReport {
-    pub(crate) fn new(output_dir: PathBuf) -> Self { Self::new_with(output_dir, None) }
+    pub(crate) fn new(output_dir: PathBuf) -> Self { Self::new_with(output_dir, None, Compression::default()) }
 
-    pub(crate) fn new_with(output_dir: PathBuf, parallelism: Option<usize>) -> Self {
+    pub(crate) fn new_with(output_dir: PathBuf, parallelism: Option<usize>, compression: Compression) -> Self {
         let output_dir_path = output_dir.join(now_str());
         Self {
             reports: vec![],
             base_dir: output_dir,
             output_dir: output_dir_path,
             parallelism: parallelism.unwrap_or_else(num_cpus::get),
+            compression,
         }
     }
 
@@ -85,7 +88,7 @@ impl GlobalReport {
         let mut plot = Plot::new();
         for (i, report) in reports {
             let snapshots: Vec<TimedData<PortfolioSnapshot>> =
-                super::read_json_file(report.output_dir.clone(), "snapshots.json");
+                super::read_json_file(report.output_dir.clone(), "snapshots.json", self.compression);
             super::draw_entries(&mut plot, i, snapshots.as_slice(), vec![(
                 &format!("{}.pnl", report.key),
                 vec![|i| i.pnl],
