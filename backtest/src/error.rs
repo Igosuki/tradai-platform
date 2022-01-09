@@ -17,7 +17,7 @@ pub enum Error {
     BookError(#[from] BookError),
     #[error("other error")]
     AnyhowError(#[from] anyhow::Error),
-    #[error("json error")]
+    #[error("json error {0}")]
     Json(#[from] serde_json::Error),
 }
 
