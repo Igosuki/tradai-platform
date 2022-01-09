@@ -15,6 +15,7 @@ build/cargo-registry/*
 build/binaries/
 test_results
 .cargo
+.cargo_debug
 precommit_venv
 
 # local config
