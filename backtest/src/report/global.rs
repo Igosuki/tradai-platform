@@ -6,33 +6,28 @@ use plotly::common::Font;
 use plotly::layout::{GridPattern, LayoutGrid, Legend, RowOrder};
 use plotly::{Layout, Plot};
 
-use strategy::query::PortfolioSnapshot;
 use util::compress::Compression;
-use util::ser::StreamDeserializer;
 use util::time::now_str;
 
 use super::single::BacktestReport;
-use super::TimedData;
 
 pub(crate) struct GlobalReport {
     pub reports: Vec<BacktestReport>,
     pub output_dir: PathBuf,
     pub base_dir: PathBuf,
     parallelism: usize,
-    compression: Compression,
 }
 
 impl GlobalReport {
     pub(crate) fn new(output_dir: PathBuf) -> Self { Self::new_with(output_dir, None, Compression::default()) }
 
-    pub(crate) fn new_with(output_dir: PathBuf, parallelism: Option<usize>, compression: Compression) -> Self {
+    pub(crate) fn new_with(output_dir: PathBuf, parallelism: Option<usize>, _compression: Compression) -> Self {
         let output_dir_path = output_dir.join(now_str());
         Self {
             reports: vec![],
             base_dir: output_dir,
             output_dir: output_dir_path,
             parallelism: parallelism.unwrap_or_else(num_cpus::get),
-            compression,
         }
     }
 
@@ -88,8 +83,7 @@ impl GlobalReport {
         let out_file = format!("{}/{}", output_dir.as_ref().to_str().unwrap(), report_filename);
         let mut plot = Plot::new();
         for (i, report) in reports {
-            let deser = StreamDeserializer::new(report.output_dir.as_path(), self.compression);
-            if let Ok(snapshots) = deser.read_all::<Vec<TimedData<PortfolioSnapshot>>>("snapshots.json") {
+            if let Ok(snapshots) = report.snapshots() {
                 super::draw_entries(&mut plot, i, snapshots.as_slice(), vec![(
                     &format!("{}.pnl", report.key),
                     vec![|i| i.pnl],
