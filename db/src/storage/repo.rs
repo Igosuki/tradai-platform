@@ -1,6 +1,6 @@
 use super::Storage;
-use super::StorageExt;
 use crate::error::*;
+use crate::JsonStorageExt;
 use ext::ResultExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
