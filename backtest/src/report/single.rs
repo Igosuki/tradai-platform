@@ -4,6 +4,7 @@ use std::fmt::{Debug, Formatter};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use ext::ResultExt;
 use itertools::Itertools;
 use plotly::layout::{GridPattern, LayoutGrid};
 use plotly::{Layout, Plot};
@@ -16,7 +17,7 @@ use strategy::query::PortfolioSnapshot;
 use strategy::types::StratEvent;
 use trading::types::MarketStat;
 use util::compress::Compression;
-use util::ser::{write_as_seq, StreamDeserializer, StreamSerializerWriter};
+use util::ser::{write_as_seq, StreamSerializerWriter};
 
 use crate::error::Result;
 
@@ -154,6 +155,9 @@ impl BacktestReport {
     /// Get a strat event sink to forward to
     pub fn strat_event_sink(&self) -> UnboundedSender<TimedData<StratEvent>> { self.events_ss.sink() }
 
+    /// Get report snapshots
+    pub fn snapshots(&self) -> Result<Vec<TimedData<PortfolioSnapshot>>> { self.snapshots_ss.read_all().err_into() }
+
     /// Start writing received data to files in a streaming manner
     pub async fn start(&self) -> Result<()> {
         std::fs::create_dir_all(self.output_dir.clone())?;
@@ -184,20 +188,19 @@ impl BacktestReport {
         let output_dir = self.output_dir.clone();
         let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), REPORT_HTML_FILE);
         let mut plot = Plot::new();
-        let deser = StreamDeserializer::new(output_dir.as_path(), self.compression);
-        if let Ok(models) = deser.read_all::<Vec<TimedData<BTreeMap<String, Option<serde_json::Value>>>>>(MODEL_FILE) {
+        if let Ok(models) = self.model_ss.read_all() {
             super::draw_entries(&mut plot, 0, models.as_slice(), vec![("model", vec![
                 |m| extract_f64(m, "apo"),
                 |m| extract_f64(m, "high"),
                 |m| extract_f64(m, "low"),
             ])]);
         }
-        if let Ok(market_stats) = deser.read_all::<Vec<TimedData<MarketStat>>>(MARKET_STATS_FILE) {
+        if let Ok(market_stats) = self.market_stats_ss.read_all() {
             super::draw_entries(&mut plot, 2, market_stats.as_slice(), vec![("stats", vec![|ms| {
                 ms.w_price
             }])]);
         }
-        if let Ok(snapshots) = deser.read_all::<Vec<TimedData<PortfolioSnapshot>>>(SNAPSHOTS_FILE) {
+        if let Ok(snapshots) = self.snapshots_ss.read_all() {
             super::draw_entries(&mut plot, 3, snapshots.as_slice(), vec![
                 ("pnl", vec![|i| i.pnl]),
                 ("value", vec![|i| i.value]),

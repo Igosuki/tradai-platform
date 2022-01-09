@@ -138,7 +138,7 @@ pub struct StreamSerializerWriter<T> {
     finish_resp_rx: RwLock<Receiver<bool>>,
 }
 
-impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
+impl<T: 'static + DeserializeOwned + Serialize + Debug + Send> StreamSerializerWriter<T> {
     pub fn new<P: AsRef<Path>>(out_file: P) -> StreamSerializerWriter<T> {
         Self::new_with_compression(out_file, Compression::default())
     }
@@ -207,26 +207,13 @@ impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
         drop(writer);
         self.finish_resp_tx.send(true).await.unwrap();
     }
-}
 
-pub struct StreamDeserializer {
-    base_dir: PathBuf,
-    compression: Compression,
-}
-
-impl StreamDeserializer {
-    pub fn new<P: AsRef<Path>>(base_dir: P, compression: Compression) -> Self {
-        Self {
-            base_dir: base_dir.as_ref().to_path_buf(),
-            compression,
-        }
-    }
-
-    pub fn read_all<T: DeserializeOwned>(&self, filename: &str) -> Result<T, serde_json::Error> {
-        match read_json_file::<_, T>(self.base_dir.as_path(), filename, self.compression) {
+    pub fn read_all(&self) -> Result<Vec<T>, serde_json::Error> {
+        let file_path = self.out_file.as_path();
+        match read_json_file::<_, Vec<T>>(file_path, self.compression) {
             Ok(r) => Ok(r),
             Err(e) => {
-                warn!("Failed to read {} {}", filename, e);
+                warn!("Failed to read {:?} {}", file_path, e);
                 Err(e)
             }
         }
@@ -235,10 +222,9 @@ impl StreamDeserializer {
 
 fn read_json_file<P: AsRef<Path>, T: DeserializeOwned>(
     base_path: P,
-    filename: &str,
     compression: Compression,
 ) -> Result<T, serde_json::Error> {
-    let file = compression.wrap_ext(base_path.as_ref().join(filename));
+    let file = compression.wrap_ext(base_path);
     let read = BufReader::new(File::open(file).unwrap());
     let mut reader = compression.wrap_reader(read);
     serde_json::from_reader(&mut reader)
