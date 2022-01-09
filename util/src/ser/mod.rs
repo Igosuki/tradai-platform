@@ -1,11 +1,12 @@
 use std::fmt::Debug;
-use std::io::BufWriter;
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
 use crate::compress::Compression;
 use byte_unit::Byte;
 use chrono::Duration;
-use serde::de::Error;
+use serde::de::{DeserializeOwned, Error};
 use serde::ser::SerializeSeq;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use tokio::sync::mpsc::error::SendError;
@@ -180,7 +181,8 @@ impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
     ///
     /// Will panic if `out_file` cannot be opened and written to
     pub async fn start(&self) {
-        let logs_f = BufWriter::new(std::fs::File::create(&self.out_file).unwrap());
+        let out_file = self.compression.wrap_ext(&self.out_file);
+        let logs_f = BufWriter::new(std::fs::File::create(out_file).unwrap());
         let mut writer = self.compression.wrap_writer(logs_f);
         let mut serializer = serde_json::Serializer::new(&mut writer);
         let mut seq = serializer.serialize_seq(None).unwrap();
@@ -202,8 +204,45 @@ impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
             }
         }
         SerializeSeq::end(seq).unwrap();
+        drop(writer);
         self.finish_resp_tx.send(true).await.unwrap();
     }
+}
+
+pub struct StreamDeserializer {
+    base_dir: PathBuf,
+    compression: Compression,
+}
+
+impl StreamDeserializer {
+    pub fn new<P: AsRef<Path>>(base_dir: P, compression: Compression) -> Self {
+        Self {
+            base_dir: base_dir.as_ref().to_path_buf(),
+            compression,
+        }
+    }
+
+    pub fn read_all<T: DeserializeOwned>(&self, filename: &str) -> Result<T, serde_json::Error> {
+        match read_json_file::<_, T>(self.base_dir.as_path(), filename, self.compression) {
+            Ok(r) => Ok(r),
+            Err(e) => {
+                warn!("Failed to read {} {}", filename, e);
+                Err(e)
+            }
+        }
+    }
+}
+
+fn read_json_file<P: AsRef<Path>, T: DeserializeOwned>(
+    base_path: P,
+    filename: &str,
+    compression: Compression,
+) -> Result<T, serde_json::Error> {
+    let mut file = compression.wrap_ext(base_path);
+    file.push(filename);
+    let read = BufReader::new(File::open(file).unwrap());
+    let mut reader = compression.wrap_reader(read);
+    serde_json::from_reader(&mut reader)
 }
 
 #[cfg(test)]
