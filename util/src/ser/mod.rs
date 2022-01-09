@@ -181,7 +181,7 @@ impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
     /// Will panic if `out_file` cannot be opened and written to
     pub async fn start(&self) {
         let logs_f = BufWriter::new(std::fs::File::create(&self.out_file).unwrap());
-        let mut writer = self.compression.wrap(logs_f);
+        let mut writer = self.compression.wrap_writer(logs_f);
         let mut serializer = serde_json::Serializer::new(&mut writer);
         let mut seq = serializer.serialize_seq(None).unwrap();
         let mut lock = self.stream.write().await;

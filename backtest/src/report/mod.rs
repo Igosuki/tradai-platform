@@ -40,9 +40,10 @@ fn draw_entries<T>(plot: &mut Plot, trace_offset: usize, data: &[TimedData<T>], 
     }
 }
 
-fn read_json_file<P: AsRef<Path>, T: DeserializeOwned>(base_path: P, filename: &str) -> T {
+fn read_json_file<P: AsRef<Path>, T: DeserializeOwned>(base_path: P, filename: &str, compression: Compression) -> T {
     let mut file = base_path.as_ref().to_path_buf();
     file.push(filename);
     let read = BufReader::new(File::open(file).unwrap());
-    serde_json::from_reader(read).expect(filename)
+    let mut reader = compression.wrap_reader(read);
+    serde_json::from_reader(&mut reader).expect(filename)
 }

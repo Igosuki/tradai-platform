@@ -15,6 +15,7 @@ use stats::Next;
 use strategy::query::PortfolioSnapshot;
 use strategy::types::StratEvent;
 use trading::types::MarketStat;
+use util::compress::Compression;
 use util::ser::{write_as_seq, StreamSerializerWriter};
 
 use crate::error::Result;
@@ -78,6 +79,7 @@ pub(crate) struct BacktestReport {
     pub(crate) execution_hist: HashMap<String, f64>,
     pub(crate) last_ptf_snapshot: Option<TimedData<PortfolioSnapshot>>,
     pub(crate) misc_stats: BacktestReportMiscStats,
+    pub(crate) compression: Compression,
 }
 
 impl Debug for BacktestReport {
@@ -100,19 +102,32 @@ impl BacktestReport {
     /// Create a new backtest report
     /// Call [`start`] to enable writing data to files
     /// [`start`]: `fn@self::BacktestReport::start`
-    pub fn new<P: AsRef<Path>>(base_output_dir: P, key: String) -> Self {
+    pub fn new<P: AsRef<Path>>(base_output_dir: P, key: String, compression: Compression) -> Self {
         let report_dir = base_output_dir.as_ref().to_path_buf().join(key.clone());
         Self {
             output_dir: report_dir.clone(),
-            model_ss: Arc::new(StreamSerializerWriter::new(report_dir.join(MODEL_FILE))),
-            snapshots_ss: Arc::new(StreamSerializerWriter::new(report_dir.join(SNAPSHOTS_FILE))),
-            market_stats_ss: Arc::new(StreamSerializerWriter::new(report_dir.join(MARKET_STATS_FILE))),
-            events_ss: Arc::new(StreamSerializerWriter::new(report_dir.join(STRAT_EVENTS_FILE))),
+            model_ss: Arc::new(StreamSerializerWriter::new_with_compression(
+                report_dir.join(MODEL_FILE),
+                compression,
+            )),
+            snapshots_ss: Arc::new(StreamSerializerWriter::new_with_compression(
+                report_dir.join(SNAPSHOTS_FILE),
+                compression,
+            )),
+            market_stats_ss: Arc::new(StreamSerializerWriter::new_with_compression(
+                report_dir.join(MARKET_STATS_FILE),
+                compression,
+            )),
+            events_ss: Arc::new(StreamSerializerWriter::new_with_compression(
+                report_dir.join(STRAT_EVENTS_FILE),
+                compression,
+            )),
             misc_stats: BacktestReportMiscStats::default(),
             key,
             failures: Default::default(),
             execution_hist: HashMap::default(),
             last_ptf_snapshot: None,
+            compression,
         }
     }
 
@@ -170,19 +185,21 @@ impl BacktestReport {
         let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), REPORT_HTML_FILE);
         let mut plot = Plot::new();
         let models: Vec<TimedData<BTreeMap<String, Option<serde_json::Value>>>> =
-            super::read_json_file(output_dir.as_path(), MODEL_FILE);
+            super::read_json_file(output_dir.as_path(), MODEL_FILE, self.compression);
         super::draw_entries(&mut plot, 0, models.as_slice(), vec![("model", vec![
             |m| extract_f64(m, "apo"),
             |m| extract_f64(m, "high"),
             |m| extract_f64(m, "low"),
         ])]);
         drop(models);
-        let market_stats: Vec<TimedData<MarketStat>> = super::read_json_file(output_dir.as_path(), MARKET_STATS_FILE);
+        let market_stats: Vec<TimedData<MarketStat>> =
+            super::read_json_file(output_dir.as_path(), MARKET_STATS_FILE, self.compression);
         super::draw_entries(&mut plot, 2, market_stats.as_slice(), vec![("stats", vec![|ms| {
             ms.w_price
         }])]);
         drop(market_stats);
-        let indicators: Vec<TimedData<PortfolioSnapshot>> = super::read_json_file(output_dir, SNAPSHOTS_FILE);
+        let indicators: Vec<TimedData<PortfolioSnapshot>> =
+            super::read_json_file(output_dir, SNAPSHOTS_FILE, self.compression);
         super::draw_entries(&mut plot, 3, indicators.as_slice(), vec![
             ("pnl", vec![|i| i.pnl]),
             ("value", vec![|i| i.value]),
@@ -196,8 +213,8 @@ impl BacktestReport {
         out_file
     }
 
-    pub async fn reload<P: AsRef<Path>>(key: &str, path: P) -> Self {
-        let report = BacktestReport::new(path.as_ref().to_path_buf(), key.to_string());
+    pub async fn reload<P: AsRef<Path>>(key: &str, path: P, report_compression: Compression) -> Self {
+        let report = BacktestReport::new(path.as_ref().to_path_buf(), key.to_string(), report_compression);
         task::spawn_blocking(move || {
             report.write_html_report();
             report
