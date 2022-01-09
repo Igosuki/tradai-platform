@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 
+use crate::compress::Compression;
 use byte_unit::Byte;
 use chrono::Duration;
 use serde::de::Error;
@@ -127,6 +128,7 @@ pub fn write_as_seq<P: AsRef<Path>, T: Serialize>(out_file: P, data: &[T]) -> Re
 
 pub struct StreamSerializerWriter<T> {
     out_file: PathBuf,
+    compression: Compression,
     sink: UnboundedSender<T>,
     stream: RwLock<UnboundedReceiverStream<T>>,
     finish_tx: Sender<bool>,
@@ -137,12 +139,17 @@ pub struct StreamSerializerWriter<T> {
 
 impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
     pub fn new<P: AsRef<Path>>(out_file: P) -> StreamSerializerWriter<T> {
+        Self::new_with_compression(out_file, Compression::default())
+    }
+
+    pub fn new_with_compression<P: AsRef<Path>>(out_file: P, compression: Compression) -> StreamSerializerWriter<T> {
         let (sink, rcv) = tokio::sync::mpsc::unbounded_channel();
         let (finish_tx, finish_rx) = tokio::sync::mpsc::channel::<bool>(1);
         let (finish_resp_tx, finish_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
         let stream = UnboundedReceiverStream::new(rcv);
         Self {
             out_file: out_file.as_ref().to_path_buf(),
+            compression,
             sink,
             stream: RwLock::new(stream),
             finish_rx: RwLock::new(finish_rx),
@@ -173,8 +180,9 @@ impl<T: 'static + Serialize + Debug + Send> StreamSerializerWriter<T> {
     ///
     /// Will panic if `out_file` cannot be opened and written to
     pub async fn start(&self) {
-        let logs_f = std::fs::File::create(&self.out_file).unwrap();
-        let mut serializer = serde_json::Serializer::new(BufWriter::new(logs_f));
+        let logs_f = BufWriter::new(std::fs::File::create(&self.out_file).unwrap());
+        let mut writer = self.compression.wrap(logs_f);
+        let mut serializer = serde_json::Serializer::new(&mut writer);
         let mut seq = serializer.serialize_seq(None).unwrap();
         let mut lock = self.stream.write().await;
         let mut finish_lock = self.finish_rx.write().await;

@@ -52,5 +52,9 @@ use_generic: false
 
 output_dir: ./target/backtests_results
 
-report_parallelism: 2
+report:
+  parallelism: 2
+  compression:
+    algorithm: gz
+    level: 5
 
