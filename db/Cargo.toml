@@ -39,7 +39,7 @@ tracing = { version ="0.1", features = ["log"], optional=true }
 # databases
 lmdb-rkv = { version = "0.14", optional = true }
 rkv = { version = "0.17", optional = true }
-rocksdb = { version = "0.17", features = ["multi-threaded-cf", "snappy", "lz4", "zstd", "zlib", "bzip2"] }
+rocksdb = { version = "0.17", features = ["multi-threaded-cf", "lz4", "zstd"] }
 #rocksdb = { git = "https://github.com/Igosuki/rust-rocksdb.git", branch = "librocksdb-sys-link", features = ["multi-threaded-cf", "pkg-config", "snappy", "lz4", "zstd", "zlib", "bzip2"], default-features = false }
 # Flatdata is write once read many and fast memory mapping a structured file
 #flatdata = "0.5"
