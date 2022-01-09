@@ -3,7 +3,8 @@ use std::iter::FromIterator;
 use std::path::Path;
 use std::sync::Arc;
 
-use rocksdb::{BoundColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode, Options, WriteBatch, DB};
+use rocksdb::{BoundColumnFamily, ColumnFamilyDescriptor, DBCompressionType, Direction, IteratorMode, Options,
+              WriteBatch, DB};
 
 use ext::ResultExt;
 
@@ -14,15 +15,26 @@ type Bytes = Box<[u8]>;
 
 fn default_read_option() -> bool { false }
 
+fn default_compress_last_level_option() -> bool { false }
+
 /// TODO: macro + serde flatten to get all options
 #[derive(Deserialize, Serialize, Debug, Clone, Default)]
 pub struct RocksDbOptions {
+    /// Open the database as a read only client
     #[serde(default = "default_read_option")]
     read_only: bool,
+    /// Further compress the last compaction level (which holds most of the data)
+    #[serde(default = "default_compress_last_level_option")]
+    compress_last_level: bool,
+    /// See [`rocksdb::dboptions::Options`]
     max_log_file_size: Option<usize>,
+    /// See [`rocksdb::dboptions::Options`]
     keep_log_file_num: Option<usize>,
+    /// See [`rocksdb::dboptions::Options`]
     max_total_wal_size: Option<usize>,
+    /// See [`rocksdb::dboptions::Options`]
     write_buffer_size: Option<usize>,
+    /// See [`rocksdb::dboptions::Options`]
     db_write_buffer_size: Option<usize>,
 }
 
@@ -75,6 +87,15 @@ impl RocksDbStorage {
         let mut options = Options::default();
         options.create_if_missing(true);
         options.create_missing_column_families(true);
+        if rocksdb_options.compress_last_level {
+            options.set_compression_per_level(&[
+                DBCompressionType::None,
+                DBCompressionType::None,
+                DBCompressionType::Snappy,
+                DBCompressionType::Snappy,
+                DBCompressionType::Lz4,
+            ]);
+        }
         if let Some(max_log_file_size) = rocksdb_options.max_log_file_size {
             options.set_max_log_file_size(max_log_file_size);
         }

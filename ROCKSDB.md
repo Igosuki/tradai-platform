@@ -24,3 +24,4 @@
 
 #### Ensure liburing
 
+Apparently, liburing 2 is required with 6.17, so to compile as a static lib one should install liburing>=2.0
