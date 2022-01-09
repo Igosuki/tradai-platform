@@ -6,8 +6,11 @@ pub enum Error {
     Bincode(#[from] bincode::Error),
     #[error("json serde error {0}")]
     Json(#[from] serde_json::Error),
-    #[error("rkv error")]
+    #[error("rocksdb error {0}")]
     RocksDb(#[from] rocksdb::Error),
+    #[cfg(feature = "rkyv")]
+    #[error("rkyv error {0}")]
+    Rkyv(#[from] anyhow::Error),
     #[error("record not found {0:?}")]
     NotFound(Vec<u8>),
 }

@@ -55,7 +55,7 @@ impl Storage for MemoryKVStore {
     }
 
     fn _get(&self, table: &str, key: &[u8]) -> Result<Vec<u8>> {
-        self.with_table(table, |t| t.get(table.as_bytes()).cloned())
+        self.with_table(table, |t| t.get(key).cloned())
             .ok_or_else(|| Error::NotFound(key.to_vec()))
     }
 
