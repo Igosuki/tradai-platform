@@ -18,7 +18,10 @@ pub(crate) struct GenericDriverRepository {
 const DRIVER_TABLE: &str = "driver";
 
 impl GenericDriverRepository {
-    pub fn new(db: Arc<dyn Storage>) -> Self { Self { db } }
+    pub fn new(db: Arc<dyn Storage>) -> Self {
+        db.ensure_table(DRIVER_TABLE).unwrap();
+        Self { db }
+    }
 }
 
 impl DriverRepository for GenericDriverRepository {

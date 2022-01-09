@@ -25,7 +25,11 @@ impl MemoryKVStore {
         F: Fn(&mut InMemoryTable) -> R,
     {
         let mut writer = self.inner.write().unwrap();
-        f(writer.get_mut(table.as_bytes()).unwrap())
+        let column = match writer.get_mut(table.as_bytes()) {
+            Some(r) => r,
+            None => panic!("{}", format!("missing table {} tables = {:?}", table, writer)),
+        };
+        f(column)
     }
 }
 
@@ -68,16 +72,15 @@ impl Storage for MemoryKVStore {
         Ok(vec)
     }
 
-    fn _delete(&self, _table: &str, key: &[u8]) -> Result<()> {
-        self.inner.write().unwrap().remove(key);
+    fn _delete(&self, table: &str, key: &[u8]) -> Result<()> {
+        self.with_table(table, |t| t.remove(key));
         Ok(())
     }
 
-    fn _delete_range(&self, _table: &str, from: &[u8], to: &[u8]) -> Result<()> {
-        self.inner
-            .write()
-            .unwrap()
-            .drain_filter(|k, _v| k as &[u8] > from || k as &[u8] < to);
+    fn _delete_range(&self, table: &str, from: &[u8], to: &[u8]) -> Result<()> {
+        self.with_table(table, |t| {
+            t.drain_filter(|k, _v| *k.as_slice() > *from || *k.as_slice() < *to);
+        });
         Ok(())
     }
 
