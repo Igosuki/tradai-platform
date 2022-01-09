@@ -26,6 +26,7 @@ extern crate tokio;
 #[macro_use]
 extern crate tracing;
 
+pub mod compress;
 pub mod log;
 pub mod s3;
 pub mod ser;
