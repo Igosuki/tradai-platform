@@ -69,7 +69,7 @@ use crate::datasources::orderbook::convert::events_from_orderbooks;
 use crate::datasources::orderbook::csv_source::{csv_orderbooks_df, events_from_csv_orderbooks};
 use crate::datasources::orderbook::raw_source::raw_orderbooks_df;
 use crate::datasources::orderbook::sampled_source::sampled_orderbooks_df;
-use crate::report::{BacktestReport, GlobalReport, StreamWriterLogger};
+use crate::report::{BacktestReport, GlobalReport, ReportConfig, StreamWriterLogger};
 use crate::runner::BacktestRunner;
 pub use crate::{config::*,
                 dataset::{DatasetInputFormat, DatasetType},
@@ -88,7 +88,7 @@ pub struct Backtest {
     output_dir: PathBuf,
     dataset: Dataset,
     stop_tx: Sender<bool>,
-    report_parallelism: Option<usize>,
+    report_conf: ReportConfig,
 }
 
 impl Backtest {
@@ -118,7 +118,7 @@ impl Backtest {
                 base_dir: conf.data_dir.clone(),
                 input_sample_rate: conf.input_sample_rate,
             },
-            report_parallelism: conf.report_parallelism,
+            report_conf: conf.report.clone(),
         })
     }
 
@@ -136,7 +136,7 @@ impl Backtest {
 
         // Start runners
         let (reports_tx, mut reports_rx) = tokio::sync::mpsc::unbounded_channel();
-        let mut global_report = GlobalReport::new_with(self.output_dir.clone(), self.report_parallelism);
+        let mut global_report = GlobalReport::new_with(self.output_dir.clone(), self.report_conf.parallelism);
         self.spawn_runners(&global_report, reports_tx).await;
         // Read input datasets
         let before_read = Instant::now();

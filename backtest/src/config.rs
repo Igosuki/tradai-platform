@@ -13,6 +13,7 @@ use util::test::test_dir;
 use util::time::{DateRange, DurationRangeType};
 
 use crate::error::*;
+use crate::report::ReportConfig;
 use crate::{DatasetInputFormat, DatasetType};
 
 #[derive(Deserialize, Serialize)]
@@ -59,7 +60,7 @@ pub struct BacktestConfig {
     #[serde(deserialize_with = "util::ser::decode_duration_str")]
     pub input_sample_rate: Duration,
     pub db_conf: Option<DbEngineOptions>,
-    pub report_parallelism: Option<usize>,
+    pub report: ReportConfig,
 }
 
 impl BacktestConfig {

@@ -6868,6 +6868,7 @@ dependencies = [
  "byte-unit",
  "chrono",
  "console-subscriber",
+ "flate2",
  "futures",
  "hdrhistogram",
  "maplit",

@@ -9,11 +9,18 @@ use serde::de::DeserializeOwned;
 pub(crate) use global::GlobalReport;
 pub(crate) use logger::StreamWriterLogger;
 pub(crate) use single::BacktestReport;
+use util::compress::Compression;
 use util::time::TimedData;
 
 mod global;
 mod logger;
 mod single;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ReportConfig {
+    pub parallelism: Option<usize>,
+    pub compression: Compression,
+}
 
 pub type StrategyEntry<'a, T> = (&'a str, Vec<fn(&T) -> f64>);
 
