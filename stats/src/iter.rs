@@ -160,6 +160,14 @@ pub trait QuantileExt: Iterator {
     {
         M::quantile(self, prob)
     }
+
+    fn quantiles<M>(self, probs: Vec<f64>) -> Vec<M>
+    where
+        M: Quantile<Self::Item>,
+        Self: Sized,
+    {
+        M::quantiles(self, probs)
+    }
 }
 
 impl<I: Iterator> QuantileExt for I {}
@@ -168,6 +176,11 @@ pub trait Quantile<A = Self> {
     fn quantile<I>(iter: I, prob: f64) -> Self
     where
         I: Iterator<Item = A>;
+
+    fn quantiles<I>(iter: I, probs: Vec<f64>) -> Vec<Self>
+    where
+        I: Iterator<Item = A>,
+        Self: Sized;
 }
 
 impl Quantile for f64 {
@@ -179,6 +192,14 @@ impl Quantile for f64 {
         let v: Vec<f64> = iter.collect();
         v.quantile(prob, QType::Type2)
     }
+
+    fn quantiles<I>(iter: I, probs: Vec<f64>) -> Vec<f64>
+    where
+        I: Iterator<Item = Self>,
+    {
+        let v: Vec<f64> = iter.collect();
+        v.quantiles(probs, QType::Type2)
+    }
 }
 
 impl<'a> Quantile<&'a f64> for f64 {
@@ -187,6 +208,13 @@ impl<'a> Quantile<&'a f64> for f64 {
         I: Iterator<Item = &'a f64>,
     {
         iter.copied().quantile(prob)
+    }
+
+    fn quantiles<I>(iter: I, probs: Vec<f64>) -> Vec<f64>
+    where
+        I: Iterator<Item = &'a f64>,
+    {
+        iter.copied().quantiles(probs)
     }
 }
 

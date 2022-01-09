@@ -19,7 +19,8 @@ trading = { path = "../trading" }
 
 anyhow = "1.0"
 itertools = "0.10"
-#streaming-stats = "0.2.3"#average = "0.10.4"
+#streaming-stats = "0.2.3"
+#average = "0.10"
 #nalgebra = "0.21.0"
 
 # Optional dependencies to be used later
