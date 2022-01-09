@@ -34,7 +34,7 @@ fees: 0.001
 period:
   type: interval
   from: 2021-10-18
-  to: 2021-10-19
+  to: 2021-11-03
 
 input_format: avro
 input_dataset: orderbooks_by_minute
@@ -45,6 +45,7 @@ db_path: .local_data/strat_backtest_dbs
 
 db_conf:
   type: rocks_db
+  #db_write_buffer_size: 83554432
 
 data_dir: /home/geps/dev/bitcoins/data_cache/data
 
@@ -53,7 +54,7 @@ use_generic: false
 output_dir: ./target/backtests_results
 
 report:
-  parallelism: 2
+  parallelism: 10
   compression:
     algorithm: gz
     level: 5

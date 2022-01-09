@@ -188,7 +188,7 @@ release_local_backtest:
 	@$(CARGO_BIN) build --release --bin backtest --features=release_default
 
 release_local_backtest_debug:
-	make features=release_default,console target=backtest release_local_debug
+	make features=release_default target=backtest release_local_debug
 
 bin_tag=latest
 download_binary:
