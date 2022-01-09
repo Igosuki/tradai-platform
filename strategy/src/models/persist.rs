@@ -38,7 +38,7 @@ pub struct PersistentModel<T> {
     is_loaded: bool,
 }
 
-impl<T: DeserializeOwned + Serialize + Copy> PersistentModel<T> {
+impl<T: Serialize + DeserializeOwned + Copy> PersistentModel<T> {
     /// # Panics
     ///
     /// if the table cannot be ensured
