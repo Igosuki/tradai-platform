@@ -14,6 +14,7 @@ use strategy::event::{close_events, open_events};
 use strategy::query::{DataQuery, DataResult};
 use strategy::types::{OperationEvent, StratEvent, TradeEvent};
 use strategy::Channel;
+use util::compress::Compression;
 use util::time::{set_current_time, TimedData};
 use util::trace::{display_hist_percentiles, microtime_histogram, microtime_percentiles};
 
@@ -51,14 +52,18 @@ impl BacktestRunner {
 
     pub(crate) fn event_sink(&self) -> Sender<MarketEventEnvelope> { self.events_sink.clone() }
 
-    pub(crate) async fn run<P: AsRef<Path>>(&mut self, output_dir: P) -> BacktestReport {
+    pub(crate) async fn run<P: AsRef<Path>>(
+        &mut self,
+        output_dir: P,
+        report_compression: Compression,
+    ) -> BacktestReport {
         let key = {
             let strategy = self.strategy.lock().await;
             strategy.key().await
         };
 
         // Start report
-        let mut report = BacktestReport::new(output_dir, key.clone());
+        let mut report = BacktestReport::new(output_dir, key.clone(), report_compression);
         report.start().await.unwrap();
         let mut execution_hist = microtime_histogram();
 
