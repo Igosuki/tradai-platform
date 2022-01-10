@@ -34,7 +34,8 @@ fees: 0.001
 period:
   type: interval
   from: 2021-10-18
-  to: 2021-11-03
+  to: 2021-10-30
+  #to: 2022-01-07
 
 input_format: avro
 input_dataset: orderbooks_by_minute
@@ -44,8 +45,10 @@ input_sample_rate: 1min
 db_path: .local_data/strat_backtest_dbs
 
 db_conf:
-  type: rocks_db
+  type: in_memory
   #db_write_buffer_size: 83554432
+
+runner_queue_size: 100
 
 data_dir: /home/geps/dev/bitcoins/data_cache/data
 

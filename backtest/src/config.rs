@@ -61,6 +61,7 @@ pub struct BacktestConfig {
     pub input_sample_rate: Duration,
     pub db_conf: Option<DbEngineOptions>,
     pub report: ReportConfig,
+    pub runner_queue_size: Option<usize>,
 }
 
 impl BacktestConfig {

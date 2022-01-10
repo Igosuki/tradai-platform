@@ -102,7 +102,15 @@ impl Backtest {
         let mock_engine = Arc::new(mock_engine(db_conf.path.clone(), &[Exchange::Binance]));
         let (stop_tx, _) = tokio::sync::broadcast::channel(1);
         let runners: Vec<_> = tokio_stream::iter(all_strategy_settings)
-            .map(|s| spawn_runner(stop_tx.clone(), db_conf.clone(), mock_engine.clone(), s))
+            .map(|s| {
+                spawn_runner(
+                    stop_tx.clone(),
+                    conf.runner_queue_size,
+                    db_conf.clone(),
+                    mock_engine.clone(),
+                    s,
+                )
+            })
             .buffer_unordered(10)
             .collect()
             .await;
@@ -219,6 +227,7 @@ async fn init_coinnect(xchs: &[Exchange]) {
 
 async fn spawn_runner(
     stop_tx: Sender<bool>,
+    sink_size: Option<usize>,
     db_conf: DbOptions<PathBuf>,
     engine: Arc<TradingEngine>,
     settings: StrategyDriverSettings,
@@ -232,7 +241,7 @@ async fn spawn_runner(
     })
     .await
     .unwrap();
-    let runner = BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger2, receiver);
+    let runner = BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger2, receiver, sink_size);
     Arc::new(RwLock::new(runner))
 }
 
