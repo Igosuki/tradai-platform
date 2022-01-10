@@ -1,0 +1,16 @@
+schema: http://127.0.0.1:8180
+documents: './src/**/*.tsx'
+extensions:
+  codegen:
+    generates:
+      ./src/generated-frontend.ts:
+        plugins:
+          - typescript
+          - typescript-operations
+          - typescript-react-apollo
+        config:
+          withHooks: true
+          withRefetchFn: true
+      ./schema.graphql:
+        plugins:
+          - schema-ast
