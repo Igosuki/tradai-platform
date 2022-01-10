@@ -21,6 +21,8 @@ use util::trace::{display_hist_percentiles, microtime_histogram, microtime_perce
 use crate::report::StreamWriterLogger;
 use crate::BacktestReport;
 
+const DEFAULT_RUNNER_SINK_SIZE: usize = 1000;
+
 pub(crate) struct BacktestRunner {
     strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
     strategy_events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
@@ -34,8 +36,10 @@ impl BacktestRunner {
         strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
         strategy_events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
         close_sink: tokio::sync::broadcast::Receiver<bool>,
+        sink_size: Option<usize>,
     ) -> Self {
-        let (events_sink, events_stream) = channel::<MarketEventEnvelope>(1000);
+        let (events_sink, events_stream) =
+            channel::<MarketEventEnvelope>(sink_size.unwrap_or(DEFAULT_RUNNER_SINK_SIZE));
         Self {
             strategy,
             strategy_events_logger,
