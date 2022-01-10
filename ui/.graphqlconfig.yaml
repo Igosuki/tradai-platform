@@ -1,0 +1,7 @@
+projects:
+  Web App:
+    schemaPath:
+      - ./schema.graphql
+    extensions:
+      endpoints:
+        local: 'http://localhost:8180'
