@@ -31,13 +31,9 @@ pub fn repo_dir() -> String {
 #[must_use]
 pub fn data_cache_dir() -> PathBuf { Path::new(&env!("COINDATA_CACHE_DIR")).join("data") }
 
-/// The base directory of data
-#[must_use]
-pub fn data_dir() -> PathBuf { Path::new(&repo_dir()).join("data") }
-
 /// The base directory of test data
 #[must_use]
-pub fn test_data_dir() -> PathBuf { Path::new(&repo_dir()).join("test_data") }
+pub fn test_data_dir() -> PathBuf { Path::new(&env!("COINDATA_TEST_DIR")).join("test_data") }
 
 /// The base directory of test results
 /// # Panics
