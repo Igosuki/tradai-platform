@@ -12,7 +12,7 @@ name = "logging"
 path = "src/lib.rs"
 
 [features]
-flame_it = ["flame", "flamer"]
+flame = ["dep:flame", "flamer"]
 
 [dependencies]
 # self
