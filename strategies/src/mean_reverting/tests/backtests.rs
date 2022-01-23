@@ -70,7 +70,6 @@ async fn spot_backtest() {
             ctx.db,
             "mean_reverting_test".to_string(),
             &conf,
-            ctx.engine,
             None,
         ))
     });
@@ -122,7 +121,6 @@ async fn margin_backtest() {
             ctx.db,
             "mean_reverting_test".to_string(),
             &conf,
-            ctx.engine,
             None,
         ))
     });

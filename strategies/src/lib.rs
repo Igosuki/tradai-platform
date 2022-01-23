@@ -36,3 +36,4 @@ extern crate tracing;
 pub mod breakout;
 pub mod mean_reverting;
 pub mod naive_pair_trading;
+pub mod bbplusb;
