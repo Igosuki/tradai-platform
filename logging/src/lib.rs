@@ -16,7 +16,7 @@ Currently logs events to files in AVRO binary format
 
 #[macro_use]
 extern crate anyhow;
-#[cfg(feature = "flame_it")]
+#[cfg(feature = "flame")]
 #[macro_use]
 extern crate flamer;
 #[macro_use]

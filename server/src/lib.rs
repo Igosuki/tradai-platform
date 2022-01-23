@@ -18,7 +18,7 @@ The server is currently not made to run in distributed mode
 #![feature(async_closure)]
 #![feature(result_cloned)]
 #![feature(map_try_insert)]
-#![cfg_attr(feature = "flame_it", feature(proc_macro_hygiene))]
+#![cfg_attr(feature = "flame", feature(proc_macro_hygiene))]
 #![allow(
     clippy::doc_markdown,
     clippy::module_name_repetitions,
@@ -32,7 +32,7 @@ The server is currently not made to run in distributed mode
 
 #[macro_use]
 extern crate anyhow;
-#[cfg(feature = "flame_it")]
+#[cfg(feature = "flame")]
 extern crate flame;
 #[macro_use]
 extern crate juniper;

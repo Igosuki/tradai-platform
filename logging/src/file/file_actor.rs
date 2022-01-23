@@ -90,7 +90,7 @@ where
     }
 
     /// Returns (creating it if necessary) the current rotating file writer for the partition
-    #[cfg_attr(feature = "flame_it", flame)]
+    #[cfg_attr(feature = "flame", flame)]
     pub(crate) fn writer_for(&mut self, e: &T) -> Result<Rc<RefCell<RotatingWriter>>, Error> {
         let partition = self.partitioner.partition(e).ok_or(Error::NoPartition)?;
         let path = partition.path.clone();

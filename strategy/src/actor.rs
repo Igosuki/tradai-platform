@@ -133,7 +133,7 @@ type StratActorResponseFuture<T> = ResponseActFuture<StrategyActor, T>;
 impl Handler<Arc<MarketEventEnvelope>> for StrategyActor {
     type Result = StratActorResponseFuture<anyhow::Result<()>>;
 
-    #[cfg_attr(feature = "flame_it", flame)]
+    #[cfg_attr(feature = "flame", flame)]
     fn handle(&mut self, msg: Arc<MarketEventEnvelope>, _ctx: &mut Self::Context) -> Self::Result {
         let lock = self.inner.clone();
         Box::pin(
@@ -149,7 +149,7 @@ impl Handler<Arc<MarketEventEnvelope>> for StrategyActor {
 impl Handler<DataQuery> for StrategyActor {
     type Result = StratActorResponseFuture<<DataQuery as actix::Message>::Result>;
 
-    #[cfg_attr(feature = "flame_it", flame)]
+    #[cfg_attr(feature = "flame", flame)]
     fn handle(&mut self, msg: DataQuery, _ctx: &mut Self::Context) -> Self::Result {
         let lock = self.inner.clone();
         Box::pin(
@@ -172,7 +172,7 @@ impl Handler<DataQuery> for StrategyActor {
 impl Handler<StateFieldMutation> for StrategyActor {
     type Result = StratActorResponseFuture<<StateFieldMutation as actix::Message>::Result>;
 
-    #[cfg_attr(feature = "flame_it", flame)]
+    #[cfg_attr(feature = "flame", flame)]
     fn handle(&mut self, msg: StateFieldMutation, _ctx: &mut Self::Context) -> Self::Result {
         let lock = self.inner.clone();
         Box::pin(
@@ -188,7 +188,7 @@ impl Handler<StateFieldMutation> for StrategyActor {
 impl Handler<ModelReset> for StrategyActor {
     type Result = StratActorResponseFuture<<ModelReset as actix::Message>::Result>;
 
-    #[cfg_attr(feature = "flame_it", flame)]
+    #[cfg_attr(feature = "flame", flame)]
     fn handle(&mut self, msg: ModelReset, _ctx: &mut Self::Context) -> Self::Result {
         let restart_after = msg.restart_after;
         let lock = self.inner.clone();

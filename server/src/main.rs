@@ -1,8 +1,8 @@
 #![feature(try_trait_v2)]
 
-#[cfg(feature = "flame_it")]
+#[cfg(feature = "flame")]
 extern crate flame;
-#[cfg(feature = "flame_it")]
+#[cfg(feature = "flame")]
 #[macro_use]
 extern crate flamer;
 
@@ -36,7 +36,7 @@ static ALLOCATOR: checkers::Allocator = checkers::Allocator::system();
 //                 .unwrap());
 //}
 
-#[cfg_attr(feature = "flame_it", flame)]
+#[cfg_attr(feature = "flame", flame)]
 #[allow(unused_braces)]
 fn main() -> anyhow::Result<()> {
     actix::System::with_tokio_rt(move || {

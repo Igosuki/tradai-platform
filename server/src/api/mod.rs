@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-#[cfg(feature = "flame_it")]
+#[cfg(feature = "flame")]
 use std::fs::File;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -83,7 +83,7 @@ async fn graphql(
     self::graphql::graphql_handler(&schema, &ctx, req, payload).await
 }
 
-#[cfg(feature = "flame_it")]
+#[cfg(feature = "flame")]
 fn dump_profiler_file(name: Option<&String>) -> Result<(), std::io::Error> {
     let string = format!("flame-graph-{}.html", chrono::Utc::now());
     let graph_file_name = name.unwrap_or(&string);
@@ -92,7 +92,7 @@ fn dump_profiler_file(name: Option<&String>) -> Result<(), std::io::Error> {
     flame::dump_html(graph_file)
 }
 
-#[cfg(feature = "flame_it")]
+#[cfg(feature = "flame")]
 pub async fn dump_profiler(q: web::Query<HashMap<String, String>>) -> Result<HttpResponse, Error> {
     dump_profiler_file(q.get("f"))?;
     Ok(HttpResponse::Ok().finish())
@@ -118,7 +118,7 @@ pub fn config_app(cfg: &mut web::ServiceConfig) {
     cfg.service(web::resource("/version").route(web::get().to(version)));
     cfg.service(web::resource("/playground").route(web::get().to(playground_handler)));
     cfg.service(web::resource("/graphiql").route(web::get().to(graphiql_handler)));
-    #[cfg(feature = "flame_it")]
+    #[cfg(feature = "flame")]
     cfg.service(web::scope("/profiling").service(web::resource("dump").route(web::post().to(dump_profiler))));
 }
 
