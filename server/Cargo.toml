@@ -16,7 +16,7 @@ path = "src/main.rs"
 
 [features]
 default = []
-flame_it = ["flame", "flamer"]
+flame = ["dep:flame", "flamer"]
 gprof = ["gperftools"]
 zstd = ["awc/compress-zstd", "actix-web/compress-zstd"]
 checkers_alloc = ["checkers"]

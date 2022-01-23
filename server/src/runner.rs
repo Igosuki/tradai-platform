@@ -1,4 +1,4 @@
-#[cfg(feature = "flame_it")]
+#[cfg(feature = "flame")]
 use std::fs::File;
 use std::future::Future;
 use std::process;
@@ -79,7 +79,7 @@ where
     }
 
     if settings_r.profile_main {
-        #[cfg(feature = "flame_it")]
+        #[cfg(feature = "flame")]
         flame::start("main bot");
     }
 
@@ -94,10 +94,10 @@ where
     info!("Caught interrupt and stopped the system");
 
     if settings_r.profile_main {
-        #[cfg(feature = "flame_it")]
+        #[cfg(feature = "flame")]
         flame::end("main bot");
 
-        #[cfg(feature = "flame_it")]
+        #[cfg(feature = "flame")]
         flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
     }
     Ok(())
