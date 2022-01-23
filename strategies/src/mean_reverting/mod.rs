@@ -17,7 +17,6 @@ use strategy::plugin::{provide_options, StrategyPlugin, StrategyPluginContext};
 use strategy::prelude::*;
 use strategy::{Channel, StratEventLoggerRef};
 use trading::book::BookPosition;
-use trading::engine::TradingEngine;
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};
 use trading::stop::Stopper;
@@ -38,7 +37,6 @@ pub fn provide_strat(name: &str, ctx: StrategyPluginContext, conf: serde_json::V
         ctx.db,
         name.to_string(),
         &options,
-        ctx.engine,
         ctx.logger,
     )))
 }
@@ -65,20 +63,13 @@ pub struct MeanRevertingStrategy {
     last_book_pos: Option<BookPosition>,
     logger: Option<StratEventLoggerRef>,
     order_conf: OrderConf,
-    engine: Arc<TradingEngine>,
 }
 
 impl MeanRevertingStrategy {
     /// # Panics
     ///
     /// if the strategy fails to load
-    pub fn new(
-        db: Arc<dyn Storage>,
-        strat_key: String,
-        n: &Options,
-        engine: Arc<TradingEngine>,
-        logger: Option<StratEventLoggerRef>,
-    ) -> Self {
+    pub fn new(db: Arc<dyn Storage>, strat_key: String, n: &Options, logger: Option<StratEventLoggerRef>) -> Self {
         let metrics = MeanRevertingStrategyMetrics::for_strat(prometheus::default_registry(), &n.pair);
         let model = MeanRevertingModel::new(n, db);
         let mut strat = Self {
@@ -96,7 +87,6 @@ impl MeanRevertingStrategy {
             last_book_pos: None,
             logger,
             order_conf: n.order_conf.clone(),
-            engine,
         };
         if let Err(e) = strat.load() {
             error!("{}", e);
@@ -154,6 +144,7 @@ impl MeanRevertingStrategy {
 
         let signal = match portfolio.open_position(self.exchange, self.pair.clone()) {
             Some(pos) => {
+                // TODO: move this logic to a single place in the code which can be reused
                 let maybe_stop = self.stopper.should_stop(pos.unreal_profit_loss);
                 if let Some(logger) = &self.logger {
                     if let Some(stop) = maybe_stop {

@@ -218,6 +218,7 @@ impl IterativeModel for MeanRevertingModel {
 
 #[cfg(test)]
 mod test {
+    use std::fs::File;
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -261,12 +262,12 @@ mod test {
         let results_dir = PathBuf::from(test_results_dir(module_path!()));
         let mut models_file_path = results_dir.clone();
         models_file_path.push("exported_model.json");
-        let model_file = std::fs::OpenOptions::new()
+        let model_file = File::options()
             .create(true)
             .write(true)
             .open(models_file_path.clone())?;
         model.export(model_file, false).unwrap();
-        let model_file = std::fs::OpenOptions::new().read(true).open(models_file_path).unwrap();
+        let model_file = File::options().read(true).open(models_file_path).unwrap();
         model.import(model_file, false).unwrap();
         model.try_load().unwrap();
 

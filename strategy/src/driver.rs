@@ -63,6 +63,9 @@ pub trait Strategy: Sync + Send {
     /// Exports a serialized view of the model
     fn model(&self) -> SerializedModel;
 
+    /// Exports a serialized view of model constants for performance purposes
+    fn constants(&self) -> SerializedModel { vec![] }
+
     /// Channels the strategy subscribes to
     fn channels(&self) -> HashSet<Channel>;
 }
