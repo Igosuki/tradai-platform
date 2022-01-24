@@ -46,7 +46,7 @@ actix-codec = "0.4"
 actix-cors = { version = "0.6.0-beta.8", default-features = false }
 actix-web = { version = "4.0.0-beta.17", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
 actix_derive = "0.6"
-awc = { version = "3.0.0-beta.13", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
+awc = { version = "3.0.0-beta", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
 
 # API Server
 juniper = { version = "^0.15", features = ["expose-test-schema"] }
@@ -109,7 +109,7 @@ gperftools = { version = "0.2", optional = true, features = ["heap"] }
 checkers = { version = "0.6", optional = true, features = ["zeroed", "backtrace", "checkers-macros", "fxhash", "macros", "realloc"] }
 
 # Queues
-nats = "0.16"
+nats = "0.17"
 
 [dev-dependencies]
 tempdir = "0.3"
