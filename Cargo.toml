@@ -33,6 +33,10 @@ opt-level = 1
 debug = true
 #lto = "thin"
 
+[profile.dev-noinc]
+inherits = "dev"
+incremental = false
+
 [profile.release]
 opt-level = 3
 debug = false
