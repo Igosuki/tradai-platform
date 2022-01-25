@@ -1,9 +1,11 @@
 // --------- Event Types ---------
 
+use coinnect_rt::broker::Subject;
+use coinnect_rt::exchange::Exchange;
 use uuid::Uuid;
 
-use coinnect_rt::types::{AddOrderRequest, AssetType, MarginSideEffect, MarketEvent, OrderEnforcement, OrderType,
-                         TradeType};
+use coinnect_rt::types::{AccountEventEnveloppe, AccountType, AddOrderRequest, AssetType, MarginSideEffect,
+                         MarketEvent, OrderEnforcement, OrderType, TradeType};
 
 use crate::signal::ExecutionInstruction;
 
@@ -185,3 +187,24 @@ impl From<&MarketEvent> for MarketStat {
         }
     }
 }
+
+#[derive(Debug, Hash, Eq, PartialEq)]
+pub struct AccountChannel {
+    pub xch: Exchange,
+    pub account_type: AccountType,
+}
+
+impl AccountChannel {
+    pub fn new(xch: Exchange, account_type: AccountType) -> Self { AccountChannel { xch, account_type } }
+}
+
+impl From<AccountEventEnveloppe> for AccountChannel {
+    fn from(msg: AccountEventEnveloppe) -> Self {
+        Self {
+            xch: msg.xchg,
+            account_type: msg.account_type,
+        }
+    }
+}
+
+impl Subject<AccountEventEnveloppe> for AccountChannel {}

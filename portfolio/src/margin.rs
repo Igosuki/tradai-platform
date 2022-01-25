@@ -68,23 +68,23 @@ impl MarginAccountMetrics {
     }
 
     fn free_amount(&self, xchg: Exchange, asset: &str, amount: f64) {
-        self.free.with_label_values(&[&xchg.to_string(), asset]).set(amount);
+        self.free.with_label_values(&[xchg.as_ref(), asset]).set(amount);
     }
 
     fn borrowed_amount(&self, xchg: Exchange, asset: &str, amount: f64) {
-        self.borrowed.with_label_values(&[&xchg.to_string(), asset]).set(amount);
+        self.borrowed.with_label_values(&[xchg.as_ref(), asset]).set(amount);
     }
 
     fn locked_amount(&self, xchg: Exchange, asset: &str, amount: f64) {
-        self.locked.with_label_values(&[&xchg.to_string(), asset]).set(amount);
+        self.locked.with_label_values(&[xchg.as_ref(), asset]).set(amount);
     }
 
     fn interest_amount(&self, xchg: Exchange, asset: &str, amount: f64) {
-        self.interest.with_label_values(&[&xchg.to_string(), asset]).set(amount);
+        self.interest.with_label_values(&[xchg.as_ref(), asset]).set(amount);
     }
 
     fn net_amount(&self, xchg: Exchange, asset: &str, amount: f64) {
-        self.net.with_label_values(&[&xchg.to_string(), asset]).set(amount);
+        self.net.with_label_values(&[xchg.as_ref(), asset]).set(amount);
     }
 
     pub fn report_asset(&self, xchg: Exchange, asset: &MarginAsset) {

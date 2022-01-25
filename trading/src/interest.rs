@@ -122,7 +122,7 @@ impl Handler<GetInterestRate> for MarginInterestRateProvider {
         Box::pin(
             async move {
                 GET_COUNTER
-                    .with_label_values(&[&msg.exchange.to_string(), &msg.asset])
+                    .with_label_values(&[msg.exchange.as_ref(), &msg.asset])
                     .inc();
                 let api = apis
                     .get(&msg.exchange)

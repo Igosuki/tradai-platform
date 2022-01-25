@@ -51,5 +51,6 @@ lto = false
 pyo3 = { git = "https://github.com/PyO3/pyo3", rev = "8a989eeb6aeb862c0c518d994ef6e5f967f0dc46", version = "^0.15" }
 pythonize = { git = "https://github.com/Igosuki/pythonize", rev = "d5309ca6491cdfb9e356d38b244e20b29a206bbc", version = "^0.15" }
 datafusion = { git = "https://github.com/apache/arrow-datafusion", branch = "arrow2", version = "6.0" }
+arrow2 = { git = "https://github.com/jorgecarleitao/arrow2.git", rev = "ef7937dfe56033c2cc491482c67587b52cd91554" }
 #datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow22r", version = "6.0" }
 #arrow2 = { git = "https://github.com/Igosuki/arrow2.git", branch = "decimal" }

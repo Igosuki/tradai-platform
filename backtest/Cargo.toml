@@ -67,5 +67,6 @@ float-cmp = "0.9"
 num_cpus = "1.13"
 
 # data
-datafusion = { version = "6.0", default-features = false, features = ["avro", "crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { version = "6.0", features = ["avro-schema", "avro", "crypto_expressions", "regex_expressions", "unicode_expressions"] }
+arrow2 = { git = "https://github.com/jorgecarleitao/arrow2.git", rev = "ef7937dfe56033c2cc491482c67587b52cd91554" }
 plotly = { version = "0.7", features = ["kaleido"] }

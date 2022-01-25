@@ -45,7 +45,6 @@ Specific APIs exist to facilitate persisting time based statistical models.
 #![feature(in_band_lifetimes)]
 #![feature(inherent_associated_types)]
 #![feature(fn_traits)]
-#![feature(result_cloned)]
 #![feature(generic_associated_types)]
 #![feature(const_fn_fn_ptr_basics)]
 #![feature(const_fn_trait_bound)]
@@ -111,7 +110,6 @@ pub mod event;
 mod generic;
 pub mod models;
 pub mod plugin;
-pub mod plugin_flag;
 pub mod query;
 pub mod settings;
 #[cfg(test)]

@@ -1,4 +1,6 @@
 use hdrhistogram::{Counter, Histogram};
+use opentelemetry::sdk::trace::Config;
+use opentelemetry::sdk::Resource;
 use opentelemetry::KeyValue;
 use std::collections::HashMap;
 use tracing_subscriber::layer::SubscriberExt;
@@ -122,7 +124,7 @@ pub fn setup_opentelemetry(agent_endpoints: String, service_name: String, tags: 
     let tracer = opentelemetry_jaeger::new_pipeline()
         .with_service_name(service_name)
         .with_agent_endpoint(agent_endpoints)
-        .with_tags(tags)
+        .with_trace_config(Config::default().with_resource(Resource::new(tags)))
         .install_simple()
         .unwrap();
     let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);

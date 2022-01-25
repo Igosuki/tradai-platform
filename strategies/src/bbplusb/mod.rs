@@ -3,8 +3,7 @@ mod metrics;
 use crate::bbplusb::metrics::BBPlusMetrics;
 use chrono::Duration;
 use serde_json::Value;
-use stats::indicators::ema::ExponentialMovingAverage;
-use stats::{BollingerBands, BollingerBandsOutput, Method, Next, SimpleMovingAverage, StandardDeviation, Window};
+use stats::{BollingerBands, BollingerBandsOutput, Next};
 use std::collections::HashSet;
 use std::sync::Arc;
 use strategy::coinnect::exchange::Exchange;
@@ -163,7 +162,7 @@ impl Strategy for BollingerPlusStrategy {
             None if bands_ppo > self.ob => new_signal(OperationKind::Open, PositionKind::Short, price, qty),
             _ => None,
         };
-        let mut signals = TradeSignals::from_iter(signal);
+        let signals = TradeSignals::from_iter(signal);
         Ok(Some(signals))
     }
 
@@ -212,9 +211,4 @@ impl Strategy for BollingerPlusStrategy {
         hs.extend(channels);
         hs
     }
-}
-
-#[cfg(test)]
-mod test {
-    use stats::{BollingerBands, Next, SimpleMovingAverage, StandardDeviation};
 }

@@ -16,7 +16,6 @@ The server is currently not made to run in distributed mode
 #![deny(unused_must_use, unused_mut, unused_imports, unused_import_braces)]
 #![feature(try_trait_v2)]
 #![feature(async_closure)]
-#![feature(result_cloned)]
 #![feature(map_try_insert)]
 #![cfg_attr(feature = "flame", feature(proc_macro_hygiene))]
 #![allow(

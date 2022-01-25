@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::future::Future;
+use std::io::ErrorKind;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -10,6 +11,7 @@ use std::time::Duration;
 
 use actix::{Actor, Addr, Recipient, SyncArbiter};
 use futures::future::select_all;
+use futures::TryFutureExt;
 use tokio::sync::RwLock;
 use tracing::Instrument;
 
@@ -17,6 +19,10 @@ use coinnect_rt::broker::{ActixMessageBroker, Broker, MarketEventEnvelopeMsg};
 // use actix::System;
 // use tokio::select;
 // use tokio::signal::unix::{signal, SignalKind};
+use crate::connectivity::run_connectivity_checker;
+use crate::nats::{NatsConsumer, NatsProducer, Subject};
+use crate::server;
+use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
 use coinnect_rt::exchange::manager::{ExchangeApiRegistry, ExchangeManager};
 use coinnect_rt::prelude::*;
 use db::DbOptions;
@@ -24,17 +30,15 @@ use logging::prelude::*;
 use metrics::prom::PrometheusPushActor;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
 use portfolio::margin::{MarginAccountReporter, MarginAccountReporterOptions};
+#[allow(unused_imports)]
+use strategies::mean_reverting;
 use strategy::plugin::plugin_registry;
 use strategy::prelude::StrategyCopySettings;
 use strategy::{self, Channel, StrategyKey, Trader};
 use trading::engine::{new_trading_engine, TradingEngine};
 use trading::interest::MarginInterestRateProvider;
 use trading::order_manager::OrderManager;
-
-use crate::connectivity::run_connectivity_checker;
-use crate::nats::{NatsConsumer, NatsProducer, Subject};
-use crate::server;
-use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
+use trading::types::AccountChannel;
 
 pub mod bots;
 
@@ -62,17 +66,14 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     Coinnect::load_pair_registries(apis.clone())
         .instrument(tracing::info_span!("loading pair registries"))
         .await?;
-    // Message broker
-    let mut broker = ActixMessageBroker::<Channel, MarketEventEnvelopeMsg>::new();
+    // Message brokers
+    let mut market_broker = ActixMessageBroker::<Channel, MarketEventEnvelopeMsg>::new();
+    let mut account_broker = ActixMessageBroker::<AccountChannel, AccountEventEnveloppe>::new();
     // Termination handles to fuse the server with
     let mut termination_handles: Vec<Pin<Box<dyn Future<Output = std::io::Result<()>>>>> = vec![];
     // Message recipients
     let mut broadcast_recipients: Vec<Recipient<Arc<MarketEventEnvelope>>> = Vec::new();
     let mut strat_recipients: Vec<Recipient<Arc<MarketEventEnvelope>>> = Vec::new();
-    let mut spot_account_recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>> =
-        apis.iter().map(|e| (*e.key(), vec![])).collect();
-    let mut margin_account_recipients: HashMap<Exchange, Vec<Recipient<AccountEventEnveloppe>>> =
-        spot_account_recipients.clone();
     let mut traders = vec![];
 
     // strategies, cf strategies crate
@@ -92,10 +93,14 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 let om = order_manager(&settings_v.storage, manager.clone()).await;
                 termination_handles.push(Box::pin(bots::poll_pingables(vec![om.clone().recipient()])));
                 for entry in manager.exchange_apis().iter() {
-                    spot_account_recipients
-                        .get_mut(entry.key())
-                        .unwrap()
-                        .push(om.clone().recipient());
+                    account_broker.register(
+                        AccountChannel::new(*entry.key(), AccountType::Spot),
+                        om.clone().recipient(),
+                    );
+                    account_broker.register(
+                        AccountChannel::new(*entry.key(), AccountType::Margin),
+                        om.clone().recipient(),
+                    );
                 }
                 let mirp = margin_interest_rate_provider(apis.clone());
                 let engine = new_trading_engine(manager.clone(), om, mirp);
@@ -104,7 +109,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                     .await;
                 for trader in strategies {
                     for channel in &trader.channels {
-                        broker.register(channel.clone(), trader.market_event_recipient());
+                        market_broker.register(channel.clone(), trader.market_event_recipient());
                     }
                     strat_recipients.push(trader.market_event_recipient());
                     traders.push(trader.clone());
@@ -118,23 +123,23 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
         info!("starting balance reporter");
         let reporter_addr = balance_reporter(balance_reporter_opts, apis.clone()).await?;
         for xch in apis.iter().map(|e| e.key()) {
-            spot_account_recipients
-                .get_mut(xch)
-                .unwrap()
-                .push(reporter_addr.clone().recipient());
+            account_broker.register(
+                AccountChannel::new(*xch, AccountType::Spot),
+                reporter_addr.clone().recipient(),
+            );
         }
         termination_handles.push(Box::pin(bots::poll_pingables(vec![reporter_addr.recipient()])));
     }
 
-    // balance reporter
+    // margin balance reporter
     if let Some(margin_account_reporter_opts) = &settings_v.margin_account_reporter {
         info!("starting margin account reporter");
         let reporter_addr = margin_account_reporter(margin_account_reporter_opts, apis.clone()).await?;
         for xch in apis.iter().map(|e| e.key()) {
-            margin_account_recipients
-                .get_mut(xch)
-                .unwrap()
-                .push(reporter_addr.clone().recipient());
+            account_broker.register(
+                AccountChannel::new(*xch, AccountType::Margin),
+                reporter_addr.clone().recipient(),
+            );
         }
         termination_handles.push(Box::pin(bots::poll_pingables(vec![reporter_addr.recipient()])));
     }
@@ -142,7 +147,8 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     // metrics actor
     let _prom_push = PrometheusPushActor::start(PrometheusPushActor::new(&settings_v.prometheus));
 
-    let broker_ref = Arc::new(broker);
+    let market_broker_ref = Arc::new(market_broker);
+    let account_broker_ref = Arc::new(account_broker);
 
     for stream_settings in &settings_v.streams {
         match stream_settings {
@@ -150,34 +156,46 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 let mut all_recipients = vec![];
                 all_recipients.extend(strat_recipients.clone());
                 all_recipients.extend(broadcast_recipients.clone());
-                let bots = bots::exchange_bots(exchanges_conf.clone(), keys_path.clone(), broker_ref.clone()).await?;
+                let mut bots = bots::exchange_bots(exchanges_conf.clone(), keys_path.clone()).await?;
                 if !bots.is_empty() {
-                    termination_handles.push(Box::pin(bots::poll_bots(bots)));
+                    let market_broker_ref = market_broker_ref.clone();
+                    let fut = async move {
+                        select_all(bots.iter_mut().map(|(_, bot)| {
+                            let market_broker_ref = market_broker_ref.clone();
+                            bot.add_sink(Box::new(move |msg| {
+                                market_broker_ref.broadcast(msg);
+                                Ok(())
+                            }))
+                        }))
+                        .await;
+                        Ok(())
+                    }
+                    .map_err(|e: anyhow::Error| std::io::Error::new(ErrorKind::Other, e));
+                    termination_handles.push(Box::pin(fut));
                 }
             }
             StreamSettings::AccountBots => {
-                let mut bots = bots::spot_account_bots(
-                    exchanges_conf.clone(),
-                    keys_path.clone(),
-                    spot_account_recipients.clone(),
-                )
-                .await?;
-                let margin_bots = bots::margin_account_bots(
-                    exchanges_conf.clone(),
-                    keys_path.clone(),
-                    margin_account_recipients.clone(),
-                )
-                .await?;
+                let mut bots = bots::spot_account_bots(exchanges_conf.clone(), keys_path.clone()).await?;
+                let margin_bots = bots::margin_account_bots(exchanges_conf.clone(), keys_path.clone()).await?;
                 bots.extend(margin_bots);
-                let isolated_margin_bots = bots::isolated_margin_account_bots(
-                    exchanges_conf.clone(),
-                    keys_path.clone(),
-                    margin_account_recipients.clone(),
-                )
-                .await?;
+                let isolated_margin_bots =
+                    bots::isolated_margin_account_bots(exchanges_conf.clone(), keys_path.clone()).await?;
                 bots.extend(isolated_margin_bots);
                 if !bots.is_empty() {
-                    termination_handles.push(Box::pin(bots::poll_bots_vec(bots)));
+                    let account_broker_ref = account_broker_ref.clone();
+                    let fut = async move {
+                        select_all(bots.iter_mut().map(|bot| {
+                            let account_broker_ref = account_broker_ref.clone();
+                            bot.add_sink(Box::new(move |msg| {
+                                account_broker_ref.broadcast(msg);
+                                Ok(())
+                            }))
+                        }))
+                        .await;
+                        Ok(())
+                    }
+                    .map_err(|e: anyhow::Error| std::io::Error::new(ErrorKind::Other, e));
+                    termination_handles.push(Box::pin(fut));
                 }
             }
             StreamSettings::Nats(nats_settings) => {
