@@ -38,7 +38,7 @@ pub use storage::mem::MemoryKVStore;
 #[cfg(feature = "rkv-lmdb")]
 pub use storage::rkv;
 pub use storage::rocksdb::{RocksDbOptions, RocksDbStorage};
-pub use storage::ser::bincode::BincodeStorageExt as StorageExt;
+pub use storage::ser::json::JsonStorageExt as StorageExt;
 pub use storage::ser::json::JsonStorageExt;
 pub use storage::ser::rkyv::RkyvStorageExt;
 pub use storage::{get_or_create, repo::DefaultRepository, DbEngineOptions, DbOptions, Storage};

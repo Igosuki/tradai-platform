@@ -10,6 +10,6 @@ fn main() {
         }
     };
     println!("cargo:rustc-env=GIT_HASH={}", git_hash);
-    println!("cargo:rerun-if-changed=../../.git/HEAD");
-    println!("cargo:rerun-if-env-changed=BUILD_GIT_SHA");
+    //println!("cargo:rerun-if-changed=../../.git/HEAD");
+    //println!("cargo:rerun-if-env-changed=BUILD_GIT_SHA");
 }
