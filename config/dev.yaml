@@ -6,7 +6,7 @@ exchanges:
     use_test: true
     orderbook_depth: 5
     orderbook:
-      symbols: [ 'BURGER_USDT' ]
+      symbols: [ 'BTC_USDT' ]
 
 streams:
   - type: ExchangeBots

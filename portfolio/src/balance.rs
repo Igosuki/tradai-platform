@@ -38,7 +38,7 @@ impl BalanceMetrics {
 
     pub fn free_amount(&self, xchg: Exchange, asset: &Asset, amount: f64) {
         self.asset_gauge
-            .with_label_values(&[&xchg.to_string(), asset.as_ref()])
+            .with_label_values(&[xchg.as_ref(), asset.as_ref()])
             .set(amount);
     }
 }

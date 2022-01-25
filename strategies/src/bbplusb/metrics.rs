@@ -1,12 +1,9 @@
 use std::collections::HashMap;
 
-use prometheus::{CounterVec, GaugeVec, Registry};
+use prometheus::{GaugeVec, Registry};
 
 use metrics::prelude::*;
-use stats::indicators::macd_apo::MACDApo;
-use stats::{BollingerBands, BollingerBandsOutput, Next};
-use trading::book::BookPosition;
-use trading::position::{OperationKind, PositionKind};
+use stats::BollingerBandsOutput;
 
 type ModelIndicatorFn = (String, fn(&BollingerBandsOutput) -> f64);
 

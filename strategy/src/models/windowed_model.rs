@@ -41,7 +41,7 @@ impl<'a, T: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOw
         window_fn: WindowFn<T, M>,
         init: Option<M>,
     ) -> Self {
-        let max_size = max_size_o.unwrap_or_else(|| (1.2 * window_size as f64) as usize);
+        let max_size = max_size_o.unwrap_or((1.2 * window_size as f64) as usize);
         Self {
             rows: PersistentVec::new(db.clone(), &format!("{}_rows", id), max_size, window_size),
             model: PersistentModel::new(db, id, init.map(|i| ModelValue::new(i))),
