@@ -3,7 +3,7 @@ use datafusion::datasource::file_format::avro::AvroFormat;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
-use datafusion::StructArrayExt;
+use datafusion::field_util::StructArrayExt;
 use itertools::Itertools;
 use std::sync::Arc;
 

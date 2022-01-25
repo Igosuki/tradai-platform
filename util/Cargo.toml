@@ -35,8 +35,8 @@ futures = "0.3"
 
 # Tracing / Logging
 pretty_env_logger = "0.4"
-opentelemetry = { version = "^0.17", default-features = false, features = ["trace"] }
-opentelemetry-jaeger = "0.16"
+opentelemetry = { version = "^0.16", default-features = false, features = ["trace"] }
+opentelemetry-jaeger = "0.15"
 tracing = { version = "0.1", features = ["log"] }
 tracing-flame = "0.2"
 tracing-log = { version = "0.1", features = ["env_logger"] }

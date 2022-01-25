@@ -215,7 +215,7 @@ impl BacktestReport {
     }
 
     pub async fn reload<P: AsRef<Path>>(key: &str, path: P, report_compression: Compression) -> Self {
-        let report = BacktestReport::new(path.as_ref().to_path_buf(), key.to_string(), report_compression);
+        let report = BacktestReport::new(path.as_ref(), key.to_string(), report_compression);
         task::spawn_blocking(move || {
             report.write_html_report();
             report
