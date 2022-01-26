@@ -136,18 +136,18 @@ impl PositionSummariser for ProfitLossSummary {
     fn update(&mut self, position: &Position) {
         let qty = position.quantity();
         self.total_contracts += qty;
-        self.total_pnl += position.result_pl;
+        self.total_pnl += position.result_profit_loss;
         self.total_pnl_per_contract = self.total_pnl / self.total_contracts;
 
         match position.kind {
             PositionKind::Long => {
                 self.long_contracts += qty;
-                self.long_pnl += position.result_pl;
+                self.long_pnl += position.result_profit_loss;
                 self.long_pnl_per_contract = self.long_pnl / self.long_contracts;
             }
             PositionKind::Short => {
                 self.short_contracts += qty;
-                self.short_pnl += position.result_pl;
+                self.short_pnl += position.result_profit_loss;
                 self.short_pnl_per_contract = self.short_pnl / self.short_contracts;
             }
         }
