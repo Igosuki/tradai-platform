@@ -16,7 +16,7 @@ coinnect_rt = { path = "../coinnect" }
 binance-rs-async = { version = "1.1.4" }
 
 # Mock
-httpmock = { git = "https://github.com/Igosuki/httpmock.git" }
+httpmock = { version = "0.6", default-features = false }
 
 # Std
 rand = "0.8"

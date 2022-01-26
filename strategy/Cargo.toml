@@ -25,7 +25,6 @@ db = { path = "../db" }
 ext = { path = "../ext" }
 util = { path = "../util" }
 metrics = { path = "../metrics" }
-#coinnect_rt = { git = " ssh://git@github.com/Igosuki/coinnect_rt.git" }
 coinnect_rt = { path = "../coinnect" }
 stats = { path = "../stats" }
 trading = { path = "../trading" }
@@ -108,7 +107,7 @@ multimap = "0.8"
 
 # http
 http = "0.2"
-httpmock = { git = "https://github.com/Igosuki/httpmock.git" }
+httpmock = { version = "0.6", default-features = false }
 socket2 = "0.4"
 
 # Async
