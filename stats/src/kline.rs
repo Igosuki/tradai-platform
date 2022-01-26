@@ -122,7 +122,7 @@ impl Interval {
     pub fn from_duration(d: Duration) -> Option<Interval> {
         let secs = d.as_secs();
         if secs % (3600 * 24) == 0 {
-            return if secs == 3600 * 24 * 1 {
+            if secs == 3600 * 24 {
                 Some(Interval::Day1)
             } else if secs == 3600 * 24 * 3 {
                 Some(Interval::Day3)
@@ -132,9 +132,9 @@ impl Interval {
                 Some(Interval::Month1)
             } else {
                 None
-            };
+            }
         } else if secs % 3600 == 0 {
-            return if secs == 3600 {
+            if secs == 3600 {
                 Some(Interval::Hour1)
             } else if secs == 3600 * 2 {
                 Some(Interval::Hour2)
@@ -152,9 +152,9 @@ impl Interval {
                 Some(Interval::Hour12)
             } else {
                 None
-            };
+            }
         } else if secs % 60 == 0 {
-            return if secs == 60 {
+            if secs == 60 {
                 Some(Interval::Minute1)
             } else if secs == 180 {
                 Some(Interval::Minute3)
@@ -168,23 +168,21 @@ impl Interval {
                 Some(Interval::Minute45)
             } else {
                 None
-            };
+            }
+        } else if secs == 1 {
+            Some(Interval::Second1)
+        } else if secs == 3 {
+            Some(Interval::Second3)
+        } else if secs == 5 {
+            Some(Interval::Second5)
+        } else if secs == 15 {
+            Some(Interval::Second15)
+        } else if secs == 30 {
+            Some(Interval::Second30)
+        } else if secs == 45 {
+            Some(Interval::Second45)
         } else {
-            return if secs == 1 {
-                Some(Interval::Second1)
-            } else if secs == 3 {
-                Some(Interval::Second3)
-            } else if secs == 5 {
-                Some(Interval::Second5)
-            } else if secs == 15 {
-                Some(Interval::Second15)
-            } else if secs == 30 {
-                Some(Interval::Second30)
-            } else if secs == 30 {
-                Some(Interval::Second45)
-            } else {
-                None
-            };
+            None
         }
     }
 }
