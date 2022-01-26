@@ -1,5 +1,6 @@
+#![allow(dead_code)]
+
 use chrono::{DateTime, Utc};
-use std::ops::Add;
 use std::time::Duration;
 use ta::Next;
 use yata::core::ValueType;
@@ -8,7 +9,7 @@ use yata::prelude::{Sequence, OHLCV};
 
 /// Normalised OHLCV data from an [Interval] with the associated [DateTime] UTC timestamp;
 #[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone, Copy)]
-struct Candle {
+pub struct Candle {
     /// The start time of this candle
     start_time: DateTime<Utc>,
     /// The close time of this candle
@@ -91,11 +92,18 @@ impl OHLCV for Candle {
 /// Defines the possible intervals that a [Candle] represents.
 #[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone, AsRefStr)]
 pub enum Interval {
+    Second1,
+    Second3,
+    Second5,
+    Second15,
+    Second30,
+    Second45,
     Minute1,
     Minute3,
     Minute5,
     Minute15,
     Minute30,
+    Minute45,
     Hour1,
     Hour2,
     Hour3,
@@ -156,15 +164,32 @@ impl Interval {
                 Some(Interval::Minute15)
             } else if secs == 60 * 30 {
                 Some(Interval::Minute30)
+            } else if secs == 60 * 45 {
+                Some(Interval::Minute45)
             } else {
                 None
             };
         } else {
-            return None;
+            return if secs == 1 {
+                Some(Interval::Second1)
+            } else if secs == 3 {
+                Some(Interval::Second3)
+            } else if secs == 5 {
+                Some(Interval::Second5)
+            } else if secs == 15 {
+                Some(Interval::Second15)
+            } else if secs == 30 {
+                Some(Interval::Second30)
+            } else if secs == 30 {
+                Some(Interval::Second45)
+            } else {
+                None
+            };
         }
     }
 }
 
+#[allow(dead_code)]
 pub enum BarMerge {
     GapsOff,
     LookaheadOn,
@@ -172,7 +197,7 @@ pub enum BarMerge {
 
 /// Kline is a set of candles with the same interval over a specific market
 #[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone)]
-struct Kline {
+pub struct Kline {
     exchange: String,
     pair: String,
     base_interval: Duration,
@@ -242,5 +267,17 @@ impl Next<(f64, f64, DateTime<Utc>)> for Kline {
             }
             _ => self.candles.push(new_candle),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::kline::{Interval, Kline};
+    use std::time::Duration;
+
+    #[test]
+    fn test_basic_second_kline() {
+        let kline = Kline::new("binance".to_string(), "BTC_USDT".to_string(), Duration::from_secs(1));
+        assert_eq!(kline.interval(), Some(Interval::Second1));
     }
 }
