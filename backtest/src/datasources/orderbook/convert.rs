@@ -14,7 +14,7 @@ use crate::datafusion_util::get_col_as;
 /// xch : String
 pub fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = MarketEventEnvelope> + 'static {
     let sa: StructArray = record_batch.into();
-
+    eprintln!("sa = {:?}", sa);
     stream! {
         for (i, column) in sa.fields().iter().enumerate() {
             trace!("sa[{}] = {:?}", i, column.data_type());

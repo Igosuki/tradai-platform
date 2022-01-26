@@ -123,7 +123,7 @@ impl Backtest {
                 input_format: conf.input_format.clone(),
                 period: conf.period.as_range(),
                 ds_type: conf.input_dataset,
-                base_dir: conf.data_dir.clone(),
+                base_dir: conf.coindata_cache_dir(),
                 input_sample_rate: conf.input_sample_rate,
             },
             report_conf: conf.report.clone(),

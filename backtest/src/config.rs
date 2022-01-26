@@ -52,7 +52,7 @@ pub struct BacktestConfig {
     pub period: Period,
     pub input_format: DatasetInputFormat,
     pub input_dataset: DatasetType,
-    pub data_dir: PathBuf,
+    pub coindata_cache_dir: Option<PathBuf>,
     #[builder(default, setter(strip_option))]
     pub sql_override: Option<String>,
     #[builder(default, setter(strip_option))]
@@ -105,6 +105,12 @@ impl BacktestConfig {
     }
 
     //pub fn sample_rate(&self) -> Duration { Duration::from_std(parse(&self.input_sample_rate).unwrap()).unwrap() }
+
+    pub(crate) fn coindata_cache_dir(&self) -> PathBuf {
+        self.coindata_cache_dir
+            .clone()
+            .unwrap_or_else(|| Path::new(&std::env::var("COINDATA_CACHE_DIR").unwrap()).join("data"))
+    }
 }
 
 fn default_db_conf<S: AsRef<Path>>(local_db_path: S) -> DbOptions<S> {

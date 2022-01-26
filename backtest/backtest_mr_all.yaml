@@ -50,8 +50,6 @@ db_conf:
 
 runner_queue_size: 100
 
-data_dir: /home/geps/dev/bitcoins/data_cache/data
-
 use_generic: false
 
 output_dir: ./target/backtests_results
