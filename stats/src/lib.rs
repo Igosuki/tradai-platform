@@ -32,6 +32,8 @@ extern crate test;
 extern crate thiserror;
 #[macro_use]
 extern crate anyhow;
+#[macro_use]
+extern crate strum_macros;
 
 pub use ta::indicators::*;
 pub use ta::{Close, High, Low, Next, Open, Period, Reset, Volume};
@@ -42,5 +44,6 @@ mod dispersion;
 mod error;
 pub mod indicators;
 pub mod iter;
+mod kline;
 mod math;
 mod summary;

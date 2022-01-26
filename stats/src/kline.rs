@@ -1,19 +1,13 @@
 use chrono::{DateTime, Utc};
-use coinnect_rt::prelude::*;
+use std::ops::Add;
 use std::time::Duration;
-use ta::*;
-
-/// Klines is a set of candles with the same interval over a specific market
-#[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone)]
-struct Klines {
-    exchange: String,
-    pair: Pair,
-    interval: Duration,
-    candles: Vec<Candle>,
-}
+use ta::Next;
+use yata::core::ValueType;
+use yata::helpers::Merge;
+use yata::prelude::{Sequence, OHLCV};
 
 /// Normalised OHLCV data from an [Interval] with the associated [DateTime] UTC timestamp;
-#[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone, Copy)]
 struct Candle {
     /// The start time of this candle
     start_time: DateTime<Utc>,
@@ -35,6 +29,37 @@ struct Candle {
     trade_count: u64,
 }
 
+impl Merge<Candle> for Candle {
+    fn merge(&self, other: &Candle) -> Self {
+        Self {
+            high: self.high.max(other.high),
+            low: self.low.min(other.low),
+            close: other.close,
+            volume: self.volume + other.volume,
+            quote_volume: self.quote_volume + other.quote_volume,
+            trade_count: self.trade_count + other.trade_count,
+            end_time: other.end_time,
+            ..*self
+        }
+    }
+}
+
+impl Candle {
+    pub fn new(price: f64, amount: f64, ts: DateTime<Utc>) -> Self {
+        Self {
+            start_time: ts,
+            end_time: ts,
+            open: price,
+            high: price,
+            low: price,
+            close: price,
+            volume: amount,
+            quote_volume: price * amount,
+            trade_count: 1,
+        }
+    }
+}
+
 impl Default for Candle {
     fn default() -> Self {
         Self {
@@ -51,28 +76,20 @@ impl Default for Candle {
     }
 }
 
-impl Open for Candle {
-    fn open(&self) -> f64 { self.open }
-}
+impl OHLCV for Candle {
+    fn open(&self) -> ValueType { self.open }
 
-impl High for Candle {
-    fn high(&self) -> f64 { self.high }
-}
+    fn high(&self) -> ValueType { self.high }
 
-impl Low for Candle {
-    fn low(&self) -> f64 { self.low }
-}
+    fn low(&self) -> ValueType { self.low }
 
-impl Close for Candle {
-    fn close(&self) -> f64 { self.close }
-}
+    fn close(&self) -> ValueType { self.close }
 
-impl Volume for Candle {
-    fn volume(&self) -> f64 { self.volume }
+    fn volume(&self) -> ValueType { self.volume }
 }
 
 /// Defines the possible intervals that a [Candle] represents.
-#[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone, AsRefStr)]
 pub enum Interval {
     Minute1,
     Minute3,
@@ -81,7 +98,9 @@ pub enum Interval {
     Minute30,
     Hour1,
     Hour2,
+    Hour3,
     Hour4,
+    Hour5,
     Hour6,
     Hour8,
     Hour12,
@@ -94,20 +113,20 @@ pub enum Interval {
 impl Interval {
     pub fn from_duration(d: Duration) -> Option<Interval> {
         let secs = d.as_secs();
-        let i = if secs % (3600 * 24) == 0 {
-            if secs == 3600 * 24 * 1 {
-                Interval::Day1
+        if secs % (3600 * 24) == 0 {
+            return if secs == 3600 * 24 * 1 {
+                Some(Interval::Day1)
             } else if secs == 3600 * 24 * 3 {
-                Interval::Day3
+                Some(Interval::Day3)
             } else if secs == 3600 * 24 * 7 {
-                Interval::Week1
+                Some(Interval::Week1)
             } else if secs == 3600 * 24 * 30 {
-                Interval::Month1
+                Some(Interval::Month1)
             } else {
-                return None;
-            }
+                None
+            };
         } else if secs % 3600 == 0 {
-            if secs == 3600 {
+            return if secs == 3600 {
                 Some(Interval::Hour1)
             } else if secs == 3600 * 2 {
                 Some(Interval::Hour2)
@@ -124,10 +143,10 @@ impl Interval {
             } else if secs == 3600 * 12 {
                 Some(Interval::Hour12)
             } else {
-                return None;
-            }
+                None
+            };
         } else if secs % 60 == 0 {
-            if secs == 60 {
+            return if secs == 60 {
                 Some(Interval::Minute1)
             } else if secs == 180 {
                 Some(Interval::Minute3)
@@ -138,14 +157,90 @@ impl Interval {
             } else if secs == 60 * 30 {
                 Some(Interval::Minute30)
             } else {
-                return None;
-            }
-        };
-        Some(i)
+                None
+            };
+        } else {
+            return None;
+        }
     }
 }
 
 pub enum BarMerge {
     GapsOff,
     LookaheadOn,
+}
+
+/// Kline is a set of candles with the same interval over a specific market
+#[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone)]
+struct Kline {
+    exchange: String,
+    pair: String,
+    base_interval: Duration,
+    candles: Vec<Candle>,
+}
+
+impl Kline {
+    /// Create a new kline with the minimum interval set at `base_interval`
+    pub fn new(exchange: String, pair: String, base_interval: Duration) -> Self {
+        if base_interval < Duration::from_secs(1) {
+            panic!("Cannot have a candle duration < 1s");
+        }
+        Self {
+            exchange,
+            pair,
+            base_interval,
+            candles: vec![],
+        }
+    }
+
+    /// Resamples the kline at [sample_interval]
+    pub fn resample(&self, sample_interval: Duration) -> Vec<Candle> {
+        if self.base_interval >= sample_interval {
+            self.candles.clone()
+        } else {
+            let resample_size = sample_interval.as_secs() / self.base_interval.as_secs();
+            self.candles.collapse_timeframe(resample_size as usize, true)
+        }
+    }
+
+    /// Returns [`None`] if the kline duration is not a known interval
+    pub fn interval(&self) -> Option<Interval> { Interval::from_duration(self.base_interval) }
+}
+
+impl Next<Candle> for Kline {
+    type Output = ();
+
+    fn next(&mut self, input: Candle) -> Self::Output {
+        match self.candles.last() {
+            None => self.candles.push(input),
+            Some(candle)
+                if candle.start_time.timestamp_millis() + self.base_interval.as_millis() as i64
+                    > input.start_time.timestamp_millis() =>
+            {
+                let latest_candle = self.candles.last_mut().unwrap();
+                *latest_candle = latest_candle.merge(&input);
+            }
+            _ => self.candles.push(input),
+        }
+    }
+}
+
+/// Price, Amount, Time
+impl Next<(f64, f64, DateTime<Utc>)> for Kline {
+    type Output = ();
+
+    fn next(&mut self, input: (f64, f64, DateTime<Utc>)) -> Self::Output {
+        let new_candle = Candle::new(input.0, input.1, input.2);
+        match self.candles.last() {
+            None => self.candles.push(new_candle),
+            Some(candle)
+                if candle.start_time.timestamp_millis() + self.base_interval.as_millis() as i64
+                    > new_candle.start_time.timestamp_millis() =>
+            {
+                let latest_candle = self.candles.last_mut().unwrap();
+                *latest_candle = latest_candle.merge(&new_candle);
+            }
+            _ => self.candles.push(new_candle),
+        }
+    }
 }
