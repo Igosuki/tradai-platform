@@ -44,14 +44,7 @@ pub fn sampled_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
             let where_clause = where_clause(&mut partition.iter());
             let df = ctx
                 .clone()
-                .sql(&format!("select count(*) from order_books {where_clause}", where_clause = &where_clause))
-                .await
-                .unwrap();
-            let val = df.collect().await.unwrap();
-            eprintln!("val = {:?}", val);
-            let df = ctx
-                .clone()
-                .sql(&format!("select xch, pair, to_timestamp_millis(event_ms) as event_ts, asks, bids from order_books {where_clause} order by event_ms asc", where_clause = &where_clause))
+                .sql(&format!("select xch, to_timestamp_millis(event_ms) as event_ts, pr, asks, bids from (select * from order_books {where_clause}) as obs order by event_ms asc", where_clause = &where_clause))
                 .await
                 .unwrap();
             let collected = df.execute_stream().await.unwrap();
