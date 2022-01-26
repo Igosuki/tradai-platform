@@ -67,8 +67,6 @@ db_path: /media/ramdisk/strat_backtest_dbs
 db_conf:
   type: in_memory
 
-data_dir: /home/geps/dev/bitcoins/data_cache/data
-
 use_generic: false
 
 output_dir: ./target/backtests_results

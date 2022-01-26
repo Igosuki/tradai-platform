@@ -36,3 +36,20 @@ where
         "where ".to_string() + iter.map(|s| format!("{}='{}'", s.0, s.1)).join(" and ").as_str()
     }
 }
+
+#[cfg(all(feature = "remote_execution", not(feature = "standalone_execution")))]
+pub fn new_context() -> ballista::context::BallistaContext {
+    let config = BallistaConfig::builder()
+        .set("ballista.shuffle.partitions", "32")
+        .build()?;
+    ballista::context::BallistaContext::remote("localhost", 50050, &config)
+}
+
+#[cfg(all(feature = "standalone_execution", not(feature = "remote_execution")))]
+pub fn new_context() -> ballista::context::BallistaContext { ballista::context::BallistaContext::standalone() }
+
+#[cfg(any(
+    not(any(feature = "remote_execution", feature = "standalone_execution")),
+    all(feature = "remote_execution", feature = "standalone_execution")
+))]
+pub fn new_context() -> datafusion::prelude::ExecutionContext { datafusion::prelude::ExecutionContext::new() }
