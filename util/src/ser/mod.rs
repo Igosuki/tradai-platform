@@ -14,6 +14,7 @@ use tokio::sync::mpsc::{Receiver, Sender, UnboundedSender};
 use tokio::sync::RwLock;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
+use tokio_util::sync::CancellationToken;
 
 #[allow(dead_code)]
 fn round_serialize<S>(x: f64, s: S) -> std::result::Result<S::Ok, S::Error>
@@ -132,8 +133,7 @@ pub struct StreamSerializerWriter<T> {
     compression: Compression,
     sink: UnboundedSender<T>,
     stream: RwLock<UnboundedReceiverStream<T>>,
-    finish_tx: Sender<bool>,
-    finish_rx: RwLock<Receiver<bool>>,
+    finish_token: CancellationToken,
     finish_resp_tx: Sender<bool>,
     finish_resp_rx: RwLock<Receiver<bool>>,
 }
@@ -145,7 +145,6 @@ impl<T: 'static + DeserializeOwned + Serialize + Debug + Send> StreamSerializerW
 
     pub fn new_with_compression<P: AsRef<Path>>(out_file: P, compression: Compression) -> StreamSerializerWriter<T> {
         let (sink, rcv) = tokio::sync::mpsc::unbounded_channel();
-        let (finish_tx, finish_rx) = tokio::sync::mpsc::channel::<bool>(1);
         let (finish_resp_tx, finish_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
         let stream = UnboundedReceiverStream::new(rcv);
         Self {
@@ -153,9 +152,8 @@ impl<T: 'static + DeserializeOwned + Serialize + Debug + Send> StreamSerializerW
             compression,
             sink,
             stream: RwLock::new(stream),
-            finish_rx: RwLock::new(finish_rx),
+            finish_token: CancellationToken::new(),
             finish_resp_tx,
-            finish_tx,
             finish_resp_rx: RwLock::new(finish_resp_rx),
         }
     }
@@ -171,7 +169,7 @@ impl<T: 'static + DeserializeOwned + Serialize + Debug + Send> StreamSerializerW
     ///
     /// Will panic if the close channel is already closed
     pub async fn close(&self) {
-        self.finish_tx.send(true).await.unwrap();
+        self.finish_token.cancel();
         let mut end = self.finish_resp_rx.write().await;
         end.recv().await.unwrap();
     }
@@ -187,7 +185,6 @@ impl<T: 'static + DeserializeOwned + Serialize + Debug + Send> StreamSerializerW
         let mut serializer = serde_json::Serializer::new(&mut writer);
         let mut seq = serializer.serialize_seq(None).unwrap();
         let mut lock = self.stream.write().await;
-        let mut finish_lock = self.finish_rx.write().await;
         'stream: loop {
             select! {
                 biased;
@@ -200,7 +197,7 @@ impl<T: 'static + DeserializeOwned + Serialize + Debug + Send> StreamSerializerW
                         break 'stream;
                     }
                 }
-                _ = finish_lock.recv() => break 'stream
+                _ = self.finish_token.cancelled() => break 'stream
             }
         }
         SerializeSeq::end(seq).unwrap();
