@@ -59,3 +59,5 @@ arrow2 = { git = "https://github.com/jorgecarleitao/arrow2.git", rev = "ef7937df
 #datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow22r", version = "6.0" }
 #arrow2 = { git = "https://github.com/Igosuki/arrow2.git", branch = "decimal" }
 yata = { git = "https://github.com/Igosuki/yata.git", branch = "ohlcv_merge" }
+rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb.git", rev = "92b27f5d33c0c713f1d3ec8436b0ae49680e3cca" }
+

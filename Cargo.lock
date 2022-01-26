@@ -3335,13 +3335,15 @@ dependencies = [
 [[package]]
 name = "librocksdb-sys"
 version = "6.20.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c309a9d2470844aceb9a4a098cf5286154d20596868b75a6b36357d2bb9ca25d"
+source = "git+https://github.com/rust-rocksdb/rust-rocksdb.git?rev=92b27f5d33c0c713f1d3ec8436b0ae49680e3cca#92b27f5d33c0c713f1d3ec8436b0ae49680e3cca"
 dependencies = [
  "bindgen",
+ "bzip2-sys",
  "cc",
  "glob",
  "libc",
+ "libz-sys",
+ "zstd-sys",
 ]
 
 [[package]]
@@ -5253,8 +5255,7 @@ checksum = "cabe4fa914dec5870285fa7f71f602645da47c486e68486d2b4ceb4a343e90ac"
 [[package]]
 name = "rocksdb"
 version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a62eca5cacf2c8261128631bed9f045598d40bfbe4b29f5163f0f802f8f44a7"
+source = "git+https://github.com/rust-rocksdb/rust-rocksdb.git?rev=92b27f5d33c0c713f1d3ec8436b0ae49680e3cca#92b27f5d33c0c713f1d3ec8436b0ae49680e3cca"
 dependencies = [
  "libc",
  "librocksdb-sys",
