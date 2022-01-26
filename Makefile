@@ -89,8 +89,13 @@ macramdisk:
 linuxramdisk:
 	sudo mount -t tmpfs -o size=2048M tmpfs /media/ramdisk
 
-.PHONY: maxopenfiles
+.PHONY: maxopenfilesmac
+maxopenfilesmac:
 	ulimit -Sn 65536 200000
+
+.PHONY: maxopenfileslinux
+maxopenfileslinux:
+	ulimit -Sn 350000
 
 .PHONY: test_all
 test_all: ## Tests all features
@@ -189,6 +194,9 @@ release_local_backtest:
 
 release_local_backtest_debug:
 	make features=release_default target=backtest release_local_debug
+
+release_local_backtest_ballista:
+	@$(CARGO_BIN) build --release --bin backtest --features=release_default,remote_execution
 
 bin_tag=latest
 download_binary:
