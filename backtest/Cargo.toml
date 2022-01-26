@@ -35,6 +35,7 @@ trading = { path = "../trading", features = ["test_util"] }
 # async
 futures = "0.3"
 tokio = "1"
+tokio-util = "0.6"
 pyo3-asyncio = { version = "0.15", features = ["attributes", "tokio-runtime"] }
 async-trait = "0.1"
 async-stream = "0.3"
