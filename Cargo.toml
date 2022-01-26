@@ -58,3 +58,4 @@ datafusion = { git = "https://github.com/apache/arrow-datafusion", branch = "arr
 arrow2 = { git = "https://github.com/jorgecarleitao/arrow2.git", rev = "ef7937dfe56033c2cc491482c67587b52cd91554" }
 #datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow22r", version = "6.0" }
 #arrow2 = { git = "https://github.com/Igosuki/arrow2.git", branch = "decimal" }
+yata = { git = "https://github.com/Igosuki/yata.git", branch = "ohlcv_merge" }

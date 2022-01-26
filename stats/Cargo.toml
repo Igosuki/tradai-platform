@@ -40,6 +40,7 @@ ordered-float = "2.8"
 # std
 chrono = { version = "0.4", features = ["serde"] }
 prettytable-rs = "0.8"
+strum_macros = "0.23"
 
 [dev-dependencies]
 float-cmp = "0.9"
