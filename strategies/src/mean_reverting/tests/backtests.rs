@@ -90,7 +90,7 @@ async fn spot_backtest() {
     assert!(last_position.is_some(), "No position found in operations");
     assert_eq!(
         Some("44015.99".to_string()),
-        last_position.map(|p| format!("{:.2}", p.current_symbol_price))
+        last_position.map(|p| format!("{:.2}", p.current_price))
     );
     assert_eq!(
         Some("87.71".to_string()),
@@ -100,7 +100,7 @@ async fn spot_backtest() {
     );
     assert_eq!(
         Some("87.71".to_string()),
-        last_position.map(|p| format!("{:.2}", p.current_value_gross()))
+        last_position.map(|p| format!("{:.2}", p.market_value()))
     );
 }
 
@@ -142,10 +142,10 @@ async fn margin_backtest() {
     assert!(last_position.is_some(), "No position found in operations");
     assert_eq!(
         Some("44015.99".to_string()),
-        last_position.map(|p| format!("{:.2}", p.current_symbol_price))
+        last_position.map(|p| format!("{:.2}", p.current_price))
     );
     assert_eq!(
         Some("82.47".to_string()),
-        last_position.map(|p| format!("{:.2}", p.current_value_gross()))
+        last_position.map(|p| format!("{:.2}", p.market_value()))
     );
 }

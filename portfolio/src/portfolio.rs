@@ -130,17 +130,13 @@ impl Portfolio {
         }
         let mut request: AddOrderRequest = if let Some(p) = self.open_positions.get(&pos_key) {
             if signal.op_kind.is_close() {
-                if p.is_opened() {
-                    let interests = self.interest_fees_since_open(p.open_order.as_ref()).await?;
-                    AddOrderRequest {
-                        quantity: p.close_qty(self.fees_rate, interests),
-                        ..signal.into()
-                    }
-                } else {
-                    return Err(bad_signal(p, signal));
+                //TODO: let interests = self.interest_fees_since_open(p.open_order.as_ref()).await?;
+                AddOrderRequest {
+                    quantity: Some(p.close_qty(self.fees_rate, 0.0)),
+                    ..signal.into()
                 }
             } else {
-                return Err(bad_signal(p, signal));
+                return Err(Error::BadCloseSignal(signal.pos_kind));
             }
         } else if signal.op_kind.is_open() {
             signal.into()
@@ -185,7 +181,7 @@ impl Portfolio {
             if matches!(
                 (pos.kind, order.side),
                 (PositionKind::Short, TradeType::Buy) | (PositionKind::Long, TradeType::Sell)
-            ) && pos.is_opened()
+            ) && !pos.is_closed()
             {
                 let value_strat_before = self.value;
                 pos.close(self.value, order);
@@ -234,7 +230,7 @@ impl Portfolio {
                     if self.open_positions.is_empty() {
                         self.pnl = self.value;
                     }
-                } else if pos.is_opened() {
+                } else {
                     self.repo.open_position(pos)?;
                 }
                 self.repo.update_vars(self)?;
@@ -274,14 +270,14 @@ impl Portfolio {
     /// Interest rates could not be fetched
     pub async fn update_from_market(&mut self, event: &MarketEventEnvelope) -> Result<()> {
         // This ugly bit of code is because of the mutable borrow, it should be refactored away
-        let interests = if let Some(p) = self.open_positions.get(&(event.xch, event.pair.clone())) {
-            let option = p.open_order.as_ref();
-            self.interest_fees_since_open(option).await
-        } else {
-            return Ok(());
-        }?;
+        // TODO: let interests = if let Some(p) = self.open_positions.get(&(event.xch, event.pair.clone())) {
+        //     let option = p.open_order.as_ref();
+        //     self.interest_fees_since_open(option).await
+        // } else {
+        //     return Ok(());
+        // }?;
         if let Some(p) = self.open_positions.get_mut(&(event.xch, event.pair.clone())) {
-            p.update(event, self.fees_rate, interests);
+            p.update(event, self.fees_rate, 0.0);
         }
         Ok(())
     }
@@ -306,13 +302,6 @@ impl Portfolio {
     /// True if there are any open positions
     pub fn has_any_open_position(&self) -> bool { !self.open_positions.is_empty() }
 
-    /// True if there are any positions with a failed order
-    pub fn has_any_failed_position(&self) -> bool {
-        self.open_positions
-            .iter()
-            .any(|(_, p)| p.is_failed_open() || p.is_failed_close())
-    }
-
     /// Unlock a previously locked position
     ///
     /// # Errors
@@ -323,9 +312,10 @@ impl Portfolio {
         match self.locks.get(&position_key) {
             None => Ok(()),
             Some(_) => {
+                // A lock existed
                 self.remove_lock(&position_key)?;
                 if let Some(pos) = self.open_positions.get(&position_key) {
-                    if pos.is_failed_open() {
+                    if !pos.is_closed() {
                         self.repo.close_position(pos)?;
                         self.open_positions.remove(&position_key);
                     }
@@ -343,7 +333,7 @@ impl Portfolio {
     pub fn force_close(&mut self, xch: Exchange, pair: Pair) -> Result<()> {
         let position_key = (xch, pair);
         match self.open_positions.get(&position_key) {
-            Some(pos) if !self.is_locked(&position_key) && pos.is_opened() && !pos.is_closed() => {
+            Some(pos) if !self.is_locked(&position_key) && !pos.is_closed() => {
                 unimplemented!();
                 // if let Some(pos) = self.open_positions.get(&position_key) {
                 //     if pos.is_failed_open() {
@@ -400,7 +390,7 @@ impl Portfolio {
         } else {
             self.open_positions
                 .iter()
-                .map(|(_, pos)| pos.unreal_profit_loss)
+                .map(|(_, pos)| pos.unrealized_pl)
                 .sum::<f64>()
                 / self.pnl
         }
@@ -411,7 +401,7 @@ impl Portfolio {
     pub fn position_avg_price(&self) -> f64 {
         self.open_positions
             .values()
-            .map(|pos| pos.open_order.as_ref().unwrap().price.unwrap())
+            .map(|pos| pos.open_weighted_price)
             .sum::<f64>()
             / self.open_positions.values().len() as f64
     }
@@ -423,15 +413,6 @@ impl Portfolio {
             .rev()
             .last()
     }
-}
-
-fn bad_signal(pos: &Position, signal: &TradeSignal) -> Error {
-    Error::BadSignal(
-        pos.open_order.as_ref().map_or(false, OrderDetail::is_filled),
-        pos.close_order.as_ref().map_or(false, OrderDetail::is_filled),
-        pos.kind,
-        signal.op_kind,
-    )
 }
 
 /// Repository to handle portoflio persistence
@@ -619,10 +600,13 @@ mod repository_test {
         assert_eq!(get_pos.unwrap().unwrap(), pos);
         let is_open = repo.is_open(&pos.id);
         assert_matches!(is_open, Ok(true));
-        pos.close_order = Some(OrderDetail::from_query(AddOrderRequest {
-            pair: pos.symbol.clone(),
-            ..AddOrderRequest::default()
-        }));
+        pos.close(
+            100.0,
+            &OrderDetail::from_query(AddOrderRequest {
+                pair: pos.symbol.clone(),
+                ..AddOrderRequest::default()
+            }),
+        );
         let close_pos = repo.close_position(&pos);
         assert_matches!(close_pos, Ok(_));
         let get_pos = repo.get_position(pos.id);

@@ -166,10 +166,6 @@ impl GenericDriver {
             inner.eval(le, &self.ctx()).await?
         };
         metrics::get().log_is_trading(self.strat_key.as_str(), self.is_trading());
-        if self.portfolio.has_any_failed_position() {
-            metrics::get().log_failed_position(le.xch, &le.pair);
-            return Ok(());
-        }
         if !self.portfolio.locks().is_empty() {
             metrics::get().log_lock(le.xch, &le.pair);
             return Ok(());

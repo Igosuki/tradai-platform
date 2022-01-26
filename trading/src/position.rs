@@ -107,24 +107,44 @@ pub struct Position {
     /// Long or Short.
     pub kind: PositionKind,
 
+    /// Asset Type.
+    pub asset_type: AssetType,
+
     /// +ve or -ve quantity of symbol contracts opened.
     pub quantity: f64,
 
-    pub open_order: Option<OrderDetail>,
+    /// executed quantity @ open
+    pub open_executed_qty: f64,
 
-    pub close_order: Option<OrderDetail>,
+    /// weighted price @ open
+    pub open_weighted_price: f64,
+
+    /// quote value @ open
+    pub open_quote_value: f64,
+
+    /// base fees @ open
+    pub open_base_fees: f64,
+
+    /// quote value @ close
+    pub close_quote_value: f64,
 
     /// Symbol current close price.
-    pub current_symbol_price: f64,
+    pub current_price: f64,
 
     /// Unrealised PnL whilst the [Position] is open.
-    pub unreal_profit_loss: f64,
+    pub unrealized_pl: f64,
 
     /// Realised PnL after the [Position] has closed.
-    pub result_profit_loss: f64,
+    pub result_pl: f64,
 
     /// Accrued Interest
     pub interests: f64,
+
+    /// Open order id
+    pub open_order_id: String,
+
+    /// Close order id
+    pub close_order_id: Option<String>,
 }
 
 #[juniper::graphql_object]
@@ -139,15 +159,15 @@ impl Position {
 
     fn qty(&self) -> f64 { self.quantity }
 
-    fn open_order(&self) -> Option<String> { self.open_order.as_ref().map(|o| o.id.clone()) }
+    fn open_order_id(&self) -> String { self.open_order_id.clone() }
 
-    fn close_order(&self) -> Option<String> { self.close_order.as_ref().map(|o| o.id.clone()) }
+    fn close_order_id(&self) -> Option<String> { self.close_order_id.clone() }
 
-    fn current_price(&self) -> f64 { self.current_symbol_price }
+    fn current_price(&self) -> f64 { self.current_price }
 
-    fn pnl(&self) -> f64 { self.result_profit_loss }
+    fn pnl(&self) -> f64 { self.result_pl }
 
-    fn unreal_pnl(&self) -> f64 { self.unreal_profit_loss }
+    fn unreal_pnl(&self) -> f64 { self.unrealized_pl }
 }
 
 impl Default for Position {
@@ -158,13 +178,19 @@ impl Default for Position {
             exchange: Exchange::Binance,
             symbol: "BTC_USDT".into(),
             kind: PositionKind::default(),
+            asset_type: Default::default(),
             quantity: 0.0,
-            open_order: None,
-            close_order: None,
-            current_symbol_price: 0.0,
-            unreal_profit_loss: 0.0,
-            result_profit_loss: 0.0,
+            open_executed_qty: 0.0,
+            open_weighted_price: 0.0,
+            open_quote_value: 0.0,
+            open_base_fees: 0.0,
+            close_quote_value: 0.0,
+            current_price: 0.0,
+            unrealized_pl: 0.0,
+            result_pl: 0.0,
             interests: 0.0,
+            open_order_id: Default::default(),
+            close_order_id: Default::default(),
         }
     }
 }
@@ -196,7 +222,12 @@ impl Position {
             exchange: Exchange::from_str(order.exchange.as_str()).unwrap(),
             symbol: order.pair.clone().into(),
             kind,
-            open_order: Some(order.clone()),
+            open_executed_qty: order.total_executed_qty,
+            open_weighted_price: order.weighted_price,
+            open_quote_value: order.realized_quote_value(),
+            open_order_id: order.id.clone(),
+            open_base_fees: order.base_fees(),
+            asset_type: order.asset_type,
             ..Position::default()
         }
     }
@@ -211,10 +242,11 @@ impl Position {
             equity: value,
             timestamp: now,
         });
-        self.close_order = Some(order.clone());
-        self.current_symbol_price = order.price.unwrap_or(0.0);
-        self.result_profit_loss = self.calculate_result_profit_loss();
-        self.unreal_profit_loss = self.result_profit_loss;
+        self.close_order_id = Some(order.id.clone());
+        self.close_quote_value = order.realized_quote_value();
+        self.current_price = order.price.unwrap_or(0.0);
+        self.result_pl = self.calculate_result_profit_loss();
+        self.unrealized_pl = self.result_pl;
     }
 
     pub fn update(&mut self, event: &MarketEventEnvelope, fees_rate: f64, interests: f64) {
@@ -225,14 +257,13 @@ impl Position {
         };
         self.meta.last_update_trace_id = event.trace_id;
         self.meta.last_update = event.e.time();
-        self.current_symbol_price = price;
-        self.unreal_profit_loss = self.calculate_unreal_profit_loss(fees_rate, interests);
+        self.current_price = price;
+        self.unrealized_pl = self.calculate_unreal_profit_loss(fees_rate, interests);
         self.interests = interests;
     }
 
-    pub fn current_value_gross(&self) -> f64 {
-        self.open_order.as_ref().map_or(0.0, |o| o.total_executed_qty).abs() * self.current_symbol_price
-    }
+    /// Total quote ($) amount of the position
+    pub fn market_value(&self) -> f64 { self.open_executed_qty.abs() * self.current_price }
 
     /// Calculate the approximate [`Position::unreal_profit_loss`] of a [`Position`].
     ///
@@ -241,31 +272,22 @@ impl Position {
     /// if there is no open order (this should not happen as an open order is required to create a position)
     pub fn calculate_unreal_profit_loss(&self, fees_rate: f64, interests: f64) -> f64 {
         // (open_qty * price) - fees
-        let enter_value = self.open_quote_value();
+        let enter_value = self.open_quote_value;
         // (open_qty * current_price)
-        let current_value = self.current_value_gross();
+        let current_value = self.market_value();
         match self.kind {
             PositionKind::Long => ((current_value * (1.0 - fees_rate)) - enter_value - interests) / enter_value,
             PositionKind::Short => {
-                let open_price = self.open_order.as_ref().map(|o| o.weighted_price).unwrap();
-                (enter_value - (current_value * (1.0 + fees_rate)) - (interests * open_price)) / enter_value
+                (enter_value - (current_value * (1.0 + fees_rate)) - (interests * self.open_weighted_price))
+                    / enter_value
             }
         }
     }
 
-    fn open_quote_value(&self) -> f64 { self.open_order.as_ref().map(OrderDetail::realized_quote_value).unwrap() }
-
-    fn close_quote_value(&self) -> f64 {
-        self.close_order
-            .as_ref()
-            .map(OrderDetail::realized_quote_value)
-            .unwrap()
-    }
-
     /// Calculate the exact [`Position::result_profit_loss`] of a [`Position`].
     pub fn calculate_result_profit_loss(&self) -> f64 {
-        let exit_value = self.close_quote_value();
-        let enter_value = self.open_quote_value();
+        let exit_value = self.close_quote_value;
+        let enter_value = self.open_quote_value;
         match self.kind {
             PositionKind::Long => exit_value - enter_value,
             PositionKind::Short => enter_value - exit_value,
@@ -274,38 +296,26 @@ impl Position {
 
     /// Calculate the `PnL` return of a closed [`Position`] - assumed [`Position::result_profit_loss`] is
     /// appropriately calculated.
-    pub fn calculate_profit_loss_return(&self) -> f64 { self.result_profit_loss / self.open_quote_value() }
+    pub fn calculate_profit_loss_return(&self) -> f64 { self.result_pl / self.open_quote_value }
 
-    pub fn is_failed_open(&self) -> bool {
-        self.open_order
-            .as_ref()
-            .map_or(false, |o| o.is_rejected() || o.is_bad_request())
-    }
+    pub fn is_closed(&self) -> bool { self.close_order_id.is_some() }
 
-    pub fn is_failed_close(&self) -> bool {
-        self.close_order
-            .as_ref()
-            .map_or(false, |o| o.is_rejected() || o.is_bad_request())
-    }
-
-    pub fn is_opened(&self) -> bool { self.open_order.as_ref().map_or(false, OrderDetail::is_filled) }
-
-    pub fn is_closed(&self) -> bool { self.close_order.as_ref().map_or(false, OrderDetail::is_filled) }
-
-    pub fn quantity(&self) -> f64 { self.open_order.as_ref().map_or(0.0, |o| o.total_executed_qty) }
+    pub fn quantity(&self) -> f64 { self.open_executed_qty }
 
     pub fn is_short(&self) -> bool { self.kind == PositionKind::Short }
 
     pub fn is_long(&self) -> bool { self.kind == PositionKind::Long }
 
-    pub fn close_qty(&self, fees_rate: f64, interests: f64) -> Option<f64> {
-        self.open_order.as_ref().map(|o| match self.kind {
-            PositionKind::Short => match o.asset_type {
-                AssetType::IsolatedMargin | AssetType::Margin => (o.total_executed_qty / (1.0 - fees_rate)) + interests,
-                _ => o.total_executed_qty + o.base_fees(),
+    pub fn close_qty(&self, fees_rate: f64, interests: f64) -> f64 {
+        match self.kind {
+            PositionKind::Short => match self.asset_type {
+                AssetType::IsolatedMargin | AssetType::Margin => {
+                    (self.open_executed_qty / (1.0 - fees_rate)) + interests
+                }
+                _ => self.open_executed_qty + self.open_base_fees,
             },
-            PositionKind::Long => o.total_executed_qty - o.base_fees(),
-        })
+            PositionKind::Long => self.open_executed_qty - self.open_base_fees,
+        }
     }
 }
 
@@ -331,11 +341,11 @@ impl EquityPoint {
         match position.meta.close_at {
             None => {
                 // Position is not exited
-                self.equity += position.unreal_profit_loss;
+                self.equity += position.unrealized_pl;
                 self.timestamp = position.meta.last_update;
             }
             Some(exit_timestamp) => {
-                self.equity += position.result_profit_loss;
+                self.equity += position.result_pl;
                 self.timestamp = exit_timestamp;
             }
         }

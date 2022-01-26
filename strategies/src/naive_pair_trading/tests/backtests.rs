@@ -112,7 +112,7 @@ async fn spot_backtest() {
     )
     .await;
     if let [position1, _position2, ..] = &positions.as_slice()[positions.len() - 3..positions.len() - 1] {
-        assert_eq!("44015.99".to_string(), format!("{:.2}", position1.current_symbol_price));
+        assert_eq!("44015.99".to_string(), format!("{:.2}", position1.current_price));
         assert_eq!(
             Some("87.87".to_string()),
             position1
@@ -121,7 +121,7 @@ async fn spot_backtest() {
                 .map(OrderDetail::realized_quote_value)
                 .map(|f| format!("{:.2}", f))
         );
-        assert_eq!("87.87".to_string(), format!("{:.2}", position1.current_value_gross()));
+        assert_eq!("87.87".to_string(), format!("{:.2}", position1.market_value()));
     } else {
         panic!("no positions found");
     }
@@ -165,10 +165,10 @@ async fn margin_backtest() {
     assert!(last_position.is_some(), "No position found in operations");
     assert_eq!(
         Some("44015.99".to_string()),
-        last_position.map(|p| format!("{:.2}", p.current_symbol_price))
+        last_position.map(|p| format!("{:.2}", p.current_price))
     );
     assert_eq!(
         Some("83.27".to_string()),
-        last_position.map(|p| format!("{:.2}", p.current_value_gross()))
+        last_position.map(|p| format!("{:.2}", p.market_value()))
     );
 }

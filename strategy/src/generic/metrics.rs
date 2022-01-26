@@ -89,7 +89,7 @@ impl GenericDriverMetrics {
         let portfolio_gauges = make_gauges(const_labels.clone(), &["skey"], &portfolio_fns);
 
         let position_fns: Vec<PositionIndicatorFn> = vec![
-            ("pos_return".to_string(), |x| x.unreal_profit_loss),
+            ("pos_return".to_string(), |x| x.unrealized_pl),
             ("pos_traded_price".to_string(), |x| {
                 x.open_order.as_ref().and_then(|o| o.price).unwrap_or(0.0)
             }),

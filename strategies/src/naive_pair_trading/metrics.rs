@@ -77,7 +77,7 @@ impl NaiveStrategyMetrics {
             ("pnl".to_string(), Portfolio::pnl),
         ];
         let position_gauges: Vec<PositionIndicatorFn> = vec![
-            ("return".to_string(), |x| x.unreal_profit_loss),
+            ("return".to_string(), |x| x.unrealized_pl),
             ("traded_price".to_string(), |x| {
                 x.open_order.as_ref().and_then(|o| o.price).unwrap_or(0.0)
             }),

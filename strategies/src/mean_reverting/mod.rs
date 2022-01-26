@@ -145,7 +145,7 @@ impl MeanRevertingStrategy {
         let signal = match portfolio.open_position(self.exchange, self.pair.clone()) {
             Some(pos) => {
                 // TODO: move this logic to a single place in the code which can be reused
-                let maybe_stop = self.stopper.should_stop(pos.unreal_profit_loss);
+                let maybe_stop = self.stopper.should_stop(pos.unrealized_pl);
                 if let Some(logger) = &self.logger {
                     if let Some(stop) = maybe_stop {
                         logger
