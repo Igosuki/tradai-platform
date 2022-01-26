@@ -45,10 +45,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use futures::StreamExt;
-use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task;
+use tokio_util::sync::CancellationToken;
 
 use db::DbOptions;
 // TODO: https://github.com/rust-lang/rust/issues/47384
@@ -87,7 +87,7 @@ pub struct Backtest {
     runners: Vec<Arc<RwLock<BacktestRunner>>>,
     output_dir: PathBuf,
     dataset: Dataset,
-    stop_tx: Sender<bool>,
+    stop_token: CancellationToken,
     report_conf: ReportConfig,
 }
 
@@ -100,11 +100,11 @@ impl Backtest {
         let all_strategy_settings = all_strategy_settings(conf).await;
         let db_conf = conf.db_conf();
         let mock_engine = Arc::new(mock_engine(db_conf.path.clone(), &[Exchange::Binance]));
-        let (stop_tx, _) = tokio::sync::broadcast::channel(1);
+        let stop_token = CancellationToken::new();
         let runners: Vec<_> = tokio_stream::iter(all_strategy_settings)
             .map(|s| {
                 spawn_runner(
-                    stop_tx.clone(),
+                    stop_token.clone(),
                     conf.runner_queue_size,
                     db_conf.clone(),
                     mock_engine.clone(),
@@ -116,7 +116,7 @@ impl Backtest {
             .await;
         info!("Created {} strategy runners", runners.len());
         Ok(Self {
-            stop_tx,
+            stop_token,
             runners,
             output_dir: output_path,
             dataset: Dataset {
@@ -149,12 +149,11 @@ impl Backtest {
             self.report_conf.parallelism,
             self.report_conf.compression,
         );
-        self.spawn_runners(&global_report, reports_tx).await;
+        let num_runners = self.spawn_runners(&global_report, reports_tx).await;
         // Read input datasets
         let before_read = Instant::now();
         self.dataset.read_channels(broker).await?;
-        let sent = self.stop_tx.send(true).unwrap();
-        info!("Closed {} runners", sent);
+        self.stop_token.cancel();
         let elapsed = before_read.elapsed();
         info!(
             "processed all market events in {}.{}s",
@@ -162,8 +161,8 @@ impl Backtest {
             elapsed.subsec_millis()
         );
 
-        info!("Awaiting {} reports...", sent);
-        while global_report.len() < sent {
+        info!("Awaiting reports...");
+        while global_report.len() < num_runners {
             if let Ok(Some(report)) = tokio::time::timeout(Duration::from_secs(30), reports_rx.recv()).await {
                 global_report.add_report(report);
             } else {
@@ -205,7 +204,7 @@ impl Backtest {
         global_report.write_global_report(output_dir.as_path());
     }
 
-    async fn spawn_runners(&self, global_report: &GlobalReport, tx: UnboundedSender<BacktestReport>) {
+    async fn spawn_runners(&self, global_report: &GlobalReport, tx: UnboundedSender<BacktestReport>) -> usize {
         for runner in &self.runners {
             let reports_tx = tx.clone();
             let runner = runner.clone();
@@ -217,6 +216,7 @@ impl Backtest {
                 reports_tx.send(report).unwrap();
             });
         }
+        self.runners.len()
     }
 }
 
@@ -226,13 +226,12 @@ async fn init_coinnect(xchs: &[Exchange]) {
 }
 
 async fn spawn_runner(
-    stop_tx: Sender<bool>,
+    stop_token: CancellationToken,
     sink_size: Option<usize>,
     db_conf: DbOptions<PathBuf>,
     engine: Arc<TradingEngine>,
     settings: StrategyDriverSettings,
 ) -> Arc<RwLock<BacktestRunner>> {
-    let receiver = stop_tx.subscribe();
     let logger: Arc<StreamWriterLogger<TimedData<StratEvent>>> = Arc::new(StreamWriterLogger::new());
     let logger2 = logger.clone();
     let strategy_driver = task::spawn_blocking(move || {
@@ -241,7 +240,7 @@ async fn spawn_runner(
     })
     .await
     .unwrap();
-    let runner = BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger2, receiver, sink_size);
+    let runner = BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger2, stop_token, sink_size);
     Arc::new(RwLock::new(runner))
 }
 
