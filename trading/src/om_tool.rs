@@ -6,7 +6,7 @@ use strum_macros::EnumString;
 
 use coinnect_rt::exchange::manager::ExchangeApiRegistry;
 use coinnect_rt::exchange::{ExchangeApi, MockExchangeApi};
-use db::DbOptions;
+use db::{get_or_create, DbOptions};
 use trading::order_manager::OrderManager;
 
 #[derive(StructOpt, Debug, EnumString)]
@@ -31,7 +31,8 @@ async fn main() {
     let mock_api: Arc<dyn ExchangeApi> = Arc::new(MockExchangeApi::default());
     let apis = ExchangeApiRegistry::new();
     apis.insert(mock_api.exchange(), mock_api);
-    let manager = OrderManager::new(apis, &db_options, "");
+    let db = get_or_create(&db_options, "", vec![]);
+    let manager = OrderManager::new(apis, db);
     match options.cmd {
         Cmd::RepairOrders => {
             manager.repair_orders().await;
