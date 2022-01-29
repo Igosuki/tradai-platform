@@ -65,6 +65,15 @@ where
     parse_duration::parse(&val).map_err(D::Error::custom)
 }
 
+pub fn string_duration_opt<'de, D>(deserializer: D) -> Result<Option<core::time::Duration>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let val: Option<String> = Deserialize::deserialize(deserializer)?;
+    val.map(|v| parse_duration::parse(&v).map_err(D::Error::custom))
+        .transpose()
+}
+
 pub fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
 where
     Duration: Sized,

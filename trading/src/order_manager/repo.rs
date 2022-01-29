@@ -12,7 +12,10 @@ pub struct OrderRepository {
 }
 
 impl OrderRepository {
-    pub(crate) fn new(db: Arc<dyn Storage>) -> Self { Self { db } }
+    pub(crate) fn new(db: Arc<dyn Storage>) -> Self {
+        db.ensure_table(ORDERS_TABLE).unwrap();
+        Self { db }
+    }
 
     pub(crate) fn get(&self, id: &str) -> Result<OrderDetail> { self.db.get(ORDERS_TABLE, id).err_into() }
 

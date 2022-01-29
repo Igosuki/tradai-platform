@@ -25,7 +25,7 @@ use crate::server;
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
 use coinnect_rt::exchange::manager::{ExchangeApiRegistry, ExchangeManager};
 use coinnect_rt::prelude::*;
-use db::DbOptions;
+use db::{get_or_create, DbOptions};
 use logging::prelude::*;
 use metrics::prom::PrometheusPushActor;
 use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
@@ -352,7 +352,9 @@ async fn margin_account_reporter(
 /// Get an order manager for each exchange
 /// N.B.: Does not currently use test mode
 async fn order_manager(db: &DbOptions<String>, exchange_manager: Arc<ExchangeManager>) -> Addr<OrderManager> {
-    let order_manager = OrderManager::new(exchange_manager.exchange_apis().deref().clone(), db, "order_manager");
+    // TODO: switch to build pattern
+    let db = get_or_create(db, "order_manager", vec![]);
+    let order_manager = OrderManager::new(exchange_manager.exchange_apis().deref().clone(), db);
     OrderManager::start(order_manager)
 }
 
