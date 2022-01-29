@@ -12,7 +12,7 @@ use coinnect_rt::exchange::manager::ExchangeApiRegistry;
 use coinnect_rt::exchange::MockExchangeApi;
 use coinnect_rt::pair::register_pair_default;
 use coinnect_rt::prelude::*;
-use db::DbOptions;
+use db::{get_or_create, DbOptions};
 use ext::prelude::*;
 
 use crate::order_manager::types::OrderDetail;
@@ -34,13 +34,15 @@ pub async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
         .unwrap();
     let apis = ExchangeApiRegistry::new();
     apis.insert(api.exchange(), api);
-    OrderManager::new(apis, &DbOptions::new(dir), "order_manager")
+    let db = get_or_create(&DbOptions::new(dir), "order_manager", vec![]);
+    OrderManager::new(apis, db)
 }
 
 pub fn local_manager<S: AsRef<Path>>(path: S, api: Arc<dyn ExchangeApi>) -> Addr<OrderManager> {
     let apis = ExchangeApiRegistry::new();
     apis.insert(api.exchange(), api);
-    let order_manager = OrderManager::new(apis, &DbOptions::new(path), "");
+    let db = get_or_create(&DbOptions::new(path), "", vec![]);
+    let order_manager = OrderManager::new(apis, db);
     OrderManager::start(order_manager)
 }
 
@@ -157,7 +159,8 @@ pub fn new_mock_manager<S: AsRef<Path>>(path: S) -> OrderManager {
     let api: Arc<dyn ExchangeApi> = Arc::new(MockExchangeApi::default());
     let apis = ExchangeApiRegistry::new();
     apis.insert(api.exchange(), api);
-    OrderManager::new(apis, &DbOptions::new(path), "")
+    let db = get_or_create(&DbOptions::new(path), "", vec![]);
+    OrderManager::new(apis, db)
 }
 
 pub fn mock_manager<S: AsRef<Path>>(path: S) -> Addr<OrderManager> {

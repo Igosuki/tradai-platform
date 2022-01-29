@@ -37,6 +37,7 @@ anyhow = "1.0"
 lazy_static = "1.4"
 prometheus = "0.13"
 typed-builder = "0.9"
+backoff = { version = "0.4", features = ["tokio"] }
 
 # async
 futures = { version = "0.3", features = ["async-await", "alloc"] }

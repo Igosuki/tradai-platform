@@ -23,7 +23,10 @@ pub struct Wal {
 }
 
 impl Wal {
-    pub fn new(backend: Arc<dyn Storage>, table: String) -> Self { Self { backend, table } }
+    pub fn new(backend: Arc<dyn Storage>, table: String) -> Self {
+        backend.ensure_table(&table).unwrap();
+        Self { backend, table }
+    }
 
     pub fn get_all_compacted<T: DeserializeOwned + WalCmp>(&self) -> Result<HashMap<String, T>> {
         let mut records: HashMap<String, T> = HashMap::new();

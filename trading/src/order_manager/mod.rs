@@ -1,15 +1,14 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, WrapFuture};
+use actix::{Actor, ActorFutureExt, AsyncContext, Context, Handler, ResponseActFuture, WrapFuture};
 use actix_derive::{Message, MessageResponse};
-use async_trait::async_trait;
+use backoff::{ExponentialBackoff, ExponentialBackoffBuilder};
 use futures::FutureExt;
 use itertools::Itertools;
-use strum_macros::AsRefStr;
+use std::time::Duration;
 use tokio::sync::RwLock;
 
 use coinnect_rt::bot::Ping;
@@ -17,17 +16,18 @@ use coinnect_rt::error::Error as CoinnectError;
 use coinnect_rt::exchange::manager::ExchangeApiRegistry;
 use coinnect_rt::prelude::*;
 use coinnect_rt::types::{Order, OrderStatus, OrderUpdate};
-use db::{get_or_create, DbOptions};
+use db::Storage;
 use ext::ResultExt;
 use wal::{Wal, WalCmp};
 
-use crate::order_manager::repo::{OrderRepository, ORDERS_TABLE};
-use crate::types::TradeOperation;
+use crate::order_manager::repo::OrderRepository;
 
 use self::error::{Error, Result};
 use self::types::{OrderDetail, OrderId, PassOrder, Rejection, StagedOrder, Transaction, TransactionStatus};
 
 pub mod error;
+mod exec;
+pub use exec::*;
 mod repo;
 #[cfg(any(
     test,
@@ -41,100 +41,46 @@ mod tests;
 pub mod types;
 mod wal;
 
-static TRANSACTIONS_TABLE: &str = "transactions_wal";
-
-#[derive(Debug, AsRefStr, PartialEq)]
-pub enum OrderResolution {
-    #[strum(serialize = "filled")]
-    Filled,
-    #[strum(serialize = "cancelled")]
-    Cancelled,
-    #[strum(serialize = "no_change")]
-    NoChange,
-    #[strum(serialize = "bad_request")]
-    BadRequest,
-    #[strum(serialize = "rejected")]
-    Rejected,
-    #[strum(serialize = "retryable")]
-    Retryable,
+#[derive(Serialize, Deserialize)]
+pub struct BackoffConfig {
+    #[serde(deserialize_with = "util::ser::string_duration_opt")]
+    initial_interval: Option<Duration>,
+    randomization_factor: Option<f64>,
+    multiplier: Option<f64>,
+    #[serde(deserialize_with = "util::ser::string_duration_opt")]
+    max_interval: Option<Duration>,
+    #[serde(deserialize_with = "util::ser::string_duration_opt")]
+    max_elapsed_time: Option<Duration>,
 }
 
-/// Handles and queries orders
-#[async_trait]
-pub trait OrderExecutor: Send + Sync + Debug {
-    /// Stage an order
-    async fn stage_order(&self, staged_order: StagedOrder) -> Result<OrderDetail>;
-    /// Retry staging an order if it was rejected
-    async fn stage_trade(&self, trade: &TradeOperation) -> Result<OrderDetail>;
-    /// Resolves the order against the latest known order detail and transaction,
-    /// the order resolution is indicative of what can be done in relation
-    /// to the two orders
-    async fn resolve_pending_order(
-        &self,
-        order: &OrderDetail,
-    ) -> Result<(OrderDetail, Option<Transaction>, OrderResolution)>;
-    /// Returns the latest known detail and transaction for this order id
-    async fn get_order(&self, order_id: &str) -> Result<(OrderDetail, Option<Transaction>)>;
+impl BackoffConfig {
+    fn exponential(&self) -> ExponentialBackoff {
+        ExponentialBackoffBuilder::new()
+            .with_max_elapsed_time(self.max_elapsed_time)
+            .with_max_interval(
+                self.max_interval
+                    .unwrap_or(Duration::from_millis(backoff::default::MAX_INTERVAL_MILLIS)),
+            )
+            .with_multiplier(self.multiplier.unwrap_or(backoff::default::MULTIPLIER))
+            .with_randomization_factor(
+                self.randomization_factor
+                    .unwrap_or(backoff::default::RANDOMIZATION_FACTOR),
+            )
+            .with_initial_interval(
+                self.initial_interval
+                    .unwrap_or(Duration::from_millis(backoff::default::INITIAL_INTERVAL_MILLIS)),
+            )
+            .build()
+    }
 }
 
-#[derive(Debug, Clone)]
-pub struct OrderManagerClient {
-    om: Addr<OrderManager>,
+#[derive(Serialize, Deserialize, Default)]
+pub struct OrderManagerConfig {
+    order_retry_backoff: Option<BackoffConfig>,
 }
 
-impl OrderManagerClient {
-    pub fn new(om: Addr<OrderManager>) -> Self { Self { om } }
-}
-
-#[async_trait]
-impl OrderExecutor for OrderManagerClient {
-    async fn stage_order(&self, staged_order: StagedOrder) -> Result<OrderDetail> {
-        self.om
-            .send(staged_order)
-            .await
-            .map_err(|_| Error::OrderManagerMailboxError)?
-    }
-
-    async fn stage_trade(&self, trade: &TradeOperation) -> Result<OrderDetail> {
-        let staged_order = StagedOrder {
-            request: trade.clone().into(),
-        };
-        self.stage_order(staged_order).await.map_err(|e| {
-            error!("Failed to retry trade {:?} : {}", trade, e);
-            e
-        })
-    }
-
-    async fn get_order(&self, order_id: &str) -> Result<(OrderDetail, Option<Transaction>)> {
-        self.om
-            .send(OrderId(order_id.to_string()))
-            .await
-            .map_err(|_| Error::OrderManagerMailboxError)
-            .and_then(|(or, t)| or.map(|o| (o, t.ok())))
-    }
-
-    async fn resolve_pending_order(
-        &self,
-        order: &OrderDetail,
-    ) -> Result<(OrderDetail, Option<Transaction>, OrderResolution)> {
-        let (stored_order, resolved_transaction) = self.get_order(order.id.as_str()).await?;
-        let result = if order.is_same_status(&stored_order.status) {
-            OrderResolution::NoChange
-        } else if stored_order.is_filled() {
-            OrderResolution::Filled
-        } else if stored_order.is_bad_request() {
-            OrderResolution::BadRequest
-        } else if stored_order.is_rejected() {
-            if stored_order.is_retryable() {
-                OrderResolution::Retryable
-            } else {
-                OrderResolution::Rejected
-            }
-        } else {
-            OrderResolution::NoChange
-        };
-        Ok((stored_order, resolved_transaction, result))
-    }
+impl OrderManagerConfig {
+    fn backoff(&self) -> Option<ExponentialBackoff> { self.order_retry_backoff.as_ref().map(|bc| bc.exponential()) }
 }
 
 // TODO: Use GraphQLUnion to refactor this ugly bit of code
@@ -158,25 +104,25 @@ pub struct OrderManager {
     orders: Arc<RwLock<HashMap<String, TransactionStatus>>>,
     pub transactions_wal: Arc<Wal>,
     pub repo: OrderRepository,
+    pub order_retry_backoff: Option<ExponentialBackoff>,
 }
 
 impl OrderManager {
-    pub fn new<S: AsRef<Path>, S2: AsRef<Path>>(
-        apis: ExchangeApiRegistry,
-        db_options: &DbOptions<S>,
-        db_path: S2,
-    ) -> Self {
-        let storage = get_or_create(db_options, db_path, vec![
-            TRANSACTIONS_TABLE.to_string(),
-            ORDERS_TABLE.to_string(),
-        ]);
-        let wal = Arc::new(Wal::new(storage.clone(), TRANSACTIONS_TABLE.to_string()));
+    const TRANSACTIONS_TABLE: &'static str = "transactions_wal";
+
+    pub fn new(apis: ExchangeApiRegistry, storage: Arc<dyn Storage>) -> Self {
+        Self::new_with_options(apis, storage, OrderManagerConfig::default())
+    }
+
+    pub fn new_with_options(apis: ExchangeApiRegistry, storage: Arc<dyn Storage>, config: OrderManagerConfig) -> Self {
+        let wal = Arc::new(Wal::new(storage.clone(), Self::TRANSACTIONS_TABLE.to_string()));
         let orders = Arc::new(RwLock::new(HashMap::new()));
         OrderManager {
             apis,
             orders,
             transactions_wal: wal,
             repo: OrderRepository::new(storage),
+            order_retry_backoff: config.backoff(),
         }
     }
 
@@ -500,7 +446,25 @@ impl Handler<PassOrder> for OrderManager {
 
     fn handle(&mut self, msg: PassOrder, _ctx: &mut Self::Context) -> Self::Result {
         let mut zis = self.clone();
-        Box::pin(async move { zis.pass_order(msg).await }.into_actor(self))
+        Box::pin(
+            async move {
+                match zis.pass_order(msg).await {
+                    Err(_e) => {
+                        // TODO: for now, never retry, as we don't know if the order has passed or not at that point
+                        //backoff::Error::Permanent(e)
+                        // if let Some(backoff) = zis.order_retry_backoff {
+                        //     let mut backoff = backoff.clone();
+                        //     if let Some(_) = backoff.next_backoff() {
+                        //         ctx.notify(msg.clone());
+                        //     }
+                        // }
+                        Ok(())
+                    }
+                    Ok(()) => Ok(()),
+                }
+            }
+            .into_actor(self),
+        )
     }
 }
 
