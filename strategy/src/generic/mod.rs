@@ -100,6 +100,20 @@ impl GenericDriver {
                     ..
                 },
             ) => pair == &ob.pair && xch == &le.xch,
+            (
+                Channel::Trades { pair, xch },
+                le @ MarketEventEnvelope {
+                    e: MarketEvent::Trade(tr),
+                    ..
+                },
+            ) => pair == &tr.pair && xch == &le.xch,
+            (
+                Channel::Candles { pair, xch },
+                le @ MarketEventEnvelope {
+                    e: MarketEvent::CandleTick(tr),
+                    ..
+                },
+            ) => pair == &tr.pair && xch == &le.xch,
             _ => false,
         })
     }

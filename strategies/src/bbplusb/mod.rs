@@ -2,13 +2,13 @@ mod metrics;
 
 use crate::bbplusb::metrics::BBPlusMetrics;
 use chrono::Duration;
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::prelude::MarketEventEnvelope;
+use coinnect_rt::types::Pair;
 use serde_json::Value;
 use stats::{BollingerBands, BollingerBandsOutput, Next};
 use std::collections::HashSet;
 use std::sync::Arc;
-use strategy::coinnect::exchange::Exchange;
-use strategy::coinnect::prelude::MarketEventEnvelope;
-use strategy::coinnect::types::Pair;
 use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::Result;
 use strategy::models::io::SerializedModel;

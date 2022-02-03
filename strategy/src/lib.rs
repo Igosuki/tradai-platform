@@ -74,15 +74,11 @@ use strum_macros::AsRefStr;
 use uuid::Uuid;
 
 use actor::StrategyActor;
-pub use coinnect_rt as coinnect;
 use coinnect_rt::broker::{MarketEventEnvelopeMsg, Subject};
 use coinnect_rt::prelude::*;
-pub use db;
 use db::DbOptions;
 use error::*;
 use ext::ResultExt;
-pub use portfolio::portfolio::Portfolio;
-pub use trading;
 use trading::engine::TradingEngine;
 use util::time::TimedData;
 
@@ -92,15 +88,11 @@ use crate::prelude::StrategyDriverSettings;
 use crate::types::StratEvent;
 
 pub mod prelude {
-    pub use super::coinnect;
-    pub use super::db;
     pub use super::generic::{GenericDriver, GenericDriverOptions, PortfolioOptions};
     pub use super::models::Model;
     pub use super::settings::{StrategyCopySettings, StrategyDriverSettings, StrategySettings};
-    pub use super::trading;
     pub use super::types::StratEvent;
     pub use super::EventLogger;
-    pub use super::Portfolio;
 }
 
 pub mod actor;

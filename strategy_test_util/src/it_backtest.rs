@@ -11,8 +11,8 @@ use strategy::driver::{Strategy, StrategyDriver};
 use strategy::event::trades_history;
 use strategy::prelude::{GenericDriver, GenericDriverOptions, PortfolioOptions};
 use strategy::query::{DataQuery, DataResult, PortfolioSnapshot};
-use strategy::trading::engine::{mock_engine, TradingEngine};
-use strategy::trading::position::Position;
+use trading::engine::{mock_engine, TradingEngine};
+use trading::position::Position;
 use util::test::test_results_dir;
 
 use crate::draw::{draw_line_plot, StrategyEntryFnRef};

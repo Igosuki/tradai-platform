@@ -5,10 +5,11 @@ use std::sync::Arc;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use uuid::Uuid;
 
+use coinnect_rt::prelude::*;
+use db::Storage;
 use model::MeanRevertingModel;
 use options::Options;
-use strategy::coinnect::prelude::*;
-use strategy::db::Storage;
+use portfolio::portfolio::Portfolio;
 use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::*;
 use strategy::models::io::{IterativeModel, SerializedModel};
