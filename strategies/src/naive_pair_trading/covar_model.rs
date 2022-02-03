@@ -4,9 +4,9 @@ use std::sync::Arc;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use itertools::Itertools;
 
+use db::Storage;
 use stats::iter::{CovarianceExt, MeanExt, VarianceExt};
 use stats::Next;
-use strategy::db::Storage;
 use strategy::error::*;
 use strategy::models::{Model, PersistentWindowedModel, Sampler, Window, WindowedModel};
 use trading::book::BookPosition;

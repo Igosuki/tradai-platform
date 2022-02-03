@@ -1,12 +1,12 @@
 use chrono::{DateTime, Duration, TimeZone, Utc};
+use coinnect_rt::exchange::Exchange;
+use coinnect_rt::prelude::MarketEventEnvelope;
+use coinnect_rt::types::Pair;
 use serde_json::Value;
 use stats::indicators::cross::{CrossAbove, CrossUnder};
 use stats::indicators::ema::{ExponentialMovingAverage, MovingAverageType};
 use stats::{Action, LowerReversalSignal, Method, Next, SimpleMovingAverage, UpperReversalSignal, Window};
 use std::collections::HashSet;
-use strategy::coinnect::exchange::Exchange;
-use strategy::coinnect::prelude::MarketEventEnvelope;
-use strategy::coinnect::types::Pair;
 use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::Result;
 use strategy::models::io::SerializedModel;
