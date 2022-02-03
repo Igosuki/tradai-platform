@@ -158,8 +158,15 @@ pub async fn table_as_df(
     let listing_options = listing_options(format, partitions.clone());
     ctx.register_listing_table("listing_table", &format!("file://{}", base_path), listing_options, None)
         .await
-        .unwrap();
-    let mut table: Arc<dyn DataFrame> = ctx.clone().table(table_name.as_str())?;
+        .map_err(|err| {
+            error!(
+                "Failed to read from {base_path} : {err}",
+                base_path = base_path,
+                err = err
+            );
+            err
+        })?;
+    let mut table: Arc<dyn DataFrame> = ctx.clone().table("listing_table")?;
     if let Some(filter) = partition_filter_clause(partitions) {
         table = table.filter(filter)?;
     }

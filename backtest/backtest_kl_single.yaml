@@ -1,0 +1,47 @@
+#strats: []
+strats:
+  - driver:
+      type: generic
+      portfolio:
+        initial_quote_cash: 100.0
+        fees_rate: 0.001
+    strat:
+      type: python_script
+      key: 'kline_logger_BTC_USDT_py'
+      script_path: './strategies/py/kline_logger.py'
+      conf:
+        pair: 'BTC_USDT'
+        sample_freq: 1min
+        exchange: 'Binance'
+        order_conf:
+          order_mode: limit
+          dry_mode: true
+          asset_type: spot
+
+fees: 0.001
+
+period:
+  type: interval
+  from: 2022-02-01
+  to: 2022-02-02
+
+input_format: parquet
+input_dataset: trades
+input_sample_rate: 1min
+
+db_path: /media/ramdisk/strat_backtest_dbs
+
+db_conf:
+  type: in_memory
+
+use_generic: false
+
+output_dir: ./target/backtests_results
+
+report:
+  parallelism: 2
+  compression:
+    algorithm: gz
+    level: 5
+
+coindata_cache_dir: /home/geps/dev/tradai/tradai-etl/tmp/tests/parquet
