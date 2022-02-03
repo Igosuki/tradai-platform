@@ -4,7 +4,7 @@ use chrono::Duration;
 use itertools::Itertools;
 use parse_duration::parse;
 
-use strategy::coinnect::prelude::*;
+use coinnect_rt::prelude::*;
 use strategy::settings::{StrategyOptions, StrategySettingsReplicator};
 use strategy::StrategyKey;
 use trading::types::OrderConf;

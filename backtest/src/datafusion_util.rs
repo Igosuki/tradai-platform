@@ -123,7 +123,7 @@ pub fn table_as_stream<P: 'static + AsRef<Path> + Debug>(
         let now = Instant::now();
         let collected = table_as_df(base_path.clone(), partitions.clone(), format, table_name, sql_query).await.unwrap();
         let elapsed = now.elapsed();
-        debug!(
+        info!(
             "Read records in {} for {:?} in {}.{}s",
             base_path,
             partitions,
@@ -134,7 +134,7 @@ pub fn table_as_stream<P: 'static + AsRef<Path> + Debug>(
             yield batch.unwrap();
         }
         let elapsed = now.elapsed();
-        debug!(
+        info!(
             "Pushed record stream in {} for {:?} in {}.{}s",
             base_path,
             partitions,

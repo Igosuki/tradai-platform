@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use prometheus::{CounterVec, GaugeVec, Opts, Registry};
 
 use metrics::prelude::*;
-use strategy::Portfolio;
+use portfolio::portfolio::Portfolio;
 use trading::position::Position;
 
 use crate::naive_pair_trading::covar_model::LinearModelValue;

@@ -24,6 +24,7 @@ db = { path = "../db" }
 util = { path = "../util" }
 strategy_test_util = { path = "../strategy_test_util" }
 stats = { path = "../stats" }
+coinnect_rt = { path = "../coinnect" }
 #backtest = { path = "../backtest" }
 
 # std

@@ -1,4 +1,4 @@
-use strategy::coinnect::prelude::Exchange;
+use coinnect_rt::prelude::Exchange;
 use strategy::Channel;
 
 #[pyclass(name = "Channel", module = "strategy", subclass)]
@@ -34,6 +34,10 @@ impl From<PyChannel> for Channel {
                 pair: sc.pair.into(),
             },
             "orders" => Channel::Orders {
+                xch: Exchange::from(sc.exchange),
+                pair: sc.pair.into(),
+            },
+            "candles" => Channel::Candles {
                 xch: Exchange::from(sc.exchange),
                 pair: sc.pair.into(),
             },

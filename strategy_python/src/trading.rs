@@ -7,13 +7,13 @@ use pyo3::exceptions::PyBaseException;
 use pyo3::prelude::*;
 use pyo3_chrono::NaiveDateTime;
 
+use coinnect_rt::prelude::*;
+use coinnect_rt::types::{AssetType, MarginSideEffect, OrderType};
 use ext::MapInto;
-use strategy::coinnect::prelude::*;
-use strategy::coinnect::types::{AssetType, MarginSideEffect, OrderType};
-use strategy::trading::position::{OperationKind, PositionKind};
-use strategy::trading::signal::{ExecutionInstruction, TradeSignal};
-use strategy::trading::types::TradeKind;
 use trading::position::Position;
+use trading::position::{OperationKind, PositionKind};
+use trading::signal::{ExecutionInstruction, TradeSignal};
+use trading::types::TradeKind;
 use util::time::now;
 
 use crate::uuid::Uuid;

@@ -41,6 +41,7 @@ extern crate tokio;
 extern crate tracing;
 extern crate core;
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -53,9 +54,9 @@ use tokio_util::sync::CancellationToken;
 
 use db::DbOptions;
 // TODO: https://github.com/rust-lang/rust/issues/47384
+use coinnect_rt::prelude::*;
 #[allow(unused_imports)]
 use strategies;
-use strategy::coinnect::prelude::*;
 use strategy::plugin::plugin_registry;
 use strategy::prelude::*;
 // TODO: https://github.com/rust-lang/rust/issues/47384
@@ -64,7 +65,6 @@ use strategy_python;
 use trading::engine::{mock_engine, TradingEngine};
 use util::time::TimedData;
 
-use crate::coinnect::broker::{Broker, ChannelMessageBroker};
 use crate::dataset::Dataset;
 use crate::datasources::orderbook::{flat_orderbooks_df, raw_orderbooks_df, sampled_orderbooks_df};
 use crate::report::{BacktestReport, GlobalReport, ReportConfig, StreamWriterLogger};
@@ -72,6 +72,9 @@ use crate::runner::BacktestRunner;
 pub use crate::{config::*,
                 dataset::{DatasetInputFormat, MarketEventDatasetType},
                 error::*};
+#[allow(unused_imports)]
+use coinnect_rt;
+use coinnect_rt::broker::{Broker, ChannelMessageBroker};
 
 mod config;
 mod datafusion_util;
@@ -245,9 +248,12 @@ async fn spawn_runner(
 async fn all_strategy_settings(conf: &BacktestConfig) -> Vec<StrategyDriverSettings> {
     let mut all_strategy_settings: Vec<StrategyDriverSettings> = vec![];
     all_strategy_settings.extend_from_slice(conf.strats.as_slice());
+    let mut exchanges: HashSet<Exchange> = HashSet::new();
     if let Some(copy) = conf.strat_copy.as_ref() {
-        init_coinnect(&copy.exchanges()).await;
+        exchanges.extend(copy.exchanges());
         all_strategy_settings.extend_from_slice(copy.all().unwrap().as_slice());
     }
+    exchanges.insert(Exchange::Binance);
+    init_coinnect(&exchanges.into_iter().collect::<Vec<Exchange>>()).await;
     all_strategy_settings
 }

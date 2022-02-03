@@ -25,7 +25,7 @@ db = { path = "../db" }
 ext = { path = "../ext" }
 util = { path = "../util" }
 metrics = { path = "../metrics" }
-coinnect_rt = { path = "../coinnect" }
+coinnect_rt = { path = "../coinnect", features = ["binance", "native-tls"] }
 stats = { path = "../stats" }
 trading = { path = "../trading" }
 account = { path = "../portfolio" }

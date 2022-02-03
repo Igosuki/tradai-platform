@@ -1,7 +1,7 @@
 use itertools::Itertools;
 
-use crate::trading::position::{OperationKind, Position};
 use crate::types::{OperationEvent, TradeEvent};
+use trading::position::{OperationKind, Position};
 
 pub fn trades_history(history: &[Position]) -> Vec<(OperationEvent, TradeEvent)> {
     let mut trade_events: Vec<(OperationEvent, TradeEvent)> = Vec::new();

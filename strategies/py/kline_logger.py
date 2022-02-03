@@ -1,14 +1,17 @@
+import sys, pprint
 import asyncio
 import logging
 import json
 from datetime import datetime, date
 
 from strategy import Strategy, signal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
-    OrderType, uuid, ta, windowed_ta, model, mstrategy
+    OrderType, uuid, ta, windowed_ta, model, mstrategy, LoggingStdout
 
 FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'
 logging.basicConfig(format=FORMAT)
 logging.getLogger().setLevel(logging.INFO)
+sys.stdout = LoggingStdout()
+sys.displayhook = pprint.pprint
 
 class KlineLogger(Strategy):
     def __new__(cls, conf, ctx):
@@ -50,7 +53,7 @@ class KlineLogger(Strategy):
         return {}
 
     def channels(self):
-        return ((Channel("trades", self.conf['xch'], self.conf['pair']),))
+        return ((Channel("candles", self.conf['xch'], self.conf['pair']),))
 
 
 async def backtest_run(*args, **kwargs):

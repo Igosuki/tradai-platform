@@ -795,6 +795,7 @@ dependencies = [
  "async-trait",
  "ballista",
  "chrono",
+ "coinnect_rt",
  "config",
  "dashmap 5.0.0",
  "datafusion",
@@ -6083,10 +6084,13 @@ dependencies = [
 name = "strategies"
 version = "0.1.0"
 dependencies = [
+ "account",
  "actix",
  "async-trait",
  "backtest",
  "chrono",
+ "coinnect_rt",
+ "db",
  "derivative",
  "ext",
  "inventory 0.2.2",
@@ -6180,6 +6184,7 @@ dependencies = [
  "async-trait",
  "canonical_json",
  "chrono",
+ "coinnect_rt",
  "db",
  "ext",
  "inline-python",

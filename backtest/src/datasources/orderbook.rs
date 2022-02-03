@@ -1,16 +1,16 @@
 use arrow2::array::StructArray;
 use chrono::Duration;
+use coinnect_rt::prelude::{Exchange, Pair};
 use datafusion::arrow::array::{Array, DictionaryArray, Int64Array, ListArray, PrimitiveArray};
 use datafusion::record_batch::RecordBatch;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::path::Path;
 use std::str::FromStr;
-use strategy::coinnect::prelude::{Exchange, Pair};
 
+use coinnect_rt::prelude::MarketEventEnvelope;
 use datafusion::arrow::array::Utf8Array;
 use futures::StreamExt;
-use strategy::coinnect::prelude::MarketEventEnvelope;
 use tokio_stream::Stream;
 
 use crate::datafusion_util::{get_col_as, tables_as_stream};
