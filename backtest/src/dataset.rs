@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::pin::Pin;
 
 use chrono::{Date, Duration, TimeZone, Utc};
-use futures::StreamExt;
+use futures::{pin_mut, Stream, StreamExt};
 
 use strategy::coinnect::prelude::{Exchange, Pair};
 use strategy::coinnect::types::MarketEventEnvelope;
@@ -11,19 +12,18 @@ use util::time::DateRange;
 
 use crate::coinnect::broker::{AsyncBroker, ChannelMessageBroker};
 use crate::error::*;
-use crate::{csv_orderbooks_df, events_from_csv_orderbooks, events_from_orderbooks, raw_orderbooks_df,
-            sampled_orderbooks_df};
+use crate::{flat_orderbooks_df, raw_orderbooks_df, sampled_orderbooks_df};
 
 pub struct Dataset {
     pub input_format: DatasetInputFormat,
-    pub ds_type: DatasetType,
+    pub ds_type: MarketEventDatasetType,
     pub base_dir: PathBuf,
     pub period: DateRange,
     pub input_sample_rate: Duration,
 }
 
 impl Dataset {
-    pub async fn read_channels(&self, broker: ChannelMessageBroker<Channel, MarketEventEnvelope>) -> Result<()> {
+    pub async fn read_market_events(&self, broker: ChannelMessageBroker<Channel, MarketEventEnvelope>) -> Result<()> {
         for dt in self.period {
             let orderbook_partitions: HashSet<(PathBuf, Vec<(&'static str, String)>)> = broker
                 .subjects()
@@ -35,33 +35,26 @@ impl Dataset {
                     _ => None,
                 })
                 .collect();
-            match self.ds_type {
-                DatasetType::OrderbooksByMinute | DatasetType::OrderbooksBySecond => {
-                    let input_format = self.input_format.to_string();
-                    let event_stream = sampled_orderbooks_df(orderbook_partitions, input_format)
-                        .map(events_from_orderbooks)
-                        .flatten();
-                    event_stream.for_each(|event| broker.broadcast(event)).await;
+            let input_format = self.input_format.to_string();
+            let stream: Pin<Box<dyn Stream<Item = MarketEventEnvelope>>> = match self.ds_type {
+                MarketEventDatasetType::OrderbooksByMinute | MarketEventDatasetType::OrderbooksBySecond => {
+                    Box::pin(sampled_orderbooks_df(orderbook_partitions, input_format))
                 }
-                DatasetType::OrderbooksRaw => {
-                    if let DatasetInputFormat::Csv = self.input_format {
-                        let records = csv_orderbooks_df(orderbook_partitions).await?;
-                        let event_stream = tokio_stream::iter(records).map(events_from_csv_orderbooks).flatten();
-                        event_stream.for_each(|event| broker.broadcast(event)).await;
-                    } else {
-                        let records = raw_orderbooks_df(
-                            orderbook_partitions,
-                            self.input_sample_rate,
-                            false,
-                            &self.input_format.to_string(),
-                        )
-                        .await?;
-                        let event_stream = tokio_stream::iter(records).map(events_from_orderbooks).flatten();
-                        event_stream.for_each(|event| broker.broadcast(event)).await;
-                    }
+                MarketEventDatasetType::OrderbooksRaw => Box::pin(raw_orderbooks_df(
+                    orderbook_partitions,
+                    self.input_sample_rate,
+                    input_format,
+                )),
+                MarketEventDatasetType::OrderbooksFlat => {
+                    Box::pin(flat_orderbooks_df(orderbook_partitions, input_format, 5))
                 }
-                DatasetType::Trades => panic!("order books channel requires an order books dataset"),
+                MarketEventDatasetType::Trades => panic!("order books channel requires an order books dataset"),
             };
+            pin_mut!(stream);
+            stream.for_each(|event| broker.broadcast(event)).await;
+            // for event in stream.next().await {
+            //     broker.broadcast(event).await;
+            // }
         }
         Ok(())
     }
@@ -69,14 +62,20 @@ impl Dataset {
 
 #[derive(Deserialize, Copy, Clone)]
 #[serde(rename_all = "snake_case")]
-pub enum DatasetType {
+pub enum MarketEventDatasetType {
+    /// Downsampled orderbooks, by minute
     OrderbooksByMinute,
+    /// Downsampled orderbooks, by second
     OrderbooksBySecond,
+    /// Raw orderbooks, by the millisecond
     OrderbooksRaw,
+    /// Raw orderbooks, in a flat file
+    OrderbooksFlat,
+    /// Trades
     Trades,
 }
 
-impl DatasetType {
+impl MarketEventDatasetType {
     ///
     ///
     /// # Arguments
@@ -103,21 +102,25 @@ impl DatasetType {
         let ts = date.and_hms_milli(0, 0, 0, 0).timestamp_millis();
         let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d").to_string();
         match self {
-            DatasetType::OrderbooksByMinute => (base_dir, vec![
+            MarketEventDatasetType::OrderbooksByMinute => (base_dir, vec![
                 ("xch", xch.to_string()),
                 ("chan", "1mn_order_books".to_string()),
                 ("dt", dt_par),
             ]),
-            DatasetType::OrderbooksBySecond => (base_dir, vec![
+            MarketEventDatasetType::OrderbooksBySecond => (base_dir, vec![
                 ("xch", xch.to_string()),
                 ("chan", "1s_order_books".to_string()),
                 ("dt", dt_par),
             ]),
-            DatasetType::OrderbooksRaw => (base_dir.join(xch.to_string()).join("order_books"), vec![
-                ("pr", pair.to_string()),
-                ("dt", dt_par),
-            ]),
-            DatasetType::Trades => (base_dir.join(xch.to_string()).join("trades"), vec![
+            MarketEventDatasetType::OrderbooksRaw | MarketEventDatasetType::OrderbooksFlat => {
+                (base_dir.join(xch.to_string()).join("order_books"), vec![
+                    ("pr", pair.to_string()),
+                    ("dt", dt_par),
+                ])
+            }
+            MarketEventDatasetType::Trades => (base_dir.join(xch.to_string()).join("trades"), vec![
+                ("xch", xch.to_string()),
+                ("chan", "trades".to_string()),
                 ("pr", pair.to_string()),
                 ("dt", dt_par),
             ]),
