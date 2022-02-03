@@ -39,6 +39,7 @@ extern crate serde_derive;
 extern crate tokio;
 #[macro_use]
 extern crate tracing;
+extern crate core;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -65,14 +66,11 @@ use util::time::TimedData;
 
 use crate::coinnect::broker::{Broker, ChannelMessageBroker};
 use crate::dataset::Dataset;
-use crate::datasources::orderbook::convert::events_from_orderbooks;
-use crate::datasources::orderbook::csv_source::{csv_orderbooks_df, events_from_csv_orderbooks};
-use crate::datasources::orderbook::raw_source::raw_orderbooks_df;
-use crate::datasources::orderbook::sampled_source::sampled_orderbooks_df;
+use crate::datasources::orderbook::{flat_orderbooks_df, raw_orderbooks_df, sampled_orderbooks_df};
 use crate::report::{BacktestReport, GlobalReport, ReportConfig, StreamWriterLogger};
 use crate::runner::BacktestRunner;
 pub use crate::{config::*,
-                dataset::{DatasetInputFormat, DatasetType},
+                dataset::{DatasetInputFormat, MarketEventDatasetType},
                 error::*};
 
 mod config;
@@ -152,7 +150,7 @@ impl Backtest {
         let num_runners = self.spawn_runners(&global_report, reports_tx).await;
         // Read input datasets
         let before_read = Instant::now();
-        self.dataset.read_channels(broker).await?;
+        self.dataset.read_market_events(broker).await?;
         self.stop_token.cancel();
         let elapsed = before_read.elapsed();
         info!(
