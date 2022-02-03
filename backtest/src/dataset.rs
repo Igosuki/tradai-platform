@@ -11,8 +11,9 @@ use strategy::Channel;
 use util::time::DateRange;
 
 use crate::coinnect::broker::{AsyncBroker, ChannelMessageBroker};
+use crate::datasources::trades::trades_df;
 use crate::error::*;
-use crate::{flat_orderbooks_df, raw_orderbooks_df, sampled_orderbooks_df};
+use crate::{flat_orderbooks_df, raw_orderbooks_df, sampled_orderbooks_df, AssetType};
 
 pub struct Dataset {
     pub input_format: DatasetInputFormat,
@@ -30,7 +31,17 @@ impl Dataset {
                 .filter(|c| matches!(c, Channel::Orderbooks { .. }))
                 .filter_map(|c| match c {
                     Channel::Orderbooks { xch, pair } => {
-                        Some(self.ds_type.partition(self.base_dir.clone(), dt, *xch, pair))
+                        Some(self.ds_type.partition(self.base_dir.clone(), dt, *xch, pair, None))
+                    }
+                    _ => None,
+                })
+                .collect();
+            let trades_partitions: HashSet<(PathBuf, Vec<(&'static str, String)>)> = broker
+                .subjects()
+                .filter(|c| matches!(c, Channel::Trades { .. }))
+                .filter_map(|c| match c {
+                    Channel::Trades { xch, pair } => {
+                        Some(self.ds_type.partition(self.base_dir.clone(), dt, *xch, pair, None))
                     }
                     _ => None,
                 })
@@ -48,7 +59,7 @@ impl Dataset {
                 MarketEventDatasetType::OrderbooksFlat => {
                     Box::pin(flat_orderbooks_df(orderbook_partitions, input_format, 5))
                 }
-                MarketEventDatasetType::Trades => panic!("order books channel requires an order books dataset"),
+                MarketEventDatasetType::Trades => Box::pin(trades_df(trades_partitions, input_format)),
             };
             pin_mut!(stream);
             stream.for_each(|event| broker.broadcast(event)).await;
@@ -98,6 +109,7 @@ impl MarketEventDatasetType {
         date: Date<Utc>,
         xch: Exchange,
         pair: &Pair,
+        asset_type: Option<AssetType>,
     ) -> (PathBuf, Vec<(&'static str, String)>) {
         let ts = date.and_hms_milli(0, 0, 0, 0).timestamp_millis();
         let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d").to_string();
@@ -118,8 +130,9 @@ impl MarketEventDatasetType {
                     ("dt", dt_par),
                 ])
             }
-            MarketEventDatasetType::Trades => (base_dir.join(xch.to_string()).join("trades"), vec![
+            MarketEventDatasetType::Trades => (base_dir, vec![
                 ("xch", xch.to_string()),
+                ("asset", asset_type.unwrap_or(AssetType::Spot).as_ref().to_string()),
                 ("chan", "trades".to_string()),
                 ("pr", pair.to_string()),
                 ("dt", dt_par),
