@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 use std::time::Duration;
 use ta::Next;
-use yata::core::ValueType;
+use yata::core::{ValueType, Window};
 use yata::helpers::Merge;
 use yata::prelude::{Sequence, OHLCV};
 
@@ -196,30 +196,26 @@ pub enum BarMerge {
 /// Kline is a set of candles with the same interval over a specific market
 #[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone)]
 pub struct Kline {
-    exchange: String,
-    pair: String,
     base_interval: Duration,
-    candles: Vec<Candle>,
+    candles: Window<Candle>,
 }
 
 impl Kline {
     /// Create a new kline with the minimum interval set at `base_interval`
-    pub fn new(exchange: String, pair: String, base_interval: Duration) -> Self {
+    pub fn new(base_interval: Duration, capacity: u32) -> Self {
         if base_interval < Duration::from_secs(1) {
             panic!("Cannot have a candle duration < 1s");
         }
         Self {
-            exchange,
-            pair,
             base_interval,
-            candles: vec![],
+            candles: Window::from_parts(Vec::with_capacity(capacity as usize).into(), 0),
         }
     }
 
     /// Resamples the kline at [sample_interval]
-    pub fn resample(&self, sample_interval: Duration) -> Vec<Candle> {
+    pub fn resample(&self, sample_interval: Duration) -> impl Iterator<Item = Candle> {
         if self.base_interval >= sample_interval {
-            self.candles.clone()
+            self.candles.iter()
         } else {
             let resample_size = sample_interval.as_secs() / self.base_interval.as_secs();
             self.candles.collapse_timeframe(resample_size as usize, true)
@@ -230,11 +226,11 @@ impl Kline {
     pub fn interval(&self) -> Option<Interval> { Interval::from_duration(self.base_interval) }
 }
 
-impl Next<Candle> for Kline {
-    type Output = ();
+impl<'a> Next<Candle> for Kline {
+    type Output = &'a Candle;
 
     fn next(&mut self, input: Candle) -> Self::Output {
-        match self.candles.last() {
+        match self.candles.newest() {
             None => self.candles.push(input),
             Some(candle)
                 if candle.start_time.timestamp_millis() + self.base_interval.as_millis() as i64
@@ -245,6 +241,7 @@ impl Next<Candle> for Kline {
             }
             _ => self.candles.push(input),
         }
+        self.candles.newest()
     }
 }
 
