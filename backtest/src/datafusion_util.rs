@@ -109,7 +109,7 @@ pub fn tables_as_stream<P: 'static + AsRef<Path> + Debug>(
     tokio_stream::iter(s).flatten()
 }
 
-pub const DEFAULT_TABLE_NAME: &'static str = "listing_table";
+pub const DEFAULT_TABLE_NAME: &str = "listing_table";
 
 pub fn table_as_stream<P: 'static + AsRef<Path> + Debug>(
     base_path: P,
@@ -153,7 +153,7 @@ pub async fn table_as_df(
     table_name: Option<String>,
     sql_query: String,
 ) -> crate::error::Result<impl Stream<Item = Result<RecordBatch, arrow2::error::ArrowError>> + 'static> {
-    let table_name = table_name.unwrap_or(DEFAULT_TABLE_NAME.to_string());
+    let table_name = table_name.unwrap_or_else(|| DEFAULT_TABLE_NAME.to_string());
     let mut ctx = crate::datafusion_util::new_context();
     let listing_options = listing_options(format, partitions.clone());
     ctx.register_listing_table("listing_table", &format!("file://{}", base_path), listing_options, None)

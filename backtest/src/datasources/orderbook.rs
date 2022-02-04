@@ -15,7 +15,7 @@ use tokio_stream::Stream;
 
 use crate::datafusion_util::{get_col_as, tables_as_stream};
 
-const ORDER_BOOK_TABLE_NAME: &'static str = "order_books";
+const ORDER_BOOK_TABLE_NAME: &str = "order_books";
 
 /// Read partitions as flat order booksm where asks and bids are flattened in columns [a{i}, aq{i}, b{i}, bq{i}]
 pub fn flat_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
