@@ -55,13 +55,8 @@ use tokio_util::sync::CancellationToken;
 use db::DbOptions;
 // TODO: https://github.com/rust-lang/rust/issues/47384
 use coinnect_rt::prelude::*;
-#[allow(unused_imports)]
-use strategies;
-use strategy::plugin::plugin_registry;
 use strategy::prelude::*;
 // TODO: https://github.com/rust-lang/rust/issues/47384
-#[allow(unused_imports)]
-use strategy_python;
 use trading::engine::{mock_engine, TradingEngine};
 use util::time::TimedData;
 
@@ -72,9 +67,8 @@ use crate::runner::BacktestRunner;
 pub use crate::{config::*,
                 dataset::{DatasetInputFormat, MarketEventDatasetType},
                 error::*};
-#[allow(unused_imports)]
-use coinnect_rt;
 use coinnect_rt::broker::{Broker, ChannelMessageBroker};
+use strategy::plugin::plugin_registry;
 
 mod config;
 mod datafusion_util;
