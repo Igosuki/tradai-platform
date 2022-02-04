@@ -4,6 +4,7 @@ use std::pin::Pin;
 
 use chrono::{Date, Duration, TimeZone, Utc};
 use futures::{pin_mut, Stream, StreamExt};
+use tokio_stream::StreamExt;
 
 use coinnect_rt::prelude::{Exchange, Pair};
 use coinnect_rt::types::MarketEventEnvelope;
@@ -14,6 +15,7 @@ use crate::datasources::trades::trades_df;
 use crate::error::*;
 use crate::{flat_orderbooks_df, raw_orderbooks_df, sampled_orderbooks_df, AssetType};
 use coinnect_rt::broker::{AsyncBroker, ChannelMessageBroker};
+use stats::Next;
 
 pub struct Dataset {
     pub input_format: DatasetInputFormat,
@@ -40,7 +42,17 @@ impl Dataset {
                 .subjects()
                 .filter(|c| matches!(c, Channel::Trades { .. }))
                 .filter_map(|c| match c {
-                    Channel::Trades { xch, pair } => {
+                    Channel::Trades { xch, pair } | Channel => {
+                        Some(self.ds_type.partition(self.base_dir.clone(), dt, *xch, pair, None))
+                    }
+                    _ => None,
+                })
+                .collect();
+            let candles_partitions: HashSet<(PathBuf, Vec<(&'static str, String)>)> = broker
+                .subjects()
+                .filter(|c| matches!(c, Channel::Trades { .. }))
+                .filter_map(|c| match c {
+                    Channel::Candles { xch, pair } | Channel => {
                         Some(self.ds_type.partition(self.base_dir.clone(), dt, *xch, pair, None))
                     }
                     _ => None,
@@ -59,7 +71,13 @@ impl Dataset {
                 MarketEventDatasetType::OrderbooksFlat => {
                     Box::pin(flat_orderbooks_df(orderbook_partitions, input_format, 5))
                 }
-                MarketEventDatasetType::Trades => Box::pin(trades_df(trades_partitions, input_format)),
+                MarketEventDatasetType::Trades => Box::pin(futures::stream::select(
+                    trades_df(trades_partitions, input_format.clone()),
+                    trades_df(candles_partitions, input_format).scan(
+                        stats::kline::Kline::new(std::time::Duration::from_secs(1), 60_000_u32),
+                        |kl: &mut stats::kline::Kline, msg: MarketEventEnvelope| kl.next(msg.into()),
+                    ),
+                )),
             };
             pin_mut!(stream);
             stream.for_each(|event| broker.broadcast(event)).await;
