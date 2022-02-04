@@ -31,7 +31,6 @@ opt-level = 0
 [profile.dev]
 opt-level = 1
 debug = true
-incremental = false
 #lto = "thin"
 
 [profile.dev-noinc]

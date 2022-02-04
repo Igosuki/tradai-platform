@@ -225,7 +225,7 @@ mod test {
     use chrono::{TimeZone, Utc};
 
     use coinnect_rt::exchange::Exchange;
-    use strategy::db::MemoryKVStore;
+    use db::MemoryKVStore;
     use strategy::error::Result;
     use strategy::models::io::{IterativeModel, LoadableModel};
     use strategy_test_util::init;

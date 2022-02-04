@@ -134,7 +134,7 @@ impl MarketEventDatasetType {
                 ("xch", xch.to_string()),
                 ("asset", asset_type.unwrap_or(AssetType::Spot).as_ref().to_string()),
                 ("chan", "trades".to_string()),
-                ("pr", pair.to_string().replace("_", "")),
+                ("pr", pair.to_string().replace('_', "")),
                 ("dt", dt_par),
             ]),
         }
