@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use chrono::{Date, DateTime, Duration, TimeZone, Utc};
+use chrono::{Date, Duration, TimeZone, Utc};
 use futures::{pin_mut, Stream, StreamExt};
 
 use coinnect_rt::prelude::{Exchange, Pair};
@@ -10,13 +10,10 @@ use coinnect_rt::types::MarketEventEnvelope;
 use strategy::Channel;
 use util::time::DateRange;
 
-use crate::datasources::trades::trades_df;
+use crate::datasources::trades::{candles_df, trades_df};
 use crate::error::*;
 use crate::{flat_orderbooks_df, raw_orderbooks_df, sampled_orderbooks_df, AssetType};
 use coinnect_rt::broker::{AsyncBroker, ChannelMessageBroker};
-use stats::kline::SampleInterval;
-use stats::kline::TimeUnit::Minute;
-use stats::Next;
 
 pub struct Dataset {
     pub input_format: DatasetInputFormat,
@@ -74,23 +71,7 @@ impl Dataset {
                 }
                 MarketEventDatasetType::Trades => Box::pin(futures::stream::select(
                     trades_df(trades_partitions, input_format.clone()),
-                    trades_df(candles_partitions, input_format)
-                        .scan(
-                            stats::kline::Kline::new(
-                                SampleInterval {
-                                    units: 1,
-                                    time_unit: Minute,
-                                },
-                                60_000_u32,
-                            ),
-                            |kl: &mut stats::kline::Kline, msg: MarketEventEnvelope| async {
-                                Some(Next::<(f64, f64, DateTime<Utc>)>::next(
-                                    kl,
-                                    (msg.e.price(), msg.e.vol(), msg.e.time()),
-                                ))
-                            },
-                        )
-                        .filter(|c| async { c.is_closed }),
+                    candles_df(candles_partitions, input_format.clone()),
                 )),
             };
             pin_mut!(stream);
