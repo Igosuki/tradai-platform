@@ -2,9 +2,8 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use chrono::{Date, Duration, TimeZone, Utc};
+use chrono::{Date, DateTime, Duration, TimeZone, Utc};
 use futures::{pin_mut, Stream, StreamExt};
-use tokio_stream::StreamExt;
 
 use coinnect_rt::prelude::{Exchange, Pair};
 use coinnect_rt::types::MarketEventEnvelope;
@@ -15,6 +14,8 @@ use crate::datasources::trades::trades_df;
 use crate::error::*;
 use crate::{flat_orderbooks_df, raw_orderbooks_df, sampled_orderbooks_df, AssetType};
 use coinnect_rt::broker::{AsyncBroker, ChannelMessageBroker};
+use stats::kline::SampleInterval;
+use stats::kline::TimeUnit::Minute;
 use stats::Next;
 
 pub struct Dataset {
@@ -42,7 +43,7 @@ impl Dataset {
                 .subjects()
                 .filter(|c| matches!(c, Channel::Trades { .. }))
                 .filter_map(|c| match c {
-                    Channel::Trades { xch, pair } | Channel => {
+                    Channel::Trades { xch, pair } => {
                         Some(self.ds_type.partition(self.base_dir.clone(), dt, *xch, pair, None))
                     }
                     _ => None,
@@ -52,7 +53,7 @@ impl Dataset {
                 .subjects()
                 .filter(|c| matches!(c, Channel::Trades { .. }))
                 .filter_map(|c| match c {
-                    Channel::Candles { xch, pair } | Channel => {
+                    Channel::Candles { xch, pair } => {
                         Some(self.ds_type.partition(self.base_dir.clone(), dt, *xch, pair, None))
                     }
                     _ => None,
@@ -73,10 +74,23 @@ impl Dataset {
                 }
                 MarketEventDatasetType::Trades => Box::pin(futures::stream::select(
                     trades_df(trades_partitions, input_format.clone()),
-                    trades_df(candles_partitions, input_format).scan(
-                        stats::kline::Kline::new(std::time::Duration::from_secs(1), 60_000_u32),
-                        |kl: &mut stats::kline::Kline, msg: MarketEventEnvelope| kl.next(msg.into()),
-                    ),
+                    trades_df(candles_partitions, input_format)
+                        .scan(
+                            stats::kline::Kline::new(
+                                SampleInterval {
+                                    units: 1,
+                                    time_unit: Minute,
+                                },
+                                60_000_u32,
+                            ),
+                            |kl: &mut stats::kline::Kline, msg: MarketEventEnvelope| async {
+                                Some(Next::<(f64, f64, DateTime<Utc>)>::next(
+                                    kl,
+                                    (msg.e.price(), msg.e.vol(), msg.e.time()),
+                                ))
+                            },
+                        )
+                        .filter(|c| async { c.is_closed }),
                 )),
             };
             pin_mut!(stream);
