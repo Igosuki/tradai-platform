@@ -146,7 +146,7 @@ mod tests {
 
     fn oms() -> Arc<HashMap<Exchange, Addr<OrderManager>>> { Arc::new(HashMap::default()) }
 
-    async fn test_apis() -> Arc<ExchangeApiRegistry> {
+    async fn test_apis() -> ExchangeApiRegistry {
         let exchanges = [(Exchange::Binance, ExchangeSettings {
             orderbook: None,
             orderbook_depth: None,
@@ -161,16 +161,15 @@ mod tests {
         .iter()
         .cloned()
         .collect();
-        let manager = Coinnect::new_manager();
+        let manager = Arc::new(Coinnect::new_manager());
         manager
             .build_exchange_apis(Arc::new(exchanges), "../config/keys_real_test.json".into())
             .await;
-        let arc = manager.exchange_apis().clone();
-        Coinnect::load_pair_registries(arc.clone()).await.unwrap();
-        arc.clone()
+        Coinnect::load_pair_registries(manager.exchange_apis()).await.unwrap();
+        manager.exchange_apis().clone()
     }
 
-    fn build_test_api(apis: Arc<ExchangeApiRegistry>, cfg: &mut web::ServiceConfig) {
+    fn build_test_api(apis: ExchangeApiRegistry, cfg: &mut web::ServiceConfig) {
         let schema = create_schema();
         let strats: Arc<HashMap<StrategyKey, Trader>> = Arc::new(strats());
         cfg.app_data(Data::new(apis))

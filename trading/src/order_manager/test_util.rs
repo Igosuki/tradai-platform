@@ -8,7 +8,7 @@ use httpmock::{Mock, MockServer};
 use rand::random;
 
 use binance::rest_model::TimeInForce;
-use coinnect_rt::exchange::manager::ExchangeApiRegistry;
+use coinnect_rt::exchange::manager::{ExchangeApiRegistry, ExchangeManager, ExchangeManagerRef};
 use coinnect_rt::exchange::MockExchangeApi;
 use coinnect_rt::pair::register_pair_default;
 use coinnect_rt::prelude::*;
@@ -34,15 +34,17 @@ pub async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
         .unwrap();
     let apis = ExchangeApiRegistry::new();
     apis.insert(api.exchange(), api);
+    let manager = ExchangeManager::new_with_reg(apis);
     let db = get_or_create(&DbOptions::new(dir), "order_manager", vec![]);
-    OrderManager::new(apis, db)
+    OrderManager::new(ExchangeManagerRef::new(manager), db)
 }
 
 pub fn local_manager<S: AsRef<Path>>(path: S, api: Arc<dyn ExchangeApi>) -> Addr<OrderManager> {
     let apis = ExchangeApiRegistry::new();
     apis.insert(api.exchange(), api);
+    let manager = ExchangeManager::new_with_reg(apis);
     let db = get_or_create(&DbOptions::new(path), "", vec![]);
-    let order_manager = OrderManager::new(apis, db);
+    let order_manager = OrderManager::new(ExchangeManagerRef::new(manager), db);
     OrderManager::start(order_manager)
 }
 
@@ -159,8 +161,9 @@ pub fn new_mock_manager<S: AsRef<Path>>(path: S) -> OrderManager {
     let api: Arc<dyn ExchangeApi> = Arc::new(MockExchangeApi::default());
     let apis = ExchangeApiRegistry::new();
     apis.insert(api.exchange(), api);
+    let manager = ExchangeManager::new_with_reg(apis);
     let db = get_or_create(&DbOptions::new(path), "", vec![]);
-    OrderManager::new(apis, db)
+    OrderManager::new(ExchangeManagerRef::new(manager), db)
 }
 
 pub fn mock_manager<S: AsRef<Path>>(path: S) -> Addr<OrderManager> {

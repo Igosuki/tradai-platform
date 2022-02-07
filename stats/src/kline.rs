@@ -31,7 +31,7 @@ pub struct Candle {
     /// Trades count
     pub trade_count: u64,
     /// If the candle is closed (if the period is finished)
-    pub is_closed: bool,
+    pub is_final: bool,
 }
 
 impl Merge<Candle> for Candle {
@@ -62,7 +62,7 @@ impl Candle {
             volume: amount,
             quote_volume: price * amount,
             trade_count: 1,
-            is_closed: false,
+            is_final: false,
         }
     }
 }
@@ -80,7 +80,7 @@ impl Default for Candle {
             volume: 1000000000.0,
             quote_volume: 1000000000.0,
             trade_count: 100,
-            is_closed: false,
+            is_final: false,
         }
     }
 }
@@ -207,7 +207,7 @@ impl Next<Candle> for Kline {
                 let mut latest_candle = *self.candles.oldest();
                 //let latest_candle = self.candles.last_mut().unwrap();
                 latest_candle = latest_candle.merge(&input);
-                latest_candle.is_closed = true;
+                latest_candle.is_final = true;
                 latest_candle
             }
             _ => self.candles.push(input),
