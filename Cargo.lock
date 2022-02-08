@@ -366,6 +366,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94a45b455c14666b85fc40a019e8ab9eb75e3a124e05494f5397122bc9eb06e0"
 
 [[package]]
+name = "array-init"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6945cc5422176fc5e602e590c2878d2c2acd9a4fe20a4baa7c28022521698ec6"
+
+[[package]]
 name = "array-init-cursor"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5386,6 +5392,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ringbuffer"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72dfeba9c94fdc308dcfe165efa6855c698f317484b736605ff859c5fa81d992"
+dependencies = [
+ "array-init",
+]
+
+[[package]]
 name = "rkv"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6082,13 +6097,16 @@ dependencies = [
  "num-traits",
  "ordered-float 2.10.0",
  "peroxide",
+ "pretty_assertions",
  "prettytable-rs",
  "rand 0.8.4",
+ "ringbuffer",
  "serde",
  "serde_derive",
  "strum_macros 0.23.1",
  "ta",
  "thiserror",
+ "tokio",
  "tracing",
  "trading",
  "yata",
@@ -7700,8 +7718,8 @@ dependencies = [
 
 [[package]]
 name = "yata"
-version = "0.5.0"
-source = "git+https://github.com/Igosuki/yata.git?branch=ohlcv_merge#e679b83c9911726186a005b66c08ea7207334155"
+version = "0.5.1"
+source = "git+https://github.com/Igosuki/yata.git?branch=ohlcv_merge_mut#0d1516b595d6d9061b527502d8c383243db1c826"
 dependencies = [
  "serde",
 ]

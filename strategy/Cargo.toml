@@ -96,7 +96,7 @@ hdrhistogram = "7"
 fake = { version = "2.4", features = ['chrono'] }
 tempdir = "0.3"
 quickcheck = "1.0"
-pretty_assertions = "1.0"
+pretty_assertions = "1"
 
 # std
 bytes = "1.0"

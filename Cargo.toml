@@ -58,6 +58,6 @@ datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "ar
 #datafusion = { path = "/media/geps/work/dev/oss/arrow-datafusion/datafusion" }
 ballista = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_test_fix" }
 #ballista = { path = "/media/geps/work/dev/oss/arrow-datafusion/ballista/rust/client" }
-yata = { git = "https://github.com/Igosuki/yata.git", branch = "ohlcv_merge" }
+yata = { git = "https://github.com/Igosuki/yata.git", branch = "ohlcv_merge_mut" }
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb.git", rev = "92b27f5d33c0c713f1d3ec8436b0ae49680e3cca" }
 

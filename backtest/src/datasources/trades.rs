@@ -21,13 +21,7 @@ pub fn candles_df<P: 'static + AsRef<Path> + Debug>(
 ) -> impl Stream<Item = MarketEventEnvelope> {
     trades_df(table_paths, format)
         .scan(
-            stats::kline::Kline::new(
-                SampleInterval {
-                    units: 1,
-                    time_unit: Minute,
-                },
-                60_000_u32,
-            ),
+            stats::kline::Kline::new(SampleInterval::new(Minute, 1), 60_000_usize),
             |kl, msg: MarketEventEnvelope| {
                 let candle = Next::<(f64, f64, DateTime<Utc>)>::next(kl, (msg.e.price(), msg.e.vol(), msg.e.time()));
                 let mut msg = msg;
