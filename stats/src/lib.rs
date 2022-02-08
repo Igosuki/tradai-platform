@@ -11,6 +11,7 @@ Summary : statistical tools to summarize data series
 
 #![feature(test)]
 #![feature(type_alias_impl_trait)]
+#![feature(generic_associated_types)]
 #![allow(
     clippy::items_after_statements,
     clippy::unreadable_literal,
