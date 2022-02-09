@@ -22,13 +22,11 @@ use crate::connectivity::run_connectivity_checker;
 use crate::nats::{NatsConsumer, NatsProducer, Subject};
 use crate::server;
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
-use coinnect_rt::exchange::manager::{ExchangeManager, ExchangeManagerRef};
 use coinnect_rt::prelude::*;
-use db::{get_or_create, DbOptions};
 use logging::prelude::*;
 use metrics::prom::PrometheusPushActor;
-use portfolio::balance::{BalanceReporter, BalanceReporterOptions};
-use portfolio::margin::{MarginAccountReporter, MarginAccountReporterOptions};
+use portfolio::balance::BalanceReporter;
+use portfolio::margin::MarginAccountReporter;
 #[allow(unused_imports)]
 use strategies::mean_reverting;
 use strategy::plugin::plugin_registry;
@@ -88,7 +86,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 broadcast_recipients.push(NatsProducer::start(producer).recipient());
             }
             OutputSettings::Strategies => {
-                let om = order_manager(&settings_v.storage, manager.clone()).await;
+                let om = OrderManager::actor(&settings_v.storage, manager.clone()).await;
                 termination_handles.push(Box::pin(bots::poll_pingables(vec![om.clone().recipient()])));
                 for entry in manager.exchange_apis().iter() {
                     account_broker.register(
@@ -100,7 +98,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                         om.clone().recipient(),
                     );
                 }
-                let mirp = margin_interest_rate_provider(manager.clone());
+                let mirp = MarginInterestRateProvider::actor(manager.clone());
                 let engine = new_trading_engine(manager.clone(), om, mirp);
                 let strategies = make_traders(settings_arc.clone(), Arc::new(engine))
                     .instrument(tracing::info_span!("starting strategies"))
@@ -119,7 +117,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     // balance reporter
     if let Some(balance_reporter_opts) = &settings_v.balance_reporter {
         info!("starting balance reporter");
-        let reporter_addr = balance_reporter(balance_reporter_opts, manager.clone()).await?;
+        let reporter_addr = BalanceReporter::actor(balance_reporter_opts, manager.clone()).await;
         for api_ref in manager.exchange_apis() {
             account_broker.register(
                 AccountChannel::new(*api_ref.key(), AccountType::Spot),
@@ -132,7 +130,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     // margin balance reporter
     if let Some(margin_account_reporter_opts) = &settings_v.margin_account_reporter {
         info!("starting margin account reporter");
-        let reporter_addr = margin_account_reporter(margin_account_reporter_opts, manager.clone()).await?;
+        let reporter_addr = MarginAccountReporter::actor(margin_account_reporter_opts, manager.clone()).await;
         for api_ref in manager.exchange_apis().iter() {
             account_broker.register(
                 AccountChannel::new(*api_ref.key(), AccountType::Margin),
@@ -215,7 +213,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                         )
                         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
                     );
-                    termination_handles.push(Box::pin(poll(consumer)));
+                    termination_handles.push(Box::pin(poll_actor(consumer)));
                 }
                 if !broadcast_recipients.is_empty() {
                     let consumer = NatsConsumer::start(
@@ -228,7 +226,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                         )
                         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
                     );
-                    termination_handles.push(Box::pin(poll(consumer)));
+                    termination_handles.push(Box::pin(poll_actor(consumer)));
                 }
             }
         }
@@ -329,39 +327,7 @@ async fn make_traders(settings: Arc<RwLock<Settings>>, engine: Arc<TradingEngine
     traders
 }
 
-async fn balance_reporter(
-    options: &BalanceReporterOptions,
-    apis: ExchangeManagerRef,
-) -> anyhow::Result<Addr<BalanceReporter>> {
-    let balance_reporter = BalanceReporter::new(apis.clone(), options);
-    let balance_reporter_addr = BalanceReporter::start(balance_reporter);
-    Ok(balance_reporter_addr)
-}
-
-async fn margin_account_reporter(
-    options: &MarginAccountReporterOptions,
-    apis: ExchangeManagerRef,
-) -> anyhow::Result<Addr<MarginAccountReporter>> {
-    let margin_account_reporter = MarginAccountReporter::new(apis.clone(), options);
-    let margin_account_reporter_addr = MarginAccountReporter::start(margin_account_reporter);
-    Ok(margin_account_reporter_addr)
-}
-
-/// Get an order manager for each exchange
-/// N.B.: Does not currently use test mode
-async fn order_manager(db: &DbOptions<String>, exchange_manager: Arc<ExchangeManager>) -> Addr<OrderManager> {
-    // TODO: switch to build pattern
-    let db = get_or_create(db, "order_manager", vec![]);
-    let order_manager = OrderManager::new(exchange_manager, db);
-    OrderManager::start(order_manager)
-}
-
-fn margin_interest_rate_provider(apis: ExchangeManagerRef) -> Addr<MarginInterestRateProvider> {
-    let provider = MarginInterestRateProvider::new(apis);
-    MarginInterestRateProvider::start(provider)
-}
-
-pub async fn poll<T: Actor>(addr: Addr<T>) -> std::io::Result<()> {
+pub async fn poll_actor<T: Actor>(addr: Addr<T>) -> std::io::Result<()> {
     let mut interval = tokio::time::interval(Duration::from_secs(1));
     loop {
         interval.tick().await;

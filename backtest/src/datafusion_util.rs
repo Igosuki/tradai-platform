@@ -96,7 +96,7 @@ pub fn tables_as_stream<P: 'static + AsRef<Path> + Debug>(
     table_name: Option<String>,
     sql_query: String,
 ) -> impl Stream<Item = RecordBatch> + 'static {
-    debug!("{:?}", &table_paths);
+    debug!("reading partitions {:?}", &table_paths);
     let s = table_paths.into_iter().map(move |(base_path, partitions)| {
         table_as_stream(
             base_path,

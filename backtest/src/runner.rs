@@ -111,8 +111,11 @@ impl BacktestRunner {
                             break 'resolve;
                         }
                     }
-                    if let MarketEvent::Orderbook(_) = &market_event.e {
-                        report.push_market_stat(TimedData::new(market_event.e.time(), (&market_event.e).into()));
+
+                    #[allow(clippy::needless_borrow)]
+                    report.push_market_stat(TimedData::new(market_event.e.time(), (&market_event.e).into()));
+                    if let MarketEvent::CandleTick(candle) = &market_event.e {
+                        report.push_candle(TimedData::new(market_event.e.time(), candle.clone()));
                     }
                     match driver.data(DataQuery::Models).await {
                         Ok(DataResult::Models(models)) => report

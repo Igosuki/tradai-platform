@@ -125,6 +125,7 @@ pub struct BreakoutStrategy {
 }
 
 impl BreakoutStrategy {
+    #[allow(clippy::useless_conversion)]
     pub fn new(name: String, options: &BreakoutStrategyOptions) -> Self {
         Self {
             name,

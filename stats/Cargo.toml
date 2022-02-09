@@ -37,6 +37,7 @@ ta = { version = "0.5", features = ["serde"] }
 yata = { version = "0.5", features = ["period_type_u32"] }
 ordered-float = "2.8"
 ringbuffer = "0.8"
+smallvec = "1.8"
 
 # std
 chrono = { version = "0.4", features = ["serde"] }
