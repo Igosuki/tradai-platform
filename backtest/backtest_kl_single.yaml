@@ -22,8 +22,8 @@ fees: 0.001
 
 period:
   type: interval
-  from: 2022-02-01
-  to: 2022-02-02
+  from: 2022-01-01
+  to: 2022-02-09
 
 input_format: parquet
 input_dataset: trades

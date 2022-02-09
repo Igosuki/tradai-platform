@@ -21,9 +21,10 @@ pub fn candles_df<P: 'static + AsRef<Path> + Debug>(
 ) -> impl Stream<Item = MarketEventEnvelope> {
     trades_df(table_paths, format)
         .scan(
-            stats::kline::Kline::new(SampleInterval::new(Minute, 1), 60_000_usize),
+            stats::kline::Kline::new(SampleInterval::new(Minute, 1), 2_usize.pow(16)),
             |kl, msg: MarketEventEnvelope| {
-                let candle = Next::<(f64, f64, DateTime<Utc>)>::next(kl, (msg.e.price(), msg.e.vol(), msg.e.time()));
+                let candles = Next::<(f64, f64, DateTime<Utc>)>::next(kl, (msg.e.price(), msg.e.vol(), msg.e.time()));
+                let candle = candles.first().unwrap();
                 let mut msg = msg;
                 msg.e = MarketEvent::CandleTick(Candle {
                     event_time: candle.event_time,
@@ -65,9 +66,10 @@ pub fn trades_df<P: 'static + AsRef<Path> + Debug>(
 /// xch : String
 fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEventEnvelope> + 'static {
     let sa: StructArray = record_batch.into();
+
     stream! {
         for (i, column) in sa.fields().iter().enumerate() {
-            trace!("sa[{}] = {:?}", i, column.data_type());
+            trace!("trades[{}] = {:?}", i, column.data_type());
         }
 
         let price_col = get_col_as::<Float64Array>(&sa, "price");

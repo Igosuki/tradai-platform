@@ -45,7 +45,7 @@ class KlineLogger(Strategy):
             print(f"Initialized {self.whoami()}")
 
     async def eval(self, event):
-        event.debug()
+        #event.debug()
         signals = []
         return signals
 

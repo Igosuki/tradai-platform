@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use actix::{Actor, ActorFutureExt, AsyncContext, Context, Handler, ResponseActFuture, WrapFuture};
+use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, WrapFuture};
 use actix_derive::{Message, MessageResponse};
 use backoff::{ExponentialBackoff, ExponentialBackoffBuilder};
 use futures::FutureExt;
@@ -13,10 +13,10 @@ use tokio::sync::RwLock;
 
 use coinnect_rt::bot::Ping;
 use coinnect_rt::error::Error as CoinnectError;
-use coinnect_rt::exchange::manager::ExchangeManagerRef;
+use coinnect_rt::exchange::manager::{ExchangeManager, ExchangeManagerRef};
 use coinnect_rt::prelude::*;
 use coinnect_rt::types::{Order, OrderStatus, OrderUpdate};
-use db::Storage;
+use db::{get_or_create, DbOptions, Storage};
 use ext::ResultExt;
 use wal::{Wal, WalCmp};
 
@@ -112,6 +112,12 @@ impl OrderManager {
 
     pub fn new(apis: ExchangeManagerRef, storage: Arc<dyn Storage>) -> Self {
         Self::new_with_options(apis, storage, OrderManagerConfig::default())
+    }
+
+    pub async fn actor(db: &DbOptions<String>, exchange_manager: Arc<ExchangeManager>) -> Addr<Self> {
+        let storage = get_or_create(db, "order_manager", vec![]);
+        let order_manager = Self::new_with_options(exchange_manager, storage, OrderManagerConfig::default());
+        Self::start(order_manager)
     }
 
     pub fn new_with_options(

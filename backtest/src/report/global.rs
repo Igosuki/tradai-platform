@@ -84,7 +84,7 @@ impl GlobalReport {
         let mut plot = Plot::new();
         for (i, report) in reports {
             if let Ok(snapshots) = report.snapshots() {
-                super::draw_entries(&mut plot, i, snapshots.as_slice(), vec![(
+                super::draw_lines(&mut plot, i, snapshots.as_slice(), vec![(
                     &format!("{}.pnl", report.key),
                     vec![|i| i.pnl],
                 )]);

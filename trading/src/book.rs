@@ -51,7 +51,7 @@ impl BookPosition {
 impl TryFrom<Orderbook> for BookPosition {
     type Error = BookError;
 
-    fn try_from(t: Orderbook) -> Result<Self, Self::Error> { (&t).try_into() }
+    fn try_from(t: Orderbook) -> Result<Self, Self::Error> { t.try_into() }
 }
 
 impl<'a> TryFrom<&'a Orderbook> for BookPosition {

@@ -93,7 +93,7 @@ fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = Marke
     let sa: StructArray = record_batch.into();
     stream! {
         for (i, column) in sa.fields().iter().enumerate() {
-            trace!("sa[{}] = {:?}", i, column.data_type());
+            trace!("orderbook[{}] = {:?}", i, column.data_type());
         }
 
         let asks_col = get_col_as::<ListArray<i32>>(&sa, "asks");

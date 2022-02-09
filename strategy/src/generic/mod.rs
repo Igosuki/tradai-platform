@@ -92,30 +92,21 @@ impl GenericDriver {
 
     fn handles(&self, le: &MarketEventEnvelope) -> bool {
         // TODO : replace this with a hashtable
-        self.channels.iter().any(|c| match (c, le) {
-            (
-                Channel::Orderbooks { pair, xch },
-                le @ MarketEventEnvelope {
-                    e: MarketEvent::Orderbook(ob),
-                    ..
-                },
-            ) => pair == &ob.pair && xch == &le.xch,
-            (
-                Channel::Trades { pair, xch },
-                le @ MarketEventEnvelope {
-                    e: MarketEvent::Trade(tr),
-                    ..
-                },
-            ) => pair == &tr.pair && xch == &le.xch,
-            (
-                Channel::Candles { pair, xch },
-                le @ MarketEventEnvelope {
-                    e: MarketEvent::CandleTick(tr),
-                    ..
-                },
-            ) => pair == &tr.pair && xch == &le.xch,
-            _ => false,
-        })
+        let c = match le.e {
+            MarketEvent::Trade(_) => Channel::Trades {
+                pair: le.pair.clone(),
+                xch: le.xch,
+            },
+            MarketEvent::Orderbook(_) => Channel::Orderbooks {
+                pair: le.pair.clone(),
+                xch: le.xch,
+            },
+            MarketEvent::CandleTick(_) => Channel::Candles {
+                pair: le.pair.clone(),
+                xch: le.xch,
+            },
+        };
+        self.channels.contains(&c)
     }
 
     pub(crate) fn status(&self) -> StrategyStatus { self.status }

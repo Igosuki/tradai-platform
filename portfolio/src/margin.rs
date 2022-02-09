@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use actix::{Actor, ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, Handler, WrapFuture};
+use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, ContextFutureSpawner, Handler, WrapFuture};
 use chrono::{DateTime, Utc};
 use futures::FutureExt;
 use prometheus::GaugeVec;
@@ -167,6 +167,11 @@ impl MarginAccountReporter {
             refresh_rate: options.refresh_rate,
             metrics: MarginAccountMetrics::default(),
         }
+    }
+
+    pub async fn actor(options: &MarginAccountReporterOptions, apis: ExchangeManagerRef) -> Addr<Self> {
+        let margin_account_reporter = Self::new(apis, options);
+        Self::start(margin_account_reporter)
     }
 
     fn with_reporter<F>(&self, xchg: Exchange, f: F)

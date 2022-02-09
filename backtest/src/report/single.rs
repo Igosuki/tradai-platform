@@ -4,6 +4,7 @@ use std::fmt::{Debug, Formatter};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use coinnect_rt::types::Candle;
 use ext::ResultExt;
 use itertools::Itertools;
 use plotly::layout::{GridPattern, LayoutGrid};
@@ -77,6 +78,8 @@ pub(crate) struct BacktestReport {
     pub(crate) market_stats_ss: Arc<StreamSerializerWriter<TimedData<MarketStat>>>,
     #[serde(skip)]
     pub(crate) events_ss: Arc<StreamSerializerWriter<TimedData<StratEvent>>>,
+    #[serde(skip)]
+    pub(crate) candles_ss: Arc<StreamSerializerWriter<TimedData<Candle>>>,
     pub(crate) execution_hist: HashMap<String, f64>,
     pub(crate) last_ptf_snapshot: Option<TimedData<PortfolioSnapshot>>,
     pub(crate) misc_stats: BacktestReportMiscStats,
@@ -96,8 +99,10 @@ const MODEL_FILE: &str = "models.json";
 const SNAPSHOTS_FILE: &str = "snapshots.json";
 const MARKET_STATS_FILE: &str = "market_stats.json";
 const STRAT_EVENTS_FILE: &str = "strat_events.json";
+const CANDLES_FILE: &str = "candles.json";
 const REPORT_FILE: &str = "report.json";
 const REPORT_HTML_FILE: &str = "report.html";
+const TRADEVIEW_HTML_FILE: &str = "tradeview.html";
 
 impl BacktestReport {
     /// Create a new backtest report
@@ -123,6 +128,10 @@ impl BacktestReport {
                 report_dir.join(STRAT_EVENTS_FILE),
                 compression,
             )),
+            candles_ss: Arc::new(StreamSerializerWriter::new_with_compression(
+                report_dir.join(CANDLES_FILE),
+                compression,
+            )),
             misc_stats: BacktestReportMiscStats::default(),
             key,
             failures: Default::default(),
@@ -144,6 +153,9 @@ impl BacktestReport {
         self.misc_stats.update(v.value.pnl);
         self.last_ptf_snapshot = Some(v);
     }
+
+    /// Push a candle to the report
+    pub fn push_candle(&self, v: TimedData<Candle>) { self.candles_ss.push(v).unwrap(); }
 
     /// Push a market stat to the report
     pub fn push_market_stat(&self, v: TimedData<MarketStat>) { self.market_stats_ss.push(v).unwrap(); }
@@ -169,6 +181,8 @@ impl BacktestReport {
         tokio::spawn(async move { x2.start().await });
         let x3 = self.events_ss.clone();
         tokio::spawn(async move { x3.start().await });
+        let x4 = self.candles_ss.clone();
+        tokio::spawn(async move { x4.start().await });
         Ok(())
     }
 
@@ -180,7 +194,9 @@ impl BacktestReport {
         self.snapshots_ss.close().await;
         self.market_stats_ss.close().await;
         self.events_ss.close().await;
+        self.candles_ss.close().await;
         self.write_html_report();
+        self.write_html_tradeview();
         Ok(())
     }
 
@@ -188,27 +204,51 @@ impl BacktestReport {
         let output_dir = self.output_dir.clone();
         let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), REPORT_HTML_FILE);
         let mut plot = Plot::new();
+        let mut trace_offset = 0;
+
         if let Ok(models) = self.model_ss.read_all() {
-            super::draw_entries(&mut plot, 0, models.as_slice(), vec![("model", vec![
+            super::draw_lines(&mut plot, trace_offset, models.as_slice(), vec![("model", vec![
                 |m| extract_f64(m, "apo"),
                 |m| extract_f64(m, "high"),
                 |m| extract_f64(m, "low"),
             ])]);
+            trace_offset += 1;
         }
         if let Ok(market_stats) = self.market_stats_ss.read_all() {
-            super::draw_entries(&mut plot, 2, market_stats.as_slice(), vec![("stats", vec![|ms| {
-                ms.w_price
-            }])]);
+            super::draw_lines(&mut plot, trace_offset, market_stats.as_slice(), vec![("stats", vec![
+                |ms| ms.w_price,
+            ])]);
+            trace_offset += 1;
         }
         if let Ok(snapshots) = self.snapshots_ss.read_all() {
-            super::draw_entries(&mut plot, 3, snapshots.as_slice(), vec![
+            super::draw_lines(&mut plot, trace_offset, snapshots.as_slice(), vec![
                 ("pnl", vec![|i| i.pnl]),
                 ("value", vec![|i| i.value]),
                 ("return", vec![|i| i.current_return]),
             ]);
+            trace_offset += 1;
         }
 
-        let layout = Layout::new().grid(LayoutGrid::new().rows(5).columns(1).pattern(GridPattern::Independent));
+        let layout = Layout::new().grid(
+            LayoutGrid::new()
+                .rows(trace_offset + 1)
+                .columns(1)
+                .pattern(GridPattern::Independent),
+        );
+        plot.set_layout(layout);
+        plot.to_html(&out_file);
+        out_file
+    }
+
+    fn write_html_tradeview(&self) -> String {
+        let output_dir = self.output_dir.clone();
+        let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), TRADEVIEW_HTML_FILE);
+        let mut plot = Plot::new();
+
+        if let Ok(candles) = self.candles_ss.read_all() {
+            super::draw_ohlc("price", &mut plot, 0, candles.as_slice());
+        }
+        let layout = Layout::new();
         plot.set_layout(layout);
         plot.to_html(&out_file);
         out_file

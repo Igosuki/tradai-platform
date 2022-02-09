@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use actix::{Actor, ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, Handler, WrapFuture};
+use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, ContextFutureSpawner, Handler, WrapFuture};
 use chrono::{DateTime, Utc};
 use futures::FutureExt;
 use prometheus::GaugeVec;
@@ -124,6 +124,11 @@ impl BalanceReporter {
             refresh_rate: options.refresh_rate,
             metrics: BalanceMetrics::default(),
         }
+    }
+
+    pub async fn actor(options: &BalanceReporterOptions, apis: ExchangeManagerRef) -> Addr<Self> {
+        let balance_reporter = Self::new(apis, options);
+        Self::start(balance_reporter)
     }
 
     fn with_reporter<F>(&self, xchg: Exchange, f: F)
