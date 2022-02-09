@@ -11,6 +11,7 @@ Summary : statistical tools to summarize data series
 
 #![feature(test)]
 #![feature(type_alias_impl_trait)]
+#![feature(generic_associated_types)]
 #![allow(
     clippy::items_after_statements,
     clippy::unreadable_literal,
@@ -40,10 +41,10 @@ pub use ta::{Close, High, Low, Next, Open, Period, Reset, Volume};
 pub use yata::core::{Action, Method, Window};
 pub use yata::methods::{LowerReversalSignal, UpperReversalSignal};
 
-mod dispersion;
-mod error;
+pub mod dispersion;
+pub mod error;
 pub mod indicators;
 pub mod iter;
-mod kline;
-mod math;
-mod summary;
+pub mod kline;
+pub mod math;
+pub mod summary;

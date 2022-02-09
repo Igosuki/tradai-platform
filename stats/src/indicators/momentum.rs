@@ -17,7 +17,7 @@ impl Momentum {
         match length {
             0 => Err(anyhow!("wrong method parameter")),
             length => Ok(Self {
-                window: Window::new(length, value),
+                window: Window::new(length.into(), value),
             }),
         }
     }

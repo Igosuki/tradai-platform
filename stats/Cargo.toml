@@ -34,8 +34,10 @@ serde_derive = "1.0"
 thiserror = "1.0"
 tracing = { version = "0.1", features = ["log"] }
 ta = { version = "0.5", features = ["serde"] }
-yata = { version = "0.5" }
+yata = { version = "0.5", features = ["period_type_u32"] }
 ordered-float = "2.8"
+ringbuffer = "0.8"
+smallvec = "1.8"
 
 # std
 chrono = { version = "0.4", features = ["serde"] }
@@ -46,3 +48,5 @@ strum_macros = "0.23"
 float-cmp = "0.9"
 rand = "0.8"
 criterion = { version = "0.3", features = ["async_tokio"] }
+tokio = { version = "1", features = ["full"] }
+pretty_assertions = "1"

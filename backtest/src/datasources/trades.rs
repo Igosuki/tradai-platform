@@ -1,13 +1,54 @@
 use crate::datafusion_util::{get_col_as, tables_as_stream};
 use arrow2::array::*;
+use chrono::{DateTime, Utc};
 use coinnect_rt::pair::symbol_to_pair;
 use coinnect_rt::prelude::*;
+use coinnect_rt::types::Candle;
 use datafusion::record_batch::RecordBatch;
 use futures::{Stream, StreamExt};
+use stats::kline::SampleInterval;
+use stats::kline::TimeUnit::Minute;
+use stats::Next;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::path::Path;
 use std::str::FromStr;
+
+/// Read partitions as trades
+pub fn candles_df<P: 'static + AsRef<Path> + Debug>(
+    table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
+    format: String,
+) -> impl Stream<Item = MarketEventEnvelope> {
+    trades_df(table_paths, format)
+        .scan(
+            stats::kline::Kline::new(SampleInterval::new(Minute, 1), 2_usize.pow(16)),
+            |kl, msg: MarketEventEnvelope| {
+                let candles = Next::<(f64, f64, DateTime<Utc>)>::next(kl, (msg.e.price(), msg.e.vol(), msg.e.time()));
+                let candle = candles.first().unwrap();
+                let mut msg = msg;
+                msg.e = MarketEvent::CandleTick(Candle {
+                    event_time: candle.event_time,
+                    pair: msg.pair.clone(),
+                    start_time: candle.start_time,
+                    end_time: candle.end_time,
+                    open: candle.open,
+                    high: candle.high,
+                    low: candle.low,
+                    close: candle.close,
+                    volume: candle.volume,
+                    quote_volume: candle.quote_volume,
+                    trade_count: candle.trade_count,
+                    is_final: candle.is_final,
+                });
+                futures::future::ready(Some(msg))
+            },
+        )
+        .filter(|msg: &MarketEventEnvelope| {
+            let r = matches!(msg.e, MarketEvent::CandleTick(Candle { is_final: true, .. }));
+            futures::future::ready(r)
+        })
+}
+
 /// Read partitions as trades
 pub fn trades_df<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
@@ -25,9 +66,10 @@ pub fn trades_df<P: 'static + AsRef<Path> + Debug>(
 /// xch : String
 fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEventEnvelope> + 'static {
     let sa: StructArray = record_batch.into();
+
     stream! {
         for (i, column) in sa.fields().iter().enumerate() {
-            trace!("sa[{}] = {:?}", i, column.data_type());
+            trace!("trades[{}] = {:?}", i, column.data_type());
         }
 
         let price_col = get_col_as::<Float64Array>(&sa, "price");

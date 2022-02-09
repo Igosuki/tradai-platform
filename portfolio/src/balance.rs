@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use actix::{Actor, ActorFutureExt, AsyncContext, Context, ContextFutureSpawner, Handler, WrapFuture};
+use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, ContextFutureSpawner, Handler, WrapFuture};
 use chrono::{DateTime, Utc};
 use futures::FutureExt;
 use prometheus::GaugeVec;
 
 use coinnect_rt::bot::Ping;
-use coinnect_rt::exchange::manager::ExchangeApiRegistry;
+use coinnect_rt::exchange::manager::ExchangeManagerRef;
 use coinnect_rt::prelude::*;
 use coinnect_rt::types::{AccountPosition, Balance, BalanceUpdate, Balances};
 
@@ -110,20 +110,25 @@ pub struct BalanceReporterOptions {
 
 #[derive(Clone)]
 pub struct BalanceReporter {
-    apis: Arc<ExchangeApiRegistry>,
+    apis: ExchangeManagerRef,
     balances: Arc<RwLock<HashMap<Exchange, BalanceReport>>>,
     refresh_rate: Duration,
     metrics: BalanceMetrics,
 }
 
 impl BalanceReporter {
-    pub fn new(apis: Arc<ExchangeApiRegistry>, options: &BalanceReporterOptions) -> Self {
+    pub fn new(apis: ExchangeManagerRef, options: &BalanceReporterOptions) -> Self {
         Self {
             apis,
             balances: Arc::new(RwLock::new(HashMap::default())),
             refresh_rate: options.refresh_rate,
             metrics: BalanceMetrics::default(),
         }
+    }
+
+    pub async fn actor(options: &BalanceReporterOptions, apis: ExchangeManagerRef) -> Addr<Self> {
+        let balance_reporter = Self::new(apis, options);
+        Self::start(balance_reporter)
     }
 
     fn with_reporter<F>(&self, xchg: Exchange, f: F)
@@ -146,10 +151,11 @@ impl Actor for BalanceReporter {
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.notify(RefreshBalances);
         ctx.run_interval(self.refresh_rate, move |act, _ctx| {
-            for xchg in act.apis.iter().map(|e| e.key()) {
-                act.with_reporter(*xchg, |balance_report| {
+            for api_ref in act.apis.exchange_apis() {
+                let xchg = *api_ref.key();
+                act.with_reporter(xchg, |balance_report| {
                     for (asset, amount) in balance_report.balances.clone() {
-                        act.metrics.free_amount(*xchg, &asset, amount.free);
+                        act.metrics.free_amount(xchg, &asset, amount.free);
                     }
                 });
             }
@@ -193,11 +199,11 @@ impl Handler<RefreshBalances> for BalanceReporter {
         let apis = self.apis.clone();
         Box::pin(
             async move {
-                futures::future::join_all(
-                    apis.clone()
-                        .iter()
-                        .map(|entry| entry.value().account_balances().map(move |r| (*entry.key(), r))),
-                )
+                futures::future::join_all(apis.exchange_apis().iter().map(|entry| async move {
+                    let arc = entry.value().clone();
+                    let k = *entry.key();
+                    arc.account_balances().map(move |r| (k, r)).await
+                }))
                 .await
             }
             .into_actor(self)

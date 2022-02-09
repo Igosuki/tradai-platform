@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use actix::{Actor, ActorFutureExt, AsyncContext, Context, Handler, ResponseActFuture, WrapFuture};
+use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, WrapFuture};
 use actix_derive::{Message, MessageResponse};
 use backoff::{ExponentialBackoff, ExponentialBackoffBuilder};
 use futures::FutureExt;
@@ -13,10 +13,10 @@ use tokio::sync::RwLock;
 
 use coinnect_rt::bot::Ping;
 use coinnect_rt::error::Error as CoinnectError;
-use coinnect_rt::exchange::manager::ExchangeApiRegistry;
+use coinnect_rt::exchange::manager::{ExchangeManager, ExchangeManagerRef};
 use coinnect_rt::prelude::*;
 use coinnect_rt::types::{Order, OrderStatus, OrderUpdate};
-use db::Storage;
+use db::{get_or_create, DbOptions, Storage};
 use ext::ResultExt;
 use wal::{Wal, WalCmp};
 
@@ -100,7 +100,7 @@ pub enum DataQuery {
 
 #[derive(Debug, Clone)]
 pub struct OrderManager {
-    apis: ExchangeApiRegistry,
+    xchg_manager: ExchangeManagerRef,
     orders: Arc<RwLock<HashMap<String, TransactionStatus>>>,
     pub transactions_wal: Arc<Wal>,
     pub repo: OrderRepository,
@@ -110,23 +110,31 @@ pub struct OrderManager {
 impl OrderManager {
     const TRANSACTIONS_TABLE: &'static str = "transactions_wal";
 
-    pub fn new(apis: ExchangeApiRegistry, storage: Arc<dyn Storage>) -> Self {
+    pub fn new(apis: ExchangeManagerRef, storage: Arc<dyn Storage>) -> Self {
         Self::new_with_options(apis, storage, OrderManagerConfig::default())
     }
 
-    pub fn new_with_options(apis: ExchangeApiRegistry, storage: Arc<dyn Storage>, config: OrderManagerConfig) -> Self {
+    pub async fn actor(db: &DbOptions<String>, exchange_manager: Arc<ExchangeManager>) -> Addr<Self> {
+        let storage = get_or_create(db, "order_manager", vec![]);
+        let order_manager = Self::new_with_options(exchange_manager, storage, OrderManagerConfig::default());
+        Self::start(order_manager)
+    }
+
+    pub fn new_with_options(
+        exchange_manager: ExchangeManagerRef,
+        storage: Arc<dyn Storage>,
+        config: OrderManagerConfig,
+    ) -> Self {
         let wal = Arc::new(Wal::new(storage.clone(), Self::TRANSACTIONS_TABLE.to_string()));
         let orders = Arc::new(RwLock::new(HashMap::new()));
         OrderManager {
-            apis,
+            xchg_manager: exchange_manager,
             orders,
             transactions_wal: wal,
             repo: OrderRepository::new(storage),
             order_retry_backoff: config.backoff(),
         }
     }
-
-    fn get_api(&self, xch: Exchange) -> &Arc<dyn ExchangeApi> { self.apis.get(&xch).unwrap().value() }
 
     /// Updates an already registered order
     pub(crate) async fn update_order(&mut self, order: OrderUpdate) -> Result<()> {
@@ -166,7 +174,7 @@ impl OrderManager {
             // Here the order is truncated according to the exchange configuration
             let pair_conf = coinnect_rt::pair::pair_conf(&order.query.xch(), &order.query.pair())?;
             let query = order.query.truncate(&pair_conf);
-            let order_info = self.get_api(query.xch()).order(query).await;
+            let order_info = self.xchg_manager.expect_api(query.xch()).order(query).await;
             match order_info {
                 Ok(o) => TransactionStatus::New(o),
                 Err(e) => TransactionStatus::Rejected(match e {
@@ -208,7 +216,11 @@ impl OrderManager {
         pair: Pair,
         asset_type: AssetType,
     ) -> Result<Order> {
-        Ok(self.get_api(xch).get_order(order_id, pair, asset_type).await?)
+        Ok(self
+            .xchg_manager
+            .expect_api(xch)
+            .get_order(order_id, pair, asset_type)
+            .await?)
     }
 
     /// Registers a transaction

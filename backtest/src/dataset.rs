@@ -2,15 +2,15 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use chrono::{Date, Duration, TimeZone, Utc};
-use futures::{pin_mut, Stream, StreamExt};
+use chrono::{Date, Duration, Utc};
+use futures::{Stream, StreamExt};
 
 use coinnect_rt::prelude::{Exchange, Pair};
 use coinnect_rt::types::MarketEventEnvelope;
 use strategy::Channel;
 use util::time::DateRange;
 
-use crate::datasources::trades::trades_df;
+use crate::datasources::trades::{candles_df, trades_df};
 use crate::error::*;
 use crate::{flat_orderbooks_df, raw_orderbooks_df, sampled_orderbooks_df, AssetType};
 use coinnect_rt::broker::{AsyncBroker, ChannelMessageBroker};
@@ -46,6 +46,16 @@ impl Dataset {
                     _ => None,
                 })
                 .collect();
+            let candles_partitions: HashSet<(PathBuf, Vec<(&'static str, String)>)> = broker
+                .subjects()
+                .filter(|c| matches!(c, Channel::Candles { .. }))
+                .filter_map(|c| match c {
+                    Channel::Candles { xch, pair } => {
+                        Some(self.ds_type.partition(self.base_dir.clone(), dt, *xch, pair, None))
+                    }
+                    _ => None,
+                })
+                .collect();
             let input_format = self.input_format.to_string();
             let stream: Pin<Box<dyn Stream<Item = MarketEventEnvelope>>> = match self.ds_type {
                 MarketEventDatasetType::OrderbooksByMinute | MarketEventDatasetType::OrderbooksBySecond => {
@@ -59,13 +69,12 @@ impl Dataset {
                 MarketEventDatasetType::OrderbooksFlat => {
                     Box::pin(flat_orderbooks_df(orderbook_partitions, input_format, 5))
                 }
-                MarketEventDatasetType::Trades => Box::pin(trades_df(trades_partitions, input_format)),
+                MarketEventDatasetType::Trades => Box::pin(futures::stream::select(
+                    trades_df(trades_partitions, input_format.clone()),
+                    candles_df(candles_partitions, input_format.clone()),
+                )),
             };
-            pin_mut!(stream);
             stream.for_each(|event| broker.broadcast(event)).await;
-            // for event in stream.next().await {
-            //     broker.broadcast(event).await;
-            // }
         }
         Ok(())
     }
@@ -111,8 +120,7 @@ impl MarketEventDatasetType {
         pair: &Pair,
         asset_type: Option<AssetType>,
     ) -> (PathBuf, Vec<(&'static str, String)>) {
-        let ts = date.and_hms_milli(0, 0, 0, 0).timestamp_millis();
-        let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d").to_string();
+        let dt_par = date.format("%Y%m%d").to_string();
         match self {
             MarketEventDatasetType::OrderbooksByMinute => (base_dir, vec![
                 ("xch", xch.to_string()),

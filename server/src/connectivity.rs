@@ -14,7 +14,7 @@ pub async fn run_connectivity_checker(interval_secs: u64) {
     loop {
         interval.tick().await;
         if online::check(None).await.is_ok() {
-            (&*CONNECTIVITY_COUNTER).inc();
+            (*CONNECTIVITY_COUNTER).inc();
         }
     }
 }

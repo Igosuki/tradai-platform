@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 
-use chrono::{DateTime, Utc};
-use std::time::Duration;
+use chrono::{DateTime, Datelike, Duration, DurationRound, TimeZone, Utc};
+use ringbuffer::{AllocRingBuffer, RingBuffer, RingBufferExt, RingBufferWrite};
+use smallvec::SmallVec;
+use std::ops::{Add, Mul};
 use ta::Next;
 use yata::core::ValueType;
 use yata::helpers::Merge;
@@ -10,24 +12,28 @@ use yata::prelude::{Sequence, OHLCV};
 /// Normalised OHLCV data from an [Interval] with the associated [DateTime] UTC timestamp;
 #[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone, Copy)]
 pub struct Candle {
+    /// The time this candle was generated at
+    pub event_time: DateTime<Utc>,
     /// The start time of this candle
-    start_time: DateTime<Utc>,
+    pub start_time: DateTime<Utc>,
     /// The close time of this candle
-    end_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
     /// Open price
-    open: f64,
+    pub open: f64,
     /// Highest price within the interval
-    high: f64,
+    pub high: f64,
     /// Lowest price within the interval
-    low: f64,
+    pub low: f64,
     /// Close price
-    close: f64,
+    pub close: f64,
     /// Traded volume in base asset
-    volume: f64,
+    pub volume: f64,
     /// Traded volume in quote asset
-    quote_volume: f64,
+    pub quote_volume: f64,
     /// Trades count
-    trade_count: u64,
+    pub trade_count: u64,
+    /// If the candle is closed (if the period is finished)
+    pub is_final: bool,
 }
 
 impl Merge<Candle> for Candle {
@@ -46,10 +52,17 @@ impl Merge<Candle> for Candle {
 }
 
 impl Candle {
-    pub fn new(price: f64, amount: f64, ts: DateTime<Utc>) -> Self {
+    pub fn new(
+        price: f64,
+        amount: f64,
+        event_time: DateTime<Utc>,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+    ) -> Self {
         Self {
-            start_time: ts,
-            end_time: ts,
+            event_time,
+            start_time,
+            end_time,
             open: price,
             high: price,
             low: price,
@@ -57,6 +70,7 @@ impl Candle {
             volume: amount,
             quote_volume: price * amount,
             trade_count: 1,
+            is_final: false,
         }
     }
 }
@@ -64,15 +78,17 @@ impl Candle {
 impl Default for Candle {
     fn default() -> Self {
         Self {
-            start_time: Utc::now(),
-            end_time: Utc::now(),
-            open: 1000.0,
-            high: 1100.0,
-            low: 900.0,
-            close: 1050.0,
-            volume: 1000000000.0,
-            quote_volume: 1000000000.0,
-            trade_count: 100,
+            event_time: Utc.timestamp_millis(0),
+            start_time: Utc.timestamp_millis(0),
+            end_time: Utc.timestamp_millis(0),
+            open: 0.0,
+            high: 0.0,
+            low: 0.0,
+            close: 0.0,
+            volume: 0.0,
+            quote_volume: 0.0,
+            trade_count: 0,
+            is_final: false,
         }
     }
 }
@@ -89,193 +105,242 @@ impl OHLCV for Candle {
     fn volume(&self) -> ValueType { self.volume }
 }
 
-/// Defines the possible intervals that a [Candle] represents.
-#[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone, AsRefStr)]
-pub enum Interval {
-    Second1,
-    Second3,
-    Second5,
-    Second15,
-    Second30,
-    Second45,
-    Minute1,
-    Minute3,
-    Minute5,
-    Minute15,
-    Minute30,
-    Minute45,
-    Hour1,
-    Hour2,
-    Hour3,
-    Hour4,
-    Hour5,
-    Hour6,
-    Hour8,
-    Hour12,
-    Day1,
-    Day3,
-    Week1,
-    Month1,
+#[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone, AsRefStr, Copy)]
+pub enum TimeUnit {
+    Second,
+    Minute,
+    Hour,
+    Day,
+    Week,
+    Month,
+    Year,
 }
 
-impl Interval {
-    pub fn from_duration(d: Duration) -> Option<Interval> {
-        let secs = d.as_secs();
-        if secs % (3600 * 24) == 0 {
-            if secs == 3600 * 24 {
-                Some(Interval::Day1)
-            } else if secs == 3600 * 24 * 3 {
-                Some(Interval::Day3)
-            } else if secs == 3600 * 24 * 7 {
-                Some(Interval::Week1)
-            } else if secs == 3600 * 24 * 30 {
-                Some(Interval::Month1)
-            } else {
-                None
-            }
-        } else if secs % 3600 == 0 {
-            if secs == 3600 {
-                Some(Interval::Hour1)
-            } else if secs == 3600 * 2 {
-                Some(Interval::Hour2)
-            } else if secs == 3600 * 3 {
-                Some(Interval::Hour3)
-            } else if secs == 3600 * 4 {
-                Some(Interval::Hour4)
-            } else if secs == 3600 * 5 {
-                Some(Interval::Hour5)
-            } else if secs == 3600 * 6 {
-                Some(Interval::Hour6)
-            } else if secs == 3600 * 8 {
-                Some(Interval::Hour8)
-            } else if secs == 3600 * 12 {
-                Some(Interval::Hour12)
-            } else {
-                None
-            }
-        } else if secs % 60 == 0 {
-            if secs == 60 {
-                Some(Interval::Minute1)
-            } else if secs == 180 {
-                Some(Interval::Minute3)
-            } else if secs == 300 {
-                Some(Interval::Minute5)
-            } else if secs == 60 * 15 {
-                Some(Interval::Minute15)
-            } else if secs == 60 * 30 {
-                Some(Interval::Minute30)
-            } else if secs == 60 * 45 {
-                Some(Interval::Minute45)
-            } else {
-                None
-            }
-        } else if secs == 1 {
-            Some(Interval::Second1)
-        } else if secs == 3 {
-            Some(Interval::Second3)
-        } else if secs == 5 {
-            Some(Interval::Second5)
-        } else if secs == 15 {
-            Some(Interval::Second15)
-        } else if secs == 30 {
-            Some(Interval::Second30)
-        } else if secs == 45 {
-            Some(Interval::Second45)
+/// Defines the possible intervals that a [Candle] represents.
+#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
+pub struct SampleInterval {
+    pub time_unit: TimeUnit,
+    pub units: u32,
+}
+
+impl SampleInterval {
+    pub fn new(time_unit: TimeUnit, units: u32) -> Self {
+        match time_unit {
+            TimeUnit::Second | TimeUnit::Minute => assert!(units <= 60),
+            TimeUnit::Hour => assert!(units <= 24),
+            TimeUnit::Day => assert!(units <= 31),
+            TimeUnit::Week => assert!(units <= 52),
+            TimeUnit::Month => assert!(units <= 12),
+            _ => {}
+        }
+        Self { time_unit, units }
+    }
+
+    fn truncate(&self, dt: DateTime<Utc>) -> DateTime<Utc> {
+        let date_part = dt.date();
+        let maybe_secs = match self.time_unit {
+            TimeUnit::Second => Some(Duration::seconds(1)),
+            TimeUnit::Minute => Some(Duration::minutes(1)),
+            TimeUnit::Hour => Some(Duration::hours(1)),
+            TimeUnit::Day => Some(Duration::days(1)),
+            TimeUnit::Week => Some(Duration::days(1).mul(7)),
+            _ => None,
+        };
+        if let Some(secs) = maybe_secs {
+            dt.duration_trunc(secs).unwrap()
+        } else if self.time_unit == TimeUnit::Month {
+            Utc.ymd(date_part.year(), date_part.month0(), 0).and_hms(0, 0, 0)
         } else {
-            None
+            Utc.ymd(date_part.year(), 0, 0).and_hms(0, 0, 0)
+        }
+    }
+
+    fn as_secs(&self) -> i64 {
+        match self.time_unit {
+            TimeUnit::Second => Duration::seconds(1),
+            TimeUnit::Minute => Duration::minutes(1),
+            TimeUnit::Hour => Duration::hours(1),
+            TimeUnit::Day => Duration::days(1),
+            TimeUnit::Week => Duration::weeks(1),
+            TimeUnit::Month => Duration::days(1).mul(30),
+            TimeUnit::Year => Duration::days(1).mul(365),
+        }
+        .num_seconds()
+    }
+
+    fn add(&self, to: DateTime<Utc>) -> DateTime<Utc> {
+        match self.time_unit {
+            TimeUnit::Second => to.add(Duration::seconds(self.units as i64)),
+            TimeUnit::Minute => to.add(Duration::minutes(self.units as i64)),
+            TimeUnit::Hour => to.add(Duration::hours(self.units as i64)),
+            TimeUnit::Day => to.add(Duration::days(self.units as i64)),
+            TimeUnit::Week => to.add(Duration::weeks(self.units as i64)),
+            TimeUnit::Month => {
+                let month = to.month();
+                let year = to.year();
+                if month == 12 {
+                    to.with_year(year + 1).unwrap().with_month(self.units).unwrap()
+                } else {
+                    to.with_month(month + self.units).unwrap()
+                }
+            }
+            TimeUnit::Year => to.with_year(to.year() + self.units as i32).unwrap(),
         }
     }
 }
 
-#[allow(dead_code)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 pub enum BarMerge {
     GapsOff,
     LookaheadOn,
 }
 
 /// Kline is a set of candles with the same interval over a specific market
-#[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct Kline {
-    exchange: String,
-    pair: String,
-    base_interval: Duration,
-    candles: Vec<Candle>,
+    bar_merge: BarMerge,
+    base_interval: SampleInterval,
+    candles: AllocRingBuffer<Candle>,
 }
 
 impl Kline {
     /// Create a new kline with the minimum interval set at `base_interval`
-    pub fn new(exchange: String, pair: String, base_interval: Duration) -> Self {
-        if base_interval < Duration::from_secs(1) {
-            panic!("Cannot have a candle duration < 1s");
+    /// N.B. : capacity must be a power of 2
+    pub fn new(base_interval: SampleInterval, capacity: usize) -> Self {
+        if base_interval.units == 0 {
+            panic!("Cannot have a candle duration 0 time units");
         }
         Self {
-            exchange,
-            pair,
+            bar_merge: BarMerge::GapsOff,
             base_interval,
-            candles: vec![],
+            candles: AllocRingBuffer::with_capacity(capacity),
         }
     }
 
     /// Resamples the kline at [sample_interval]
-    pub fn resample(&self, sample_interval: Duration) -> Vec<Candle> {
-        if self.base_interval >= sample_interval {
-            self.candles.clone()
+    pub fn resample(&self, sample_interval: SampleInterval) -> Box<dyn Iterator<Item = Candle> + '_> {
+        if self.base_interval.time_unit == sample_interval.time_unit
+            && self.base_interval.units >= sample_interval.units
+        {
+            Box::new(self.candles.iter().copied())
         } else {
             let resample_size = sample_interval.as_secs() / self.base_interval.as_secs();
-            self.candles.collapse_timeframe(resample_size as usize, true)
+            Box::new(
+                self.candles
+                    .to_vec()
+                    .collapse_timeframe(resample_size as usize, true)
+                    .into_iter(),
+            )
         }
     }
 
     /// Returns [`None`] if the kline duration is not a known interval
-    pub fn interval(&self) -> Option<Interval> { Interval::from_duration(self.base_interval) }
+    pub fn interval(&self) -> SampleInterval { self.base_interval }
 }
 
 impl Next<Candle> for Kline {
-    type Output = ();
+    type Output = SmallVec<[Candle; 2]>;
 
     fn next(&mut self, input: Candle) -> Self::Output {
-        match self.candles.last() {
-            None => self.candles.push(input),
-            Some(candle)
-                if candle.start_time.timestamp_millis() + self.base_interval.as_millis() as i64
-                    > input.start_time.timestamp_millis() =>
-            {
-                let latest_candle = self.candles.last_mut().unwrap();
-                *latest_candle = latest_candle.merge(&input);
+        if self.candles.is_empty() {
+            self.candles.push(input);
+            return SmallVec::from_slice(&[input]);
+        }
+        match self.candles.get_mut((self.candles.len() - 1) as isize) {
+            Some(candle) if candle.start_time < input.start_time => {
+                candle.is_final = true;
+                let v = SmallVec::from_slice(&[*candle, input]);
+                self.candles.push(input);
+                v
             }
-            _ => self.candles.push(input),
+            Some(candle) if candle.start_time >= input.start_time => {
+                *candle = candle.merge(&input);
+                SmallVec::from_slice(&[*candle])
+            }
+            _ => {
+                self.candles.push(input);
+                SmallVec::from_slice(&[input])
+            }
         }
     }
 }
 
 /// Price, Amount, Time
 impl Next<(f64, f64, DateTime<Utc>)> for Kline {
-    type Output = ();
+    type Output = SmallVec<[Candle; 2]>;
 
     fn next(&mut self, input: (f64, f64, DateTime<Utc>)) -> Self::Output {
-        let new_candle = Candle::new(input.0, input.1, input.2);
-        match self.candles.last() {
-            None => self.candles.push(new_candle),
-            Some(candle)
-                if candle.start_time.timestamp_millis() + self.base_interval.as_millis() as i64
-                    > new_candle.start_time.timestamp_millis() =>
-            {
-                let latest_candle = self.candles.last_mut().unwrap();
-                *latest_candle = latest_candle.merge(&new_candle);
-            }
-            _ => self.candles.push(new_candle),
-        }
+        let start_time = self.base_interval.truncate(input.2);
+        let end_time = self.base_interval.add(start_time);
+        let new_candle = Candle::new(input.0, input.1, input.2, start_time, end_time);
+        Next::<Candle>::next(self, new_candle)
     }
+}
+
+pub struct KlineIterator<'a>(&'a dyn Iterator<Item = Candle>);
+
+impl<'a> IntoIterator for &'a Kline {
+    type Item = &'a Candle;
+    type IntoIter = impl Iterator<Item = &'a Candle>;
+
+    fn into_iter(self) -> Self::IntoIter { self.candles.iter() }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::kline::{Interval, Kline};
-    use std::time::Duration;
+    use crate::kline::TimeUnit::Second;
+    use crate::kline::{Candle, Kline, SampleInterval};
+    use chrono::{Duration, Utc};
+    use pretty_assertions::assert_eq;
+    use std::ops::Add;
+    use ta::Next;
 
     #[test]
     fn test_basic_second_kline() {
-        let kline = Kline::new("binance".to_string(), "BTC_USDT".to_string(), Duration::from_secs(1));
-        assert_eq!(kline.interval(), Some(Interval::Second1));
+        let interval = SampleInterval::new(Second, 1);
+        let mut kline = Kline::new(interval, 2_usize.pow(14));
+        let candle1_time = Utc::now();
+        let vec1 = kline.next((1.0, 2.0, candle1_time));
+        let candle1 = vec1.first().unwrap();
+        assert!(!candle1.is_final);
+        let candle3_time = candle1_time.add(Duration::milliseconds(200));
+        let vec2 = kline.next((3.5, 5.0, candle3_time));
+        let candle2 = vec2.first().unwrap();
+        assert!(!candle2.is_final);
+        let candle3_time = candle1_time.add(Duration::seconds(1)).add(Duration::milliseconds(1));
+        let vec3 = kline.next((6.0, 8.0, candle3_time));
+        let candle3 = vec3.first().unwrap();
+        assert!(!candle3.is_final);
+        let kline_candles: Vec<Candle> = kline.into_iter().copied().collect::<Vec<Candle>>();
+        let expected = vec![
+            Candle {
+                event_time: candle1_time,
+                start_time: interval.truncate(candle1_time),
+                end_time: interval.truncate(candle1_time).add(Duration::seconds(1)),
+                open: 1.0,
+                high: 3.5,
+                low: 1.0,
+                close: 3.5,
+                volume: 7.0,
+                quote_volume: 19.5,
+                trade_count: 2,
+                is_final: true,
+            },
+            Candle {
+                event_time: candle3_time,
+                start_time: interval.truncate(candle3_time),
+                end_time: interval.truncate(candle3_time).add(Duration::seconds(1)),
+                open: 6.0,
+                high: 6.0,
+                low: 6.0,
+                close: 6.0,
+                volume: 8.0,
+                quote_volume: 48.0,
+                trade_count: 1,
+                is_final: false,
+            },
+        ];
+        assert_eq!(kline_candles, expected);
+        //assert_eq!(kline.interval(), SampleInterval { time_unit: }));
     }
 }

@@ -26,6 +26,7 @@ with the same configuration as the backtest.
 #![feature(map_try_insert)]
 #![feature(path_try_exists)]
 #![feature(exact_size_is_empty)]
+#![feature(associated_type_defaults)]
 // TODO: https://github.com/rust-lang/rust/issues/47384
 #![allow(clippy::single_component_path_imports)]
 
@@ -217,7 +218,7 @@ impl Backtest {
 
 async fn init_coinnect(xchs: &[Exchange]) {
     let exchange_apis = Coinnect::public_apis(xchs).await;
-    Coinnect::load_pair_registries(Arc::new(exchange_apis)).await.unwrap();
+    Coinnect::load_pair_registries(&exchange_apis).await.unwrap();
 }
 
 async fn spawn_runner(
