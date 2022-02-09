@@ -107,6 +107,8 @@ pub struct MarginInterestRateProvider {
 impl MarginInterestRateProvider {
     #[allow(clippy::needless_pass_by_value)]
     pub fn new(apis: ExchangeManagerRef) -> Self { Self { apis } }
+
+    pub fn actor(apis: ExchangeManagerRef) -> Addr<Self> { Self::start(Self { apis }) }
 }
 
 impl Actor for MarginInterestRateProvider {

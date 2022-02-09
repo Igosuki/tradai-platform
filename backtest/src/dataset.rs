@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use chrono::{Date, Duration, TimeZone, Utc};
-use futures::{pin_mut, Stream, StreamExt};
+use chrono::{Date, Duration, Utc};
+use futures::{Stream, StreamExt};
 
 use coinnect_rt::prelude::{Exchange, Pair};
 use coinnect_rt::types::MarketEventEnvelope;
@@ -48,7 +48,7 @@ impl Dataset {
                 .collect();
             let candles_partitions: HashSet<(PathBuf, Vec<(&'static str, String)>)> = broker
                 .subjects()
-                .filter(|c| matches!(c, Channel::Trades { .. }))
+                .filter(|c| matches!(c, Channel::Candles { .. }))
                 .filter_map(|c| match c {
                     Channel::Candles { xch, pair } => {
                         Some(self.ds_type.partition(self.base_dir.clone(), dt, *xch, pair, None))
@@ -74,11 +74,7 @@ impl Dataset {
                     candles_df(candles_partitions, input_format.clone()),
                 )),
             };
-            pin_mut!(stream);
             stream.for_each(|event| broker.broadcast(event)).await;
-            // for event in stream.next().await {
-            //     broker.broadcast(event).await;
-            // }
         }
         Ok(())
     }
@@ -124,8 +120,7 @@ impl MarketEventDatasetType {
         pair: &Pair,
         asset_type: Option<AssetType>,
     ) -> (PathBuf, Vec<(&'static str, String)>) {
-        let ts = date.and_hms_milli(0, 0, 0, 0).timestamp_millis();
-        let dt_par = Utc.timestamp_millis(ts).format("%Y%m%d").to_string();
+        let dt_par = date.format("%Y%m%d").to_string();
         match self {
             MarketEventDatasetType::OrderbooksByMinute => (base_dir, vec![
                 ("xch", xch.to_string()),

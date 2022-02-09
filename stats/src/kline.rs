@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Datelike, Duration, DurationRound, TimeZone, Utc};
 use ringbuffer::{AllocRingBuffer, RingBuffer, RingBufferExt, RingBufferWrite};
+use smallvec::SmallVec;
 use std::ops::{Add, Mul};
 use ta::Next;
 use yata::core::ValueType;
@@ -147,12 +148,10 @@ impl SampleInterval {
         };
         if let Some(secs) = maybe_secs {
             dt.duration_trunc(secs).unwrap()
+        } else if self.time_unit == TimeUnit::Month {
+            Utc.ymd(date_part.year(), date_part.month0(), 0).and_hms(0, 0, 0)
         } else {
-            if self.time_unit == TimeUnit::Month {
-                Utc.ymd(date_part.year(), date_part.month0(), 0).and_hms(0, 0, 0)
-            } else {
-                Utc.ymd(date_part.year(), 0, 0).and_hms(0, 0, 0)
-            }
+            Utc.ymd(date_part.year(), 0, 0).and_hms(0, 0, 0)
         }
     }
 
@@ -208,8 +207,8 @@ impl Kline {
     /// Create a new kline with the minimum interval set at `base_interval`
     /// N.B. : capacity must be a power of 2
     pub fn new(base_interval: SampleInterval, capacity: usize) -> Self {
-        if base_interval.units <= 0 {
-            panic!("Cannot have a candle duration < 0 time units");
+        if base_interval.units == 0 {
+            panic!("Cannot have a candle duration 0 time units");
         }
         Self {
             bar_merge: BarMerge::GapsOff,
@@ -240,26 +239,27 @@ impl Kline {
 }
 
 impl Next<Candle> for Kline {
-    type Output = Candle;
+    type Output = SmallVec<[Candle; 2]>;
 
     fn next(&mut self, input: Candle) -> Self::Output {
         if self.candles.is_empty() {
             self.candles.push(input);
-            return input;
+            return SmallVec::from_slice(&[input]);
         }
         match self.candles.get_mut((self.candles.len() - 1) as isize) {
             Some(candle) if candle.start_time < input.start_time => {
                 candle.is_final = true;
+                let v = SmallVec::from_slice(&[*candle, input]);
                 self.candles.push(input);
-                input
+                v
             }
             Some(candle) if candle.start_time >= input.start_time => {
                 *candle = candle.merge(&input);
-                *candle
+                SmallVec::from_slice(&[*candle])
             }
             _ => {
                 self.candles.push(input);
-                return input;
+                SmallVec::from_slice(&[input])
             }
         }
     }
@@ -267,7 +267,7 @@ impl Next<Candle> for Kline {
 
 /// Price, Amount, Time
 impl Next<(f64, f64, DateTime<Utc>)> for Kline {
-    type Output = Candle;
+    type Output = SmallVec<[Candle; 2]>;
 
     fn next(&mut self, input: (f64, f64, DateTime<Utc>)) -> Self::Output {
         let start_time = self.base_interval.truncate(input.2);
@@ -300,13 +300,16 @@ mod test {
         let interval = SampleInterval::new(Second, 1);
         let mut kline = Kline::new(interval, 2_usize.pow(14));
         let candle1_time = Utc::now();
-        let candle1 = kline.next((1.0, 2.0, candle1_time));
+        let vec1 = kline.next((1.0, 2.0, candle1_time));
+        let candle1 = vec1.first().unwrap();
         assert!(!candle1.is_final);
         let candle3_time = candle1_time.add(Duration::milliseconds(200));
-        let candle2 = kline.next((3.5, 5.0, candle3_time));
+        let vec2 = kline.next((3.5, 5.0, candle3_time));
+        let candle2 = vec2.first().unwrap();
         assert!(!candle2.is_final);
         let candle3_time = candle1_time.add(Duration::seconds(1)).add(Duration::milliseconds(1));
-        let candle3 = kline.next((6.0, 8.0, candle3_time));
+        let vec3 = kline.next((6.0, 8.0, candle3_time));
+        let candle3 = vec3.first().unwrap();
         assert!(!candle3.is_final);
         let kline_candles: Vec<Candle> = kline.into_iter().copied().collect::<Vec<Candle>>();
         let expected = vec![

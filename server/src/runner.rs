@@ -144,7 +144,7 @@ async fn config_from_stdin(config_input: &&str) -> String {
 }
 
 #[cfg(feature = "dialog_cli")]
-fn prompt_choice(choices: &mut Vec<String>) -> usize {
+fn prompt_choice(choices: &mut [String]) -> usize {
     use dialoguer::console::Style;
     let mut prompt_theme = dialoguer::theme::ColorfulTheme::default();
     let white = Style::new().for_stdout().white();

@@ -852,7 +852,7 @@ dependencies = [
 [[package]]
 name = "ballista"
 version = "0.6.0"
-source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_test_fix#f2debbb5d05551a19b101a733e3a43330ceb2acf"
+source = "git+https://github.com/apache/arrow-datafusion?branch=arrow2#83f937ae5d65a55c64ae3370b9cea8415796f9a4"
 dependencies = [
  "ballista-core",
  "ballista-executor",
@@ -869,7 +869,7 @@ dependencies = [
 [[package]]
 name = "ballista-core"
 version = "0.6.0"
-source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_test_fix#f2debbb5d05551a19b101a733e3a43330ceb2acf"
+source = "git+https://github.com/apache/arrow-datafusion?branch=arrow2#83f937ae5d65a55c64ae3370b9cea8415796f9a4"
 dependencies = [
  "ahash",
  "arrow-format",
@@ -895,7 +895,7 @@ dependencies = [
 [[package]]
 name = "ballista-executor"
 version = "0.6.0"
-source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_test_fix#f2debbb5d05551a19b101a733e3a43330ceb2acf"
+source = "git+https://github.com/apache/arrow-datafusion?branch=arrow2#83f937ae5d65a55c64ae3370b9cea8415796f9a4"
 dependencies = [
  "anyhow",
  "arrow-format",
@@ -920,7 +920,7 @@ dependencies = [
 [[package]]
 name = "ballista-scheduler"
 version = "0.6.0"
-source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_test_fix#f2debbb5d05551a19b101a733e3a43330ceb2acf"
+source = "git+https://github.com/apache/arrow-datafusion?branch=arrow2#83f937ae5d65a55c64ae3370b9cea8415796f9a4"
 dependencies = [
  "anyhow",
  "ballista-core",
@@ -1981,7 +1981,7 @@ checksum = "3ee2393c4a91429dffb4bedf19f4d6abf27d8a732c8ce4980305d782e5426d57"
 [[package]]
 name = "datafusion"
 version = "6.0.0"
-source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_test_fix#f2debbb5d05551a19b101a733e3a43330ceb2acf"
+source = "git+https://github.com/apache/arrow-datafusion?branch=arrow2#83f937ae5d65a55c64ae3370b9cea8415796f9a4"
 dependencies = [
  "ahash",
  "arrow2",
@@ -6103,6 +6103,7 @@ dependencies = [
  "ringbuffer",
  "serde",
  "serde_derive",
+ "smallvec",
  "strum_macros 0.23.1",
  "ta",
  "thiserror",
