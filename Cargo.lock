@@ -432,7 +432,7 @@ dependencies = [
  "libflate",
  "multiversion",
  "num-traits",
- "parquet2",
+ "parquet2 0.9.2",
  "regex",
  "serde",
  "serde_json",
@@ -852,7 +852,7 @@ dependencies = [
 [[package]]
 name = "ballista"
 version = "0.6.0"
-source = "git+https://github.com/apache/arrow-datafusion?branch=arrow2#83f937ae5d65a55c64ae3370b9cea8415796f9a4"
+source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_i#b2cfe2bae284a7cda51a9c9fb987c420aa1d9f39"
 dependencies = [
  "ballista-core",
  "ballista-executor",
@@ -860,7 +860,7 @@ dependencies = [
  "datafusion",
  "futures",
  "log",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.0",
  "sqlparser",
  "tempfile",
  "tokio",
@@ -869,7 +869,7 @@ dependencies = [
 [[package]]
 name = "ballista-core"
 version = "0.6.0"
-source = "git+https://github.com/apache/arrow-datafusion?branch=arrow2#83f937ae5d65a55c64ae3370b9cea8415796f9a4"
+source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_i#b2cfe2bae284a7cda51a9c9fb987c420aa1d9f39"
 dependencies = [
  "ahash",
  "arrow-format",
@@ -881,7 +881,7 @@ dependencies = [
  "futures",
  "hashbrown 0.12.0",
  "log",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.0",
  "parse_arg",
  "prost",
  "serde",
@@ -895,7 +895,7 @@ dependencies = [
 [[package]]
 name = "ballista-executor"
 version = "0.6.0"
-source = "git+https://github.com/apache/arrow-datafusion?branch=arrow2#83f937ae5d65a55c64ae3370b9cea8415796f9a4"
+source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_i#b2cfe2bae284a7cda51a9c9fb987c420aa1d9f39"
 dependencies = [
  "anyhow",
  "arrow-format",
@@ -909,7 +909,7 @@ dependencies = [
  "futures",
  "hyper",
  "log",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.0",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -920,7 +920,7 @@ dependencies = [
 [[package]]
 name = "ballista-scheduler"
 version = "0.6.0"
-source = "git+https://github.com/apache/arrow-datafusion?branch=arrow2#83f937ae5d65a55c64ae3370b9cea8415796f9a4"
+source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_i#b2cfe2bae284a7cda51a9c9fb987c420aa1d9f39"
 dependencies = [
  "anyhow",
  "ballista-core",
@@ -935,7 +935,7 @@ dependencies = [
  "http-body",
  "hyper",
  "log",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.0",
  "parse_arg",
  "prost",
  "rand 0.8.4",
@@ -1981,7 +1981,7 @@ checksum = "3ee2393c4a91429dffb4bedf19f4d6abf27d8a732c8ce4980305d782e5426d57"
 [[package]]
 name = "datafusion"
 version = "6.0.0"
-source = "git+https://github.com/apache/arrow-datafusion?branch=arrow2#83f937ae5d65a55c64ae3370b9cea8415796f9a4"
+source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_i#b2cfe2bae284a7cda51a9c9fb987c420aa1d9f39"
 dependencies = [
  "ahash",
  "arrow2",
@@ -1991,6 +1991,8 @@ dependencies = [
  "blake3",
  "chrono",
  "comfy-table",
+ "datafusion-common",
+ "datafusion-expr",
  "futures",
  "hashbrown 0.11.2",
  "lazy_static 1.4.0",
@@ -1999,8 +2001,8 @@ dependencies = [
  "num-traits",
  "num_cpus",
  "ordered-float 2.10.0",
- "parking_lot 0.11.2",
- "parquet2",
+ "parking_lot 0.12.0",
+ "parquet2 0.10.0",
  "paste 1.0.6",
  "pin-project-lite",
  "rand 0.8.4",
@@ -2012,6 +2014,28 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "datafusion-common"
+version = "6.0.0"
+source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_i#b2cfe2bae284a7cda51a9c9fb987c420aa1d9f39"
+dependencies = [
+ "arrow2",
+ "ordered-float 2.10.0",
+ "parquet2 0.10.0",
+ "sqlparser",
+]
+
+[[package]]
+name = "datafusion-expr"
+version = "6.0.0"
+source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_i#b2cfe2bae284a7cda51a9c9fb987c420aa1d9f39"
+dependencies = [
+ "ahash",
+ "arrow2",
+ "datafusion-common",
+ "sqlparser",
 ]
 
 [[package]]
@@ -4425,6 +4449,19 @@ dependencies = [
  "snap",
  "streaming-decompression",
  "zstd",
+]
+
+[[package]]
+name = "parquet2"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09f70b0c24f3ac19072c69ff00d280846cbdb5fcd7be34418025cdd4e6bfe2c8"
+dependencies = [
+ "async-stream",
+ "bitpacking",
+ "futures",
+ "parquet-format-async-temp",
+ "streaming-decompression",
 ]
 
 [[package]]
