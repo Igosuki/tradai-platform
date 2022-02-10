@@ -54,9 +54,9 @@ lto = false
 [patch.crates-io]
 pyo3 = { git = "https://github.com/PyO3/pyo3", rev = "8a989eeb6aeb862c0c518d994ef6e5f967f0dc46", version = "^0.15" }
 pythonize = { git = "https://github.com/Igosuki/pythonize", rev = "d5309ca6491cdfb9e356d38b244e20b29a206bbc", version = "^0.15" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion", branch = "arrow2" }
+datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_i" }
 #datafusion = { path = "/media/geps/work/dev/oss/arrow-datafusion/datafusion" }
-ballista = { git = "https://github.com/apache/arrow-datafusion", branch = "arrow2" }
+ballista = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_i" }
 #ballista = { path = "/media/geps/work/dev/oss/arrow-datafusion/ballista/rust/client" }
 yata = { git = "https://github.com/Igosuki/yata.git", branch = "ohlcv_merge_mut" }
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb.git", rev = "92b27f5d33c0c713f1d3ec8436b0ae49680e3cca" }
