@@ -16,7 +16,7 @@ exchanges:
       symbols: [ '.*_USDT' ]
 
 streams:
-  - type: ExchangeBots
+  - type: MarketData
 
 outputs:
   - type: AvroFileLogger

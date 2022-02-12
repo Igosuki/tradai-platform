@@ -7,7 +7,7 @@ use crate::types::*;
 pub use mock::*;
 
 #[async_trait]
-pub trait ExchangeApi: Debug + Send + Sync {
+pub trait Brokerage: Debug + Send + Sync {
     /// Return a Ticker for the Pair specified.
     async fn ticker(&self, pair: Pair) -> Result<Ticker>;
 
@@ -45,7 +45,7 @@ pub trait ExchangeApi: Debug + Send + Sync {
     ///
     /// returns: Result<MarginAccountDetails, Error>
     async fn margin_account(&self, _pair: Option<String>) -> Result<MarginAccountDetails> {
-        return Err(Error::ExchangeFeatureNotImplemented);
+        return Err(Error::BrokerFeatureNotImplemented);
     }
 
     /// Retrieve the current amounts of all the currencies that the account holds
@@ -69,16 +69,14 @@ pub trait ExchangeApi: Debug + Send + Sync {
     ///
     /// returns: Result<InterestRate, Error>
     async fn margin_interest_rate(&self, _symbol: Symbol) -> Result<InterestRate> {
-        return Err(Error::ExchangeFeatureNotImplemented);
+        return Err(Error::BrokerFeatureNotImplemented);
     }
 
-    async fn trade_history(&self, _pair: Pair) -> Result<Vec<Trade>> {
-        return Err(Error::ExchangeFeatureNotImplemented);
-    }
+    async fn trade_history(&self, _pair: Pair) -> Result<Vec<Trade>> { return Err(Error::BrokerFeatureNotImplemented); }
 }
 
 mod mock {
-    use crate::api::ExchangeApi;
+    use crate::api::Brokerage;
     use crate::error::*;
     use crate::exchange::Exchange;
     use crate::pair::PairConf;
@@ -87,13 +85,13 @@ mod mock {
     use uuid::Uuid;
 
     #[derive(Debug)]
-    pub struct MockExchangeApi {
+    pub struct MockBrokerage {
         flat_interest_rate: f64,
     }
 
     const DEFAULT_HOURLY_INTEREST_RATE: f64 = 0.02 / 24.0;
 
-    impl Default for MockExchangeApi {
+    impl Default for MockBrokerage {
         fn default() -> Self {
             Self {
                 flat_interest_rate: DEFAULT_HOURLY_INTEREST_RATE,
@@ -111,7 +109,7 @@ mod mock {
     }
 
     #[async_trait]
-    impl ExchangeApi for MockExchangeApi {
+    impl Brokerage for MockBrokerage {
         async fn ticker(&self, _pair: Pair) -> Result<Ticker> { unimplemented!() }
 
         async fn orderbook(&self, _pair: Pair) -> Result<Orderbook> { unimplemented!() }

@@ -9,7 +9,7 @@ exchanges:
       symbols: [ 'BTC_USDT' ]
 
 streams:
-  - type: ExchangeBots
+  - type: MarketData
 
 outputs:
   - type: Strategies

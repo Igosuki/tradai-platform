@@ -5,7 +5,7 @@ use actix_cors::Cors;
 use actix_web::middleware::{Compat, Logger};
 use actix_web::web::Data;
 use actix_web::{http, HttpServer};
-use brokers::manager::ExchangeManagerRef;
+use brokers::manager::BrokerageManagerRef;
 
 use strategy::{StrategyKey, Trader};
 
@@ -15,7 +15,7 @@ use crate::settings::{ApiSettings, CorsMode, Version};
 pub async fn httpserver(
     settings: &ApiSettings,
     version: Option<Version>,
-    apis: ExchangeManagerRef,
+    apis: BrokerageManagerRef,
     strategies: Arc<HashMap<StrategyKey, Trader>>,
 ) -> std::io::Result<()> {
     // Make and start the api

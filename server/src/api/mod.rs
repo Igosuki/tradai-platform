@@ -63,7 +63,7 @@ async fn graphiql_handler() -> Result<HttpResponse, Error> { self::graphql::grap
 
 async fn playground_handler() -> Result<HttpResponse, Error> { self::graphql::playground_handler("/", None).await }
 
-type ExchangeData = web::Data<Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>>;
+type BrokerageData = web::Data<Arc<HashMap<Exchange, Arc<dyn Brokerage>>>>;
 type StratsData = web::Data<Arc<HashMap<StrategyKey, Trader>>>;
 type OrderManagerData = web::Data<Arc<HashMap<Exchange, Addr<OrderManager>>>>;
 
@@ -72,7 +72,7 @@ async fn graphql(
     payload: actix_web::web::Payload,
     schema: web::Data<Schema>,
     strats: StratsData,
-    exchanges: ExchangeData,
+    exchanges: BrokerageData,
     order_managers: OrderManagerData,
 ) -> Result<HttpResponse, Error> {
     let ctx = Context {
@@ -132,7 +132,7 @@ mod tests {
     use actix_web::http::header::ContentType;
     use actix_web::web::Data;
     use actix_web::{http::StatusCode, test, web, App};
-    use brokers::manager::ExchangeApiRegistry;
+    use brokers::manager::BrokerageRegistry;
     use tokio::time::timeout;
 
     use brokers::prelude::*;
@@ -146,8 +146,8 @@ mod tests {
 
     fn oms() -> Arc<HashMap<Exchange, Addr<OrderManager>>> { Arc::new(HashMap::default()) }
 
-    async fn test_apis() -> ExchangeApiRegistry {
-        let exchanges = [(Exchange::Binance, ExchangeSettings {
+    async fn test_apis() -> BrokerageRegistry {
+        let exchanges = [(Exchange::Binance, BrokerSettings {
             orderbook: None,
             orderbook_depth: None,
             trades: None,
@@ -169,7 +169,7 @@ mod tests {
         manager.exchange_apis().clone()
     }
 
-    fn build_test_api(apis: ExchangeApiRegistry, cfg: &mut web::ServiceConfig) {
+    fn build_test_api(apis: BrokerageRegistry, cfg: &mut web::ServiceConfig) {
         let schema = create_schema();
         let strats: Arc<HashMap<StrategyKey, Trader>> = Arc::new(strats());
         cfg.app_data(Data::new(apis))

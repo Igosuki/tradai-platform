@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 
 use brokers::bot::Ping;
 use brokers::error::Error as CoinnectError;
-use brokers::manager::{ExchangeManager, ExchangeManagerRef};
+use brokers::manager::{BrokerageManager, BrokerageManagerRef};
 use brokers::prelude::*;
 use brokers::types::{Order, OrderQuery, OrderStatus, OrderUpdate};
 use db::{get_or_create, DbOptions, Storage};
@@ -100,7 +100,7 @@ pub enum DataQuery {
 
 #[derive(Debug, Clone)]
 pub struct OrderManager {
-    xchg_manager: ExchangeManagerRef,
+    xchg_manager: BrokerageManagerRef,
     orders: Arc<RwLock<HashMap<String, TransactionStatus>>>,
     pub transactions_wal: Arc<Wal>,
     pub repo: OrderRepository,
@@ -110,18 +110,18 @@ pub struct OrderManager {
 impl OrderManager {
     const TRANSACTIONS_TABLE: &'static str = "transactions_wal";
 
-    pub fn new(apis: ExchangeManagerRef, storage: Arc<dyn Storage>) -> Self {
+    pub fn new(apis: BrokerageManagerRef, storage: Arc<dyn Storage>) -> Self {
         Self::new_with_options(apis, storage, OrderManagerConfig::default())
     }
 
-    pub async fn actor(db: &DbOptions<String>, exchange_manager: Arc<ExchangeManager>) -> Addr<Self> {
+    pub async fn actor(db: &DbOptions<String>, exchange_manager: Arc<BrokerageManager>) -> Addr<Self> {
         let storage = get_or_create(db, "order_manager", vec![]);
         let order_manager = Self::new_with_options(exchange_manager, storage, OrderManagerConfig::default());
         Self::start(order_manager)
     }
 
     pub fn new_with_options(
-        exchange_manager: ExchangeManagerRef,
+        exchange_manager: BrokerageManagerRef,
         storage: Arc<dyn Storage>,
         config: OrderManagerConfig,
     ) -> Self {

@@ -10,7 +10,7 @@ use dashmap::DashMap;
 use fancy_regex::Regex;
 use once_cell::sync::OnceCell;
 
-use crate::api::ExchangeApi;
+use crate::api::Brokerage;
 use crate::error::*;
 use crate::exchange::Exchange;
 use crate::types::{Pair, Symbol};
@@ -194,7 +194,7 @@ pub fn filter_pairs(xchg: &Exchange, pairs_expressions: &[String]) -> Result<Has
     default_pair_registry().filter_pairs(xchg, pairs_expressions)
 }
 
-pub async fn refresh_pairs(xchg: &Exchange, api: &'_ dyn ExchangeApi) -> Result<()> {
+pub async fn refresh_pairs(xchg: &Exchange, api: &'_ dyn Brokerage) -> Result<()> {
     let pair_confs = api.pairs().await?;
     default_pair_registry().register(*xchg, pair_confs);
     Ok(())

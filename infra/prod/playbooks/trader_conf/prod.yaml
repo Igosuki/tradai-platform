@@ -17,8 +17,8 @@ margin_account_reporter:
   refresh_rate: 10s
 
 streams:
-  - type: ExchangeBots
-  - type: AccountBots
+  - type: MarketData
+  - type: AccountData
 
 outputs:
   - type: Strategies

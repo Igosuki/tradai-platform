@@ -15,7 +15,7 @@ use super::api::CoinbaseApi;
 use super::utils;
 
 #[async_trait]
-impl ExchangeApi for CoinbaseApi {
+impl Brokerage for CoinbaseApi {
     async fn ticker(&self, pair: Pair) -> Result<Ticker> {
         let result = self.return_ticker(pair.clone()).await?;
 
