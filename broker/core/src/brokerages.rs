@@ -7,15 +7,15 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 
-use crate::api::ExchangeApi;
-use crate::bot::{AccountExchangeBot, MarketExchangeBot};
+use crate::api::Brokerage;
+use crate::bot::{BrokerageAccountDataStreamer, MarketDataStreamer};
 use crate::credential::{BasicCredentials, Credentials};
 use crate::error::{Error, Result};
 use crate::exchange::Exchange;
-use crate::manager::{ExchangeApiRegistry, ExchangeManager};
+use crate::manager::{BrokerageManager, BrokerageRegistry};
 use crate::pair::{filter_pairs, refresh_pairs};
-use crate::plugin::{get_exchange_plugin, ExchangeBotInitContext, PrivateBotInitContext};
-use crate::settings::{ExchangeSettings, OrderbookSettings, OrderbookStyle, TradesSettings};
+use crate::plugin::{get_exchange_plugin, BrokerageBotInitContext, PrivateBotInitContext};
+use crate::settings::{BrokerSettings, OrderbookSettings, OrderbookStyle, TradesSettings};
 use crate::types::{AccountType, Pair, PrivateStreamChannel, StreamChannel, Symbol};
 
 #[derive(Debug)]
@@ -23,10 +23,10 @@ pub struct Brokerages;
 
 impl Brokerages {
     #[must_use]
-    pub fn new_manager() -> ExchangeManager { ExchangeManager::new() }
+    pub fn new_manager() -> BrokerageManager { BrokerageManager::new() }
 
-    pub async fn public_apis(echanges: &[Exchange]) -> ExchangeApiRegistry {
-        let exchange_apis: DashMap<Exchange, Arc<dyn ExchangeApi>> = DashMap::new();
+    pub async fn public_apis(echanges: &[Exchange]) -> BrokerageRegistry {
+        let exchange_apis: DashMap<Exchange, Arc<dyn Brokerage>> = DashMap::new();
         let manager = Brokerages::new_manager();
         for xch in echanges {
             let api = manager.build_public_exchange_api(xch, false).await.unwrap();
@@ -45,8 +45,8 @@ impl Brokerages {
     pub async fn new_market_bot<'a>(
         exchange: Exchange,
         creds: Box<dyn Credentials>,
-        s: ExchangeSettings,
-    ) -> Result<Box<MarketExchangeBot>> {
+        s: BrokerSettings,
+    ) -> Result<Box<MarketDataStreamer>> {
         let mut channels: HashMap<StreamChannel, HashSet<Symbol>> = HashMap::new();
         if let Some(OrderbookSettings { ref symbols, ref style }) = s.orderbook {
             let pairs = filter_pairs(&exchange, symbols)?;
@@ -73,7 +73,7 @@ impl Brokerages {
         }
         debug!("{:?}", channels);
         let plugin = get_exchange_plugin(exchange)?;
-        let ctx = ExchangeBotInitContext::builder()
+        let ctx = BrokerageBotInitContext::builder()
             .settings(s.clone())
             .creds(creds)
             .channels(channels)
@@ -95,7 +95,7 @@ impl Brokerages {
         use_test: bool,
         account_type: AccountType,
         channels: HashSet<PrivateStreamChannel>,
-    ) -> Result<Box<AccountExchangeBot>> {
+    ) -> Result<Box<BrokerageAccountDataStreamer>> {
         let plugin = get_exchange_plugin(exchange)?;
         let ctx = PrivateBotInitContext::builder()
             .use_test(use_test)
@@ -131,14 +131,14 @@ impl Brokerages {
     /// # Errors
     ///
     /// If the registry fails to refresh
-    pub async fn load_pair_registry(xch: &Exchange, api: &'_ dyn ExchangeApi) -> Result<()> {
+    pub async fn load_pair_registry(xch: &Exchange, api: &'_ dyn Brokerage) -> Result<()> {
         refresh_pairs(xch, api).await
     }
 
     /// # Errors
     ///
     /// If the registries fails to load pairs
-    pub async fn load_pair_registries(apis: &DashMap<Exchange, Arc<dyn ExchangeApi>>) -> Result<()> {
+    pub async fn load_pair_registries(apis: &DashMap<Exchange, Arc<dyn Brokerage>>) -> Result<()> {
         futures::future::join_all(apis.clone().iter().map(|entry| async move {
             let arc = entry.value().clone();
             Self::load_pair_registry(entry.key(), arc.as_ref()).await

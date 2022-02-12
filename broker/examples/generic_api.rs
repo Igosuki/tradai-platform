@@ -6,7 +6,7 @@
 
 use brokers::credential::{BasicCredentials, Credentials};
 use brokers::exchange::Exchange;
-use brokers::manager::ExchangeManager;
+use brokers::manager::BrokerageManager;
 use std::collections::HashMap;
 
 #[tokio::main]
@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "api_secret",
         HashMap::default(),
     ));
-    let manager = ExchangeManager::new();
+    let manager = BrokerageManager::new();
     let my_api = manager
         .new_exchange_with_options(Exchange::Kraken, my_creds, true)
         .await

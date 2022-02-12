@@ -19,7 +19,7 @@ use super::types::TypeAndKeyInput;
 
 pub(crate) struct Context {
     pub strats: Arc<HashMap<StrategyKey, Trader>>,
-    pub exchanges: Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>,
+    pub exchanges: Arc<HashMap<Exchange, Arc<dyn Brokerage>>>,
     pub order_managers: Arc<HashMap<Exchange, Addr<OrderManager>>>,
 }
 

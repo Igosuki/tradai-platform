@@ -54,7 +54,7 @@ async fn main() {
     env_logger::init();
     async {
         let my_creds = Box::new(BasicCredentials::empty(Exchange::Binance));
-        let settings = ExchangeSettings {
+        let settings = BrokerSettings {
             orderbook: None,
             trades: Some(TradesSettings {
                 symbols: vec!["BTC_USDT".to_string()],

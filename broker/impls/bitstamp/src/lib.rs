@@ -22,15 +22,15 @@ use self::api::BitstampApi;
 use self::streaming_api::BitstampStreamingApi;
 
 #[async_trait(?Send)]
-impl ExchangeConnector for BitstampExchangeConnector {
-    async fn new_api(&self, ctx: ExchangeApiInitContext) -> broker_core::error::Result<Arc<dyn ExchangeApi>> {
+impl BrokerConnector for BitstampExchangeConnector {
+    async fn new_api(&self, ctx: BrokerageInitContext) -> broker_core::error::Result<Arc<dyn Brokerage>> {
         Ok(Arc::new(BitstampApi::new(ctx.creds.as_ref())?))
     }
 
     async fn new_public_stream(
         &self,
-        ctx: ExchangeBotInitContext,
-    ) -> broker_core::error::Result<Box<MarketExchangeBot>> {
+        ctx: BrokerageBotInitContext,
+    ) -> broker_core::error::Result<Box<MarketDataStreamer>> {
         Ok(Box::new(
             BitstampStreamingApi::new_bot(ctx.creds.as_ref(), ctx.channels).await?,
         ))
@@ -39,7 +39,7 @@ impl ExchangeConnector for BitstampExchangeConnector {
     async fn new_private_stream(
         &self,
         _ctx: PrivateBotInitContext,
-    ) -> broker_core::error::Result<Box<AccountExchangeBot>> {
+    ) -> broker_core::error::Result<Box<BrokerageAccountDataStreamer>> {
         todo!()
     }
 }

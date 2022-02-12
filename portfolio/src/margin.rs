@@ -9,7 +9,7 @@ use futures::FutureExt;
 use prometheus::GaugeVec;
 
 use brokers::bot::Ping;
-use brokers::manager::ExchangeManagerRef;
+use brokers::manager::BrokerageManagerRef;
 use brokers::prelude::*;
 use brokers::types::{BalanceUpdate, MarginAccountDetails, MarginAsset};
 
@@ -153,14 +153,14 @@ pub struct MarginAccountReporterOptions {
 
 #[derive(Clone)]
 pub struct MarginAccountReporter {
-    xchg_mgr: ExchangeManagerRef,
+    xchg_mgr: BrokerageManagerRef,
     balances: Arc<RwLock<HashMap<Exchange, MarginAccountReport>>>,
     refresh_rate: Duration,
     metrics: MarginAccountMetrics,
 }
 
 impl MarginAccountReporter {
-    pub fn new(apis: ExchangeManagerRef, options: &MarginAccountReporterOptions) -> Self {
+    pub fn new(apis: BrokerageManagerRef, options: &MarginAccountReporterOptions) -> Self {
         Self {
             xchg_mgr: apis,
             balances: Arc::new(RwLock::new(HashMap::default())),
@@ -169,7 +169,7 @@ impl MarginAccountReporter {
         }
     }
 
-    pub async fn actor(options: &MarginAccountReporterOptions, apis: ExchangeManagerRef) -> Addr<Self> {
+    pub async fn actor(options: &MarginAccountReporterOptions, apis: BrokerageManagerRef) -> Addr<Self> {
         let margin_account_reporter = Self::new(apis, options);
         Self::start(margin_account_reporter)
     }

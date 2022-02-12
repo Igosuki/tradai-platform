@@ -27,7 +27,7 @@ use broker_core::types::*;
 use broker_core::util::get_unix_timestamp_ms;
 
 #[async_trait]
-impl ExchangeApi for BinanceApi {
+impl Brokerage for BinanceApi {
     async fn ticker(&self, pair: Pair) -> Result<Ticker> {
         let market = self.market();
 
@@ -157,7 +157,7 @@ impl ExchangeApi for BinanceApi {
                 })
                 .await
                 .map(from_binance_margin_order_state),
-            _ => return Err(Error::ExchangeFeatureNotImplemented),
+            _ => return Err(Error::BrokerFeatureNotImplemented),
         };
         match res {
             Ok(os) => Ok(os),

@@ -13,7 +13,7 @@ use super::api::BittrexApi;
 use super::utils;
 
 #[async_trait]
-impl ExchangeApi for BittrexApi {
+impl Brokerage for BittrexApi {
     async fn ticker(&self, pair: Pair) -> Result<Ticker> {
         let pair_name = utils::get_pair_string(&pair)?;
 

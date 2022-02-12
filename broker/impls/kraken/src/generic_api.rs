@@ -14,7 +14,7 @@ use super::model::StandardOrder;
 use super::utils;
 
 #[async_trait]
-impl ExchangeApi for KrakenApi {
+impl Brokerage for KrakenApi {
     async fn ticker(&self, pair: Pair) -> Result<Ticker> {
         let symbol = utils::get_pair_string(&pair)?;
         let pair_name = symbol.as_ref();

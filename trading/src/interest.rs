@@ -5,7 +5,7 @@ use chrono::Utc;
 use prometheus::CounterVec;
 
 use brokers::exchange::Exchange;
-use brokers::manager::ExchangeManagerRef;
+use brokers::manager::BrokerageManagerRef;
 use brokers::margin_interest_rates::get_interest_rate;
 use brokers::types::{InterestRate, InterestRatePeriod};
 use ext::ResultExt;
@@ -101,14 +101,14 @@ pub struct GetInterestRate {
 
 #[derive(Debug)]
 pub struct MarginInterestRateProvider {
-    apis: ExchangeManagerRef,
+    apis: BrokerageManagerRef,
 }
 
 impl MarginInterestRateProvider {
     #[allow(clippy::needless_pass_by_value)]
-    pub fn new(apis: ExchangeManagerRef) -> Self { Self { apis } }
+    pub fn new(apis: BrokerageManagerRef) -> Self { Self { apis } }
 
-    pub fn actor(apis: ExchangeManagerRef) -> Addr<Self> { Self::start(Self { apis }) }
+    pub fn actor(apis: BrokerageManagerRef) -> Addr<Self> { Self::start(Self { apis }) }
 }
 
 impl Actor for MarginInterestRateProvider {
@@ -127,7 +127,7 @@ impl Handler<GetInterestRate> for MarginInterestRateProvider {
                     .inc();
                 let api = apis
                     .get_api(msg.exchange)
-                    .ok_or(brokers::error::Error::ExchangeNotLoaded)?;
+                    .ok_or(brokers::error::Error::BrokerNotLoaded)?;
                 get_interest_rate(&msg.exchange, api.clone().as_ref(), &msg.asset)
                     .await
                     .err_into()
@@ -142,10 +142,10 @@ pub mod test_util {
     use std::sync::Arc;
 
     use actix::{Actor, Addr};
-    use brokers::api::{ExchangeApi, MockExchangeApi};
+    use brokers::api::{Brokerage, MockBrokerage};
 
     use brokers::exchange::Exchange;
-    use brokers::manager::{ExchangeApiRegistry, ExchangeManager, ExchangeManagerRef};
+    use brokers::manager::{BrokerageManager, BrokerageManagerRef, BrokerageRegistry};
     use brokers::Brokerages;
 
     use crate::interest::MarginInterestRateProviderClient;
@@ -163,19 +163,19 @@ pub mod test_util {
             .build_exchange_api(keys_file.as_ref().to_path_buf(), &exchange, true)
             .await
             .unwrap();
-        let apis = ExchangeApiRegistry::new();
+        let apis = BrokerageRegistry::new();
         apis.insert(exchange, api);
-        let manager = ExchangeManagerRef::new(ExchangeManager::new_with_reg(apis));
+        let manager = BrokerageManagerRef::new(BrokerageManager::new_with_reg(apis));
         MarginInterestRateProvider::new(manager)
     }
 
     pub fn new_mock_interest_rate_provider(exchanges: &[Exchange]) -> MarginInterestRateProvider {
-        let api: Arc<dyn ExchangeApi> = Arc::new(MockExchangeApi::default());
-        let apis = ExchangeApiRegistry::new();
+        let api: Arc<dyn Brokerage> = Arc::new(MockBrokerage::default());
+        let apis = BrokerageRegistry::new();
         for exchange in exchanges {
             apis.insert(*exchange, api.clone());
         }
-        let manager = ExchangeManagerRef::new(ExchangeManager::new_with_reg(apis));
+        let manager = BrokerageManagerRef::new(BrokerageManager::new_with_reg(apis));
         MarginInterestRateProvider::new(manager)
     }
 
@@ -195,10 +195,10 @@ pub mod test_util {
         MarginInterestRateProviderClient::new(provider)
     }
 
-    pub fn local_provider(api: Arc<dyn ExchangeApi>) -> Addr<MarginInterestRateProvider> {
-        let apis = ExchangeApiRegistry::new();
+    pub fn local_provider(api: Arc<dyn Brokerage>) -> Addr<MarginInterestRateProvider> {
+        let apis = BrokerageRegistry::new();
         apis.insert(api.exchange(), api);
-        let manager = ExchangeManagerRef::new(ExchangeManager::new_with_reg(apis));
+        let manager = BrokerageManagerRef::new(BrokerageManager::new_with_reg(apis));
         let provider = MarginInterestRateProvider::new(manager);
         MarginInterestRateProvider::start(provider)
     }

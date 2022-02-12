@@ -13,7 +13,7 @@ use super::api::PoloniexApi;
 use super::utils;
 
 #[async_trait]
-impl ExchangeApi for PoloniexApi {
+impl Brokerage for PoloniexApi {
     async fn ticker(&self, pair: Pair) -> Result<Ticker> {
         let symbol = utils::get_symbol(&pair)?;
         let pair_name = symbol.as_ref();

@@ -9,7 +9,7 @@ use futures::FutureExt;
 use prometheus::GaugeVec;
 
 use brokers::bot::Ping;
-use brokers::manager::ExchangeManagerRef;
+use brokers::manager::BrokerageManagerRef;
 use brokers::prelude::*;
 use brokers::types::{AccountPosition, Balance, BalanceUpdate, Balances};
 
@@ -110,14 +110,14 @@ pub struct BalanceReporterOptions {
 
 #[derive(Clone)]
 pub struct BalanceReporter {
-    apis: ExchangeManagerRef,
+    apis: BrokerageManagerRef,
     balances: Arc<RwLock<HashMap<Exchange, BalanceReport>>>,
     refresh_rate: Duration,
     metrics: BalanceMetrics,
 }
 
 impl BalanceReporter {
-    pub fn new(apis: ExchangeManagerRef, options: &BalanceReporterOptions) -> Self {
+    pub fn new(apis: BrokerageManagerRef, options: &BalanceReporterOptions) -> Self {
         Self {
             apis,
             balances: Arc::new(RwLock::new(HashMap::default())),
@@ -126,7 +126,7 @@ impl BalanceReporter {
         }
     }
 
-    pub async fn actor(options: &BalanceReporterOptions, apis: ExchangeManagerRef) -> Addr<Self> {
+    pub async fn actor(options: &BalanceReporterOptions, apis: BrokerageManagerRef) -> Addr<Self> {
         let balance_reporter = Self::new(apis, options);
         Self::start(balance_reporter)
     }
