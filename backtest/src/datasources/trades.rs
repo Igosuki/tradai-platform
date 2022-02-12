@@ -6,7 +6,7 @@ use brokers::types::Candle;
 use chrono::{DateTime, Utc};
 use datafusion::record_batch::RecordBatch;
 use futures::{Stream, StreamExt};
-use stats::kline::SampleInterval;
+use stats::kline::Resolution;
 use stats::kline::TimeUnit::Minute;
 use stats::Next;
 use std::collections::HashSet;
@@ -21,7 +21,7 @@ pub fn candles_df<P: 'static + AsRef<Path> + Debug>(
 ) -> impl Stream<Item = MarketEventEnvelope> {
     trades_df(table_paths, format)
         .scan(
-            stats::kline::Kline::new(SampleInterval::new(Minute, 1), 2_usize.pow(16)),
+            stats::kline::Kline::new(Resolution::new(Minute, 1), 2_usize.pow(16)),
             |kl, msg: MarketEventEnvelope| {
                 let candles = Next::<(f64, f64, DateTime<Utc>)>::next(kl, (msg.e.price(), msg.e.vol(), msg.e.time()));
                 let candle = candles.first().unwrap();
