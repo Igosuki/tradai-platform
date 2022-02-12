@@ -31,7 +31,7 @@ pub async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
 ) -> OrderManager {
     let api = Brokerages::new_manager()
         .build_exchange_api(keys_file.as_ref().to_path_buf(), &exchange, true)
-        .await
+        .await?
         .unwrap();
     let apis = ExchangeApiRegistry::new();
     apis.insert(api.exchange(), api);
