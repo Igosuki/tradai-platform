@@ -11,7 +11,7 @@ default = ["trading_test_util"]
 
 [dependencies]
 strategy = { path = "../strategy" }
-coinnect_rt = { path = "../coinnect" }
+brokers = { path = "../broker" }
 util = { path = "../util" }
 db = { path = "../db" }
 trading = { path = "../trading" }

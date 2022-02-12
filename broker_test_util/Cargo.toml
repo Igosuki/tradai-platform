@@ -1,5 +1,5 @@
 [package]
-name = "coinnect_test_util"
+name = "broker_test_util"
 version = "0.1.0"
 edition = "2021"
 
@@ -12,7 +12,7 @@ actix-http-test = "3.0.0-beta"
 actix-codec = "0.4"
 
 # Local
-coinnect_rt = { path = "../coinnect" }
+brokers = { path = "../broker", features = ["test_util"] }
 binance-rs-async = { version = "1.1.4" }
 
 # Mock

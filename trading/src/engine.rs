@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use actix::Addr;
 
-use coinnect_rt::exchange::manager::ExchangeManager;
+use brokers::manager::ExchangeManager;
 #[cfg(any(
     test,
     feature = "test_util",
@@ -44,8 +44,8 @@ pub fn new_trading_engine(
 mod mock {
     use std::path::Path;
 
-    use coinnect_rt::exchange::manager::ExchangeManager;
-    use coinnect_rt::exchange::Exchange;
+    use brokers::exchange::Exchange;
+    use brokers::manager::ExchangeManager;
 
     use crate::interest::test_util::mock_interest_rate_provider;
     use crate::interest::MarginInterestRateProviderClient;

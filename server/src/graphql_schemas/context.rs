@@ -9,7 +9,7 @@ use std::sync::Arc;
 use actix::Addr;
 use juniper::executor::{FieldError, FieldResult};
 
-use coinnect_rt::prelude::*;
+use brokers::prelude::*;
 use strategy::actor::StrategyActor;
 use strategy::query::{DataQuery, DataResult};
 use strategy::{StrategyKey, Trader};

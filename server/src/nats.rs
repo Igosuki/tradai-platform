@@ -4,7 +4,7 @@ use actix::{Actor, Context, Handler, Message, Recipient};
 use nats::Connection;
 use serde::de::DeserializeOwned;
 
-use coinnect_rt::types::{MarketEvent, MarketEventEnvelope};
+use brokers::types::{MarketEvent, MarketEventEnvelope};
 use strategy::Channel;
 
 type Result<T> = anyhow::Result<T>;

@@ -4,8 +4,8 @@ use std::sync::Arc;
 use structopt::StructOpt;
 use strum_macros::EnumString;
 
-use coinnect_rt::exchange::manager::{ExchangeApiRegistry, ExchangeManager, ExchangeManagerRef};
-use coinnect_rt::exchange::{ExchangeApi, MockExchangeApi};
+use brokers::api::{ExchangeApi, MockExchangeApi};
+use brokers::manager::{ExchangeApiRegistry, ExchangeManager, ExchangeManagerRef};
 use db::{get_or_create, DbOptions};
 use trading::order_manager::OrderManager;
 

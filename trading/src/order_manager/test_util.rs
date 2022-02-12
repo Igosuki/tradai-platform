@@ -8,12 +8,13 @@ use httpmock::{Mock, MockServer};
 use rand::random;
 
 use binance::rest_model::TimeInForce;
-use coinnect_rt::exchange::manager::{ExchangeApiRegistry, ExchangeManager, ExchangeManagerRef};
-use coinnect_rt::exchange::MockExchangeApi;
-use coinnect_rt::pair::register_pair_default;
-use coinnect_rt::prelude::*;
+use brokers::api::MockExchangeApi;
+use brokers::manager::{ExchangeApiRegistry, ExchangeManager, ExchangeManagerRef};
+use brokers::pair::register_pair_default;
+use brokers::prelude::*;
+use brokers::types::{OrderEnforcement, OrderType, TradeType};
+
 use db::{get_or_create, DbOptions};
-use ext::prelude::*;
 
 use crate::order_manager::types::OrderDetail;
 use crate::order_manager::{OrderManager, OrderManagerClient};
@@ -28,7 +29,7 @@ pub async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
     dir: S,
     exchange: Exchange,
 ) -> OrderManager {
-    let api = Coinnect::new_manager()
+    let api = Brokerages::new_manager()
         .build_exchange_api(keys_file.as_ref().to_path_buf(), &exchange, true)
         .await
         .unwrap();
@@ -78,9 +79,12 @@ pub fn create_ok_order_mock<'a>(server: &'a MockServer, order: &'a OrderDetail) 
         executed_qty: qty,
         cummulative_quote_qty: quote_qty,
         status: expected_ok_status(order),
-        time_in_force: order.enforcement.map_into().unwrap_or(TimeInForce::FOK),
-        order_type: order.order_type.into(),
-        side: order.side.into(),
+        time_in_force: order
+            .enforcement
+            .map(brokers::broker_binance::adapters::to_binance_time_in_force)
+            .unwrap_or(TimeInForce::FOK),
+        order_type: brokers::broker_binance::adapters::to_binance_order_type(order.order_type),
+        side: brokers::broker_binance::adapters::to_binance_order_side(order.side),
         fills: vec![
             binance::rest_model::Fill {
                 price: price * 0.99,
@@ -123,9 +127,12 @@ pub fn create_ok_margin_order_mock(server: &MockServer, order: OrderDetail) -> M
         orig_qty: qty,
         executed_qty: qty,
         status: expected_ok_status(&order),
-        time_in_force: order.enforcement.map_into().unwrap_or(TimeInForce::FOK),
-        order_type: order.order_type.into(),
-        side: order.side.into(),
+        time_in_force: order
+            .enforcement
+            .map(brokers::broker_binance::adapters::to_binance_time_in_force)
+            .unwrap_or(TimeInForce::FOK),
+        order_type: brokers::broker_binance::adapters::to_binance_order_type(order.order_type),
+        side: brokers::broker_binance::adapters::to_binance_order_side(order.side),
         margin_buy_borrow_amount: Some(qty * 0.2),
         margin_buy_borrow_asset: Some(if order.side == TradeType::Sell {
             order.base_asset

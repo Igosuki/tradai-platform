@@ -4,10 +4,10 @@ use actix::{Actor, Addr, Context, Handler, ResponseActFuture, WrapFuture};
 use chrono::Utc;
 use prometheus::CounterVec;
 
-use coinnect_rt::exchange::manager::ExchangeManagerRef;
-use coinnect_rt::exchange::margin_interest_rates::get_interest_rate;
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::{InterestRate, InterestRatePeriod};
+use brokers::exchange::Exchange;
+use brokers::manager::ExchangeManagerRef;
+use brokers::margin_interest_rates::get_interest_rate;
+use brokers::types::{InterestRate, InterestRatePeriod};
 use ext::ResultExt;
 
 use crate::error::{Error, Result};
@@ -127,7 +127,7 @@ impl Handler<GetInterestRate> for MarginInterestRateProvider {
                     .inc();
                 let api = apis
                     .get_api(msg.exchange)
-                    .ok_or(coinnect_rt::error::Error::ExchangeNotLoaded)?;
+                    .ok_or(brokers::error::Error::ExchangeNotLoaded)?;
                 get_interest_rate(&msg.exchange, api.clone().as_ref(), &msg.asset)
                     .await
                     .err_into()
@@ -142,10 +142,11 @@ pub mod test_util {
     use std::sync::Arc;
 
     use actix::{Actor, Addr};
+    use brokers::api::{ExchangeApi, MockExchangeApi};
 
-    use coinnect_rt::coinnect::Coinnect;
-    use coinnect_rt::exchange::manager::{ExchangeApiRegistry, ExchangeManager, ExchangeManagerRef};
-    use coinnect_rt::exchange::{Exchange, ExchangeApi, MockExchangeApi};
+    use brokers::exchange::Exchange;
+    use brokers::manager::{ExchangeApiRegistry, ExchangeManager, ExchangeManagerRef};
+    use brokers::Brokerages;
 
     use crate::interest::MarginInterestRateProviderClient;
 
@@ -158,7 +159,7 @@ pub mod test_util {
         keys_file: S2,
         exchange: Exchange,
     ) -> MarginInterestRateProvider {
-        let api = Coinnect::new_manager()
+        let api = Brokerages::new_manager()
             .build_exchange_api(keys_file.as_ref().to_path_buf(), &exchange, true)
             .await
             .unwrap();
@@ -205,8 +206,8 @@ pub mod test_util {
 
 #[cfg(test)]
 mod test {
-    use coinnect_rt::exchange::Exchange;
-    use coinnect_rt::types::{InterestRate, InterestRatePeriod};
+    use brokers::exchange::Exchange;
+    use brokers::types::{InterestRate, InterestRatePeriod};
 
     use crate::error::*;
     use crate::interest::test_util::local_provider;

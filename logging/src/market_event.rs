@@ -6,7 +6,7 @@ use actix::Handler;
 use avro_rs::Schema;
 use chrono::{Duration, TimeZone, Utc};
 
-use coinnect_rt::prelude::*;
+use brokers::types::{MarketEvent, MarketEventEnvelope};
 
 use crate::avro_gen::{self,
                       models::{Candle as AvroCandle, LiveTrade as AvroTrade, Orderbook as AvroOrderbook}};

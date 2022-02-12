@@ -5,7 +5,7 @@ use pyo3::types::{PyDict, PyModule};
 use pyo3::{IntoPy, PyObject, PyResult, Python};
 use serde_json::Value;
 
-use coinnect_rt::prelude::*;
+use brokers::prelude::*;
 use strategy::driver::Strategy;
 use strategy::error::*;
 use strategy::plugin::{provide_options, StrategyPlugin, StrategyPluginContext};
@@ -123,7 +123,7 @@ impl LoggingStdout {
 
 #[cfg(test)]
 mod test {
-    use coinnect_rt::exchange::Exchange;
+    use brokers::exchange::Exchange;
     use pyo3::{IntoPy, PyObject, Python};
     use std::collections::HashMap;
 

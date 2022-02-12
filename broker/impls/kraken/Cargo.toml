@@ -1,0 +1,32 @@
+[package]
+name = "broker_kraken"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+private_tests = []
+
+[dependencies]
+
+broker_core = { path = "../../core" }
+
+async-trait = "0.1"
+
+# Http(s)
+reqwest = { version = "0.11", features = ["stream"] }
+
+# Serde
+serde = "1.0"
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
+
+# async
+futures = "0.3"
+
+# encrypt
+hmac = "0.12"
+sha2 = "0.10"
+data-encoding = "2.3"
+
+# Monitoring / Logging / Tracing
+tracing = { version = "0.1", features = ["log"] }

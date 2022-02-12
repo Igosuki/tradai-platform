@@ -8,8 +8,8 @@ use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use uuid::Uuid;
 
-use coinnect_rt::prelude::{Exchange, TradeType};
-use coinnect_rt::types::{AddOrderRequest, MarketEventEnvelope, Pair};
+use brokers::prelude::{Exchange, TradeType};
+use brokers::types::{AddOrderRequest, MarketEventEnvelope, Pair};
 use db::{Storage, StorageExt};
 use ext::ResultExt;
 use trading::interest::InterestRateProvider;
@@ -594,7 +594,7 @@ mod repository_test {
     use chrono::Utc;
     use test_log::test;
 
-    use coinnect_rt::types::AddOrderRequest;
+    use brokers::types::AddOrderRequest;
     use trading::interest::FlatInterestRateProvider;
     use trading::order_manager::types::OrderDetail;
     use trading::position::Position;

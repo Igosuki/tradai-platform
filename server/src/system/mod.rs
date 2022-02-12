@@ -14,7 +14,7 @@ use futures::TryFutureExt;
 use tokio::sync::RwLock;
 use tracing::Instrument;
 
-use coinnect_rt::broker::{ActixMessageBroker, Broker, MarketEventEnvelopeMsg};
+use brokers::broker::{ActixMessageBroker, Broker, MarketEventEnvelopeMsg};
 // use actix::System;
 // use tokio::select;
 // use tokio::signal::unix::{signal, SignalKind};
@@ -22,7 +22,7 @@ use crate::connectivity::run_connectivity_checker;
 use crate::nats::{NatsConsumer, NatsProducer, Subject};
 use crate::server;
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
-use coinnect_rt::prelude::*;
+use brokers::prelude::*;
 use logging::prelude::*;
 use metrics::prom::PrometheusPushActor;
 use portfolio::balance::BalanceReporter;
@@ -53,13 +53,13 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
     // Configure exchanges
     let exchanges = &settings_v.exchanges;
     let exchanges_conf = Arc::new(exchanges.clone());
-    let manager = Arc::new(Coinnect::new_manager());
+    let manager = Arc::new(Brokerages::new_manager());
     manager
         .build_exchange_apis(exchanges_conf.clone(), keys_path.clone())
         .await;
     // Temporarily load symbol cache from here
     // TODO: do this to a read-only memory mapped file somewhere else that is used as a cache
-    Coinnect::load_pair_registries(manager.exchange_apis())
+    Brokerages::load_pair_registries(manager.exchange_apis())
         .instrument(tracing::info_span!("loading pair registries"))
         .await?;
     // Message brokers

@@ -5,7 +5,7 @@ use actix_cors::Cors;
 use actix_web::middleware::{Compat, Logger};
 use actix_web::web::Data;
 use actix_web::{http, HttpServer};
-use coinnect_rt::exchange::manager::ExchangeManagerRef;
+use brokers::manager::ExchangeManagerRef;
 
 use strategy::{StrategyKey, Trader};
 

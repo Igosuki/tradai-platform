@@ -9,7 +9,7 @@ use tokio::time::Duration;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 
-use coinnect_rt::prelude::{MarketEvent, MarketEventEnvelope};
+use brokers::prelude::{MarketEvent, MarketEventEnvelope};
 use strategy::driver::StrategyDriver;
 use strategy::event::{close_events, open_events};
 use strategy::query::{DataQuery, DataResult};

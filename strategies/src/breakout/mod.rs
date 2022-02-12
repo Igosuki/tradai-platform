@@ -1,7 +1,7 @@
+use brokers::exchange::Exchange;
+use brokers::prelude::MarketEventEnvelope;
+use brokers::types::Pair;
 use chrono::{DateTime, Duration, TimeZone, Utc};
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::prelude::MarketEventEnvelope;
-use coinnect_rt::types::Pair;
 use serde_json::Value;
 use stats::indicators::cross::{CrossAbove, CrossUnder};
 use stats::indicators::ema::{ExponentialMovingAverage, MovingAverageType};

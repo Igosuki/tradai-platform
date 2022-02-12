@@ -1,10 +1,10 @@
 mod metrics;
 
 use crate::bbplusb::metrics::BBPlusMetrics;
+use brokers::exchange::Exchange;
+use brokers::prelude::MarketEventEnvelope;
+use brokers::types::Pair;
 use chrono::Duration;
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::prelude::MarketEventEnvelope;
-use coinnect_rt::types::Pair;
 use serde_json::Value;
 use stats::{BollingerBands, BollingerBandsOutput, Next};
 use std::collections::HashSet;
