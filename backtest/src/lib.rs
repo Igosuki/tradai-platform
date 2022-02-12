@@ -55,7 +55,7 @@ use tokio_util::sync::CancellationToken;
 
 use db::DbOptions;
 // TODO: https://github.com/rust-lang/rust/issues/47384
-use coinnect_rt::prelude::*;
+use brokers::prelude::*;
 use strategy::prelude::*;
 // TODO: https://github.com/rust-lang/rust/issues/47384
 use trading::engine::{mock_engine, TradingEngine};
@@ -68,7 +68,7 @@ use crate::runner::BacktestRunner;
 pub use crate::{config::*,
                 dataset::{DatasetInputFormat, MarketEventDatasetType},
                 error::*};
-use coinnect_rt::broker::{Broker, ChannelMessageBroker};
+use brokers::broker::{Broker, ChannelMessageBroker};
 use strategy::plugin::plugin_registry;
 
 mod config;
@@ -217,8 +217,8 @@ impl Backtest {
 }
 
 async fn init_coinnect(xchs: &[Exchange]) {
-    let exchange_apis = Coinnect::public_apis(xchs).await;
-    Coinnect::load_pair_registries(&exchange_apis).await.unwrap();
+    let exchange_apis = Brokerages::public_apis(xchs).await;
+    Brokerages::load_pair_registries(&exchange_apis).await.unwrap();
 }
 
 async fn spawn_runner(

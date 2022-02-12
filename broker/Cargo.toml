@@ -1,0 +1,75 @@
+[package]
+name = "brokers"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "coinnect"
+path = "src/main.rs"
+required-features = ["build-binary"]
+
+[[example]]
+name = "simple"
+path = "examples/simple.rs"
+required-features = ["binance-rs-async"]
+
+[[example]]
+name = "generic_api"
+path = "examples/generic_api.rs"
+
+[[example]]
+name = "streaming"
+path = "examples/streaming.rs"
+required-features = ["actix"]
+
+[features]
+default = ["binance", "native-tls"]
+rustls-tls = ["broker_core/rustls-tls"]
+native-tls = ["broker_core/native-tls"]
+build-binary = ["clap", "structopt", "release_max_level_debug", "anyhow"]
+release_max_level_debug = ["tracing/release_max_level_debug"]
+release_max_level_trace = ["tracing/release_max_level_trace"]
+
+# todo : get rid of this crap
+test_util = ["broker_binance/test_util"]
+
+# exchanges
+all_exchanges = ["coinbase", "binance", "bitstamp", "bittrex", "kraken", "poloniex"]
+binance = ["broker_binance"]
+bitstamp = ["broker_bitstamp"]
+bittrex = ["broker_bittrex"]
+coinbase = ["broker_coinbase"]
+kraken = ["broker_kraken"]
+poloniex = ["broker_poloniex"]
+
+binance_private_tests = ["broker_binance/private_tests"]
+bitstamp_private_tests = ["broker_bitstamp/private_tests"]
+bittrex_private_tests = ["broker_bittrex/private_tests"]
+coinbase_private_tests = ["broker_coinbase/private_tests"]
+kraken_private_tests = ["broker_kraken/private_tests"]
+poloniex_private_tests = ["broker_poloniex/private_tests"]
+
+[dependencies]
+broker_core = { path = "./core" }
+
+broker_binance = { path = "./impls/binance", optional = true }
+broker_bitstamp = { path = "./impls/bitstamp", optional = true }
+broker_bittrex = { path = "./impls/bittrex", optional = true }
+broker_coinbase = { path = "./impls/coinbase", optional = true }
+broker_kraken = { path = "./impls/kraken", optional = true }
+broker_poloniex = { path = "./impls/poloniex", optional = true }
+
+# CLI
+clap = { version = "3.0", optional = true }
+structopt = { version = "0.3", optional = true }
+tracing = { version = "0.1", features = ["log"] }
+anyhow = { version = "1.0", optional = true }
+# std
+dashmap = "5.1"
+dyn-clone = "1.0"
+futures = "0.3"
+
+tokio = "1.16"
+actix = { version = "0.12", optional = true }
+binance-rs-async = { version = "1.1.4", optional = true }
+env_logger = { version = "0.9", optional = true }

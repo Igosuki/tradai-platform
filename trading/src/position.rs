@@ -5,8 +5,8 @@ use std::str::FromStr;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use coinnect_rt::prelude::{Exchange, MarketEvent, MarketEventEnvelope, TradeType};
-use coinnect_rt::types::{AssetType, Pair};
+use brokers::prelude::*;
+use brokers::types::{AssetType, Pair};
 use util::time::now;
 
 use crate::order_manager::types::OrderDetail;

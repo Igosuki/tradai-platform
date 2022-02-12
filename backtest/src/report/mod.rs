@@ -1,5 +1,5 @@
+use brokers::types::Candle;
 use chrono::{DateTime, TimeZone, Utc};
-use coinnect_rt::types::Candle;
 use plotly::{Ohlc, Plot, Scatter};
 
 pub(crate) use global::GlobalReport;

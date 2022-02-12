@@ -217,9 +217,10 @@ mod test {
 
     use actix::SyncArbiter;
     use actix::System;
+    use brokers::exchange::Exchange;
     use fs_extra::dir::get_dir_content;
 
-    use coinnect_rt::prelude::*;
+    use brokers::types::MarketEventEnvelope;
 
     use crate::market_event::MarketEventPartitioner;
 

@@ -4,7 +4,7 @@ use chrono::{DateTime, TimeZone, Utc};
 use itertools::Itertools;
 use uuid::Uuid;
 
-use coinnect_rt::types::Orderbook;
+use brokers::types::Orderbook;
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct BookPosition {

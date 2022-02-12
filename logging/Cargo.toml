@@ -16,7 +16,7 @@ flame = ["dep:flame", "flamer"]
 
 [dependencies]
 # self
-coinnect_rt = { path = "../coinnect" }
+brokers = { path = "../broker" }
 
 # Actix
 actix = { version = "0.12" }

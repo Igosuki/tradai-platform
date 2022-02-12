@@ -4,7 +4,7 @@ use std::fmt::{Debug, Formatter};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use coinnect_rt::types::Candle;
+use brokers::types::Candle;
 use ext::ResultExt;
 use itertools::Itertools;
 use plotly::layout::{GridPattern, LayoutGrid};

@@ -1,7 +1,7 @@
 pub mod e2e {
     use super::super::error::*;
-    use coinnect_rt::credential::Credentials;
-    use coinnect_rt::prelude::*;
+    use brokers::credential::Credentials;
+    use brokers::prelude::*;
     use std::collections::HashMap;
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -10,9 +10,9 @@ pub mod e2e {
     pub async fn build_apis() -> Result<(Box<dyn Credentials>, Arc<HashMap<Exchange, Arc<dyn ExchangeApi>>>)> {
         let credentials_file = std::env::var("BITCOINS_E2E_TEST_CREDS_FILE").expect("BITCOINS_E2E_TEST_CREDS_FILE");
         let credentials_path = PathBuf::from(credentials_file);
-        let credentials = coinnect_rt::coinnect::Coinnect::credentials_for(Exchange::Binance, credentials_path.clone())
+        let credentials = brokers::Brokerages::credentials_for(Exchange::Binance, credentials_path.clone())
             .expect("valid credentials file");
-        let manager = coinnect_rt::coinnect::Coinnect::new_manager();
+        let manager = brokers::Brokerages::new_manager();
         let api = manager
             .build_exchange_api(credentials_path, &Exchange::Binance, false)
             .await?;

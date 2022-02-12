@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use chrono::Duration;
 use parse_duration::parse;
 
-use coinnect_rt::prelude::*;
+use brokers::prelude::*;
 use strategy::settings::{StrategyOptions, StrategySettingsReplicator};
 use strategy::StrategyKey;
 use trading::types::OrderConf;

@@ -1,4 +1,4 @@
-use coinnect_rt::prelude::MarketEventEnvelope;
+use brokers::prelude::MarketEventEnvelope;
 
 #[pyclass(name = "MarketEvent", module = "strategy", subclass)]
 #[derive(Debug, Clone)]

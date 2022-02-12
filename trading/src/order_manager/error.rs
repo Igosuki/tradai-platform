@@ -11,7 +11,7 @@ pub enum Error {
     #[error("Db {0}")]
     Db(#[from] db::Error),
     #[error("Coinnect {0}")]
-    Coinnect(#[from] coinnect_rt::error::Error),
+    Coinnect(#[from] brokers::error::Error),
 }
 
 impl Error {

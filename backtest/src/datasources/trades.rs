@@ -1,9 +1,9 @@
 use crate::datafusion_util::{get_col_as, tables_as_stream};
 use arrow2::array::*;
+use brokers::pair::symbol_to_pair;
+use brokers::prelude::*;
+use brokers::types::Candle;
 use chrono::{DateTime, Utc};
-use coinnect_rt::pair::symbol_to_pair;
-use coinnect_rt::prelude::*;
-use coinnect_rt::types::Candle;
 use datafusion::record_batch::RecordBatch;
 use futures::{Stream, StreamExt};
 use stats::kline::SampleInterval;
