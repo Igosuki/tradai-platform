@@ -110,68 +110,68 @@ impl<
 
     fn index(&self, index: I) -> &Self::Output { &self.rows[index] }
 }
-
-#[cfg(test)]
-mod test {
-    extern crate test;
-
-    use test::Bencher;
-
-    use chrono::{DateTime, Utc};
-    use fake::Fake;
-    use quickcheck::{Arbitrary, Gen};
-    use stats::Next;
-
-    use trading::book::BookPosition;
-
-    use crate::models::indicator_windowed_model::IndicatorWindowedModel;
-    use crate::models::{Model, Window, WindowedModel};
-    use crate::test_util::test_db;
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct TestRow {
-        pub time: DateTime<Utc>,
-        pub pos: BookPosition, // crypto_1
-    }
-
-    impl Arbitrary for TestRow {
-        fn arbitrary(g: &mut Gen) -> TestRow {
-            let time: chrono::DateTime<Utc> = fake::faker::chrono::en::DateTime().fake();
-            TestRow {
-                time,
-                pos: BookPosition::arbitrary(g),
-            }
-        }
-    }
-
-    #[derive(Debug, Serialize, Deserialize, Default, Copy, Clone)]
-    struct TestModel {
-        sum: f64,
-    }
-
-    impl Next<Window<'_, TestRow>> for TestModel {
-        type Output = f64;
-
-        fn next(&mut self, window: Window<'_, TestRow>) -> Self::Output {
-            self.sum = window.map(|t| t.pos.mid).sum::<f64>();
-            self.sum
-        }
-    }
-
-    #[bench]
-    fn test_save_load_model(b: &mut Bencher) {
-        let id = "default";
-        let max_size = 2000;
-        let db = test_db();
-        let mut table = IndicatorWindowedModel::new(id, db, 1000, Some(max_size), TestModel::default());
-        let mut gen = Gen::new(500);
-        for _ in 0..max_size {
-            table.push(TestRow::arbitrary(&mut gen));
-            table.update().unwrap();
-        }
-        b.iter(|| {
-            table.update().unwrap();
-            table.try_load().unwrap();
-        });
-    }
-}
+//
+// #[cfg(test)]
+// mod test {
+//     extern crate test;
+//
+//     use test::Bencher;
+//
+//     use chrono::{DateTime, Utc};
+//     use fake::Fake;
+//     use quickcheck::{Arbitrary, Gen};
+//     use stats::Next;
+//
+//     use trading::book::BookPosition;
+//
+//     use crate::models::indicator_windowed_model::IndicatorWindowedModel;
+//     use crate::models::{Model, Window, WindowedModel};
+//     use crate::test_util::test_db;
+//
+//     #[derive(Debug, Clone, Serialize, Deserialize)]
+//     pub struct TestRow {
+//         pub time: DateTime<Utc>,
+//         pub pos: BookPosition, // crypto_1
+//     }
+//
+//     impl Arbitrary for TestRow {
+//         fn arbitrary(g: &mut Gen) -> TestRow {
+//             let time: chrono::DateTime<Utc> = fake::faker::chrono::en::DateTime().fake();
+//             TestRow {
+//                 time,
+//                 pos: BookPosition::arbitrary(g),
+//             }
+//         }
+//     }
+//
+//     #[derive(Debug, Serialize, Deserialize, Default, Copy, Clone)]
+//     struct TestModel {
+//         sum: f64,
+//     }
+//
+//     impl<'a> Next<Window<'a, TestRow>> for TestModel {
+//         type Output = f64;
+//
+//         fn next(&mut self, window: Window<'a, TestRow>) -> Self::Output {
+//             self.sum = window.map(|t| t.pos.mid).sum::<f64>();
+//             self.sum
+//         }
+//     }
+//
+//     #[bench]
+//     fn test_save_load_model(b: &mut Bencher) {
+//         let id = "default";
+//         let max_size = 2000;
+//         let db = test_db();
+//         let mut table = IndicatorWindowedModel::new(id, db, 1000, Some(max_size), TestModel::default());
+//         let mut gen = Gen::new(500);
+//         for _ in 0..max_size {
+//             table.push(TestRow::arbitrary(&mut gen));
+//             table.update().unwrap();
+//         }
+//         b.iter(|| {
+//             table.update().unwrap();
+//             table.try_load().unwrap();
+//         });
+//     }
+// }

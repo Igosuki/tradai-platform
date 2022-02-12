@@ -1,5 +1,6 @@
 use actix::Addr;
 use httpmock::{Mock, MockServer};
+use std::time::Duration;
 use uuid::Uuid;
 
 use super::error::*;
@@ -74,7 +75,11 @@ async fn test_register_transactions() {
     ];
     // Register each status in order
     for status in &statuses {
-        let reg = order_manager.register(order_id.clone(), status.clone()).await;
+        let reg = tokio::time::timeout(
+            Duration::from_millis(50),
+            order_manager.register(order_id.clone(), status.clone()),
+        )
+        .await;
         assert!(reg.is_ok(), "{:?}", reg);
     }
     // Get the transactions log
