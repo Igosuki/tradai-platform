@@ -1,5 +1,5 @@
 use crate::test_db_with_path;
-use coinnect_rt::exchange::Exchange;
+use brokers::exchange::Exchange;
 use std::path::Path;
 use std::sync::Arc;
 use strategy::plugin::StrategyPluginContext;

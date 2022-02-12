@@ -6,7 +6,7 @@ use chrono::{TimeZone, Utc};
 use serde::ser::SerializeStruct;
 use serde::ser::Serializer;
 
-use coinnect_rt::types::{MarketEvent, MarketEventEnvelope};
+use brokers::types::{MarketEvent, MarketEventEnvelope};
 use db::Storage;
 use ext::ResultExt;
 use stats::indicators::macd_apo::MACDApo;
@@ -224,7 +224,7 @@ mod test {
 
     use chrono::{TimeZone, Utc};
 
-    use coinnect_rt::exchange::Exchange;
+    use brokers::exchange::Exchange;
     use db::MemoryKVStore;
     use strategy::error::Result;
     use strategy::models::io::{IterativeModel, LoadableModel};

@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use pyo3_chrono::NaiveDate;
 use pythonize::pythonize;
 
-use coinnect_rt::prelude::Exchange;
+use brokers::prelude::Exchange;
 use db::Storage;
 use strategy_test_util::draw::StrategyEntryFnRef;
 use strategy_test_util::it_backtest::{generic_backtest, BacktestRange, BacktestStratProviderRef, GenericTestContext};

@@ -10,9 +10,9 @@ pub fn test_db() -> Arc<dyn Storage> {
 pub mod fixtures {
     #![allow(dead_code)]
 
-    use coinnect_rt::exchange::Exchange;
-    use coinnect_rt::prelude::MarketEventEnvelope;
-    use coinnect_rt::types::{MarketEvent, Orderbook};
+    use brokers::exchange::Exchange;
+    use brokers::prelude::MarketEventEnvelope;
+    use brokers::types::{MarketEvent, Orderbook};
     use util::time::now;
 
     static DEFAULT_PAIR: &str = "BTC_USDT";

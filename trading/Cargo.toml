@@ -10,14 +10,15 @@ required-features = ["binary"]
 
 [features]
 binary = ["clap", "structopt"]
-test_util = ["binance-rs-async", "httpmock", "rand", "env_logger", "fake", "quickcheck"]
+test_util = ["binance-rs-async", "httpmock", "rand", "env_logger", "fake", "quickcheck", "brokers/test_util"]
 release_max_level_debug = ["tracing/release_max_level_debug"]
 release_max_level_trace = ["tracing/release_max_level_trace"]
 release_default=["structopt","binary"]
+
 [dependencies]
 # own
 ext = { path = "../ext" }
-coinnect_rt = { path = "../coinnect" }
+brokers = { path = "../broker" }
 db = { path = "../db" }
 util = { path = "../util" }
 # actix
@@ -62,7 +63,7 @@ fake = { version = "2.4", features = ["chrono"], optional = true }
 quickcheck = { version = "1.0", optional = true }
 
 [dev-dependencies]
-coinnect_test_util = { path = "../coinnect_test_util" }
+broker_test_util = { path = "../broker_test_util" }
 binance-rs-async = { version = "1.1.4" }
 httpmock = { version = "0.6", default-features = false }
 fake = { version = "2.4", features = ["chrono"] }

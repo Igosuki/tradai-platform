@@ -5,7 +5,7 @@ use config::{Config, ConfigError, Environment, File};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use coinnect_rt::prelude::*;
+use brokers::prelude::*;
 use db::DbOptions;
 use metrics::prom::PrometheusOptions;
 use portfolio::balance::BalanceReporterOptions;
@@ -180,7 +180,7 @@ impl Settings {
             let (invalid_pairs, valid_pairs): (_, Vec<Pair>) = pairs
                 .clone()
                 .into_iter()
-                .partition(|p| coinnect_rt::pair::pair_to_symbol(&xchg, p).is_err());
+                .partition(|p| brokers::pair::pair_to_symbol(&xchg, p).is_err());
             info!("Invalid pairs : {:?}", invalid_pairs);
             info!("Valid pairs : {:?}", valid_pairs);
         }

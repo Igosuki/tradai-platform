@@ -1,7 +1,7 @@
 use smallvec::SmallVec;
 use std::collections::HashSet;
 
-use coinnect_rt::types::MarketEventEnvelope;
+use brokers::types::MarketEventEnvelope;
 use portfolio::portfolio::Portfolio;
 use trading::signal::TradeSignal;
 

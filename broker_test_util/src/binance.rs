@@ -7,9 +7,10 @@ use futures::Future;
 use httpmock::MockServer;
 
 use binance::config::Config;
-use coinnect_rt::binance::BinanceApi;
-use coinnect_rt::credential::{BasicCredentials, Credentials};
-use coinnect_rt::exchange::{Exchange, ExchangeApi};
+use brokers::api::ExchangeApi;
+use brokers::broker_binance::BinanceApi;
+use brokers::credential::{BasicCredentials, Credentials};
+use brokers::exchange::Exchange;
 
 type WSResponse = impl Future<Output = Result<ws::Message, io::Error>>;
 

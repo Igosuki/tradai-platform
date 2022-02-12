@@ -11,8 +11,8 @@ use actix_web::{web::{self},
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 
-use coinnect_rt::pair::pair_confs;
-use coinnect_rt::prelude::*;
+use brokers::pair::pair_confs;
+use brokers::prelude::*;
 use strategy::{StrategyKey, Trader};
 use trading::order_manager::OrderManager;
 
@@ -39,7 +39,7 @@ pub enum ApiError {
     #[display(fmt = "Exchange not found")]
     ExchangeNotFound(Exchange),
     #[display(fmt = "Coinnect error {}", _0)]
-    Coinnect(coinnect_rt::error::Error),
+    Coinnect(brokers::error::Error),
     #[display(fmt = "Std Io Error {}", _0)]
     IoError(std::io::Error),
 }
@@ -132,10 +132,10 @@ mod tests {
     use actix_web::http::header::ContentType;
     use actix_web::web::Data;
     use actix_web::{http::StatusCode, test, web, App};
-    use coinnect_rt::exchange::manager::ExchangeApiRegistry;
+    use brokers::manager::ExchangeApiRegistry;
     use tokio::time::timeout;
 
-    use coinnect_rt::prelude::*;
+    use brokers::prelude::*;
     use strategy::{StrategyKey, Trader};
     use trading::order_manager::OrderManager;
 
@@ -161,11 +161,11 @@ mod tests {
         .iter()
         .cloned()
         .collect();
-        let manager = Arc::new(Coinnect::new_manager());
+        let manager = Arc::new(Brokerages::new_manager());
         manager
             .build_exchange_apis(Arc::new(exchanges), "../config/keys_real_test.json".into())
             .await;
-        Coinnect::load_pair_registries(manager.exchange_apis()).await.unwrap();
+        Brokerages::load_pair_registries(manager.exchange_apis()).await.unwrap();
         manager.exchange_apis().clone()
     }
 

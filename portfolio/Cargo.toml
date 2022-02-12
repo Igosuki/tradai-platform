@@ -13,7 +13,7 @@ release_max_level_debug = ["tracing/release_max_level_debug"]
 release_max_level_trace = ["tracing/release_max_level_trace"]
 
 [dependencies]
-coinnect_rt = { path = "../coinnect" }
+brokers = { path = "../broker" }
 trading = { path = "../trading" }
 util = { path = "../util" }
 db = { path = "../db" }

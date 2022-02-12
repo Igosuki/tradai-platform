@@ -1,4 +1,4 @@
-use coinnect_rt::prelude::Exchange;
+use brokers::prelude::Exchange;
 use strategy::Channel;
 
 #[pyclass(name = "Channel", module = "strategy", subclass)]

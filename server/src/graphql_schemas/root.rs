@@ -4,7 +4,7 @@ use futures::Stream;
 use itertools::Itertools;
 use juniper::{FieldError, FieldResult, RootNode};
 
-use coinnect_rt::prelude::*;
+use brokers::prelude::*;
 use strategy::query::{DataQuery, DataResult, ModelReset, PortfolioSnapshot, StateFieldMutation};
 use strategy::{StrategyKey, StrategyLifecycleCmd, StrategyStatus};
 use trading::order_manager;

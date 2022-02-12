@@ -5,10 +5,10 @@ use chrono::{DateTime, TimeZone, Utc};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::pair::symbol_to_pair;
-use coinnect_rt::types::{AddOrderRequest, AssetType, InterestRate, MarginSideEffect, OrderEnforcement, OrderQuery,
-                         OrderStatus as ExchangeOrderStatus, OrderSubmission, OrderType, OrderUpdate, Pair, TradeType};
+use brokers::exchange::Exchange;
+use brokers::pair::symbol_to_pair;
+use brokers::types::{AddOrderRequest, AssetType, InterestRate, MarginSideEffect, OrderEnforcement, OrderQuery,
+                     OrderStatus as ExchangeOrderStatus, OrderSubmission, OrderType, OrderUpdate, Pair, TradeType};
 use util::time::now;
 
 use super::error::*;
@@ -67,7 +67,7 @@ impl TransactionStatus {
             }
             TransactionStatus::New(os) => Ok(os.pair.clone()),
             TransactionStatus::Staged(OrderQuery::AddOrder(ao)) => Ok(ao.pair.clone()),
-            _ => Err(coinnect_rt::error::Error::PairUnsupported.into()),
+            _ => Err(brokers::error::Error::PairUnsupported.into()),
         }
     }
 }
@@ -423,8 +423,8 @@ mod test {
 
     use chrono::{Duration, Utc};
 
-    use coinnect_rt::types::{AddOrderRequest, InterestRate, InterestRatePeriod, OrderFill, OrderQuery,
-                             OrderStatus as CoinOrderStatus, OrderSubmission, OrderUpdate};
+    use brokers::types::{AddOrderRequest, InterestRate, InterestRatePeriod, OrderFill, OrderQuery,
+                         OrderStatus as CoinOrderStatus, OrderSubmission, OrderUpdate};
 
     use super::{OrderDetail, OrderStatus, Rejection, Transaction, TransactionStatus};
 

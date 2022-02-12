@@ -1,0 +1,91 @@
+[package]
+name = "broker_core"
+version = "0.1.0"
+edition = "2021"
+
+[[bench]]
+name = "broker"
+harness = false
+
+[features]
+default = ["native-tls"]
+zstd = ["awc/compress-zstd"]
+rustls-tls = ["awc/rustls", "reqwest/rustls-tls"]
+native-tls = ["awc/openssl", "reqwest/native-tls"]
+
+[dev-dependencies]
+env_logger = "0.9"
+float-cmp = "0.9"
+criterion = { version = "0.3", features = ["async_tokio"] }
+
+[dependencies]
+ext = { path = "../../ext" }
+
+# Actix
+actix = "0.12"
+actix-codec = "0.4"
+actix-http = "3.0.0-rc"
+actix_derive = "0.6.0"
+awc = { version = "3.0.0-beta", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
+
+# Error
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Retry
+backoff = { version = "0.4", features = ["tokio"] }
+
+# Plugin system
+inventory = "0.2"
+
+# std
+bstr = "0.2"
+bytes = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+bimap = { version = "0.6", features = ["serde"] }
+multimap = "0.8"
+dashmap = { version = "5", features = ["serde"] }
+rust_decimal = "1.17"
+itertools = "0.10"
+lazy_static = "1.4"
+once_cell = "1.9"
+libc = "0.2"
+dyn-clone = "1.0"
+ordered-float = "2.2"
+regex = "1"
+fancy-regex = "0.7"
+string_cache = "0.8"
+url = "2.2"
+uuid = { version = "0.8", features = ["v4", "serde"] }
+typed-builder = "0.9"
+# rate limiting
+governor = "0.4"
+
+# Derive
+derive_more = "0.99"
+strum = "0.23"
+strum_macros = "0.23"
+
+# Cryptography
+hmac = { version = "0.12", optional = true }
+sha2 = { version = "0.10", optional = true }
+data-encoding = "2.2"
+
+# Async / Futures
+async-trait = "0.1"
+futures = { version = "0.3", features = ["alloc"] }
+tokio = { version = "1", features = ["full", "time"] }
+tokio-stream = { version = "0.1" }
+async-stream = { version = "0.3" }
+
+# Http(s)
+reqwest = { version = "0.11", features = ["stream"] }
+
+# Monitoring / Logging / Tracing
+tracing = { version = "0.1", features = ["log"] }
+prometheus = "0.13"
+
+# Serde
+serde = "1.0"
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
+

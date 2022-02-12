@@ -74,8 +74,8 @@ use strum_macros::AsRefStr;
 use uuid::Uuid;
 
 use actor::StrategyActor;
-use coinnect_rt::broker::{MarketEventEnvelopeMsg, Subject};
-use coinnect_rt::prelude::*;
+use brokers::broker::{MarketEventEnvelopeMsg, Subject};
+use brokers::prelude::*;
 use db::DbOptions;
 use error::*;
 use ext::ResultExt;
@@ -286,7 +286,7 @@ mod test {
     use actix::System;
     use futures::StreamExt;
 
-    use coinnect_rt::prelude::*;
+    use brokers::prelude::*;
 
     use crate::driver::StrategyDriver;
     use crate::query::{DataQuery, DataResult, ModelReset, Mutation};

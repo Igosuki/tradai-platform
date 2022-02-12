@@ -8,7 +8,7 @@ use chrono::Duration;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use coinnect_rt::types::MarketEventEnvelope;
+use brokers::types::MarketEventEnvelope;
 use util::ser::decode_duration_str;
 
 use crate::driver::StrategyDriver;

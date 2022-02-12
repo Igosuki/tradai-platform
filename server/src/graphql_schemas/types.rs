@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 use juniper::FieldResult;
 
-use coinnect_rt::prelude::*;
+use brokers::prelude::*;
 use strategy::query::{DataQuery, DataResult, PortfolioSnapshot};
 use trading::position::{OperationKind, PositionKind};
 use trading::types::TradeOperation;

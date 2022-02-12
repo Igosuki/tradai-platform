@@ -18,7 +18,7 @@ stats = { path = "../stats" }
 util = { path = "../util" }
 ext = { path = "../ext" }
 metrics = { path = "../metrics" }
-coinnect_rt = { path = "../coinnect" }
+brokers = { path = "../broker" }
 db = { path = "../db" }
 account = { path = "../portfolio" }
 

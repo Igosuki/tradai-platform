@@ -10,7 +10,7 @@ pub enum Error {
     #[error("json {0}")]
     Json(#[from] serde_json::Error),
     #[error("coinnect {0}")]
-    Coinnect(#[from] coinnect_rt::error::Error),
+    Coinnect(#[from] brokers::error::Error),
     #[error("trading {0}")]
     Trading(#[from] trading::error::Error),
     #[error("db {0}")]

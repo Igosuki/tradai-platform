@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use prometheus::{default_registry, CounterVec, GaugeVec, Registry};
 
-use coinnect_rt::exchange::Exchange;
-use coinnect_rt::types::Pair;
+use brokers::exchange::Exchange;
+use brokers::types::Pair;
 use metrics::{make_gauges, MetricGaugeProvider, MetricProviderFn};
 use portfolio::portfolio::Portfolio;
 use trading::position::Position;

@@ -1,12 +1,12 @@
 use thiserror::Error;
 
-use coinnect_rt::types::TradeType;
+use brokers::types::TradeType;
 use trading::position::{OperationKind, PositionKind};
 
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("Coinnect {0}")]
-    Coinnect(#[from] coinnect_rt::error::Error),
+    Coinnect(#[from] brokers::error::Error),
     #[error("db {0}")]
     Db(#[from] db::Error),
     #[error("no position found for exchange and pair")]

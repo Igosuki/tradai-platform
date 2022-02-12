@@ -7,8 +7,8 @@ use pyo3::exceptions::PyBaseException;
 use pyo3::prelude::*;
 use pyo3_chrono::NaiveDateTime;
 
-use coinnect_rt::prelude::*;
-use coinnect_rt::types::{AssetType, MarginSideEffect, OrderType};
+use brokers::prelude::*;
+use brokers::types::{AssetType, MarginSideEffect, OrderType};
 use ext::MapInto;
 use trading::position::Position;
 use trading::position::{OperationKind, PositionKind};

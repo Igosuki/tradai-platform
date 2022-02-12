@@ -1,8 +1,8 @@
 pub mod fixtures {
     #![allow(dead_code)]
 
-    use coinnect_rt::exchange::Exchange;
-    use coinnect_rt::types::{MarketEvent, MarketEventEnvelope, Orderbook};
+    use brokers::exchange::Exchange;
+    use brokers::types::{MarketEvent, MarketEventEnvelope, Orderbook};
     use util::time::now;
 
     static DEFAULT_PAIR: &str = "BTC_USDT";

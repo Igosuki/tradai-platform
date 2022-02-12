@@ -1,4 +1,0 @@
-[submodule "trader/coinnect"]
-path = coinnect
-url = git@github.com:Igosuki/coinnect_rt.git
-

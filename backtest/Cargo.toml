@@ -28,7 +28,7 @@ standalone_execution = ["ballista", "ballista/standalone"]
 strategy = { path = "../strategy" }
 strategies = { path = "../strategies" }
 strategy_python = { path = "../strategy_python" }
-coinnect_rt = { path = "../coinnect" }
+brokers = { path = "../broker" }
 
 util = { path = "../util" }
 ext = { path = "../ext" }

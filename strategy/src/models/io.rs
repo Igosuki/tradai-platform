@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use serde::Serialize;
 use serde_json::Value;
 
-use coinnect_rt::types::MarketEventEnvelope;
+use brokers::types::MarketEventEnvelope;
 
 use crate::error::Result;
 

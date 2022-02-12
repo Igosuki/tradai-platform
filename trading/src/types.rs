@@ -1,11 +1,11 @@
 // --------- Event Types ---------
 
-use coinnect_rt::broker::Subject;
-use coinnect_rt::exchange::Exchange;
+use brokers::broker::Subject;
+use brokers::exchange::Exchange;
 use uuid::Uuid;
 
-use coinnect_rt::types::{AccountEventEnveloppe, AccountType, AddOrderRequest, AssetType, MarginSideEffect,
-                         MarketEvent, OrderEnforcement, OrderType, TradeType};
+use brokers::types::{AccountEventEnveloppe, AccountType, AddOrderRequest, AssetType, MarginSideEffect, MarketEvent,
+                     OrderEnforcement, OrderType, TradeType};
 
 use crate::signal::ExecutionInstruction;
 

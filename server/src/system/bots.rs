@@ -6,9 +6,10 @@ use std::time::Duration;
 use actix::Recipient;
 use tracing::Instrument;
 
-use coinnect_rt::bot::{AccountExchangeBot, ExchangeBot, MarketExchangeBot, Ping};
-use coinnect_rt::pair::pair_to_symbol;
-use coinnect_rt::prelude::*;
+use brokers::bot::{AccountExchangeBot, ExchangeBot, MarketExchangeBot, Ping};
+use brokers::pair::pair_to_symbol;
+use brokers::prelude::*;
+use brokers::types::PrivateStreamChannel;
 
 pub async fn exchange_bots<'a>(
     exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
@@ -16,8 +17,8 @@ pub async fn exchange_bots<'a>(
 ) -> anyhow::Result<HashMap<Exchange, Box<MarketExchangeBot>>> {
     let mut bots: HashMap<Exchange, Box<MarketExchangeBot>> = HashMap::new();
     for (xch, conf) in exchanges_settings.clone().iter() {
-        let creds = Coinnect::credentials_for(*xch, keys_path.clone())?;
-        let bot = Coinnect::new_market_bot(*xch, creds, conf.clone())
+        let creds = Brokerages::credentials_for(*xch, keys_path.clone())?;
+        let bot = Brokerages::new_market_bot(*xch, creds, conf.clone())
             .instrument(tracing::info_span!("new exchange stream", xchg = ?xch))
             .await?;
         bots.insert(*xch, bot);
@@ -56,12 +57,13 @@ pub async fn isolated_margin_account_bots(
     {
         for pair in &conf.isolated_margin_account_pairs {
             let symbol = pair_to_symbol(xch, &Pair::from(pair.as_str()))?;
-            let creds = Coinnect::credentials_for(*xch, keys_path.clone())?;
-            let bot = Coinnect::new_account_stream(
+            let creds = Brokerages::credentials_for(*xch, keys_path.clone())?;
+            let bot = Brokerages::new_account_stream(
                 *xch,
                 creds.clone(),
                 conf.use_test,
                 AccountType::IsolatedMargin(symbol.to_string()),
+                PrivateStreamChannel::all(),
             )
             .await?;
             bots.push(bot);
@@ -77,9 +79,17 @@ pub async fn make_account_bots(
     pred: fn(&(&Exchange, &ExchangeSettings)) -> bool,
 ) -> anyhow::Result<Vec<Box<AccountExchangeBot>>> {
     let mut bots = vec![];
+
     for (xch, conf) in exchanges_settings.iter().filter(pred) {
-        let creds = Coinnect::credentials_for(*xch, keys_path.clone())?;
-        let bot = Coinnect::new_account_stream(*xch, creds.clone(), conf.use_test, account_type.clone()).await?;
+        let creds = Brokerages::credentials_for(*xch, keys_path.clone())?;
+        let bot = Brokerages::new_account_stream(
+            *xch,
+            creds.clone(),
+            conf.use_test,
+            account_type.clone(),
+            PrivateStreamChannel::all(),
+        )
+        .await?;
         bots.push(bot);
     }
     Ok(bots)
@@ -111,7 +121,7 @@ pub async fn poll_pingables(recipients: Vec<Recipient<Ping>>) -> std::io::Result
         interval.tick().await;
         for recipient in &recipients {
             recipient
-                .do_send(coinnect_rt::bot::Ping)
+                .do_send(brokers::bot::Ping)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
         }
     }

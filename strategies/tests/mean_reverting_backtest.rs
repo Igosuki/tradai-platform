@@ -12,7 +12,7 @@
 //
 //     use backtest::BacktestConfig;
 //     use backtest::DatasetInputFormat;
-//     use coinnect_rt::exchange::Exchange;
+//     use brokers::exchange::Exchange;
 //     use strategies::mean_reverting::options::Options;
 //     use strategies::StrategySettings;
 //     use util::test::{data_cache_dir, test_results_dir};

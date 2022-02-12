@@ -8,10 +8,10 @@ use chrono::{DateTime, Utc};
 use futures::FutureExt;
 use prometheus::GaugeVec;
 
-use coinnect_rt::bot::Ping;
-use coinnect_rt::exchange::manager::ExchangeManagerRef;
-use coinnect_rt::prelude::*;
-use coinnect_rt::types::{BalanceUpdate, MarginAccountDetails, MarginAsset};
+use brokers::bot::Ping;
+use brokers::manager::ExchangeManagerRef;
+use brokers::prelude::*;
+use brokers::types::{BalanceUpdate, MarginAccountDetails, MarginAsset};
 
 #[derive(Clone)]
 pub struct MarginAccountMetrics {

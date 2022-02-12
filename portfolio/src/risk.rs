@@ -1,4 +1,4 @@
-use coinnect_rt::types::AddOrderRequest;
+use brokers::types::AddOrderRequest;
 use std::fmt::Debug;
 
 use crate::portfolio::Portfolio;

@@ -11,11 +11,11 @@ use itertools::Itertools;
 use std::time::Duration;
 use tokio::sync::RwLock;
 
-use coinnect_rt::bot::Ping;
-use coinnect_rt::error::Error as CoinnectError;
-use coinnect_rt::exchange::manager::{ExchangeManager, ExchangeManagerRef};
-use coinnect_rt::prelude::*;
-use coinnect_rt::types::{Order, OrderStatus, OrderUpdate};
+use brokers::bot::Ping;
+use brokers::error::Error as CoinnectError;
+use brokers::manager::{ExchangeManager, ExchangeManagerRef};
+use brokers::prelude::*;
+use brokers::types::{Order, OrderQuery, OrderStatus, OrderUpdate};
 use db::{get_or_create, DbOptions, Storage};
 use ext::ResultExt;
 use wal::{Wal, WalCmp};
@@ -172,7 +172,7 @@ impl OrderManager {
             TransactionStatus::New(request.into())
         } else {
             // Here the order is truncated according to the exchange configuration
-            let pair_conf = coinnect_rt::pair::pair_conf(&order.query.xch(), &order.query.pair())?;
+            let pair_conf = brokers::pair::pair_conf(&order.query.xch(), &order.query.pair())?;
             let query = order.query.truncate(&pair_conf);
             let order_info = self.xchg_manager.expect_api(query.xch()).order(query).await;
             match order_info {

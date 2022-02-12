@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use pyo3::prelude::*;
 
 use crate::asyncio::get_event_loop;
-use coinnect_rt::prelude::MarketEventEnvelope;
+use brokers::prelude::MarketEventEnvelope;
 use ext::ResultExt;
 use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::models::io::SerializedModel;
@@ -162,7 +162,7 @@ mod test {
     use inline_python::Context;
     use pyo3::{PyObject, Python};
 
-    use coinnect_rt::exchange::Exchange;
+    use brokers::exchange::Exchange;
     use strategy::driver::Strategy;
     use strategy::Channel;
 
