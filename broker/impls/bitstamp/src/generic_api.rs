@@ -13,7 +13,7 @@ use broker_core::prelude::*;
 use broker_core::types::*;
 
 #[async_trait]
-impl ExchangeApi for BitstampApi {
+impl Brokerage for BitstampApi {
     async fn ticker(&self, pair: Pair) -> Result<Ticker> {
         let ticker = self.return_ticker(pair.clone()).await?;
         Ok(Ticker {

@@ -271,11 +271,11 @@ impl actix::io::WriteHandler<WsProtocolError> for DefaultWsActor {}
 #[rtype(result = "()")]
 pub struct Ping;
 
-pub type MarketExchangeBot = dyn ExchangeBot<MarketEventEnvelopeMsg>;
-pub type AccountExchangeBot = dyn ExchangeBot<AccountEventEnveloppe>;
+pub type MarketDataStreamer = dyn DataStreamer<MarketEventEnvelopeMsg>;
+pub type BrokerageAccountDataStreamer = dyn DataStreamer<AccountEventEnveloppe>;
 
 #[async_trait]
-pub trait ExchangeBot<E>: Send + Sync {
+pub trait DataStreamer<E>: Send + Sync {
     /// Returns the address of the exchange actor
     fn is_connected(&self) -> bool;
 
@@ -300,7 +300,7 @@ impl<T: Actor, S: Stream> BotWrapper<T, S> {
 }
 
 #[async_trait]
-impl<T, S, E> ExchangeBot<E> for BotWrapper<T, S>
+impl<T, S, E> DataStreamer<E> for BotWrapper<T, S>
 where
     T: Actor,
     S: Stream<Item = E> + 'static + Send + Sync + Unpin,

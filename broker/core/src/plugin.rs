@@ -3,32 +3,32 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
-use crate::api::ExchangeApi;
-use crate::bot::{AccountExchangeBot, MarketExchangeBot};
+use crate::api::Brokerage;
+use crate::bot::{BrokerageAccountDataStreamer, MarketDataStreamer};
 use crate::credential::Credentials;
 use crate::error::Result;
 use crate::exchange::Exchange;
-use crate::settings::ExchangeSettings;
+use crate::settings::BrokerSettings;
 use crate::types::{AccountType, PrivateStreamChannel, StreamChannel, Symbol};
 
 #[async_trait(?Send)]
-pub trait ExchangeConnector: Send + Sync {
-    async fn new_api(&self, ctx: ExchangeApiInitContext) -> Result<Arc<dyn ExchangeApi>>;
+pub trait BrokerConnector: Send + Sync {
+    async fn new_api(&self, ctx: BrokerageInitContext) -> Result<Arc<dyn Brokerage>>;
 
-    async fn new_public_stream(&self, ctx: ExchangeBotInitContext) -> Result<Box<MarketExchangeBot>>;
+    async fn new_public_stream(&self, ctx: BrokerageBotInitContext) -> Result<Box<MarketDataStreamer>>;
 
-    async fn new_private_stream(&self, ctx: PrivateBotInitContext) -> Result<Box<AccountExchangeBot>>;
+    async fn new_private_stream(&self, ctx: PrivateBotInitContext) -> Result<Box<BrokerageAccountDataStreamer>>;
 }
 
 #[derive(typed_builder::TypedBuilder)]
-pub struct ExchangeApiInitContext {
+pub struct BrokerageInitContext {
     pub use_test_servers: bool,
     pub creds: Box<dyn Credentials>,
 }
 
-impl ExchangeApiInitContext {
+impl BrokerageInitContext {
     pub fn new(use_test_servers: bool, creds: Box<dyn Credentials>) -> Self {
-        ExchangeApiInitContext::builder()
+        BrokerageInitContext::builder()
             .use_test_servers(use_test_servers)
             .creds(creds)
             .build()
@@ -36,8 +36,8 @@ impl ExchangeApiInitContext {
 }
 
 #[derive(typed_builder::TypedBuilder)]
-pub struct ExchangeBotInitContext {
-    pub settings: ExchangeSettings,
+pub struct BrokerageBotInitContext {
+    pub settings: BrokerSettings,
     pub creds: Box<dyn Credentials>,
     pub channels: HashMap<StreamChannel, HashSet<Symbol>>,
 }
@@ -50,52 +50,55 @@ pub struct PrivateBotInitContext {
     pub account_type: AccountType,
 }
 
-pub struct ExchangePlugin {
+pub struct BrokerPlugin {
     name: Exchange,
-    connector: fn() -> Box<dyn ExchangeConnector>,
+    connector: fn() -> Box<dyn BrokerConnector>,
 }
 
-impl Debug for ExchangePlugin {
+impl Debug for BrokerPlugin {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ExchangePlugin").field("name", &self.name).finish()
+        f.debug_struct("BrokerPlugin").field("name", &self.name).finish()
     }
 }
 
-impl ExchangePlugin {
-    pub const fn new(name: Exchange, connector: fn() -> Box<dyn ExchangeConnector>) -> Self { Self { name, connector } }
+impl BrokerPlugin {
+    pub const fn new(name: Exchange, connector: fn() -> Box<dyn BrokerConnector>) -> Self { Self { name, connector } }
 
-    pub async fn new_api(&self, creds: Box<dyn Credentials>, use_test_servers: bool) -> Result<Arc<dyn ExchangeApi>> {
-        let ctx = ExchangeApiInitContext::new(use_test_servers, creds);
+    pub async fn new_api(&self, creds: Box<dyn Credentials>, use_test_servers: bool) -> Result<Arc<dyn Brokerage>> {
+        let ctx = BrokerageInitContext::new(use_test_servers, creds);
         (self.connector)().new_api(ctx).await
     }
 
-    pub async fn new_public_stream<'a>(&self, ctx: ExchangeBotInitContext) -> Result<Box<MarketExchangeBot>> {
+    pub async fn new_public_stream<'a>(&self, ctx: BrokerageBotInitContext) -> Result<Box<MarketDataStreamer>> {
         (self.connector)().new_public_stream(ctx).await
     }
 
-    pub async fn new_private_stream<'a>(&self, ctx: PrivateBotInitContext) -> Result<Box<AccountExchangeBot>> {
+    pub async fn new_private_stream<'a>(
+        &self,
+        ctx: PrivateBotInitContext,
+    ) -> Result<Box<BrokerageAccountDataStreamer>> {
         (self.connector)().new_private_stream(ctx).await
     }
 }
 
-inventory::collect!(ExchangePlugin);
+inventory::collect!(BrokerPlugin);
 
-pub type ExchangePluginRegistry<'a> = HashMap<Exchange, &'a ExchangePlugin>;
+pub type BrokerPluginRegistry<'a> = HashMap<Exchange, &'a BrokerPlugin>;
 
-pub fn gather_plugins() -> ExchangePluginRegistry<'static> {
-    inventory::iter::<ExchangePlugin>
+pub fn gather_plugins() -> BrokerPluginRegistry<'static> {
+    inventory::iter::<BrokerPlugin>
         .into_iter()
         .map(|p| (p.name, p))
         .collect()
 }
 
-static ECHANGE_PLUGIN_REGISTRY: OnceCell<ExchangePluginRegistry<'static>> = OnceCell::new();
+static ECHANGE_PLUGIN_REGISTRY: OnceCell<BrokerPluginRegistry<'static>> = OnceCell::new();
 
-pub fn plugin_registry() -> &'static ExchangePluginRegistry<'static> {
+pub fn plugin_registry() -> &'static BrokerPluginRegistry<'static> {
     ECHANGE_PLUGIN_REGISTRY.get_or_init(gather_plugins)
 }
 
-pub fn get_exchange_plugin(exchange: Exchange) -> crate::error::Result<&'static ExchangePlugin> {
+pub fn get_exchange_plugin(exchange: Exchange) -> crate::error::Result<&'static BrokerPlugin> {
     crate::plugin::plugin_registry()
         .get(&exchange)
         .copied()
@@ -107,10 +110,10 @@ mod macros {
     macro_rules! exchange {
         ($f:expr, $t:ident) => {
             pub struct $t;
-            fn provide_connector() -> Box<dyn $crate::plugin::ExchangeConnector> { Box::new($t {}) }
+            fn provide_connector() -> Box<dyn $crate::plugin::BrokerConnector> { Box::new($t {}) }
 
             $crate::inventory::submit! {
-                $crate::plugin::ExchangePlugin::new($f, provide_connector)
+                $crate::plugin::BrokerPlugin::new($f, provide_connector)
             }
         };
     }

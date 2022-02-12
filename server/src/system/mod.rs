@@ -148,7 +148,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
 
     for stream_settings in &settings_v.streams {
         match stream_settings {
-            StreamSettings::ExchangeBots => {
+            StreamSettings::MarketData => {
                 let mut all_recipients = vec![];
                 all_recipients.extend(strat_recipients.clone());
                 all_recipients.extend(broadcast_recipients.clone());
@@ -170,7 +170,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                     termination_handles.push(Box::pin(fut));
                 }
             }
-            StreamSettings::AccountBots => {
+            StreamSettings::AccountData => {
                 let mut bots = bots::spot_account_bots(exchanges_conf.clone(), keys_path.clone()).await?;
                 let margin_bots = bots::margin_account_bots(exchanges_conf.clone(), keys_path.clone()).await?;
                 bots.extend(margin_bots);

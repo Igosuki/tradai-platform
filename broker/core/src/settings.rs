@@ -25,7 +25,7 @@ fn default_as_false() -> bool { false }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[allow(clippy::struct_excessive_bools)]
-pub struct ExchangeSettings {
+pub struct BrokerSettings {
     pub orderbook: Option<OrderbookSettings>,
     pub orderbook_depth: Option<u16>,
     pub trades: Option<TradesSettings>,
@@ -38,7 +38,7 @@ pub struct ExchangeSettings {
     pub use_test: bool,
 }
 
-impl ExchangeSettings {
+impl BrokerSettings {
     pub fn default_test(fees: f64) -> Self {
         Self {
             fees,

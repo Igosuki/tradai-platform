@@ -6,16 +6,16 @@ use std::time::Duration;
 use actix::Recipient;
 use tracing::Instrument;
 
-use brokers::bot::{AccountExchangeBot, ExchangeBot, MarketExchangeBot, Ping};
+use brokers::bot::{BrokerageAccountDataStreamer, DataStreamer, MarketDataStreamer, Ping};
 use brokers::pair::pair_to_symbol;
 use brokers::prelude::*;
 use brokers::types::PrivateStreamChannel;
 
 pub async fn exchange_bots<'a>(
-    exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
+    exchanges_settings: Arc<HashMap<Exchange, BrokerSettings>>,
     keys_path: PathBuf,
-) -> anyhow::Result<HashMap<Exchange, Box<MarketExchangeBot>>> {
-    let mut bots: HashMap<Exchange, Box<MarketExchangeBot>> = HashMap::new();
+) -> anyhow::Result<HashMap<Exchange, Box<MarketDataStreamer>>> {
+    let mut bots: HashMap<Exchange, Box<MarketDataStreamer>> = HashMap::new();
     for (xch, conf) in exchanges_settings.clone().iter() {
         let creds = Brokerages::credentials_for(*xch, keys_path.clone())?;
         let bot = Brokerages::new_market_bot(*xch, creds, conf.clone())
@@ -27,9 +27,9 @@ pub async fn exchange_bots<'a>(
 }
 
 pub async fn spot_account_bots(
-    exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
+    exchanges_settings: Arc<HashMap<Exchange, BrokerSettings>>,
     keys_path: PathBuf,
-) -> anyhow::Result<Vec<Box<AccountExchangeBot>>> {
+) -> anyhow::Result<Vec<Box<BrokerageAccountDataStreamer>>> {
     make_account_bots(exchanges_settings, keys_path, AccountType::Spot, |(_, conf)| {
         conf.use_account
     })
@@ -37,9 +37,9 @@ pub async fn spot_account_bots(
 }
 
 pub async fn margin_account_bots(
-    exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
+    exchanges_settings: Arc<HashMap<Exchange, BrokerSettings>>,
     keys_path: PathBuf,
-) -> anyhow::Result<Vec<Box<AccountExchangeBot>>> {
+) -> anyhow::Result<Vec<Box<BrokerageAccountDataStreamer>>> {
     make_account_bots(exchanges_settings, keys_path, AccountType::Margin, |(_, conf)| {
         conf.use_margin_account
     })
@@ -47,9 +47,9 @@ pub async fn margin_account_bots(
 }
 
 pub async fn isolated_margin_account_bots(
-    exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
+    exchanges_settings: Arc<HashMap<Exchange, BrokerSettings>>,
     keys_path: PathBuf,
-) -> anyhow::Result<Vec<Box<AccountExchangeBot>>> {
+) -> anyhow::Result<Vec<Box<BrokerageAccountDataStreamer>>> {
     let mut bots = vec![];
     for (xch, conf) in exchanges_settings
         .iter()
@@ -73,11 +73,11 @@ pub async fn isolated_margin_account_bots(
 }
 
 pub async fn make_account_bots(
-    exchanges_settings: Arc<HashMap<Exchange, ExchangeSettings>>,
+    exchanges_settings: Arc<HashMap<Exchange, BrokerSettings>>,
     keys_path: PathBuf,
     account_type: AccountType,
-    pred: fn(&(&Exchange, &ExchangeSettings)) -> bool,
-) -> anyhow::Result<Vec<Box<AccountExchangeBot>>> {
+    pred: fn(&(&Exchange, &BrokerSettings)) -> bool,
+) -> anyhow::Result<Vec<Box<BrokerageAccountDataStreamer>>> {
     let mut bots = vec![];
 
     for (xch, conf) in exchanges_settings.iter().filter(pred) {
@@ -95,7 +95,7 @@ pub async fn make_account_bots(
     Ok(bots)
 }
 
-pub async fn poll_bots<E>(bots: HashMap<Exchange, Box<dyn ExchangeBot<E>>>) -> std::io::Result<()> {
+pub async fn poll_bots<E>(bots: HashMap<Exchange, Box<dyn DataStreamer<E>>>) -> std::io::Result<()> {
     let mut interval = tokio::time::interval(Duration::from_secs(10));
     loop {
         interval.tick().await;
@@ -105,7 +105,7 @@ pub async fn poll_bots<E>(bots: HashMap<Exchange, Box<dyn ExchangeBot<E>>>) -> s
     }
 }
 
-pub async fn poll_bots_many<E>(bots: Vec<Box<dyn ExchangeBot<E>>>) -> std::io::Result<()> {
+pub async fn poll_bots_many<E>(bots: Vec<Box<dyn DataStreamer<E>>>) -> std::io::Result<()> {
     let mut interval = tokio::time::interval(Duration::from_secs(10));
     loop {
         interval.tick().await;

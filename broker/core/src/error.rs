@@ -42,7 +42,7 @@ pub enum Error {
     #[error("Exchange not loaded in the pair registry.")]
     ExchangeNotInPairRegistry,
     #[error("Exchange not loaded.")]
-    ExchangeNotLoaded,
+    BrokerNotLoaded,
     #[error("Arguments passed do not conform to the protocol.")]
     InvalidArguments,
     #[error("Exchange error: {0}")]
@@ -97,7 +97,7 @@ pub enum Error {
     #[error("Unsupported account type")]
     UnsupportedAccountType,
     #[error("Feature is not implemented for this exchange")]
-    ExchangeFeatureNotImplemented,
+    BrokerFeatureNotImplemented,
 }
 
 impl PartialEq for Error {

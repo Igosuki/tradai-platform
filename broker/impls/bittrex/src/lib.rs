@@ -24,15 +24,15 @@ pub use self::api::BittrexApi;
 pub use self::streaming_api::BittrexStreamingApi;
 
 #[async_trait(?Send)]
-impl ExchangeConnector for BittrexExchangeConnector {
-    async fn new_api(&self, ctx: ExchangeApiInitContext) -> broker_core::error::Result<Arc<dyn ExchangeApi>> {
+impl BrokerConnector for BittrexExchangeConnector {
+    async fn new_api(&self, ctx: BrokerageInitContext) -> broker_core::error::Result<Arc<dyn Brokerage>> {
         Ok(Arc::new(BittrexApi::new(ctx.creds.as_ref())?))
     }
 
     async fn new_public_stream(
         &self,
-        ctx: ExchangeBotInitContext,
-    ) -> broker_core::error::Result<Box<MarketExchangeBot>> {
+        ctx: BrokerageBotInitContext,
+    ) -> broker_core::error::Result<Box<MarketDataStreamer>> {
         Ok(Box::new(
             BittrexStreamingApi::new_bot(ctx.creds.as_ref(), ctx.channels.clone()).await?,
         ))
@@ -41,7 +41,7 @@ impl ExchangeConnector for BittrexExchangeConnector {
     async fn new_private_stream(
         &self,
         _ctx: PrivateBotInitContext,
-    ) -> broker_core::error::Result<Box<AccountExchangeBot>> {
+    ) -> broker_core::error::Result<Box<BrokerageAccountDataStreamer>> {
         todo!()
     }
 }

@@ -7,7 +7,7 @@ use futures::Future;
 use httpmock::MockServer;
 
 use binance::config::Config;
-use brokers::api::ExchangeApi;
+use brokers::api::Brokerage;
 use brokers::broker_binance::BinanceApi;
 use brokers::credential::{BasicCredentials, Credentials};
 use brokers::exchange::Exchange;
@@ -37,7 +37,7 @@ pub fn account_ws() -> Box<WSEndpoint> {
 /// # Panics
 ///
 /// If the api cannot be created
-pub async fn local_api() -> (MockServer, Arc<dyn ExchangeApi>) {
+pub async fn local_api() -> (MockServer, Arc<dyn Brokerage>) {
     let server = MockServer::start();
     let creds: Box<dyn Credentials> = Box::new(BasicCredentials::empty(Exchange::Binance));
     let mock_server_address = server.address().to_string();

@@ -11,7 +11,7 @@ extern crate serde;
 #[macro_use]
 extern crate actix;
 
-use broker_core::bot::ExchangeBot;
+use broker_core::bot::DataStreamer;
 use broker_core::broker::MarketEventEnvelopeMsg;
 use broker_core::prelude::*;
 use std::sync::Arc;
@@ -30,9 +30,9 @@ pub use self::api::BinanceApi;
 pub use self::streaming_api::BinanceStreamingApi;
 
 #[async_trait(?Send)]
-impl ExchangeConnector for BinanceExchangeConnector {
-    async fn new_api(&self, ctx: ExchangeApiInitContext) -> broker_core::error::Result<Arc<dyn ExchangeApi>> {
-        let api: Arc<dyn ExchangeApi> = Arc::new(if ctx.use_test_servers {
+impl BrokerConnector for BinanceExchangeConnector {
+    async fn new_api(&self, ctx: BrokerageInitContext) -> broker_core::error::Result<Arc<dyn Brokerage>> {
+        let api: Arc<dyn Brokerage> = Arc::new(if ctx.use_test_servers {
             BinanceApi::new_test(ctx.creds.as_ref()).await?
         } else {
             BinanceApi::new(ctx.creds.as_ref()).await?
@@ -42,9 +42,9 @@ impl ExchangeConnector for BinanceExchangeConnector {
 
     async fn new_public_stream(
         &self,
-        ctx: ExchangeBotInitContext,
-    ) -> broker_core::error::Result<Box<MarketExchangeBot>> {
-        let b: Box<dyn ExchangeBot<MarketEventEnvelopeMsg>> = Box::new(
+        ctx: BrokerageBotInitContext,
+    ) -> broker_core::error::Result<Box<MarketDataStreamer>> {
+        let b: Box<dyn DataStreamer<MarketEventEnvelopeMsg>> = Box::new(
             BinanceStreamingApi::try_new(
                 ctx.creds.as_ref(),
                 ctx.channels,
@@ -59,7 +59,7 @@ impl ExchangeConnector for BinanceExchangeConnector {
     async fn new_private_stream(
         &self,
         _ctx: PrivateBotInitContext,
-    ) -> broker_core::error::Result<Box<AccountExchangeBot>> {
+    ) -> broker_core::error::Result<Box<BrokerageAccountDataStreamer>> {
         todo!()
     }
 }

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use prometheus::CounterVec;
 
-use crate::api::ExchangeApi;
+use crate::api::Brokerage;
 use crate::error::*;
 use crate::exchange::Exchange;
 use crate::types::{InterestRate, Pair};
@@ -94,7 +94,7 @@ pub fn interest_rates(xchg: &Exchange) -> Result<Vec<InterestRate>> {
 /// # Errors
 ///
 /// If the interest rate fails to fetch for the exchange
-pub async fn get_interest_rate(xchg: &Exchange, api: &'_ dyn ExchangeApi, asset: &str) -> Result<InterestRate> {
+pub async fn get_interest_rate(xchg: &Exchange, api: &'_ dyn Brokerage, asset: &str) -> Result<InterestRate> {
     let registry = default_interest_rate_registry();
     if let Some(rate) = registry.interest_rate(xchg, asset) {
         Ok(rate)

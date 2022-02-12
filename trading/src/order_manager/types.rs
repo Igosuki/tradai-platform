@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use brokers::exchange::Exchange;
 use brokers::pair::symbol_to_pair;
 use brokers::types::{AddOrderRequest, AssetType, InterestRate, MarginSideEffect, OrderEnforcement, OrderQuery,
-                     OrderStatus as ExchangeOrderStatus, OrderSubmission, OrderType, OrderUpdate, Pair, TradeType};
+                     OrderStatus as BrokerOrderStatus, OrderSubmission, OrderType, OrderUpdate, Pair, TradeType};
 use util::time::now;
 
 use super::error::*;
@@ -27,14 +27,14 @@ pub enum Rejection {
 }
 
 impl Rejection {
-    pub(crate) fn from_status(os: &ExchangeOrderStatus, reason: Option<String>) -> Self {
+    pub(crate) fn from_status(os: &BrokerOrderStatus, reason: Option<String>) -> Self {
         match os {
-            ExchangeOrderStatus::Rejected => match reason {
+            BrokerOrderStatus::Rejected => match reason {
                 Some(reason) => Rejection::Other(reason),
                 None => Rejection::Other("".to_string()),
             },
-            ExchangeOrderStatus::Expired => Rejection::Timeout,
-            ExchangeOrderStatus::Canceled | ExchangeOrderStatus::PendingCancel => Rejection::Cancelled(reason),
+            BrokerOrderStatus::Expired => Rejection::Timeout,
+            BrokerOrderStatus::Canceled | BrokerOrderStatus::PendingCancel => Rejection::Cancelled(reason),
             _ => Rejection::Unknown("".to_string()),
         }
     }
@@ -103,7 +103,7 @@ impl Transaction {
             self.status,
             TransactionStatus::Filled(_)
                 | TransactionStatus::New(OrderSubmission {
-                    status: ExchangeOrderStatus::Filled,
+                    status: BrokerOrderStatus::Filled,
                     ..
                 })
         )
@@ -150,14 +150,14 @@ pub enum OrderStatus {
     Canceled,
 }
 
-impl From<ExchangeOrderStatus> for OrderStatus {
-    fn from(o: ExchangeOrderStatus) -> Self {
+impl From<BrokerOrderStatus> for OrderStatus {
+    fn from(o: BrokerOrderStatus) -> Self {
         match o {
-            ExchangeOrderStatus::New => Self::Created,
-            ExchangeOrderStatus::PartiallyFilled => Self::PartiallyFilled,
-            ExchangeOrderStatus::Filled | ExchangeOrderStatus::Traded => Self::Filled,
-            ExchangeOrderStatus::Canceled | ExchangeOrderStatus::PendingCancel => Self::Canceled,
-            ExchangeOrderStatus::Rejected | ExchangeOrderStatus::Expired => Self::Rejected,
+            BrokerOrderStatus::New => Self::Created,
+            BrokerOrderStatus::PartiallyFilled => Self::PartiallyFilled,
+            BrokerOrderStatus::Filled | BrokerOrderStatus::Traded => Self::Filled,
+            BrokerOrderStatus::Canceled | BrokerOrderStatus::PendingCancel => Self::Canceled,
+            BrokerOrderStatus::Rejected | BrokerOrderStatus::Expired => Self::Rejected,
         }
     }
 }

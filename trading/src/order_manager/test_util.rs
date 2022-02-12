@@ -8,8 +8,8 @@ use httpmock::{Mock, MockServer};
 use rand::random;
 
 use binance::rest_model::TimeInForce;
-use brokers::api::MockExchangeApi;
-use brokers::manager::{ExchangeApiRegistry, ExchangeManager, ExchangeManagerRef};
+use brokers::api::MockBrokerage;
+use brokers::manager::{BrokerageManager, BrokerageManagerRef, BrokerageRegistry};
 use brokers::pair::register_pair_default;
 use brokers::prelude::*;
 use brokers::types::{OrderEnforcement, OrderType, TradeType};
@@ -31,21 +31,21 @@ pub async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
 ) -> OrderManager {
     let api = Brokerages::new_manager()
         .build_exchange_api(keys_file.as_ref().to_path_buf(), &exchange, true)
-        .await?
+        .await
         .unwrap();
-    let apis = ExchangeApiRegistry::new();
+    let apis = BrokerageRegistry::new();
     apis.insert(api.exchange(), api);
-    let manager = ExchangeManager::new_with_reg(apis);
+    let manager = BrokerageManager::new_with_reg(apis);
     let db = get_or_create(&DbOptions::new(dir), "order_manager", vec![]);
-    OrderManager::new(ExchangeManagerRef::new(manager), db)
+    OrderManager::new(BrokerageManagerRef::new(manager), db)
 }
 
-pub fn local_manager<S: AsRef<Path>>(path: S, api: Arc<dyn ExchangeApi>) -> Addr<OrderManager> {
-    let apis = ExchangeApiRegistry::new();
+pub fn local_manager<S: AsRef<Path>>(path: S, api: Arc<dyn Brokerage>) -> Addr<OrderManager> {
+    let apis = BrokerageRegistry::new();
     apis.insert(api.exchange(), api);
-    let manager = ExchangeManager::new_with_reg(apis);
+    let manager = BrokerageManager::new_with_reg(apis);
     let db = get_or_create(&DbOptions::new(path), "", vec![]);
-    let order_manager = OrderManager::new(ExchangeManagerRef::new(manager), db);
+    let order_manager = OrderManager::new(BrokerageManagerRef::new(manager), db);
     OrderManager::start(order_manager)
 }
 
@@ -165,12 +165,12 @@ pub fn create_ok_margin_order_mock(server: &MockServer, order: OrderDetail) -> M
 }
 
 pub fn new_mock_manager<S: AsRef<Path>>(path: S) -> OrderManager {
-    let api: Arc<dyn ExchangeApi> = Arc::new(MockExchangeApi::default());
-    let apis = ExchangeApiRegistry::new();
+    let api: Arc<dyn Brokerage> = Arc::new(MockBrokerage::default());
+    let apis = BrokerageRegistry::new();
     apis.insert(api.exchange(), api);
-    let manager = ExchangeManager::new_with_reg(apis);
+    let manager = BrokerageManager::new_with_reg(apis);
     let db = get_or_create(&DbOptions::new(path), "", vec![]);
-    OrderManager::new(ExchangeManagerRef::new(manager), db)
+    OrderManager::new(BrokerageManagerRef::new(manager), db)
 }
 
 pub fn mock_manager<S: AsRef<Path>>(path: S) -> Addr<OrderManager> {

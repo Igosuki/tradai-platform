@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use actix::Addr;
 
-use brokers::manager::ExchangeManager;
+use brokers::manager::BrokerageManager;
 #[cfg(any(
     test,
     feature = "test_util",
@@ -18,11 +18,11 @@ use crate::order_manager::{OrderExecutor, OrderManager, OrderManagerClient};
 pub struct TradingEngine {
     pub order_executor: Arc<dyn OrderExecutor>,
     pub interest_rate_provider: Arc<dyn InterestRateProvider>,
-    pub exchange_manager: Arc<ExchangeManager>,
+    pub exchange_manager: Arc<BrokerageManager>,
 }
 
 pub fn new_trading_engine(
-    manager: Arc<ExchangeManager>,
+    manager: Arc<BrokerageManager>,
     om: Addr<OrderManager>,
     mirp: Addr<MarginInterestRateProvider>,
 ) -> TradingEngine {
@@ -45,7 +45,7 @@ mod mock {
     use std::path::Path;
 
     use brokers::exchange::Exchange;
-    use brokers::manager::ExchangeManager;
+    use brokers::manager::BrokerageManager;
 
     use crate::interest::test_util::mock_interest_rate_provider;
     use crate::interest::MarginInterestRateProviderClient;
@@ -55,7 +55,7 @@ mod mock {
     use super::*;
 
     pub fn mock_engine<S: AsRef<Path>>(db_path: S, exchanges: &[Exchange]) -> TradingEngine {
-        let manager = ExchangeManager::new();
+        let manager = BrokerageManager::new();
         manager.build_mock_exchange_apis(exchanges);
         let mut om_db = db_path.as_ref().to_path_buf();
         om_db.push("om");

@@ -28,7 +28,7 @@ held responsible for the library malfunction, which can lead to a loss of money.
 | Poloniex | X | X | - |
 | Bittrex  | X | X | - |
 
-If your favorite exchange is not listed above, you can vote [here](https://github.com/hugues31/coinnect/issues/54) to add it in the next release of Coinnect.
+If your favorite exchange is not listed above, you can vote [here](https://github.com/hugues31/brokers/issues/54) to add it in the next release of Coinnect.
 
 Generic API supports:
  - Ticker
@@ -41,7 +41,7 @@ Feel free to make a PR to add support to your favorite exchange ;)
 
 ### Documentation
 
-- [Master](https://docs.rs/coinnect/)
+- [Master](https://docs.rs/brokers/)
 
 
 ## Usage
@@ -50,13 +50,13 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-coinnect = "0.5"
+brokers = "0.5"
 ```
 
 and this to your crate root:
 
 ```rust
-extern crate coinnect;
+extern crate brokers;
 ```
 
 For optional parameters, most methods require an empty `str` (`""`) or
@@ -64,17 +64,17 @@ For optional parameters, most methods require an empty `str` (`""`) or
 
 Since 0.2, you have access to a generic API to communicate across exchanges in
 the same way. Note that this functionality is under active development.
-For more informations, look at ExchangeApi trait doc.
+For more informations, look at Brokerage trait doc.
 
 ## Example
 
 The example below shows you how to connect to Poloniex
 
 ```rust
-extern crate coinnect;
+extern crate brokers;
 
-use crate::coinnect::poloniex::api::PoloniexApi;
-use crate::coinnect::poloniex::credentials::PoloniexCreds;
+use crate::brokers::poloniex::api::PoloniexApi;
+use crate::brokers::poloniex::credentials::PoloniexCreds;
 
 fn main() {
     // We create a PoloniexApi by providing API key/secret
@@ -87,7 +87,7 @@ fn main() {
 
     for coin in list_coins {
         // please visit Poloniex API documentation to know how the data is returned
-        // or look at the coinnect documentation
+        // or look at the brokers documentation
         let name = coin.0;
         let price = coin.1.as_object().unwrap().get("last").unwrap().as_str().unwrap();
 

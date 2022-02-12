@@ -89,9 +89,9 @@ pub use inventory;
 
 pub mod prelude {
     #[doc(no_inline)]
-    pub use crate::api::ExchangeApi;
+    pub use crate::api::Brokerage;
     #[doc(no_inline)]
-    pub use crate::bot::{AccountExchangeBot, MarketExchangeBot};
+    pub use crate::bot::{BrokerageAccountDataStreamer, MarketDataStreamer};
     #[doc(no_inline)]
     pub use crate::credential::Credentials;
     #[doc(no_inline)]
@@ -99,9 +99,9 @@ pub mod prelude {
     #[doc(no_inline)]
     pub use crate::manager::*;
     #[doc(no_inline)]
-    pub use crate::plugin::{ExchangeApiInitContext, ExchangeBotInitContext, ExchangeConnector, PrivateBotInitContext};
+    pub use crate::plugin::{BrokerConnector, BrokerageBotInitContext, BrokerageInitContext, PrivateBotInitContext};
     #[doc(no_inline)]
-    pub use crate::settings::ExchangeSettings;
+    pub use crate::settings::BrokerSettings;
     #[doc(no_inline)]
     pub use crate::types::{AccountEvent, AccountEventEnveloppe, AccountType, AddOrderRequest, Asset, AssetType,
                            MarketEvent, MarketEventEnvelope, OrderEnforcement, OrderQuery, OrderType, Orderbook, Pair,

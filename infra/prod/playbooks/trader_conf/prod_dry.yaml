@@ -10,7 +10,7 @@ exchanges:
       symbols: [ 'BTC_USDT', 'LTC_USDT', 'ETC_USDT', 'FIS_USDT', 'VITE_USDT', 'BURGER_USDT', 'BAKE_USDT', 'ARPA_USDT' ]
 
 streams:
-  - type: ExchangeBots
+  - type: MarketData
 
 outputs:
   - type: Strategies

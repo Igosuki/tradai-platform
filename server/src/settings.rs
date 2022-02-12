@@ -100,8 +100,8 @@ pub enum OutputSettings {
 #[serde(tag = "type")]
 pub enum StreamSettings {
     Nats(NatsSettings),
-    ExchangeBots,
-    AccountBots,
+    MarketData,
+    AccountData,
 }
 
 fn default_as_false() -> bool { false }
@@ -116,7 +116,7 @@ pub struct Version {
 pub struct Settings {
     pub __config_file: String,
     #[serde(default)]
-    pub exchanges: HashMap<Exchange, ExchangeSettings>,
+    pub exchanges: HashMap<Exchange, BrokerSettings>,
     #[serde(default)]
     pub streams: Vec<StreamSettings>,
     #[serde(default)]
