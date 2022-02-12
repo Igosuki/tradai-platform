@@ -118,12 +118,12 @@ pub enum TimeUnit {
 
 /// Defines the possible intervals that a [Candle] represents.
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
-pub struct SampleInterval {
+pub struct Resolution {
     pub time_unit: TimeUnit,
     pub units: u32,
 }
 
-impl SampleInterval {
+impl Resolution {
     pub fn new(time_unit: TimeUnit, units: u32) -> Self {
         match time_unit {
             TimeUnit::Second | TimeUnit::Minute => assert!(units <= 60),
@@ -199,14 +199,14 @@ pub enum BarMerge {
 #[derive(Debug, Clone)]
 pub struct Kline {
     bar_merge: BarMerge,
-    base_interval: SampleInterval,
+    base_interval: Resolution,
     candles: AllocRingBuffer<Candle>,
 }
 
 impl Kline {
     /// Create a new kline with the minimum interval set at `base_interval`
     /// N.B. : capacity must be a power of 2
-    pub fn new(base_interval: SampleInterval, capacity: usize) -> Self {
+    pub fn new(base_interval: Resolution, capacity: usize) -> Self {
         if base_interval.units == 0 {
             panic!("Cannot have a candle duration 0 time units");
         }
@@ -218,7 +218,7 @@ impl Kline {
     }
 
     /// Resamples the kline at [sample_interval]
-    pub fn resample(&self, sample_interval: SampleInterval) -> Box<dyn Iterator<Item = Candle> + '_> {
+    pub fn resample(&self, sample_interval: Resolution) -> Box<dyn Iterator<Item = Candle> + '_> {
         if self.base_interval.time_unit == sample_interval.time_unit
             && self.base_interval.units >= sample_interval.units
         {
@@ -235,7 +235,7 @@ impl Kline {
     }
 
     /// Returns [`None`] if the kline duration is not a known interval
-    pub fn interval(&self) -> SampleInterval { self.base_interval }
+    pub fn interval(&self) -> Resolution { self.base_interval }
 }
 
 impl Next<Candle> for Kline {
@@ -289,7 +289,7 @@ impl<'a> IntoIterator for &'a Kline {
 #[cfg(test)]
 mod test {
     use crate::kline::TimeUnit::Second;
-    use crate::kline::{Candle, Kline, SampleInterval};
+    use crate::kline::{Candle, Kline, Resolution};
     use chrono::{Duration, Utc};
     use pretty_assertions::assert_eq;
     use std::ops::Add;
@@ -297,7 +297,7 @@ mod test {
 
     #[test]
     fn test_basic_second_kline() {
-        let interval = SampleInterval::new(Second, 1);
+        let interval = Resolution::new(Second, 1);
         let mut kline = Kline::new(interval, 2_usize.pow(14));
         let candle1_time = Utc::now();
         let vec1 = kline.next((1.0, 2.0, candle1_time));
