@@ -15,15 +15,15 @@ use crate::error::*;
 use crate::{flat_orderbooks_df, raw_orderbooks_df, sampled_orderbooks_df, AssetType};
 use brokers::broker::{AsyncBroker, ChannelMessageBroker};
 
-pub struct Dataset {
-    pub input_format: DatasetInputFormat,
+pub struct DatasetReader {
+    pub input_format: DataFormat,
     pub ds_type: MarketEventDatasetType,
     pub base_dir: PathBuf,
     pub period: DateRange,
     pub input_sample_rate: Duration,
 }
 
-impl Dataset {
+impl DatasetReader {
     pub async fn read_market_events(&self, broker: ChannelMessageBroker<Channel, MarketEventEnvelope>) -> Result<()> {
         for dt in self.period {
             let orderbook_partitions: HashSet<(PathBuf, Vec<(&'static str, String)>)> = broker
@@ -78,6 +78,13 @@ impl Dataset {
         }
         Ok(())
     }
+}
+
+#[allow(dead_code)]
+pub struct Dataset {
+    name: String,
+    base_dir: PathBuf,
+    partition_cols: Vec<String>,
 }
 
 #[derive(Deserialize, Copy, Clone)]
@@ -151,18 +158,18 @@ impl MarketEventDatasetType {
 
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
-pub enum DatasetInputFormat {
+pub enum DataFormat {
     Avro,
     Parquet,
     Csv,
 }
 
-impl ToString for DatasetInputFormat {
+impl ToString for DataFormat {
     fn to_string(&self) -> String {
         match self {
-            DatasetInputFormat::Avro => "AVRO",
-            DatasetInputFormat::Parquet => "PARQUET",
-            DatasetInputFormat::Csv => "CSV",
+            DataFormat::Avro => "AVRO",
+            DataFormat::Parquet => "PARQUET",
+            DataFormat::Csv => "CSV",
         }
         .to_string()
     }

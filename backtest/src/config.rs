@@ -14,7 +14,7 @@ use util::time::{DateRange, DurationRangeType};
 
 use crate::error::*;
 use crate::report::ReportConfig;
-use crate::{DatasetInputFormat, MarketEventDatasetType};
+use crate::{DataFormat, MarketEventDatasetType};
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "type")]
@@ -50,7 +50,7 @@ pub struct BacktestConfig {
     pub strat_copy: Option<StrategyCopySettings>,
     pub fees: f64,
     pub period: Period,
-    pub input_format: DatasetInputFormat,
+    pub input_format: DataFormat,
     pub input_dataset: MarketEventDatasetType,
     pub coindata_cache_dir: Option<PathBuf>,
     #[builder(default, setter(strip_option))]

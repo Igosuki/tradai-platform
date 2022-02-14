@@ -61,12 +61,12 @@ use strategy::prelude::*;
 use trading::engine::{mock_engine, TradingEngine};
 use util::time::TimedData;
 
-use crate::dataset::Dataset;
+use crate::dataset::DatasetReader;
 use crate::datasources::orderbook::{flat_orderbooks_df, raw_orderbooks_df, sampled_orderbooks_df};
 use crate::report::{BacktestReport, GlobalReport, ReportConfig, StreamWriterLogger};
 use crate::runner::BacktestRunner;
 pub use crate::{config::*,
-                dataset::{DatasetInputFormat, MarketEventDatasetType},
+                dataset::{DataFormat, MarketEventDatasetType},
                 error::*};
 use brokers::broker::{Broker, ChannelMessageBroker};
 use strategy::plugin::plugin_registry;
@@ -82,7 +82,7 @@ mod runner;
 pub struct Backtest {
     runners: Vec<Arc<RwLock<BacktestRunner>>>,
     output_dir: PathBuf,
-    dataset: Dataset,
+    dataset: DatasetReader,
     stop_token: CancellationToken,
     report_conf: ReportConfig,
 }
@@ -115,7 +115,7 @@ impl Backtest {
             stop_token,
             runners,
             output_dir: output_path,
-            dataset: Dataset {
+            dataset: DatasetReader {
                 input_format: conf.input_format.clone(),
                 period: conf.period.as_range(),
                 ds_type: conf.input_dataset,
