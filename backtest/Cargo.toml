@@ -12,6 +12,11 @@ name = "backtest"
 path = "src/main.rs"
 required-features = ["binary"]
 
+[[bin]]
+name = "backtest_data_server"
+path = "src/data_server.rs"
+required-features = ["binary"]
+
 [features]
 default = ["env_logger", "mock_time", "binary"]
 mock_time = ["util/mock_time"]
