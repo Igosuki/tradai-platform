@@ -1,7 +1,6 @@
-use arrow2::array::StructArray;
 use brokers::prelude::{Exchange, Pair};
 use chrono::Duration;
-use datafusion::arrow::array::{Array, DictionaryArray, Int64Array, ListArray, PrimitiveArray};
+use datafusion::arrow::array::{Array, DictionaryArray, Int64Array, ListArray, PrimitiveArray, StructArray};
 use datafusion::record_batch::RecordBatch;
 use std::collections::HashSet;
 use std::fmt::Debug;
