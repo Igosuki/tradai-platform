@@ -57,8 +57,10 @@ pythonize = { git = "https://github.com/Igosuki/pythonize", rev = "d5309ca6491cd
 yata = { git = "https://github.com/Igosuki/yata.git", branch = "ohlcv_merge_mut" }
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb.git", rev = "92b27f5d33c0c713f1d3ec8436b0ae49680e3cca" }
 # datafusion
+#datafusion = { git = "https://github.com/apache/arrow-datafusion", branch = "master" }
+#ballista = { git = "https://github.com/apache/arrow-datafusion", branch = "master" }
 datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_i" }
-#datafusion = { path = "/media/geps/work/dev/oss/arrow-datafusion/datafusion" }
 ballista = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_i" }
+#datafusion = { path = "/media/geps/work/dev/oss/arrow-datafusion/datafusion" }
 #ballista = { path = "/media/geps/work/dev/oss/arrow-datafusion/ballista/rust/client" }
 arrow2 = { git = "https://github.com/jorgecarleitao/arrow2.git", branch = "main" }

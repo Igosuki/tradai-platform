@@ -149,6 +149,7 @@ impl Backtest {
         // Read input datasets
         let before_read = Instant::now();
         self.dataset.read_market_events(broker).await?;
+        tokio::time::sleep(Duration::from_secs(10)).await;
         self.stop_token.cancel();
         let elapsed = before_read.elapsed();
         info!(

@@ -118,7 +118,7 @@ dependencies = [
  "mime",
  "percent-encoding",
  "pin-project-lite",
- "rand 0.8.4",
+ "rand 0.8.5",
  "sha-1 0.10.0",
  "smallvec",
  "zstd",
@@ -411,7 +411,7 @@ dependencies = [
 [[package]]
 name = "arrow2"
 version = "0.9.1"
-source = "git+https://github.com/jorgecarleitao/arrow2.git?branch=main#394a699c106651c7b79d4cc62bb8d258c60d3911"
+source = "git+https://github.com/jorgecarleitao/arrow2.git?branch=main#dded624dc6a6347d7e937efee7779a44a51c4edb"
 dependencies = [
  "ahash",
  "arrow-format",
@@ -768,8 +768,8 @@ dependencies = [
  "openssl",
  "percent-encoding",
  "pin-project-lite",
- "rand 0.8.4",
- "rustls 0.20.2",
+ "rand 0.8.5",
+ "rustls 0.20.3",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -786,7 +786,7 @@ dependencies = [
  "getrandom 0.2.4",
  "instant",
  "pin-project-lite",
- "rand 0.8.4",
+ "rand 0.8.5",
  "tokio",
 ]
 
@@ -796,7 +796,6 @@ version = "0.1.0"
 dependencies = [
  "actix",
  "anyhow",
- "arrow2",
  "async-stream",
  "async-trait",
  "ballista",
@@ -938,7 +937,7 @@ dependencies = [
  "parking_lot 0.12.0",
  "parse_arg",
  "prost",
- "rand 0.8.4",
+ "rand 0.8.5",
  "serde",
  "sled",
  "tokio",
@@ -1344,7 +1343,7 @@ dependencies = [
  "chrono",
  "futures",
  "httpmock",
- "rand 0.8.4",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -1822,7 +1821,7 @@ dependencies = [
 [[package]]
 name = "console-api"
 version = "0.1.2"
-source = "git+https://github.com/tokio-rs/console#fd309c048c98d20bd83b3c10b4f0b8fa8a5f80ba"
+source = "git+https://github.com/tokio-rs/console#5590fdbc3e7f78c6a3800f0e07c148320447788e"
 dependencies = [
  "prost",
  "prost-types",
@@ -1834,10 +1833,11 @@ dependencies = [
 [[package]]
 name = "console-subscriber"
 version = "0.1.2"
-source = "git+https://github.com/tokio-rs/console#fd309c048c98d20bd83b3c10b4f0b8fa8a5f80ba"
+source = "git+https://github.com/tokio-rs/console#5590fdbc3e7f78c6a3800f0e07c148320447788e"
 dependencies = [
  "console-api",
  "crossbeam-channel",
+ "crossbeam-utils",
  "futures",
  "hdrhistogram",
  "humantime 2.1.0",
@@ -2137,7 +2137,7 @@ dependencies = [
  "parquet2",
  "paste 1.0.6",
  "pin-project-lite",
- "rand 0.8.4",
+ "rand 0.8.5",
  "regex",
  "sha2 0.10.1",
  "smallvec",
@@ -2184,7 +2184,7 @@ dependencies = [
  "itertools",
  "lmdb-rkv",
  "measure_time",
- "rand 0.8.4",
+ "rand 0.8.5",
  "rkv",
  "rkyv",
  "rkyv_dyn",
@@ -2474,7 +2474,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21a8531dd3a64fd1cfbe92fad4160bc2060489c6195fe847e045e5788f710bae"
 dependencies = [
  "chrono",
- "rand 0.8.4",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -2921,7 +2921,7 @@ dependencies = [
  "nonzero_ext",
  "parking_lot 0.12.0",
  "quanta",
- "rand 0.8.4",
+ "rand 0.8.5",
  "smallvec",
 ]
 
@@ -2997,9 +2997,9 @@ dependencies = [
 
 [[package]]
 name = "hdrhistogram"
-version = "7.4.0"
+version = "7.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6490be71f07a5f62b564bc58e36953f675833df11c7e4a0647bee7a07ca1ec5e"
+checksum = "31672b7011be2c4f7456c4ddbcb40e7e9a4a9fad8efe49a6ebaf5f307d0109c0"
 dependencies = [
  "base64",
  "byteorder",
@@ -3187,7 +3187,7 @@ checksum = "d87c48c02e0dc5e3b849a2041db3029fd066650f8f717c07bf8ed78ccb895cac"
 dependencies = [
  "http",
  "hyper",
- "rustls 0.20.2",
+ "rustls 0.20.3",
  "tokio",
  "tokio-rustls",
 ]
@@ -4018,7 +4018,7 @@ dependencies = [
  "fs_extra",
  "lazy_static 1.4.0",
  "prometheus",
- "rand 0.8.4",
+ "rand 0.8.5",
  "rsgen-avro",
  "serde",
  "serde_json",
@@ -4049,7 +4049,7 @@ dependencies = [
  "mime",
  "mime_guess",
  "quick-error",
- "rand 0.8.4",
+ "rand 0.8.5",
  "safemem",
  "tempfile",
  "twoway",
@@ -4240,7 +4240,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20c1bb65186718d348306bf1afdeb20d9ab45b2ab80fb793c0fdcf59ffbb4f38"
 dependencies = [
  "lazy_static 1.4.0",
- "rand 0.8.4",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -4428,7 +4428,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "percent-encoding",
  "pin-project",
- "rand 0.8.4",
+ "rand 0.8.5",
  "thiserror",
 ]
 
@@ -4490,9 +4490,9 @@ dependencies = [
 
 [[package]]
 name = "output_vt100"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53cdc5b785b7a58c5aad8216b3dfa114df64b0b06ae6e1501cef91df2fbdf8f9"
+checksum = "628223faebab4e3e40667ee0b2336d34a5b960ff60ea743ddfdbcf7770bcfb66"
 dependencies = [
  "winapi 0.3.9",
 ]
@@ -4566,9 +4566,9 @@ dependencies = [
 
 [[package]]
 name = "parquet2"
-version = "0.10.1"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a345de6fe57657061712781875c935672889b60dcabbcdbcedda150fbad664c"
+checksum = "fe2f206abf5ff36f501e6b6acb646de1d236ca4ecb35dc6a58cbedbf7cab748a"
 dependencies = [
  "async-stream",
  "bitpacking",
@@ -4655,7 +4655,7 @@ dependencies = [
  "order-stat",
  "peroxide-ad",
  "puruspe",
- "rand 0.8.4",
+ "rand 0.8.5",
  "rand_distr",
 ]
 
@@ -4748,7 +4748,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d5285893bb5eb82e6aaf5d59ee909a06a16737a8970984dd7746ba9283498d6"
 dependencies = [
  "phf_shared",
- "rand 0.8.4",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -4816,7 +4816,7 @@ checksum = "26f011c8acfc15cfa062397000d894fba55bf3d1eca4301b07d6e82237b06e55"
 dependencies = [
  "askama",
  "plotly_kaleido",
- "rand 0.8.4",
+ "rand 0.8.5",
  "rand_distr",
  "serde",
  "serde_json",
@@ -5223,7 +5223,7 @@ checksum = "588f6378e4dd99458b60ec275b4477add41ce4fa9f64dcba6f15adccb19b50d6"
 dependencies = [
  "env_logger 0.8.4",
  "log",
- "rand 0.8.4",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -5264,19 +5264,18 @@ dependencies = [
  "libc",
  "rand_chacha 0.2.2",
  "rand_core 0.5.1",
- "rand_hc 0.2.0",
+ "rand_hc",
 ]
 
 [[package]]
 name = "rand"
-version = "0.8.4"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e7573632e6454cf6b99d7aac4ccca54be06da05aca2ef7423d22d27d4d4bcd8"
+checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
  "libc",
  "rand_chacha 0.3.1",
  "rand_core 0.6.3",
- "rand_hc 0.3.1",
 ]
 
 [[package]]
@@ -5339,7 +5338,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32cb0b9bc82b0a0876c2dd994a7e7a2683d3e7390ca40e6886785ef0c7e3ee31"
 dependencies = [
  "num-traits",
- "rand 0.8.4",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -5349,15 +5348,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca3129af7b92a17112d59ad498c6f81eaf463253766b90396d39ea7a39d6613c"
 dependencies = [
  "rand_core 0.5.1",
-]
-
-[[package]]
-name = "rand_hc"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d51e9f596de227fda2ea6c84607f5558e196eeaf43c986b724ba4fb8fdf497e7"
-dependencies = [
- "rand_core 0.6.3",
 ]
 
 [[package]]
@@ -5514,7 +5504,7 @@ dependencies = [
  "native-tls",
  "percent-encoding",
  "pin-project-lite",
- "rustls 0.20.2",
+ "rustls 0.20.3",
  "rustls-pemfile",
  "serde",
  "serde_json",
@@ -5747,9 +5737,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.20.2"
+version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d37e5e2290f3e040b594b1a9e04377c2c671f1a1cfd9bfdef82106ac1c113f84"
+checksum = "b323592e3164322f5b193dc4302e4e36cd8d37158a712d664efae1a5c2791700"
 dependencies = [
  "log",
  "ring",
@@ -6254,7 +6244,7 @@ dependencies = [
  "peroxide",
  "pretty_assertions",
  "prettytable-rs",
- "rand 0.8.4",
+ "rand 0.8.5",
  "ringbuffer",
  "serde",
  "serde_derive",
@@ -6343,7 +6333,7 @@ dependencies = [
  "prometheus",
  "pyo3",
  "quickcheck",
- "rand 0.8.4",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "smallvec",
@@ -6638,7 +6628,7 @@ dependencies = [
  "percent-encoding",
  "pest",
  "pest_derive",
- "rand 0.8.4",
+ "rand 0.8.5",
  "regex",
  "serde",
  "serde_json",
@@ -6896,7 +6886,7 @@ version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a27d5f2b839802bd8267fa19b0530f5a08b9c08cd417976be2a65d130fe1c11b"
 dependencies = [
- "rustls 0.20.2",
+ "rustls 0.20.3",
  "tokio",
  "webpki 0.22.0",
 ]
@@ -7017,7 +7007,7 @@ dependencies = [
  "indexmap",
  "pin-project",
  "pin-project-lite",
- "rand 0.8.4",
+ "rand 0.8.5",
  "slab",
  "tokio",
  "tokio-stream",
@@ -7184,7 +7174,7 @@ dependencies = [
  "online",
  "parse_duration",
  "prometheus",
- "rand 0.8.4",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "sha2 0.10.1",
@@ -7228,7 +7218,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "prometheus",
  "quickcheck",
- "rand 0.8.4",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "structopt",
@@ -7260,7 +7250,7 @@ dependencies = [
  "http",
  "httparse",
  "log",
- "rand 0.8.4",
+ "rand 0.8.5",
  "sha-1 0.9.8",
  "thiserror",
  "url",
@@ -7280,7 +7270,7 @@ dependencies = [
  "httparse",
  "log",
  "native-tls",
- "rand 0.8.4",
+ "rand 0.8.5",
  "sha-1 0.9.8",
  "thiserror",
  "url",

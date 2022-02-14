@@ -152,10 +152,11 @@ pub async fn table_as_df(
     format: String,
     table_name: Option<String>,
     sql_query: String,
-) -> crate::error::Result<impl Stream<Item = Result<RecordBatch, arrow2::error::ArrowError>> + 'static> {
+) -> crate::error::Result<impl Stream<Item = Result<RecordBatch, datafusion::arrow::error::ArrowError>> + 'static> {
     let table_name = table_name.unwrap_or_else(|| DEFAULT_TABLE_NAME.to_string());
     let mut ctx = crate::datafusion_util::new_context();
     let listing_options = listing_options(format, partitions.clone());
+
     ctx.register_listing_table("listing_table", &format!("file://{}", base_path), listing_options, None)
         .await
         .map_err(|err| {
@@ -167,6 +168,15 @@ pub async fn table_as_df(
             err
         })?;
     let mut table: Arc<dyn DataFrame> = ctx.clone().table("listing_table")?;
+    // let data = ctx
+    //     .clone()
+    //     .sql("select count(*) from listing_table")
+    //     .await
+    //     .unwrap()
+    //     .collect()
+    //     .await
+    //     .unwrap();
+    // info!("data = {:?}", data);
     if let Some(filter) = partition_filter_clause(partitions) {
         table = table.filter(filter)?;
     }
