@@ -237,6 +237,7 @@ impl BacktestReport {
         );
         plot.set_layout(layout);
         plot.to_html(&out_file);
+        plot.to_inline_html(&out_file);
         out_file
     }
 
@@ -244,11 +245,16 @@ impl BacktestReport {
         let output_dir = self.output_dir.clone();
         let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), TRADEVIEW_HTML_FILE);
         let mut plot = Plot::new();
-
+        let mut trace_offset = 0;
         if let Ok(candles) = self.candles_ss.read_all() {
-            super::draw_ohlc("price", &mut plot, 0, candles.as_slice());
+            super::draw_candles("price", &mut plot, trace_offset, candles.as_slice());
         }
-        let layout = Layout::new();
+        let layout = Layout::new().grid(
+            LayoutGrid::new()
+                .rows(trace_offset + 1)
+                .columns(1)
+                .pattern(GridPattern::Independent),
+        );
         plot.set_layout(layout);
         plot.to_html(&out_file);
         out_file
