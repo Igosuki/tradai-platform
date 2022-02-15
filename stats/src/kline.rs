@@ -138,12 +138,13 @@ impl Resolution {
 
     fn truncate(&self, dt: DateTime<Utc>) -> DateTime<Utc> {
         let date_part = dt.date();
+        let units = self.units as i64;
         let maybe_secs = match self.time_unit {
-            TimeUnit::Second => Some(Duration::seconds(1)),
-            TimeUnit::Minute => Some(Duration::minutes(1)),
-            TimeUnit::Hour => Some(Duration::hours(1)),
-            TimeUnit::Day => Some(Duration::days(1)),
-            TimeUnit::Week => Some(Duration::days(1).mul(7)),
+            TimeUnit::Second => Some(Duration::seconds(units)),
+            TimeUnit::Minute => Some(Duration::minutes(units)),
+            TimeUnit::Hour => Some(Duration::hours(units)),
+            TimeUnit::Day => Some(Duration::days(units)),
+            TimeUnit::Week => Some(Duration::days(units).mul(7)),
             _ => None,
         };
         if let Some(secs) = maybe_secs {

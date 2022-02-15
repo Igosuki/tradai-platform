@@ -9,7 +9,7 @@
     <option name="withSudo" value="false" />
     <option name="backtrace" value="SHORT" />
     <envs>
-      <env name="RUST_LOG" value="trace" />
+      <env name="RUST_LOG" value="info" />
       <env name="CARGO_PROFILE_RELEASE_DEBUG" value="true" />
     </envs>
     <option name="isRedirectInput" value="false" />

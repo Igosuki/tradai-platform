@@ -1,6 +1,6 @@
 use brokers::types::Candle;
 use chrono::{DateTime, TimeZone, Utc};
-use plotly::{Ohlc, Plot, Scatter};
+use plotly::{Candlestick, Plot, Scatter};
 
 pub(crate) use global::GlobalReport;
 pub(crate) use logger::StreamWriterLogger;
@@ -44,13 +44,13 @@ impl Default for OHLCTime {
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn draw_ohlc(name: &str, plot: &mut Plot, _trace_offset: usize, data: &[TimedData<Candle>]) {
+fn draw_candles(name: &str, plot: &mut Plot, _trace_offset: usize, data: &[TimedData<Candle>]) {
     let skipped_data = data.iter();
     let time: Vec<OHLCTime> = skipped_data.clone().map(|x| OHLCTime(x.ts)).collect();
     let open: Vec<f64> = skipped_data.clone().map(|td| td.value.open).collect();
     let high: Vec<f64> = skipped_data.clone().map(|td| td.value.high).collect();
     let low: Vec<f64> = skipped_data.clone().map(|td| td.value.low).collect();
     let close: Vec<f64> = skipped_data.clone().map(|td| td.value.close).collect();
-    let trace = Ohlc::new(time, open, high, low, close).name(name);
+    let trace = Candlestick::new(time, open, high, low, close).name(name);
     plot.add_trace(trace);
 }
