@@ -1,4 +1,4 @@
-from .strategy import model
+from .tradai import model
 
 
 def __getattr__(name):

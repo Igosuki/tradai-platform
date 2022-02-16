@@ -1,5 +1,7 @@
 //! Use this module to interact with Poloniex exchange.
 
+#![feature(used_with_arg)]
+
 #[macro_use]
 extern crate async_trait;
 #[macro_use]

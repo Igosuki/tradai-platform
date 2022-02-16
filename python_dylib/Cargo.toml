@@ -11,11 +11,11 @@ path = "src/lib.rs"
 name = "strategy"
 
 [package.metadata.maturin]
-name = "strategy"
-python-source = "python_src"
+name = "tradai"
+python-source = "tradai"
 
 [dependencies]
-strategy_python = { path = "../strategy_python", features = ["static"] }
+tradai_python = { path = "../python_crate", features = ["static"] }
 
 pyo3 = { version = "^0.15", features = ["serde", "auto-initialize", "extension-module"] }
 pyo3-log = { version = "0.5"}

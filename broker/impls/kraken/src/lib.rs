@@ -1,6 +1,8 @@
 //! Use this module to interact with Kraken exchange.
 //! See examples for more informations.
 
+#![feature(used_with_arg)]
+
 #[macro_use]
 extern crate broker_core;
 #[macro_use]

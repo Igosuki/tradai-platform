@@ -78,6 +78,7 @@ pub fn provide_python_script_strat(
     ctx: StrategyPluginContext,
     conf: serde_json::Value,
 ) -> Result<Box<dyn Strategy>> {
+    crate::prepare();
     let options: PyScriptStrategyOptions = serde_json::from_value(conf)?;
     let script_content = std::fs::read_to_string(options.script_path)?;
     let provider = PyScriptStrategyProvider::new(ctx, options.conf, script_content);

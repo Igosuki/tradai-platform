@@ -6,7 +6,6 @@ use smallvec::SmallVec;
 use std::ops::{Add, Mul};
 use ta::Next;
 use yata::core::ValueType;
-use yata::helpers::Merge;
 use yata::prelude::{Sequence, OHLCV};
 
 /// Normalised OHLCV data from an [Interval] with the associated [DateTime] UTC timestamp;
@@ -36,8 +35,10 @@ pub struct Candle {
     pub is_final: bool,
 }
 
-impl Merge<Candle> for Candle {
-    fn merge(&self, other: &Candle) -> Self {
+impl Add<Candle> for Candle {
+    type Output = Candle;
+
+    fn add(self, other: Candle) -> Self {
         Self {
             high: self.high.max(other.high),
             low: self.low.min(other.low),
@@ -46,7 +47,7 @@ impl Merge<Candle> for Candle {
             quote_volume: self.quote_volume + other.quote_volume,
             trade_count: self.trade_count + other.trade_count,
             end_time: other.end_time,
-            ..*self
+            ..self
         }
     }
 }
@@ -255,7 +256,7 @@ impl Next<Candle> for Kline {
                 v
             }
             Some(candle) if candle.start_time >= input.start_time => {
-                *candle = candle.merge(&input);
+                *candle = *candle + input;
                 SmallVec::from_slice(&[*candle])
             }
             _ => {
