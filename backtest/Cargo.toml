@@ -7,34 +7,19 @@ edition = "2021"
 name = "backtest"
 path = "src/lib.rs"
 
-[[bin]]
-name = "backtest"
-path = "src/main.rs"
-required-features = ["binary"]
-
-[[bin]]
-name = "backtest_data_server"
-path = "src/data_server.rs"
-required-features = ["binary"]
-
 [features]
-default = ["env_logger", "mock_time", "binary"]
+default = ["mock_time"]
 mock_time = ["util/mock_time"]
 console = ["util/console_tracing"]
 release_max_level_debug = ["util/release_max_level_debug", "tracing/release_max_level_debug"]
 release_max_level_trace = ["util/release_max_level_trace", "tracing/release_max_level_trace"]
-binary = ["env_logger", "structopt", "strategies", "tradai_python"]
-release_default = ["mock_time", "binary", "release_max_level_trace"]
 remote_execution = ["ballista"]
 standalone_execution = ["ballista", "ballista/standalone"]
 
 [dependencies]
 # trader
 strategy = { path = "../strategy" }
-strategies = { path = "../strategies", optional = true }
-tradai_python = { path = "../python_crate", optional = true }
 brokers = { path = "../broker" }
-
 util = { path = "../util" }
 ext = { path = "../ext" }
 db = { path = "../db" }
@@ -53,8 +38,7 @@ tokio-stream = { version = "0.1", features = ["sync", "fs", "net", "io-util", "t
 # actors
 actix = "0.12"
 
-# cli
-structopt = { version = "0.3", optional = true }
+# config
 config = { version = "0.11", features = ["yaml", "toml", "json"], default-features = false }
 
 # logging / monitoring / metrics
@@ -68,7 +52,7 @@ serde_derive = "1.0"
 serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 parse_duration = "2.1"
-env_logger = { version = "0.9", optional = true }
+env_logger = { version = "0.9" }
 typed-builder = "0.9"
 itertools = "0.10"
 hdrhistogram = "7.4"
