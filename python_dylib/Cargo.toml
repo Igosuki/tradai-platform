@@ -8,7 +8,7 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib"]
 path = "src/lib.rs"
-name = "strategy"
+name = "tradai"
 
 [package.metadata.maturin]
 name = "tradai"
