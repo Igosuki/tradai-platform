@@ -33,7 +33,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 async fn run_main() -> anyhow::Result<()> {
-    strategy_python::prepare();
+    tradai_python::prepare();
     #[cfg(feature = "console_tracing")]
     util::trace::init_console_subscriber();
     #[cfg(not(feature = "console_tracing"))]

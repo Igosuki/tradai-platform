@@ -1,5 +1,5 @@
 [package]
-name = "strategy_python"
+name = "tradai_python"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,7 +11,7 @@ path = "examples/pyo3_async.rs"
 
 [lib]
 path = "src/lib.rs"
-name = "strategy_python"
+name = "tradai_python"
 
 [features]
 static = ["db/rocksdb-vendor"]
