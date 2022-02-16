@@ -129,7 +129,7 @@ impl Backtest {
     /// # Panics
     ///
     /// Writing the global report fails
-    pub async fn run(&mut self) -> Result<()> {
+    pub async fn run(&mut self) -> Result<GlobalReport> {
         let mut broker = ChannelMessageBroker::new();
         for runner in &self.runners {
             let runner = runner.read().await;
@@ -169,7 +169,7 @@ impl Backtest {
         global_report.write().await.unwrap();
 
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        Ok(())
+        Ok(global_report)
     }
 
     /// # Panics

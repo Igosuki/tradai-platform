@@ -25,7 +25,7 @@ util = { path = "../util" }
 strategy_test_util = { path = "../strategy_test_util" }
 stats = { path = "../stats" }
 brokers = { path = "../broker" }
-#backtest = { path = "../backtest" }
+backtest = { path = "../backtest" }
 
 # std
 chrono = { version = "0.4", features = ["serde"] }
@@ -39,7 +39,7 @@ tracing = "0.1"
 log = "0.4"
 
 # python
-pyo3 = { version = "^0.15", features = ["serde", "auto-initialize", "anyhow", "macros", "extension-module"] }
+pyo3 = { version = "^0.15", features = ["serde", "auto-initialize", "anyhow", "macros"] }
 pyo3-asyncio = { version = "^0.15", features = ["tokio-runtime", "attributes"] }
 pyo3-chrono = { version = "0.3", features = ["serde"] }
 canonical_json = { version = "0.4.0", optional = true }

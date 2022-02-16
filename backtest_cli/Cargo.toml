@@ -1,0 +1,25 @@
+[package]
+name = "backtest_cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "backtest"
+path = "src/main.rs"
+
+[[bin]]
+name = "backtest_data_server"
+path = "src/data_server.rs"
+
+[features]
+default = ["release_max_level_trace"]
+release_max_level_debug = ["backtest/release_max_level_debug"]
+release_max_level_trace = ["backtest/release_max_level_trace"]
+
+[dependencies]
+backtest = { path = "../backtest" }
+strategies = { path = "../strategies" }
+tradai_python = { path = "../python_crate" }
+
+structopt = { version = "0.3" }
+
