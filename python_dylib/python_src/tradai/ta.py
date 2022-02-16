@@ -1,4 +1,4 @@
-from .strategy import ta
+from .tradai import ta
 
 
 def __getattr__(name):

@@ -1,5 +1,7 @@
 //! Use this module to interact with Bitstamp exchange.
 
+#![feature(used_with_arg)]
+
 #[macro_use]
 extern crate broker_core;
 #[macro_use]

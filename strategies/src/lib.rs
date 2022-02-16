@@ -12,6 +12,7 @@ Python equivalents can be found in `py/`
 
  */
 
+#![feature(used_with_arg)]
 #![feature(generic_associated_types)]
 #![allow(
     clippy::wildcard_imports,
@@ -33,7 +34,7 @@ extern crate serde;
 #[macro_use]
 extern crate tracing;
 
+pub mod bbplusb;
 pub mod breakout;
 pub mod mean_reverting;
 pub mod naive_pair_trading;
-pub mod bbplusb;

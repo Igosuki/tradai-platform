@@ -9,6 +9,7 @@ For instance, overriding strategy driver behavior is not yet available to python
 
  */
 
+#![feature(used_with_arg)]
 #![allow(
     clippy::wildcard_imports,
     clippy::used_underscore_binding,

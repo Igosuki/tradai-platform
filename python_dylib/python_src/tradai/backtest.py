@@ -1,4 +1,4 @@
-from .strategy import backtest
+from .tradai import backtest
 
 
 def __getattr__(name):

@@ -27,8 +27,6 @@ use logging::prelude::*;
 use metrics::prom::PrometheusPushActor;
 use portfolio::balance::BalanceReporter;
 use portfolio::margin::MarginAccountReporter;
-#[allow(unused_imports)]
-use strategies::mean_reverting;
 use strategy::plugin::plugin_registry;
 use strategy::prelude::StrategyCopySettings;
 use strategy::{self, Channel, StrategyKey, Trader};

@@ -15,7 +15,7 @@ name = "trader"
 path = "src/main.rs"
 
 [features]
-default = []
+default = ["native-tls"]
 flame = ["dep:flame", "flamer"]
 gprof = ["gperftools"]
 zstd = ["awc/compress-zstd", "actix-web/compress-zstd"]
@@ -24,6 +24,8 @@ dialog_cli = ["dialoguer", "glob"]
 release_max_level_debug = ["tracing/release_max_level_debug"]
 release_max_level_trace = ["tracing/release_max_level_trace"]
 release_default = ["release_max_level_debug", "zstd"]
+rustls = ["actix-web/rustls", "awc/rustls"]
+native-tls = ["actix-web/openssl", "awc/openssl"]
 
 [dependencies]
 # Self crates
@@ -41,11 +43,11 @@ trading = { path = "../trading" }
 # actix
 actix = "0.12"
 actix-rt = "2.5"
-actix-codec = "0.4"
+actix-codec = "0.5"
 actix-cors = { version = "0.6.0-beta.8", default-features = false }
-actix-web = { version = "4.0.0-rc", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
+actix-web = { version = "4.0.0-rc", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
 actix_derive = "0.6"
-awc = { version = "3.0.0-beta", features = ["openssl", "compress-brotli", "compress-gzip", "cookies"], default-features = false }
+awc = { version = "3.0.0-beta", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
 
 # API Server
 juniper = { version = "^0.15", features = ["expose-test-schema"] }

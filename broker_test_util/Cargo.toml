@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 # Actix
-actix-http = "3.0.0-rc"
+actix-http = { version = "3.0.0-rc", features = ["ws"] }
 actix-http-test = "3.0.0-beta"
-actix-codec = "0.4"
+actix-codec = "0.5"
 
 # Local
 brokers = { path = "../broker", features = ["test_util"] }

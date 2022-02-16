@@ -417,6 +417,30 @@ impl OrderDetail {
     pub fn realized_quote_value(&self) -> f64 { self.quote_value() - self.quote_fees() }
 }
 
+pub enum SessionEvent {
+    Tick,
+    SessionStart,
+    SessionEnd,
+    PeriodEnd,
+    BeforeTradingStart,
+}
+
+pub struct EODCancelPolicy;
+
+impl CancelPolicy for EODCancelPolicy {
+    fn should_cancel(&mut self, e: SessionEvent) -> bool { matches!(e, SessionEvent::SessionEnd) }
+}
+
+pub struct NeverCancelPolicy;
+
+impl CancelPolicy for NeverCancelPolicy {
+    fn should_cancel(&mut self, _e: SessionEvent) -> bool { false }
+}
+
+trait CancelPolicy {
+    fn should_cancel(&mut self, e: SessionEvent) -> bool;
+}
+
 #[cfg(test)]
 mod test {
     use std::ops::Sub;
