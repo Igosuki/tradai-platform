@@ -55,34 +55,6 @@ impl Default for LiveOrder {
 
 
 lazy_static! {
-    pub static ref LIVETRADE_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveTrade\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
-}
-
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
-pub struct LiveTrade {
-    pub event_ms: i64,
-    pub pair: String,
-    pub amount: f64,
-    pub price: f64,
-    pub tt: i32,
-}
-
-#[allow(clippy::derivable_impls)]
-impl Default for LiveTrade {
-    fn default() -> LiveTrade {
-        LiveTrade {
-            event_ms: 0,
-            pair: String::default(),
-            amount: 0.0,
-            price: 0.0,
-            tt: 0,
-        }
-    }
-}
-
-
-lazy_static! {
     pub static ref CANDLE_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"Candle\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"start_ms\",\"type\":\"long\"},{\"name\":\"end_ms\",\"type\":\"long\"},{\"name\":\"open\",\"type\":\"double\"},{\"name\":\"high\",\"type\":\"double\"},{\"name\":\"low\",\"type\":\"double\"},{\"name\":\"close\",\"type\":\"double\"},{\"name\":\"volume\",\"type\":\"double\"},{\"name\":\"quote_volume\",\"type\":\"double\"},{\"name\":\"trade_count\",\"type\":\"long\"}]}").unwrap();
 }
 
@@ -117,6 +89,34 @@ impl Default for Candle {
             volume: 0.0,
             quote_volume: 0.0,
             trade_count: 0,
+        }
+    }
+}
+
+
+lazy_static! {
+    pub static ref LIVETRADE_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveTrade\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
+}
+
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct LiveTrade {
+    pub event_ms: i64,
+    pub pair: String,
+    pub amount: f64,
+    pub price: f64,
+    pub tt: i32,
+}
+
+#[allow(clippy::derivable_impls)]
+impl Default for LiveTrade {
+    fn default() -> LiveTrade {
+        LiveTrade {
+            event_ms: 0,
+            pair: String::default(),
+            amount: 0.0,
+            price: 0.0,
+            tt: 0,
         }
     }
 }

@@ -3,7 +3,7 @@ requires = ["maturin>=0.12"]
 build-backend = "maturin"
 
 [project]
-name = "strategy"
+name = "tradai"
 version = "2021.0.0"
 description = "The python SDK of the trading api"
 requires-python = ">=3.6"

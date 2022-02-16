@@ -204,7 +204,7 @@ mod test {
     #[ignore]
     async fn test_read_df() -> datafusion::error::Result<()> {
         let mut ctx = ExecutionContext::new();
-        let partition = PathBuf::from(env!("COINDATA_CACHE_DIR")).join("data");
+        let partition = PathBuf::from(std::env::var("COINDATA_CACHE_DIR").unwrap_or("".to_string())).join("data");
         let listing_options = ListingOptions {
             file_extension: "avro".to_string(),
             format: Arc::new(AvroFormat::default()),

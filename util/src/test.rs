@@ -29,11 +29,15 @@ pub fn repo_dir() -> String {
 
 /// The base directory of historical cache data
 #[must_use]
-pub fn data_cache_dir() -> PathBuf { Path::new(&env!("COINDATA_CACHE_DIR")).join("data") }
+pub fn data_cache_dir() -> PathBuf {
+    Path::new(&std::env::var("COINDATA_CACHE_DIR").unwrap_or("".to_string())).join("data")
+}
 
 /// The base directory of test data
 #[must_use]
-pub fn test_data_dir() -> PathBuf { Path::new(&env!("COINDATA_TEST_DIR")).join("test_data") }
+pub fn test_data_dir() -> PathBuf {
+    Path::new(&std::env::var("COINDATA_TEST_DIR").unwrap_or("".to_string())).join("test_data")
+}
 
 /// The base directory of test results
 /// # Panics

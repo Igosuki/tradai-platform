@@ -63,4 +63,4 @@ ballista = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arro
 #datafusion = { path = "/media/geps/work/dev/oss/arrow-datafusion/datafusion" }
 #ballista = { path = "/media/geps/work/dev/oss/arrow-datafusion/ballista/rust/client" }
 arrow2 = { git = "https://github.com/jorgecarleitao/arrow2.git", rev = "dded624dc6a6347d7e937efee7779a44a51c4edb" }
-inventory = { path = "/home/geps/dev/oss/inventory"}
+inventory = { path = "/home/geps/dev/oss/inventory" }
