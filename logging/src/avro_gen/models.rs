@@ -1,26 +1,28 @@
 
 
 lazy_static! {
-    pub static ref ORDERBOOK_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"Orderbook\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"asks\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"array\",\"items\":\"double\"}}},{\"name\":\"bids\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"array\",\"items\":\"double\"}}}]}").unwrap();
+    pub static ref LIVETRADE_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveTrade\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
-pub struct Orderbook {
+pub struct LiveTrade {
     pub event_ms: i64,
     pub pair: String,
-    pub asks: Vec<Vec<f64>>,
-    pub bids: Vec<Vec<f64>>,
+    pub amount: f64,
+    pub price: f64,
+    pub tt: i32,
 }
 
 #[allow(clippy::derivable_impls)]
-impl Default for Orderbook {
-    fn default() -> Orderbook {
-        Orderbook {
+impl Default for LiveTrade {
+    fn default() -> LiveTrade {
+        LiveTrade {
             event_ms: 0,
             pair: String::default(),
-            asks: vec![],
-            bids: vec![],
+            amount: 0.0,
+            price: 0.0,
+            tt: 0,
         }
     }
 }
@@ -93,38 +95,36 @@ impl Default for Candle {
     }
 }
 
-
-lazy_static! {
-    pub static ref LIVETRADE_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveTrade\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
-}
-
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
-pub struct LiveTrade {
-    pub event_ms: i64,
-    pub pair: String,
-    pub amount: f64,
-    pub price: f64,
-    pub tt: i32,
-}
-
-#[allow(clippy::derivable_impls)]
-impl Default for LiveTrade {
-    fn default() -> LiveTrade {
-        LiveTrade {
-            event_ms: 0,
-            pair: String::default(),
-            amount: 0.0,
-            price: 0.0,
-            tt: 0,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
 pub enum TradeType {
     #[serde(rename = "BUY")]
     Buy,
     #[serde(rename = "SELL")]
     Sell,
+}
+
+
+lazy_static! {
+    pub static ref ORDERBOOK_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"Orderbook\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"asks\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"array\",\"items\":\"double\"}}},{\"name\":\"bids\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"array\",\"items\":\"double\"}}}]}").unwrap();
+}
+
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct Orderbook {
+    pub event_ms: i64,
+    pub pair: String,
+    pub asks: Vec<Vec<f64>>,
+    pub bids: Vec<Vec<f64>>,
+}
+
+#[allow(clippy::derivable_impls)]
+impl Default for Orderbook {
+    fn default() -> Orderbook {
+        Orderbook {
+            event_ms: 0,
+            pair: String::default(),
+            asks: vec![],
+            bids: vec![],
+        }
+    }
 }

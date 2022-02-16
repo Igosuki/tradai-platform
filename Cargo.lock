@@ -836,18 +836,25 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "stats",
- "strategies",
  "strategy",
- "structopt",
  "thiserror",
  "tokio",
  "tokio-stream",
  "tokio-util 0.6.9",
  "tracing",
- "tradai_python",
  "trading",
  "typed-builder 0.9.1",
  "util",
+]
+
+[[package]]
+name = "backtest_cli"
+version = "0.1.0"
+dependencies = [
+ "backtest",
+ "strategies",
+ "structopt",
+ "tradai_python",
 ]
 
 [[package]]
@@ -5107,14 +5114,13 @@ checksum = "3b7e158a385023d209d6d5f2585c4b468f6dcb3dd5aca9b75c4f1678c05bb375"
 [[package]]
 name = "pyo3"
 version = "0.15.1"
-source = "git+https://github.com/PyO3/pyo3?rev=8a989eeb6aeb862c0c518d994ef6e5f967f0dc46#8a989eeb6aeb862c0c518d994ef6e5f967f0dc46"
+source = "git+https://github.com/aviramha/pyo3.git?rev=db53229bc7a737d0300ff2c5fbc7ea80040ec263#db53229bc7a737d0300ff2c5fbc7ea80040ec263"
 dependencies = [
  "anyhow",
  "cfg-if 1.0.0",
  "indoc",
  "libc",
  "parking_lot 0.11.2",
- "paste 1.0.6",
  "pyo3-build-config",
  "pyo3-macros",
  "serde",
@@ -5150,7 +5156,7 @@ dependencies = [
 [[package]]
 name = "pyo3-build-config"
 version = "0.15.1"
-source = "git+https://github.com/PyO3/pyo3?rev=8a989eeb6aeb862c0c518d994ef6e5f967f0dc46#8a989eeb6aeb862c0c518d994ef6e5f967f0dc46"
+source = "git+https://github.com/aviramha/pyo3.git?rev=db53229bc7a737d0300ff2c5fbc7ea80040ec263#db53229bc7a737d0300ff2c5fbc7ea80040ec263"
 dependencies = [
  "once_cell",
 ]
@@ -5169,8 +5175,9 @@ dependencies = [
 [[package]]
 name = "pyo3-macros"
 version = "0.15.1"
-source = "git+https://github.com/PyO3/pyo3?rev=8a989eeb6aeb862c0c518d994ef6e5f967f0dc46#8a989eeb6aeb862c0c518d994ef6e5f967f0dc46"
+source = "git+https://github.com/aviramha/pyo3.git?rev=db53229bc7a737d0300ff2c5fbc7ea80040ec263#db53229bc7a737d0300ff2c5fbc7ea80040ec263"
 dependencies = [
+ "proc-macro2",
  "pyo3-macros-backend",
  "quote",
  "syn",
@@ -5179,7 +5186,7 @@ dependencies = [
 [[package]]
 name = "pyo3-macros-backend"
 version = "0.15.1"
-source = "git+https://github.com/PyO3/pyo3?rev=8a989eeb6aeb862c0c518d994ef6e5f967f0dc46#8a989eeb6aeb862c0c518d994ef6e5f967f0dc46"
+source = "git+https://github.com/aviramha/pyo3.git?rev=db53229bc7a737d0300ff2c5fbc7ea80040ec263#db53229bc7a737d0300ff2c5fbc7ea80040ec263"
 dependencies = [
  "proc-macro2",
  "pyo3-build-config",
@@ -7120,6 +7127,7 @@ dependencies = [
  "actix",
  "anyhow",
  "async-trait",
+ "backtest",
  "brokers",
  "canonical_json",
  "chrono",
