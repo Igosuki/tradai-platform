@@ -1,7 +1,9 @@
+use std::collections::HashSet;
 use std::ops::Sub;
 use std::path::{Path, PathBuf};
 
 use ::config::{Config, File};
+use brokers::exchange::Exchange;
 use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use parse_duration::parse;
 use typed_builder::TypedBuilder;
@@ -12,9 +14,11 @@ use strategy::settings::StrategyDriverSettings;
 use util::test::test_dir;
 use util::time::{DateRange, DurationRangeType};
 
+use crate::backtest::init_brokerages;
+use crate::{DataFormat, MarketEventDatasetType};
+
 use crate::error::*;
 use crate::report::ReportConfig;
-use crate::{DataFormat, MarketEventDatasetType};
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "type")]
@@ -110,6 +114,19 @@ impl BacktestConfig {
         self.coindata_cache_dir
             .clone()
             .unwrap_or_else(|| Path::new(&std::env::var("COINDATA_CACHE_DIR").unwrap()).join("data"))
+    }
+
+    pub(crate) async fn all_strategy_settings(&self) -> Vec<StrategyDriverSettings> {
+        let mut all_strategy_settings: Vec<StrategyDriverSettings> = vec![];
+        all_strategy_settings.extend_from_slice(self.strats.as_slice());
+        let mut exchanges: HashSet<Exchange> = HashSet::new();
+        if let Some(copy) = self.strat_copy.as_ref() {
+            exchanges.extend(copy.exchanges());
+            all_strategy_settings.extend_from_slice(copy.all().unwrap().as_slice());
+        }
+        exchanges.insert(Exchange::Binance);
+        init_brokerages(&exchanges.into_iter().collect::<Vec<Exchange>>()).await;
+        all_strategy_settings
     }
 }
 
