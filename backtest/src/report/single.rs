@@ -24,7 +24,7 @@ use crate::error::Result;
 
 use super::TimedData;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct BacktestReportMiscStats {
     pub(crate) pnl_std_dev: stats::StandardDeviation,
     pub(crate) pnl_std_dev_last: f64,
@@ -65,7 +65,7 @@ impl Default for BacktestReportMiscStats {
 
 type TimedModelValue = TimedData<BTreeMap<String, Option<serde_json::Value>>>;
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct BacktestReport {
     pub(crate) output_dir: PathBuf,
     pub(crate) key: String,
