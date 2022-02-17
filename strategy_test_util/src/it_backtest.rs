@@ -60,7 +60,7 @@ where
     let engine = Arc::new(mock_engine(path.path(), exchanges));
     let test_results_dir = test_results_dir(test_name);
     let db = test_db_with_path(path);
-    let embedded = provider(GenericTestContext {
+    let strat = provider(GenericTestContext {
         engine: engine.clone(),
         db: db.clone(),
     });
@@ -72,11 +72,11 @@ where
         start_trading: None,
         dry_mode: None,
     };
-    let mut strat = GenericDriver::try_new(
-        <dyn Strategy>::channels(embedded.as_ref()),
+    let mut driver = GenericDriver::try_new(
+        <dyn Strategy>::channels(strat.as_ref()),
         db,
         &generic_options,
-        embedded,
+        strat,
         engine,
         None,
     )
@@ -84,7 +84,7 @@ where
     let mut elapsed = 0_u128;
 
     let mut events: Vec<MarketEventEnvelope> = vec![];
-    for c in &strat.channels() {
+    for c in &driver.channels() {
         events.extend(
             input::load_csv_events(
                 range.from,
@@ -106,14 +106,14 @@ where
         let now = Instant::now();
         let event_time = event.e.time();
         util::time::set_current_time(event_time);
-        strat.add_event(&event).await.unwrap();
+        driver.add_event(&event).await.unwrap();
         let mut tries = 0;
         loop {
             if tries > 5 {
                 break;
             }
-            if strat.ctx().portfolio.is_locked(&(event.xch, event.pair.clone())) {
-                strat.resolve_orders().await;
+            if driver.ctx().portfolio.is_locked(&(event.xch, event.pair.clone())) {
+                driver.resolve_orders().await;
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 tries += 1;
             } else {
@@ -121,7 +121,7 @@ where
             }
         }
         if let MarketEvent::Orderbook(ob) = &event.e {
-            let models = strat
+            let models = driver
                 .data(DataQuery::Models)
                 .await
                 .map(|dr| match dr {
@@ -129,8 +129,8 @@ where
                     _ => vec![],
                 })
                 .unwrap();
-            let portfolio = strat.ctx().portfolio;
-            let nominal_positions = strat
+            let portfolio = driver.ctx().portfolio;
+            let nominal_positions = driver
                 .ctx()
                 .portfolio
                 .open_positions()
@@ -164,14 +164,14 @@ where
     write_models(&test_results_dir, data.as_ref());
     write_trade_events(
         &test_results_dir,
-        &trades_history(&strat.ctx().portfolio.positions_history().unwrap()),
+        &trades_history(&driver.ctx().portfolio.positions_history().unwrap()),
     );
 
     let out_file = draw_line_plot(test_results_dir.as_str(), data.as_ref(), draw_entries)
         .expect("Should have drawn plots from strategy logs");
     copy_file(&out_file, &format!("{}/plot_latest.html", &test_results_dir));
 
-    let mut positions = strat.ctx().portfolio.positions_history().unwrap();
+    let mut positions = driver.ctx().portfolio.positions_history().unwrap();
     positions.sort_by(|p1, p2| p1.meta.close_at.cmp(&p2.meta.close_at));
     //insta::assert_debug_snapshot!(positions.last());
     positions
