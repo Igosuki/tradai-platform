@@ -38,7 +38,7 @@ impl GlobalReport {
         tokio_stream::iter(self.reports.as_slice().iter())
             .map(|report| async move {
                 report.finish().await?;
-                tokio::task::block_in_place(move || report.write_html());
+                tokio::task::block_in_place(|| report.write_html());
                 crate::error::Result::Ok(())
             })
             .buffer_unordered(self.parallelism)

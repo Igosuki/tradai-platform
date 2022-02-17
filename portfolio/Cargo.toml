@@ -38,10 +38,10 @@ itertools = "0.10"
 # async
 futures = "0.3"
 async-trait = "0.1"
-tokio = "1"
+tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies]
 env_logger = "0.9"
 test-log = "0.2"
-tokio = "1"
+tokio = { version = "1", features = ["full"] }
 float-cmp = "0.9"

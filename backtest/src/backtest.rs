@@ -175,6 +175,7 @@ pub async fn backtest_single<'a>(
     fees_rate: f64,
 ) -> Result<BacktestReport> {
     let path = util::test::test_dir();
+
     let engine = Arc::new(mock_engine(path.path(), providers));
     let test_results_dir = util::test::test_results_dir(test_name);
     let options = DbOptions::new(path);
@@ -191,17 +192,15 @@ pub async fn backtest_single<'a>(
         start_trading: None,
         dry_mode: None,
     };
-    let driver = Box::new(
-        GenericDriver::try_new(
-            <dyn Strategy>::channels(strat.as_ref()),
-            db,
-            &generic_options,
-            strat,
-            engine,
-            None,
-        )
-        .unwrap(),
-    );
+    let channels = <dyn Strategy>::channels(strat.as_ref());
+    for channel in &channels {
+        brokers::pair::register_pair_default(
+            channel.exchange(),
+            &channel.pair().to_string().replace('_', ""),
+            &channel.pair(),
+        );
+    }
+    let driver = Box::new(GenericDriver::try_new(channels, db, &generic_options, strat, engine, None).unwrap());
     let runner_ref = BacktestRunner::spawn_with_driver(None, driver).await;
     let broker = build_msg_broker(&[runner_ref.clone()]).await;
 
@@ -211,13 +210,14 @@ pub async fn backtest_single<'a>(
     tokio::spawn(async move {
         let mut runner = runner_ref.write().await;
         let report = runner.run(test_results_dir, Compression::none(), stop_token_a).await;
+        report.finish().await.unwrap();
         tx.send(report).await.unwrap();
     });
 
     let dataset = DatasetReader {
         input_format: DataFormat::Parquet,
         ds_type: MarketEventDatasetType::Trades,
-        base_dir: Default::default(),
+        base_dir: util::test::data_cache_dir(),
         period: DateRange(date_range.from, date_range.to, DurationRangeType::Days, 1),
         input_sample_rate: chrono::Duration::seconds(1),
     };

@@ -1,3 +1,4 @@
+use actix::SystemRunner;
 use std::sync::Arc;
 use std::thread;
 
@@ -64,7 +65,7 @@ fn it_backtest_wrapper<'p>(
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<Position>>(1);
         thread::spawn(move || {
             let arc = draw_entries.clone();
-            actix::System::new().block_on(async move {
+            actix_multi_rt().block_on(async move {
                 let provider: StratProviderRef = Arc::new(move |ctx: StrategyInitContext| {
                     Python::with_gil(|py| {
                         let py_ctx: PyStrategyInitContext = ctx.into();
@@ -109,10 +110,13 @@ impl From<StrategyInitContext> for PyStrategyInitContext {
 
 pub(crate) fn init_module(m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(it_backtest_wrapper, m)?)?;
+    m.add_function(wrap_pyfunction!(backtest_wrapper, m)?)?;
+    m.add_class::<PyPosition>()?;
+    m.add_class::<PyBacktestReport>()?;
     Ok(())
 }
 
-#[pyclass(name = "Position", module = "strategy", subclass)]
+#[pyclass(name = "BacktestReport", module = "backtest", subclass)]
 #[derive(Debug)]
 pub(crate) struct PyBacktestReport {
     pub(crate) inner: BacktestReport,
@@ -169,7 +173,7 @@ fn backtest_wrapper<'p>(
     pyo3_asyncio::tokio::future_into_py_with_locals(py, pyo3_asyncio::tokio::get_current_locals(py)?, async move {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<BacktestReport>(1);
         thread::spawn(move || {
-            actix::System::new().block_on(async move {
+            actix_multi_rt().block_on(async move {
                 let provider: StratProviderRef = Arc::new(move |ctx: StrategyInitContext| {
                     Python::with_gil(|py| {
                         let py_ctx: PyStrategyInitContext = ctx.into();
@@ -193,5 +197,14 @@ fn backtest_wrapper<'p>(
 
         let py_report: PyBacktestReport = report.into();
         Python::with_gil(|py| Ok(py_report.into_py(py)))
+    })
+}
+
+fn actix_multi_rt() -> SystemRunner {
+    actix::System::with_tokio_rt(move || {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Default Tokio runtime could not be created.")
     })
 }
