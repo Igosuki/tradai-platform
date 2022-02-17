@@ -119,6 +119,7 @@ impl LoggingStdout {
     pub(crate) fn write(&self, data: &str) {
         print!("{}", data);
     }
+    pub(crate) fn flush(&self) {}
 }
 
 #[cfg(test)]

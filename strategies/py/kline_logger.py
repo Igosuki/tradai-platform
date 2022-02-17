@@ -4,7 +4,7 @@ import logging
 import json
 from datetime import datetime, date
 
-from strategy import Strategy, signal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
+from tradai import Strategy, signal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
     OrderType, uuid, ta, windowed_ta, model, mstrategy, LoggingStdout
 
 FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'
@@ -56,12 +56,12 @@ class KlineLogger(Strategy):
         return ((Channel("candles", self.conf['xch'], self.conf['pair']),))
 
 
-async def backtest_run(*args, **kwargs):
-    return await backtest.it_backtest(*args, **kwargs)
-
 def print_and_zero(log):
     print(log)
     return 0.0
+
+async def backtest_run(*args, **kwargs):
+    return await backtest.single_backtest(*args, **kwargs)
 
 KLINE_LOGGER_DRAW_ENTRIES = [(
     "Prices and EMA",
@@ -93,13 +93,15 @@ if __name__ == '__main__':
         'order_conf': {
             'dry_mode': True,
             'order_mode': 'limit',
-            'asset_type': AssetType.Spot,
+            'asset_type': 'spot',
             'execution_instruction': None
         }
     }
-    positions = asyncio.run(backtest_run("mr_py_test", lambda ctx: KlineLogger(
-        conf, ctx), date(2021, 8, 1), date(2021, 8, 9), KLINE_LOGGER_DRAW_ENTRIES))
-    print('took %d positions' % len(positions))
+    # report = asyncio.run(backtest.it_backtest("mr_py_test", lambda ctx: KlineLogger(
+    #     conf, ctx), date(2021, 8, 1), date(2021, 8, 9), KLINE_LOGGER_DRAW_ENTRIES))
+    report: backtest.BacktestReport = asyncio.run(backtest_run("mr_py_test", lambda ctx: KlineLogger(
+        conf, ctx), date(2022, 1, 30), date(2022, 2, 6), KLINE_LOGGER_DRAW_ENTRIES))
+    print(report.draw_tradeview())
 
 
 mstrategy(KlineLogger)
