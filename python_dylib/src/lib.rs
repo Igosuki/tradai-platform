@@ -23,6 +23,6 @@ fn tradai(py: pyo3::Python, m: &pyo3::types::PyModule) -> pyo3::PyResult<()> {
         .filter(LevelFilter::Trace)
         .install()
         .expect("Someone installed a logger before us :-(");
-    tradai_python::strat(py, m)?;
+    tradai_python::tradai(py, m)?;
     Ok(())
 }

@@ -2,9 +2,9 @@ use brokers::types::Candle;
 use chrono::{DateTime, TimeZone, Utc};
 use plotly::{Candlestick, Plot, Scatter};
 
-pub(crate) use global::GlobalReport;
-pub(crate) use logger::StreamWriterLogger;
-pub(crate) use single::BacktestReport;
+pub use global::GlobalReport;
+pub use logger::StreamWriterLogger;
+pub use single::BacktestReport;
 use util::compress::Compression;
 use util::time::TimedData;
 

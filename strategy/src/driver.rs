@@ -1,8 +1,11 @@
 use smallvec::SmallVec;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use brokers::types::MarketEventEnvelope;
+use db::Storage;
 use portfolio::portfolio::Portfolio;
+use trading::engine::TradingEngine;
 use trading::signal::TradeSignal;
 
 use crate::error::*;
@@ -73,3 +76,11 @@ pub trait Strategy: Sync + Send {
 pub struct DefaultStrategyContext<'a> {
     pub portfolio: &'a Portfolio,
 }
+
+pub struct StrategyInitContext {
+    pub engine: Arc<TradingEngine>,
+    pub db: Arc<dyn Storage>,
+}
+
+pub type StratProvider<'a> = dyn Fn(StrategyInitContext) -> Box<dyn Strategy> + 'a;
+pub type StratProviderRef = Arc<dyn Fn(StrategyInitContext) -> Box<dyn Strategy> + Send + Sync>;
