@@ -5,15 +5,15 @@ use std::pin::Pin;
 use chrono::{Date, Duration, Utc};
 use futures::{Stream, StreamExt};
 
+use crate::datasources::orderbook::{flat_orderbooks_df, raw_orderbooks_df, sampled_orderbooks_df};
+use brokers::broker::{AsyncBroker, ChannelMessageBroker};
 use brokers::prelude::{Exchange, Pair};
-use brokers::types::MarketEventEnvelope;
+use brokers::types::{AssetType, MarketEventEnvelope};
 use strategy::Channel;
 use util::time::DateRange;
 
 use crate::datasources::trades::{candles_df, trades_df};
 use crate::error::*;
-use crate::{flat_orderbooks_df, raw_orderbooks_df, sampled_orderbooks_df, AssetType};
-use brokers::broker::{AsyncBroker, ChannelMessageBroker};
 
 pub struct DatasetReader {
     pub input_format: DataFormat,

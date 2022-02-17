@@ -1,32 +1,36 @@
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
+use strategy::plugin::plugin_registry;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
+use tokio::task;
 use tokio::time::Duration;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 
 use brokers::prelude::{MarketEvent, MarketEventEnvelope};
+use db::DbOptions;
 use strategy::driver::StrategyDriver;
 use strategy::event::{close_events, open_events};
+use strategy::prelude::StrategyDriverSettings;
 use strategy::query::{DataQuery, DataResult};
 use strategy::types::{OperationEvent, StratEvent, TradeEvent};
 use strategy::Channel;
+use trading::engine::TradingEngine;
 use util::compress::Compression;
 use util::time::{set_current_time, TimedData};
 use util::trace::{display_hist_percentiles, microtime_histogram, microtime_percentiles};
 
-use crate::report::StreamWriterLogger;
-use crate::BacktestReport;
+use crate::report::{BacktestReport, StreamWriterLogger};
 
 const DEFAULT_RUNNER_SINK_SIZE: usize = 1000;
 
 pub(crate) struct BacktestRunner {
-    strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
-    strategy_events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
+    driver: Arc<Mutex<Box<dyn StrategyDriver>>>,
+    events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
     events_stream: Receiver<MarketEventEnvelope>,
     events_sink: Sender<MarketEventEnvelope>,
 }
@@ -40,15 +44,15 @@ impl BacktestRunner {
         let (events_sink, events_stream) =
             channel::<MarketEventEnvelope>(sink_size.unwrap_or(DEFAULT_RUNNER_SINK_SIZE));
         Self {
-            strategy,
-            strategy_events_logger,
+            driver: strategy,
+            events_logger: strategy_events_logger,
             events_stream,
             events_sink,
         }
     }
 
     pub(crate) async fn channels(&self) -> HashSet<Channel> {
-        let reader = self.strategy.lock().await;
+        let reader = self.driver.lock().await;
         reader.channels()
     }
 
@@ -61,7 +65,7 @@ impl BacktestRunner {
         stop_token: CancellationToken,
     ) -> BacktestReport {
         let key = {
-            let strategy = self.strategy.lock().await;
+            let strategy = self.driver.lock().await;
             strategy.key().await
         };
 
@@ -71,7 +75,7 @@ impl BacktestRunner {
         let mut execution_hist = microtime_histogram();
 
         // Subscribe report to events
-        let mut sub = self.strategy_events_logger.subscription();
+        let mut sub = self.events_logger.subscription();
         let events_sink = report.strat_event_sink();
         tokio::spawn(async move {
             while let Some(Ok(e)) = sub.next().await {
@@ -81,7 +85,7 @@ impl BacktestRunner {
             }
         });
         // Main loop
-        let mut driver = self.strategy.lock().await;
+        let mut driver = self.driver.lock().await;
         'main: loop {
             select! {
                 biased;
@@ -160,4 +164,22 @@ fn op_and_trade_to_strat((op, trade): (OperationEvent, TradeEvent)) -> Vec<Timed
         TimedData::new(op.at, StratEvent::Operation(op)),
         TimedData::new(trade.at, StratEvent::Trade(trade)),
     ]
+}
+
+pub(crate) async fn spawn_runner(
+    sink_size: Option<usize>,
+    db_conf: DbOptions<PathBuf>,
+    engine: Arc<TradingEngine>,
+    settings: StrategyDriverSettings,
+) -> Arc<RwLock<BacktestRunner>> {
+    let logger: Arc<StreamWriterLogger<TimedData<StratEvent>>> = Arc::new(StreamWriterLogger::new());
+    let logger2 = logger.clone();
+    let strategy_driver = task::spawn_blocking(move || {
+        let plugin = plugin_registry().get(settings.strat.strat_type.as_str()).unwrap();
+        strategy::settings::from_driver_settings(plugin, &db_conf, &settings, engine, Some(logger.clone())).unwrap()
+    })
+    .await
+    .unwrap();
+    let runner = BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger2, sink_size);
+    Arc::new(RwLock::new(runner))
 }
