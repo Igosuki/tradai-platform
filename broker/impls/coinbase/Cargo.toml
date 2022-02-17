@@ -28,4 +28,4 @@ data-encoding = "2.3"
 tracing = { version = "0.1", features = ["log"] }
 
 [dev-dependencies]
-tokio = "1"
+tokio = { version = "1", features = ["full"] }

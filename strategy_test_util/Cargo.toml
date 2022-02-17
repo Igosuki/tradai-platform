@@ -17,7 +17,7 @@ db = { path = "../db" }
 trading = { path = "../trading" }
 
 #async
-tokio = "1"
+tokio = { version = "1", features = ["full"] }
 
 #std
 chrono = "0.4"

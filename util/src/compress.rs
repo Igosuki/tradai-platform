@@ -69,7 +69,11 @@ impl Compression {
         let ext = if current_ext.is_empty() {
             ext.to_string()
         } else {
-            format!("{}.{}", current_ext, ext)
+            if ext.is_empty() {
+                current_ext.to_string()
+            } else {
+                format!("{}.{}", current_ext, ext)
+            }
         };
         current_path.with_extension(ext)
     }

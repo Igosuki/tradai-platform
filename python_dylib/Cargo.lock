@@ -5272,8 +5272,3 @@ dependencies = [
  "cc",
  "libc",
 ]
-
-[[patch.unused]]
-name = "ballista"
-version = "0.6.0"
-source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_i#79107650f5d04165aef6009a46d0289e615b34aa"

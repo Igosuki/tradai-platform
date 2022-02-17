@@ -61,7 +61,7 @@ create_exception!(strat, ModelError, pyo3::exceptions::PyException);
 create_exception!(strat, EvalError, pyo3::exceptions::PyException);
 
 #[pymodule]
-#[pyo3(name = "tradai")]
+#[pyo3(name = "tradai_core")]
 pub fn tradai(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyStrategy>()?;
     m.add_class::<PyTradeSignal>()?;

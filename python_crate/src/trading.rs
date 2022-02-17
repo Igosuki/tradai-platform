@@ -231,7 +231,7 @@ impl From<PyMarginSideEffect> for MarginSideEffect {
 }
 
 #[pyclass(name = "AssetType")]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub enum PyAssetType {
     Spot,
     Margin,
@@ -294,7 +294,7 @@ impl From<PyOrderEnforcement> for OrderEnforcement {
     }
 }
 
-#[pyclass(name = "Position", module = "strategy", subclass)]
+#[pyclass(name = "Position", module = "tradai", subclass)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyPosition {
     pub(crate) inner: Position,
