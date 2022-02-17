@@ -26,6 +26,13 @@ impl Default for Compression {
 }
 
 impl Compression {
+    pub fn none() -> Self {
+        Self {
+            algorithm: CompressionType::None,
+            level: None,
+        }
+    }
+
     pub fn wrap_writer<W: 'static + Write + Send>(&self, w: W) -> Box<dyn Write + Send> {
         let level = self.level.unwrap_or(5);
         match self.algorithm {

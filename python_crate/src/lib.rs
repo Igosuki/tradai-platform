@@ -50,7 +50,6 @@ mod json_cannonical;
 mod model;
 mod py_strat;
 pub mod script_strat;
-mod stats;
 mod ta;
 mod test_util;
 mod trading;
