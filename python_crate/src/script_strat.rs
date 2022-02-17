@@ -14,7 +14,7 @@ use strategy::StrategyKey;
 use strategy_test_util::it_backtest::GenericTestContext;
 
 use crate::backtest::PyGenericTestContext;
-use crate::util::register_strat_module;
+use crate::util::register_tradai_module;
 use crate::PyStrategyWrapper;
 
 struct PyScriptStrategyProvider {
@@ -34,7 +34,7 @@ impl PyScriptStrategyProvider {
         let guard = Python::acquire_gil();
         let py = guard.python();
         let context = Context::new_with_gil(py);
-        register_strat_module(py).unwrap();
+        register_tradai_module(py).unwrap();
         PyModule::from_code(py, &python_script, "_dyn_strat_mod", "_dyn_strat_mod")?;
         context.run_with_gil(py, python! {
             import _dyn_strat_mod

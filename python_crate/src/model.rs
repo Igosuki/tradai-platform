@@ -8,7 +8,7 @@ use strategy::models::indicator_windowed_model::IndicatorWindowedModel;
 use strategy::models::{IndicatorModel, WindowedModel};
 use strategy::prelude::Model;
 
-use crate::backtest::PyDb;
+use crate::db::PyDb;
 use crate::ta::{PyIndicator, TechnicalIndicator};
 use crate::windowed_ta::{PyWindowedIndicator, WindowedTechnicalIndicator};
 use crate::PyMarketEvent;
