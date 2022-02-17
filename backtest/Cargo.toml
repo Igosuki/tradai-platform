@@ -10,7 +10,6 @@ path = "src/lib.rs"
 [features]
 default = ["mock_time"]
 mock_time = ["util/mock_time"]
-console = ["util/console_tracing"]
 release_max_level_debug = ["util/release_max_level_debug", "tracing/release_max_level_debug"]
 release_max_level_trace = ["util/release_max_level_trace", "tracing/release_max_level_trace"]
 remote_execution = ["ballista"]
@@ -47,8 +46,7 @@ tracing = { version = "0.1", features = ["log"] }
 # std
 thiserror = "1.0"
 anyhow = "1.0"
-serde = "1.0"
-serde_derive = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 parse_duration = "2.1"

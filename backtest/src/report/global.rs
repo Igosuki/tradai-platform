@@ -11,7 +11,7 @@ use util::time::now_str;
 
 use super::single::BacktestReport;
 
-pub(crate) struct GlobalReport {
+pub struct GlobalReport {
     pub reports: Vec<BacktestReport>,
     pub output_dir: PathBuf,
     pub base_dir: PathBuf,
@@ -51,7 +51,7 @@ impl GlobalReport {
 
     pub(crate) fn len(&self) -> usize { self.reports.len() }
 
-    pub fn write_global_report<P: AsRef<Path>>(&mut self, report_dir: P) {
+    pub(crate) fn write_global_report<P: AsRef<Path>>(&mut self, report_dir: P) {
         self.write_pnl_report(&report_dir, "report.html", self.reports_by_pnl(10));
         self.write_pnl_report(&report_dir, "report_stddev.html", self.report_by_pnl_stddev(10));
         self.write_pnl_report(
@@ -74,7 +74,7 @@ impl GlobalReport {
         Ok(())
     }
 
-    pub fn write_pnl_report<'a, P: AsRef<Path>>(
+    pub(crate) fn write_pnl_report<'a, P: AsRef<Path>>(
         &self,
         output_dir: P,
         report_filename: &str,

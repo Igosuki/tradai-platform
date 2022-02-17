@@ -29,14 +29,12 @@ pub(crate) struct BacktestRunner {
     strategy_events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
     events_stream: Receiver<MarketEventEnvelope>,
     events_sink: Sender<MarketEventEnvelope>,
-    stop_token: CancellationToken,
 }
 
 impl BacktestRunner {
     pub fn new(
         strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
         strategy_events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
-        stop_token: CancellationToken,
         sink_size: Option<usize>,
     ) -> Self {
         let (events_sink, events_stream) =
@@ -46,7 +44,6 @@ impl BacktestRunner {
             strategy_events_logger,
             events_stream,
             events_sink,
-            stop_token,
         }
     }
 
@@ -61,6 +58,7 @@ impl BacktestRunner {
         &mut self,
         output_dir: P,
         report_compression: Compression,
+        stop_token: CancellationToken,
     ) -> BacktestReport {
         let key = {
             let strategy = self.strategy.lock().await;
@@ -132,7 +130,7 @@ impl BacktestRunner {
                     }
                     execution_hist += start.elapsed().as_nanos() as u64;
                 },
-                _ = self.stop_token.cancelled() => {
+                _ = stop_token.cancelled() => {
                     info!("Closing {}.", key);
                     break 'main;
                 }

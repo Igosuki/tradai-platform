@@ -44,6 +44,7 @@ mod asyncio;
 mod backtest;
 mod channel;
 mod coinnect;
+mod db;
 mod error;
 mod json_cannonical;
 mod model;
@@ -61,8 +62,8 @@ create_exception!(strat, ModelError, pyo3::exceptions::PyException);
 create_exception!(strat, EvalError, pyo3::exceptions::PyException);
 
 #[pymodule]
-#[pyo3(name = "strategy")]
-pub fn strat(py: Python, m: &PyModule) -> PyResult<()> {
+#[pyo3(name = "tradai")]
+pub fn tradai(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyStrategy>()?;
     m.add_class::<PyTradeSignal>()?;
     m.add_class::<PyMarketEvent>()?;

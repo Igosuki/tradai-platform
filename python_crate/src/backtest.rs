@@ -8,12 +8,12 @@ use pyo3_chrono::NaiveDate;
 use pythonize::pythonize;
 
 use brokers::prelude::Exchange;
-use db::Storage;
 use strategy_test_util::draw::StrategyEntryFnRef;
 use strategy_test_util::it_backtest::{generic_backtest, BacktestRange, BacktestStratProviderRef, GenericTestContext};
 use strategy_test_util::log::StrategyLog;
 use trading::position::Position;
 
+use crate::db::PyDb;
 use crate::{PyPosition, PyStrategyWrapper};
 
 /// Wraps a python function that returns a list of tuples of (str, f64) for a dict corresponding to [`StrategyLog`]
@@ -102,20 +102,6 @@ impl PyGenericTestContext {
 
 impl From<GenericTestContext> for PyGenericTestContext {
     fn from(inner: GenericTestContext) -> Self { Self { inner } }
-}
-
-#[derive(Clone)]
-#[pyclass(name = "Storage")]
-pub(crate) struct PyDb {
-    inner: Arc<dyn Storage>,
-}
-
-impl PyDb {
-    pub(crate) fn db(&self) -> Arc<dyn Storage> { self.inner.clone() }
-}
-
-impl From<Arc<dyn Storage>> for PyDb {
-    fn from(inner: Arc<dyn Storage>) -> Self { Self { inner } }
 }
 
 pub(crate) fn init_module(m: &PyModule) -> PyResult<()> {

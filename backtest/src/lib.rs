@@ -35,7 +35,7 @@ extern crate async_stream;
 #[macro_use]
 extern crate async_trait;
 #[macro_use]
-extern crate serde_derive;
+extern crate serde;
 #[macro_use]
 extern crate tokio;
 #[macro_use]
@@ -98,15 +98,7 @@ impl Backtest {
         let mock_engine = Arc::new(mock_engine(db_conf.path.clone(), &[Exchange::Binance]));
         let stop_token = CancellationToken::new();
         let runners: Vec<_> = tokio_stream::iter(all_strategy_settings)
-            .map(|s| {
-                spawn_runner(
-                    stop_token.clone(),
-                    conf.runner_queue_size,
-                    db_conf.clone(),
-                    mock_engine.clone(),
-                    s,
-                )
-            })
+            .map(|s| spawn_runner(conf.runner_queue_size, db_conf.clone(), mock_engine.clone(), s))
             .buffer_unordered(10)
             .collect()
             .await;
@@ -206,9 +198,10 @@ impl Backtest {
             let runner = runner.clone();
             let output_dir = global_report.output_dir.clone();
             let compression = self.report_conf.compression;
+            let stop_token = self.stop_token.clone();
             tokio::task::spawn(async move {
                 let mut runner = runner.write().await;
-                let report = runner.run(output_dir, compression).await;
+                let report = runner.run(output_dir, compression, stop_token).await;
                 reports_tx.send(report).unwrap();
             });
         }
@@ -222,7 +215,6 @@ async fn init_coinnect(xchs: &[Exchange]) {
 }
 
 async fn spawn_runner(
-    stop_token: CancellationToken,
     sink_size: Option<usize>,
     db_conf: DbOptions<PathBuf>,
     engine: Arc<TradingEngine>,
@@ -236,7 +228,7 @@ async fn spawn_runner(
     })
     .await
     .unwrap();
-    let runner = BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger2, stop_token, sink_size);
+    let runner = BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger2, sink_size);
     Arc::new(RwLock::new(runner))
 }
 

@@ -66,7 +66,7 @@ impl Default for BacktestReportMiscStats {
 type TimedModelValue = TimedData<BTreeMap<String, Option<serde_json::Value>>>;
 
 #[derive(Serialize)]
-pub(crate) struct BacktestReport {
+pub struct BacktestReport {
     pub(crate) output_dir: PathBuf,
     pub(crate) key: String,
     pub(crate) failures: u32,
