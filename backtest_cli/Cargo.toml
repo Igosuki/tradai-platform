@@ -15,11 +15,34 @@ path = "src/data_server.rs"
 default = ["release_max_level_trace"]
 release_max_level_debug = ["backtest/release_max_level_debug"]
 release_max_level_trace = ["backtest/release_max_level_trace"]
+console = ["util/console_tracing"]
 
 [dependencies]
 backtest = { path = "../backtest" }
 strategies = { path = "../strategies" }
 tradai_python = { path = "../python_crate" }
+util = { path = "../util" }
 
+
+# actors
+actix = "0.12"
+
+# std
+anyhow = "1.0"
+typed-builder = "0.9"
+
+# cli
 structopt = { version = "0.3" }
+config = "0.11"
+
+# logging / monitoring / metrics
+tracing = { version = "0.1", features = ["log"] }
+
+# async
+futures = "0.3"
+tokio = "1"
+
+# serde
+serde = { version = "1.0", features = ["derive"] }
+
 

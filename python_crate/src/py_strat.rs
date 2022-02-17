@@ -166,7 +166,7 @@ mod test {
     use strategy::driver::Strategy;
     use strategy::Channel;
 
-    use crate::util::register_strat_module;
+    use crate::util::register_tradai_module;
     use crate::PyStrategyWrapper;
 
     #[test]
@@ -174,7 +174,7 @@ mod test {
         let guard = Python::acquire_gil();
         let py = guard.python();
         let context = Context::new_with_gil(py);
-        register_strat_module(py).unwrap();
+        register_tradai_module(py).unwrap();
 
         context.run_with_gil(py, python! {
             from strategy import Strategy, Channel
