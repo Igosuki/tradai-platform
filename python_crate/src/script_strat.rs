@@ -6,14 +6,13 @@ use pyo3::{IntoPy, PyObject, PyResult, Python};
 use serde_json::Value;
 
 use brokers::prelude::*;
-use strategy::driver::Strategy;
+use strategy::driver::{Strategy, StrategyInitContext};
 use strategy::error::*;
 use strategy::plugin::{provide_options, StrategyPlugin, StrategyPluginContext};
 use strategy::settings::{StrategyOptions, StrategySettingsReplicator};
 use strategy::StrategyKey;
-use strategy_test_util::it_backtest::GenericTestContext;
 
-use crate::backtest::PyGenericTestContext;
+use crate::backtest::PyStrategyInitContext;
 use crate::util::register_tradai_module;
 use crate::PyStrategyWrapper;
 
@@ -41,7 +40,7 @@ impl PyScriptStrategyProvider {
             print("loaded strategy class %s" % _dyn_strat_mod.__strat_class__.__name__)
         });
         let py_conf = pythonize::pythonize(py, &conf).unwrap();
-        let driver_ctx: PyGenericTestContext = GenericTestContext {
+        let driver_ctx: PyStrategyInitContext = StrategyInitContext {
             engine: ctx.engine.clone(),
             db: ctx.db.clone(),
         }

@@ -33,10 +33,14 @@ impl GlobalReport {
 
     pub(crate) fn add_report(&mut self, report: BacktestReport) { self.reports.push(report); }
 
-    pub(crate) async fn write(&mut self) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    pub(crate) async fn write(&mut self) -> std::result::Result<(), Box<dyn std::error::Error + '_>> {
         let output_dir = self.output_dir.clone();
         tokio_stream::iter(self.reports.as_slice().iter())
-            .map(BacktestReport::finish)
+            .map(|report| async move {
+                report.finish().await?;
+                tokio::task::block_in_place(move || report.write_html());
+                crate::error::Result::Ok(())
+            })
             .buffer_unordered(self.parallelism)
             .map(|x| {
                 x.unwrap();

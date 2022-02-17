@@ -54,14 +54,14 @@ mod mock {
 
     use super::*;
 
-    pub fn mock_engine<S: AsRef<Path>>(db_path: S, exchanges: &[Exchange]) -> TradingEngine {
+    pub fn mock_engine<S: AsRef<Path>>(db_path: S, providers: &[Exchange]) -> TradingEngine {
         let manager = BrokerageManager::new();
-        manager.build_mock_exchange_apis(exchanges);
+        manager.build_mock_exchange_apis(providers);
         let mut om_db = db_path.as_ref().to_path_buf();
         om_db.push("om");
         let order_manager_addr = mock_manager(om_db);
         let executor = Arc::new(OrderManagerClient::new(order_manager_addr));
-        let margin_interest_rate_provider_addr = mock_interest_rate_provider(exchanges);
+        let margin_interest_rate_provider_addr = mock_interest_rate_provider(providers);
         let interest_rate_provider = Arc::new(MarginInterestRateProviderClient::new(
             margin_interest_rate_provider_addr,
         ));

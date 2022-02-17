@@ -1,21 +1,30 @@
+use chrono::{Date, Utc};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use brokers::broker::{Broker, ChannelMessageBroker};
 use brokers::exchange::Exchange;
+use brokers::types::MarketEventEnvelope;
 use brokers::Brokerages;
+use db::{get_or_create, DbOptions};
 use futures::StreamExt;
+use strategy::driver::{StratProviderRef, Strategy, StrategyInitContext};
+use strategy::prelude::{GenericDriver, GenericDriverOptions, PortfolioOptions};
+use strategy::Channel;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use trading::engine::mock_engine;
+use util::compress::Compression;
+use util::time::{DateRange, DurationRangeType};
 
 use crate::config::BacktestConfig;
 use crate::dataset::DatasetReader;
 use crate::error::*;
 use crate::report::{BacktestReport, GlobalReport, ReportConfig};
-use crate::runner::{spawn_runner, BacktestRunner};
+use crate::runner::BacktestRunner;
+use crate::{DataFormat, MarketEventDatasetType};
 
 pub struct Backtest {
     runners: Vec<Arc<RwLock<BacktestRunner>>>,
@@ -36,7 +45,7 @@ impl Backtest {
         let mock_engine = Arc::new(mock_engine(db_conf.path.clone(), &[Exchange::Binance]));
         let stop_token = CancellationToken::new();
         let runners: Vec<_> = tokio_stream::iter(all_strategy_settings)
-            .map(|s| spawn_runner(conf.runner_queue_size, db_conf.clone(), mock_engine.clone(), s))
+            .map(|s| BacktestRunner::spawn_with_conf(conf.runner_queue_size, db_conf.clone(), mock_engine.clone(), s))
             .buffer_unordered(10)
             .collect()
             .await;
@@ -60,13 +69,7 @@ impl Backtest {
     ///
     /// Writing the global report fails
     pub async fn run(&mut self) -> Result<GlobalReport> {
-        let mut broker = ChannelMessageBroker::new();
-        for runner in &self.runners {
-            let runner = runner.read().await;
-            for channel in runner.channels().await {
-                broker.register(channel, runner.event_sink());
-            }
-        }
+        let broker = build_msg_broker(&self.runners).await;
 
         // Start runners
         let (reports_tx, mut reports_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -150,4 +153,91 @@ impl Backtest {
 pub(crate) async fn init_brokerages(xchs: &[Exchange]) {
     let exchange_apis = Brokerages::public_apis(xchs).await;
     Brokerages::load_pair_registries(&exchange_apis).await.unwrap();
+}
+
+pub struct BacktestRange {
+    from: Date<Utc>,
+    to: Date<Utc>,
+}
+
+impl BacktestRange {
+    pub fn new(from: Date<Utc>, to: Date<Utc>) -> Self { Self { from, to } }
+}
+
+/// Take a dataframe, a period, a strategy provider and configuration and launch a backtest
+#[allow(clippy::too_many_lines)]
+pub async fn backtest_single<'a>(
+    test_name: &'a str,
+    provider: StratProviderRef,
+    date_range: &'a BacktestRange,
+    providers: &'a [Exchange],
+    starting_cash: f64,
+    fees_rate: f64,
+) -> Result<BacktestReport> {
+    let path = util::test::test_dir();
+    let engine = Arc::new(mock_engine(path.path(), providers));
+    let test_results_dir = util::test::test_results_dir(test_name);
+    let options = DbOptions::new(path);
+    let db = get_or_create(&options, "", vec![]);
+    let strat = provider(StrategyInitContext {
+        engine: engine.clone(),
+        db: db.clone(),
+    });
+    let generic_options = GenericDriverOptions {
+        portfolio: PortfolioOptions {
+            fees_rate,
+            initial_quote_cash: starting_cash,
+        },
+        start_trading: None,
+        dry_mode: None,
+    };
+    let driver = Box::new(
+        GenericDriver::try_new(
+            <dyn Strategy>::channels(strat.as_ref()),
+            db,
+            &generic_options,
+            strat,
+            engine,
+            None,
+        )
+        .unwrap(),
+    );
+    let runner_ref = BacktestRunner::spawn_with_driver(None, driver).await;
+    let broker = build_msg_broker(&[runner_ref.clone()]).await;
+
+    let stop_token = CancellationToken::new();
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    let stop_token_a = stop_token.clone();
+    tokio::spawn(async move {
+        let mut runner = runner_ref.write().await;
+        let report = runner.run(test_results_dir, Compression::none(), stop_token_a).await;
+        tx.send(report).await.unwrap();
+    });
+
+    let dataset = DatasetReader {
+        input_format: DataFormat::Parquet,
+        ds_type: MarketEventDatasetType::Trades,
+        base_dir: Default::default(),
+        period: DateRange(date_range.from, date_range.to, DurationRangeType::Days, 1),
+        input_sample_rate: chrono::Duration::seconds(1),
+    };
+    dataset.read_market_events(broker).await?;
+
+    stop_token.cancel();
+    rx.recv().await.ok_or(crate::error::Error::AnyhowError(anyhow!(
+        "Did not receive a backtest report"
+    )))
+}
+
+async fn build_msg_broker(
+    runners: &[Arc<RwLock<BacktestRunner>>],
+) -> ChannelMessageBroker<Channel, MarketEventEnvelope> {
+    let mut broker = ChannelMessageBroker::new();
+    for runner in runners {
+        let runner = runner.read().await;
+        for channel in runner.channels().await {
+            broker.register(channel, runner.event_sink());
+        }
+    }
+    broker
 }

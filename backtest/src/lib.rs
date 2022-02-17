@@ -40,7 +40,8 @@ extern crate serde;
 extern crate tokio;
 #[macro_use]
 extern crate tracing;
-extern crate core;
+#[macro_use]
+extern crate anyhow;
 
 // // TODO: https://github.com/rust-lang/rust/issues/47384
 // use brokers::prelude::*;
@@ -53,7 +54,7 @@ mod datafusion_util;
 mod dataset;
 mod datasources;
 mod error;
-mod report;
+pub mod report;
 mod runner;
 
 pub use crate::{backtest::*,

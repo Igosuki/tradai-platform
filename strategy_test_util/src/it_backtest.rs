@@ -6,12 +6,11 @@ use itertools::Itertools;
 use tokio::time::Duration;
 
 use brokers::prelude::*;
-use db::Storage;
-use strategy::driver::{Strategy, StrategyDriver};
+use strategy::driver::{StratProviderRef, Strategy, StrategyDriver, StrategyInitContext};
 use strategy::event::trades_history;
 use strategy::prelude::{GenericDriver, GenericDriverOptions, PortfolioOptions};
 use strategy::query::{DataQuery, DataResult, PortfolioSnapshot};
-use trading::engine::{mock_engine, TradingEngine};
+use trading::engine::mock_engine;
 use trading::position::Position;
 use util::test::test_results_dir;
 
@@ -20,11 +19,6 @@ use crate::fs::copy_file;
 use crate::init;
 use crate::log::{write_models, write_trade_events, StrategyLog};
 use crate::{input, test_db_with_path};
-
-pub struct GenericTestContext {
-    pub engine: Arc<TradingEngine>,
-    pub db: Arc<dyn Storage>,
-}
 
 pub struct BacktestRange {
     from: Date<Utc>,
@@ -35,16 +29,13 @@ impl BacktestRange {
     pub fn new(from: Date<Utc>, to: Date<Utc>) -> Self { Self { from, to } }
 }
 
-pub type BacktestStratProvider<'a> = dyn Fn(GenericTestContext) -> Box<dyn Strategy> + 'a;
-pub type BacktestStratProviderRef = Arc<dyn Fn(GenericTestContext) -> Box<dyn Strategy> + Send + Sync>;
-
 /// # Panics
 ///
 /// if creating the strat or any loop breaks
 #[allow(clippy::too_many_lines)]
 pub async fn generic_backtest<'a, S2>(
     test_name: &'a str,
-    provider: BacktestStratProviderRef,
+    provider: StratProviderRef,
     draw_entries: &'a [(S2, StrategyEntryFnRef<StrategyLog, S2>)],
     range: &'a BacktestRange,
     exchanges: &'a [Exchange],
@@ -60,7 +51,7 @@ where
     let engine = Arc::new(mock_engine(path.path(), exchanges));
     let test_results_dir = test_results_dir(test_name);
     let db = test_db_with_path(path);
-    let strat = provider(GenericTestContext {
+    let strat = provider(StrategyInitContext {
         engine: engine.clone(),
         db: db.clone(),
     });

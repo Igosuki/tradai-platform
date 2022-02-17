@@ -51,6 +51,34 @@ impl BacktestRunner {
         }
     }
 
+    pub(crate) async fn spawn_with_conf(
+        sink_size: Option<usize>,
+        db_conf: DbOptions<PathBuf>,
+        engine: Arc<TradingEngine>,
+        settings: StrategyDriverSettings,
+    ) -> Arc<RwLock<Self>> {
+        let logger = Arc::new(StreamWriterLogger::<TimedData<StratEvent>>::new());
+        let logger2 = logger.clone();
+        let strategy_driver = task::spawn_blocking(move || {
+            let plugin = plugin_registry().get(settings.strat.strat_type.as_str()).unwrap();
+            strategy::settings::from_driver_settings(plugin, &db_conf, &settings, engine, Some(logger.clone())).unwrap()
+        })
+        .await
+        .unwrap();
+        let runner = Self::new(Arc::new(Mutex::new(strategy_driver)), logger2, sink_size);
+        Arc::new(RwLock::new(runner))
+    }
+
+    pub(crate) async fn spawn_with_driver(
+        sink_size: Option<usize>,
+        driver: Box<dyn StrategyDriver>,
+    ) -> Arc<RwLock<Self>> {
+        let logger = Arc::new(StreamWriterLogger::<TimedData<StratEvent>>::new());
+        let logger2 = logger.clone();
+        let runner = Self::new(Arc::new(Mutex::new(driver)), logger2, sink_size);
+        Arc::new(RwLock::new(runner))
+    }
+
     pub(crate) async fn channels(&self) -> HashSet<Channel> {
         let reader = self.driver.lock().await;
         reader.channels()
@@ -164,22 +192,4 @@ fn op_and_trade_to_strat((op, trade): (OperationEvent, TradeEvent)) -> Vec<Timed
         TimedData::new(op.at, StratEvent::Operation(op)),
         TimedData::new(trade.at, StratEvent::Trade(trade)),
     ]
-}
-
-pub(crate) async fn spawn_runner(
-    sink_size: Option<usize>,
-    db_conf: DbOptions<PathBuf>,
-    engine: Arc<TradingEngine>,
-    settings: StrategyDriverSettings,
-) -> Arc<RwLock<BacktestRunner>> {
-    let logger: Arc<StreamWriterLogger<TimedData<StratEvent>>> = Arc::new(StreamWriterLogger::new());
-    let logger2 = logger.clone();
-    let strategy_driver = task::spawn_blocking(move || {
-        let plugin = plugin_registry().get(settings.strat.strat_type.as_str()).unwrap();
-        strategy::settings::from_driver_settings(plugin, &db_conf, &settings, engine, Some(logger.clone())).unwrap()
-    })
-    .await
-    .unwrap();
-    let runner = BacktestRunner::new(Arc::new(Mutex::new(strategy_driver)), logger2, sink_size);
-    Arc::new(RwLock::new(runner))
 }

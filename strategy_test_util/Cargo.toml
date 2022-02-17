@@ -32,7 +32,7 @@ csv = "1.1"
 
 # plots
 hdrhistogram = "7"
-plotly = { version = "0.7", features = ["kaleido"] }
+plotly = { version = "0.7" }
 
 # logging
 env_logger = "0.9"

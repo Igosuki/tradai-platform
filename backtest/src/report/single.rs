@@ -142,12 +142,12 @@ impl BacktestReport {
     }
 
     /// Push a model to the report
-    pub fn push_model(&self, v: TimedData<BTreeMap<String, Option<serde_json::Value>>>) {
+    pub(crate) fn push_model(&self, v: TimedData<BTreeMap<String, Option<serde_json::Value>>>) {
         self.model_ss.push(v).unwrap();
     }
 
     /// Push a portfolio snapshot to the report
-    pub fn push_snapshot(&mut self, v: TimedData<PortfolioSnapshot>) {
+    pub(crate) fn push_snapshot(&mut self, v: TimedData<PortfolioSnapshot>) {
         self.snapshots_ss.push(v).unwrap();
         // Only compute stddev if values change
         self.misc_stats.update(v.value.pnl);
@@ -155,17 +155,17 @@ impl BacktestReport {
     }
 
     /// Push a candle to the report
-    pub fn push_candle(&self, v: TimedData<Candle>) { self.candles_ss.push(v).unwrap(); }
+    pub(crate) fn push_candle(&self, v: TimedData<Candle>) { self.candles_ss.push(v).unwrap(); }
 
     /// Push a market stat to the report
-    pub fn push_market_stat(&self, v: TimedData<MarketStat>) { self.market_stats_ss.push(v).unwrap(); }
+    pub(crate) fn push_market_stat(&self, v: TimedData<MarketStat>) { self.market_stats_ss.push(v).unwrap(); }
 
     /// Push a strat event to the report
     #[allow(dead_code)]
-    pub fn push_strat_event(&self, v: TimedData<StratEvent>) { self.events_ss.push(v).unwrap(); }
+    pub(crate) fn push_strat_event(&self, v: TimedData<StratEvent>) { self.events_ss.push(v).unwrap(); }
 
     /// Get a strat event sink to forward to
-    pub fn strat_event_sink(&self) -> UnboundedSender<TimedData<StratEvent>> { self.events_ss.sink() }
+    pub(crate) fn strat_event_sink(&self) -> UnboundedSender<TimedData<StratEvent>> { self.events_ss.sink() }
 
     /// Get report snapshots
     pub fn snapshots(&self) -> Result<Vec<TimedData<PortfolioSnapshot>>> { self.snapshots_ss.read_all().err_into() }
@@ -195,14 +195,42 @@ impl BacktestReport {
         self.market_stats_ss.close().await;
         self.events_ss.close().await;
         self.candles_ss.close().await;
+        Ok(())
+    }
+
+    pub fn write_html(&self) {
         self.write_html_report();
         self.write_html_tradeview();
-        Ok(())
     }
 
     fn write_html_report(&self) -> String {
         let output_dir = self.output_dir.clone();
         let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), REPORT_HTML_FILE);
+        let plot = self.report_plot();
+        plot.to_html(&out_file);
+        out_file
+    }
+
+    fn write_html_tradeview(&self) -> String {
+        let output_dir = self.output_dir.clone();
+        let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), TRADEVIEW_HTML_FILE);
+        let plot = self.tradeview_plot();
+        plot.to_html(&out_file);
+
+        out_file
+    }
+
+    pub async fn reload<P: AsRef<Path>>(key: &str, path: P, report_compression: Compression) -> Self {
+        let report = BacktestReport::new(path.as_ref(), key.to_string(), report_compression);
+        task::spawn_blocking(move || {
+            report.write_html_report();
+            report
+        })
+        .await
+        .unwrap()
+    }
+
+    fn report_plot(&self) -> Plot {
         let mut plot = Plot::new();
         let mut trace_offset = 0;
 
@@ -236,13 +264,10 @@ impl BacktestReport {
                 .pattern(GridPattern::Independent),
         );
         plot.set_layout(layout);
-        plot.to_html(&out_file);
-        out_file
+        plot
     }
 
-    fn write_html_tradeview(&self) -> String {
-        let output_dir = self.output_dir.clone();
-        let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), TRADEVIEW_HTML_FILE);
+    fn tradeview_plot(&self) -> Plot {
         let mut plot = Plot::new();
         let trace_offset = 0;
         if let Ok(candles) = self.candles_ss.read_all() {
@@ -255,18 +280,17 @@ impl BacktestReport {
                 .pattern(GridPattern::Independent),
         );
         plot.set_layout(layout);
-        plot.to_html(&out_file);
-        out_file
+        plot
     }
 
-    pub async fn reload<P: AsRef<Path>>(key: &str, path: P, report_compression: Compression) -> Self {
-        let report = BacktestReport::new(path.as_ref(), key.to_string(), report_compression);
-        task::spawn_blocking(move || {
-            report.write_html_report();
-            report
-        })
-        .await
-        .unwrap()
+    pub fn draw_tradeview(&self) -> String {
+        let plot = self.tradeview_plot();
+        plot.to_inline_html("tradeview")
+    }
+
+    pub fn draw_report(&self) -> String {
+        let plot = self.report_plot();
+        plot.to_inline_html("single_report")
     }
 }
 

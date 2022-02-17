@@ -5,8 +5,9 @@ use chrono::{TimeZone, Utc};
 use serde_json::Value;
 
 use brokers::prelude::*;
+use strategy::driver::{StratProviderRef, StrategyInitContext};
 use strategy_test_util::draw::StrategyEntry;
-use strategy_test_util::it_backtest::{generic_backtest, BacktestRange, BacktestStratProviderRef, GenericTestContext};
+use strategy_test_util::it_backtest::{generic_backtest, BacktestRange};
 use strategy_test_util::log::StrategyLog;
 use trading::order_manager::types::OrderDetail;
 use trading::types::{OrderConf, OrderMode};
@@ -63,7 +64,7 @@ lazy_static! {
 
 #[actix::test]
 async fn spot_backtest() {
-    let provider: BacktestStratProviderRef = Arc::new(|ctx: GenericTestContext| {
+    let provider: StratProviderRef = Arc::new(|ctx: StrategyInitContext| {
         let exchange = Exchange::Binance;
         let conf = Options::new_test_default(PAIR, exchange);
         Box::new(MeanRevertingStrategy::new(
@@ -106,7 +107,7 @@ async fn spot_backtest() {
 
 #[actix::test]
 async fn margin_backtest() {
-    let provider: BacktestStratProviderRef = Arc::new(|ctx: GenericTestContext| {
+    let provider: StratProviderRef = Arc::new(|ctx: StrategyInitContext| {
         let exchange = Exchange::Binance;
         let conf = Options {
             order_conf: OrderConf {
