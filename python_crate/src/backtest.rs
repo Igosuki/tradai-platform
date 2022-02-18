@@ -131,6 +131,10 @@ impl PyBacktestReport {
     fn draw_tradeview(&self) -> String { self.inner.draw_tradeview() }
 
     fn draw_report(&self) -> String { self.inner.draw_report() }
+
+    fn json_tradeview(&self) -> String { self.inner.json_tradeview() }
+
+    fn json_report(&self) -> String { self.inner.json_report() }
 }
 
 impl From<PyBacktestReport> for BacktestReport {
