@@ -1,15 +1,15 @@
-use datafusion::arrow::array::StructArray;
+use datafusion::arrow::array::{DictionaryArray, Int64Array, ListArray as GenericListArray, StructArray, Utf8Array};
 use datafusion::datasource::file_format::avro::AvroFormat;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::listing::ListingOptions;
 use datafusion::execution::dataframe_impl::DataFrameImpl;
-//use datafusion::field_util::StructArrayExt;
+use datafusion::field_util::StructArrayExt;
 use datafusion::logical_plan::Expr;
 use datafusion::prelude::{col, lit};
-//use datafusion::record_batch::RecordBatch;
-use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::record_batch::RecordBatch;
+//use datafusion::arrow::record_batch::RecordBatch;
 use ext::ResultExt;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
@@ -19,6 +19,13 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
+pub type StringArray = Utf8Array<i32>;
+pub type TimestampMillisecondArray = Int64Array;
+pub type UInt16DictionaryArray = DictionaryArray<u16>;
+pub type ListArray = GenericListArray<i32>;
+pub type Float64Type = f64;
+pub type Int64Type = i64;
+
 pub fn get_col_as<'a, T: 'static>(sa: &'a StructArray, name: &str) -> &'a T {
     sa.column_by_name(name)
         .unwrap()
@@ -26,7 +33,7 @@ pub fn get_col_as<'a, T: 'static>(sa: &'a StructArray, name: &str) -> &'a T {
         .downcast_ref::<T>()
         .unwrap_or_else(|| {
             panic!(
-                "column {} with type {}",
+                "column {} with type {:?}",
                 name,
                 sa.column_by_name(name).unwrap().data_type()
             )
@@ -191,4 +198,10 @@ pub async fn table_as_df(
     ctx.register_table(table_name.as_str(), df_impl.clone())?;
     let df = ctx.clone().sql(&sql_query).await?;
     df.execute_stream().await.err_into()
+}
+
+pub fn print_struct_schema(sa: &StructArray, name: &str) {
+    for (i, column) in sa.fields().iter().enumerate() {
+        trace!("{}[{}] = {:?}", name, i, column.data_type());
+    }
 }

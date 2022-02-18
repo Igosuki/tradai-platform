@@ -28,7 +28,7 @@ actix = "0.12"
 # std
 chrono = { version = "0.4", features = ["serde"] }
 inventory = "0.2"
-uuid = "0.8"
+uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng",] }
 itertools = "0.10"
 ordered-float = "2.1"
 lazy_static = "1.4"
