@@ -1,14 +1,16 @@
 use brokers::prelude::{Exchange, Pair};
 use chrono::Duration;
-use datafusion::arrow::array::{Array, DictionaryArray, Int64Array, ListArray, PrimitiveArray, StructArray};
-use datafusion::record_batch::RecordBatch;
+use datafusion::arrow::array::{Array, ListArray, PrimitiveArray, StringArray, StructArray, TimestampMillisecondArray,
+                               UInt16DictionaryArray};
+use datafusion::arrow::datatypes::{Float64Type, Int64Type};
+use datafusion::arrow::record_batch::RecordBatch;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::path::Path;
 use std::str::FromStr;
 
 use brokers::prelude::MarketEventEnvelope;
-use datafusion::arrow::array::Utf8Array;
+//use datafusion::arrow::array::Utf8Array;
 use futures::StreamExt;
 use tokio_stream::Stream;
 
@@ -73,8 +75,8 @@ pub async fn sampled_orderbooks_pairs_df<P: 'static + AsRef<Path> + Debug>(
     .map(|record_batch| {
         let sa: StructArray = record_batch.into();
         stream! {
-            let pr_col = get_col_as::<Utf8Array<i32>>(&sa, "pr");
-            for pr in pr_col.values_iter() {
+            let pr_col = get_col_as::<StringArray>(&sa, "pr");
+            for pr in pr_col.into_iter().flatten() {
                 yield pr.to_string()
             }
         }
@@ -90,31 +92,32 @@ pub async fn sampled_orderbooks_pairs_df<P: 'static + AsRef<Path> + Debug>(
 /// xch : String
 fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = MarketEventEnvelope> + 'static {
     let sa: StructArray = record_batch.into();
+
     stream! {
-        for (i, column) in sa.fields().iter().enumerate() {
+        for (i, column) in sa.columns().iter().enumerate() {
             trace!("orderbook[{}] = {:?}", i, column.data_type());
         }
 
-        let asks_col = get_col_as::<ListArray<i32>>(&sa, "asks");
-        let bids_col = get_col_as::<ListArray<i32>>(&sa, "bids");
-        let event_ms_col = get_col_as::<Int64Array>(&sa, "event_ts");
-        let pair_col = get_col_as::<Utf8Array<i32>>(&sa, "pr");
-        let xch_col = get_col_as::<DictionaryArray<u8>>(&sa, "xch");
-        let xch_values = xch_col.values().as_any().downcast_ref::<Utf8Array<i32>>().unwrap();
+        let asks_col = get_col_as::<ListArray>(&sa, "asks");
+        let bids_col = get_col_as::<ListArray>(&sa, "bids");
+        let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ts");
+        let pair_col = get_col_as::<StringArray>(&sa, "pr");
+        let xch_col = get_col_as::<UInt16DictionaryArray>(&sa, "xch");
+        let xch_values = xch_col.values().as_any().downcast_ref::<StringArray>().unwrap();
 
         for i in 0..sa.len() {
             let mut bids = vec![];
             for bid in bids_col
                 .value(i)
                 .as_any()
-                .downcast_ref::<ListArray<i32>>()
+                .downcast_ref::<ListArray>()
                 .unwrap()
                 .iter()
                 .flatten()
             {
                 let vals = bid
                     .as_any()
-                    .downcast_ref::<PrimitiveArray<f64>>()
+                    .downcast_ref::<PrimitiveArray<Float64Type>>()
                     .unwrap()
                     .values();
                 bids.push((vals[0], vals[1]));
@@ -123,14 +126,14 @@ fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = Marke
             for ask in asks_col
                 .value(i)
                 .as_any()
-                .downcast_ref::<ListArray<i32>>()
+                .downcast_ref::<ListArray>()
                 .unwrap()
                 .iter()
                 .flatten()
             {
                 let vals = ask
                     .as_any()
-                    .downcast_ref::<PrimitiveArray<f64>>()
+                    .downcast_ref::<PrimitiveArray<Float64Type>>()
                     .unwrap()
                     .values();
                 asks.push((vals[0], vals[1]));
@@ -171,10 +174,10 @@ fn events_from_csv_orderbooks(records: RecordBatch, _levels: usize) -> impl Stre
     // }
 
     stream! {
-        let _asks_col = get_col_as::<PrimitiveArray<f64>>(&sa, "a1");
-        let event_ms_col = get_col_as::<PrimitiveArray<i64>>(&sa, "event_ms");
-        let pair_col = get_col_as::<Utf8Array<i32>>(&sa, "pr");
-        let xch_col = get_col_as::<Utf8Array<i32>>(&sa, "xch");
+        let _asks_col = get_col_as::<PrimitiveArray<Float64Type>>(&sa, "a1");
+        let event_ms_col = get_col_as::<PrimitiveArray<Int64Type>>(&sa, "event_ms");
+        let pair_col = get_col_as::<StringArray>(&sa, "pr");
+        let xch_col = get_col_as::<StringArray>(&sa, "xch");
         for i in 0..sa.len() {
             let bids = vec![];
             let asks = vec![];

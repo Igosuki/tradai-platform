@@ -5,10 +5,11 @@ use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::listing::ListingOptions;
 use datafusion::execution::dataframe_impl::DataFrameImpl;
-use datafusion::field_util::StructArrayExt;
+//use datafusion::field_util::StructArrayExt;
 use datafusion::logical_plan::Expr;
 use datafusion::prelude::{col, lit};
-use datafusion::record_batch::RecordBatch;
+//use datafusion::record_batch::RecordBatch;
+use datafusion::arrow::record_batch::RecordBatch;
 use ext::ResultExt;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
@@ -23,7 +24,13 @@ pub fn get_col_as<'a, T: 'static>(sa: &'a StructArray, name: &str) -> &'a T {
         .unwrap()
         .as_any()
         .downcast_ref::<T>()
-        .unwrap_or_else(|| panic!("column {}", name))
+        .unwrap_or_else(|| {
+            panic!(
+                "column {} with type {}",
+                name,
+                sa.column_by_name(name).unwrap().data_type()
+            )
+        })
 }
 
 pub fn df_format(format: &str) -> (&'static str, Arc<dyn FileFormat>) {

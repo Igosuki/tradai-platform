@@ -2,7 +2,12 @@
 #linker="clang"
 ## debug
 rustflags = [
-    "-Clink-arg=-fuse-ld=lld", "-Clink-arg=-Wl,--no-rosegment", "--cfg", "tokio_unstable", "-g", "-Cforce-frame-pointers=y"
+    "-Clink-arg=-fuse-ld=lld",
+    "-Clink-arg=-Wl,--no-rosegment",
+    "-Clink-arg=-Wl,--allow-multiple-definition",
+    "--cfg", "tokio_unstable",
+    "-g",
+    "-Cforce-frame-pointers=y"
 ]
 [env]
 #BZIP2_LIB_DIR="/usr/lib/x86_64-linux-gnu/"
