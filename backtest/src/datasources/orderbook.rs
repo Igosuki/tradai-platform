@@ -1,6 +1,6 @@
 use brokers::prelude::{Exchange, Pair};
 use chrono::Duration;
-use datafusion::arrow::array::{Array, Int64Array, PrimitiveArray, StructArray};
+use datafusion::arrow::array::{Array, PrimitiveArray, StructArray};
 use datafusion::record_batch::RecordBatch;
 use std::collections::HashSet;
 use std::fmt::Debug;
@@ -8,12 +8,11 @@ use std::path::Path;
 use std::str::FromStr;
 
 use brokers::prelude::MarketEventEnvelope;
-use datafusion::arrow::array::Utf8Array;
 use futures::StreamExt;
 use tokio_stream::Stream;
 
 use crate::datafusion_util::{get_col_as, print_struct_schema, tables_as_stream, Float64Type, Int64Type, ListArray,
-                             StringArray, TimestampMillisecondArray, UInt16DictionaryArray};
+                             StringArray, TimestampMillisecondArray, UInt8DictionaryArray};
 
 const ORDER_BOOK_TABLE_NAME: &str = "order_books";
 
@@ -107,7 +106,7 @@ fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = Marke
         let bids_col = get_col_as::<ListArray>(&sa, "bids");
         let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ts");
         let pair_col = get_col_as::<StringArray>(&sa, "pr");
-        let xch_col = get_col_as::<UInt16DictionaryArray>(&sa, "xch");
+        let xch_col = get_col_as::<UInt8DictionaryArray>(&sa, "xch");
         let xch_values = xch_col.values().as_any().downcast_ref::<StringArray>().unwrap();
 
         for i in 0..sa.len() {
@@ -169,14 +168,6 @@ fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = Marke
 /// xch : String
 fn events_from_csv_orderbooks(records: RecordBatch, _levels: usize) -> impl Stream<Item = MarketEventEnvelope> {
     let sa: StructArray = records.into();
-    // let mut asks_cols = vec![];
-    // let mut asks_q_cols = vec![];
-    // let mut bids_cols = vec![];
-    // let mut bids_q_cols = vec![];
-    // for col_num in (1..levels + 1) {}
-    // for i in sa.len() {
-    //     asks_col.value()
-    // }
 
     stream! {
         let _asks_col = get_col_as::<PrimitiveArray<Float64Type>>(&sa, "a1");

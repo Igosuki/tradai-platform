@@ -288,9 +288,19 @@ impl BacktestReport {
         plot.to_inline_html("tradeview")
     }
 
+    pub fn json_tradeview(&self) -> String {
+        let plot = self.tradeview_plot();
+        plot.to_json()
+    }
+
     pub fn draw_report(&self) -> String {
         let plot = self.report_plot();
         plot.to_inline_html("single_report")
+    }
+
+    pub fn json_report(&self) -> String {
+        let plot = self.report_plot();
+        plot.to_json()
     }
 }
 

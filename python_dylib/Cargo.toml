@@ -24,4 +24,7 @@ log = "0.4"
 [patch.crates-io]
 pyo3 = { git = "https://github.com/aviramha/pyo3.git", rev = "db53229bc7a737d0300ff2c5fbc7ea80040ec263", version = "^0.15" }
 pythonize = { git = "https://github.com/Igosuki/pythonize", rev = "d5309ca6491cdfb9e356d38b244e20b29a206bbc", version = "^0.15" }
+datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_i" }
+arrow2 = { git = "https://github.com/jorgecarleitao/arrow2.git", rev = "dded624dc6a6347d7e937efee7779a44a51c4edb" }
 inventory = { git = "https://github.com/Igosuki/inventory.git" }
+avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "update_deps" }
