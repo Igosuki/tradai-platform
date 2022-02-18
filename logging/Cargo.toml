@@ -25,14 +25,14 @@ actix = { version = "0.12" }
 chrono = "0.4"
 lazy_static = "1.4"
 rand = "0.8"
-uuid = "0.8"
+uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng",] }
 
 # Error
 thiserror = "1.0"
 anyhow = "1.0"
 
 # Codecs
-avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "master_merge" }
+avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "update_deps" }
 serde_json = { version = "1.0" }
 
 # derive
@@ -54,6 +54,6 @@ tempdir = "0.3"
 
 [build-dependencies]
 crc32fast = "1.2"
-rsgen-avro = { git = "https://github.com/Igosuki/rsgen-avro.git", branch = "master_merge" }
+rsgen-avro = { git = "https://github.com/Igosuki/rsgen-avro.git", branch = "update_deps" }
 serde_json = { version = "1.0", features = ["float_roundtrip"] }
 

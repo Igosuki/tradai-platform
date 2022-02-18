@@ -21,7 +21,13 @@ impl<T: Clone> Default for StreamWriterLogger<T> {
 
 impl<T: 'static + Clone + Send> StreamWriterLogger<T> {
     /// Broadcasts logs to all its subscribers
-    pub fn new() -> Self { Self::default() }
+    pub fn new(size: Option<usize>) -> Self { Self::new_with_size(size.unwrap_or(1000)) }
+
+    /// Broadcasts logs to all its subscribers, set the channel size
+    pub fn new_with_size(size: usize) -> Self {
+        let (events_tx, _events_rx) = broadcast::channel(size);
+        Self { events_tx }
+    }
 
     /// Return a new stream subscription
     pub fn subscription(&self) -> BroadcastStream<T> { BroadcastStream::new(self.events_tx.subscribe()) }

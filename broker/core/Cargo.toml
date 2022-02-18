@@ -56,7 +56,7 @@ regex = "1"
 fancy-regex = "0.7"
 string_cache = "0.8"
 url = "2.2"
-uuid = { version = "0.8", features = ["v4", "serde"] }
+uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng", "serde"] }
 typed-builder = "0.9"
 # rate limiting
 governor = "0.4"

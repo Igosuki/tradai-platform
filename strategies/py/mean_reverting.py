@@ -3,7 +3,7 @@ import logging
 import json
 from datetime import datetime, date
 
-from strategy import Strategy, signal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
+from tradai import Strategy, signal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
     OrderType, uuid, ta, windowed_ta, model, mstrategy
 
 FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'

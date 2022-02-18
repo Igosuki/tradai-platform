@@ -6,17 +6,9 @@ strats:
         initial_quote_cash: 100.0
         fees_rate: 0.001
     strat:
-      type: python_script
-      key: 'kline_logger_BTC_USDT_py'
-      script_path: './strategies/py/kline_logger.py'
-      conf:
-        pair: 'BTC_USDT'
-        sample_freq: 1min
-        exchange: 'Binance'
-        order_conf:
-          order_mode: limit
-          dry_mode: true
-          asset_type: spot
+      type: kline_logger
+      key: 'kline_logger_BTC_USDT_rust'
+      pair: 'BTC_USDT'
 
 fees: 0.001
 

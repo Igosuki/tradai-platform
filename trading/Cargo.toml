@@ -32,7 +32,7 @@ serde_json = "1.0"
 itertools = "0.10"
 strum = "0.23"
 strum_macros = "0.23"
-uuid = { version = "0.8", features = ["v4"] }
+uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng",] }
 derive_more = "0.99"
 anyhow = "1.0"
 lazy_static = "1.4"
@@ -53,7 +53,7 @@ structopt = { version = "0.3", optional = true }
 tracing = { version = "0.1", features = ["log"] }
 
 # graphql
-juniper = { version = "^0.15", features = ["expose-test-schema"] }
+juniper = { git = "https://github.com/Igosuki/juniper", branch = "uuid_latest", version = "^0.16.0-dev", features = ["expose-test-schema"] }
 
 binance-rs-async = { version = "1.1.4", optional = true }
 httpmock = { version = "0.6", default-features = false, optional = true }

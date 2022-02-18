@@ -1,20 +1,19 @@
 use brokers::prelude::{Exchange, Pair};
 use chrono::Duration;
-use datafusion::arrow::array::{Array, ListArray, PrimitiveArray, StringArray, StructArray, TimestampMillisecondArray,
-                               UInt16DictionaryArray};
-use datafusion::arrow::datatypes::{Float64Type, Int64Type};
-use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow::array::{Array, Int64Array, PrimitiveArray, StructArray};
+use datafusion::record_batch::RecordBatch;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::path::Path;
 use std::str::FromStr;
 
 use brokers::prelude::MarketEventEnvelope;
-//use datafusion::arrow::array::Utf8Array;
+use datafusion::arrow::array::Utf8Array;
 use futures::StreamExt;
 use tokio_stream::Stream;
 
-use crate::datafusion_util::{get_col_as, tables_as_stream};
+use crate::datafusion_util::{get_col_as, print_struct_schema, tables_as_stream, Float64Type, Int64Type, ListArray,
+                             StringArray, TimestampMillisecondArray, UInt16DictionaryArray};
 
 const ORDER_BOOK_TABLE_NAME: &str = "order_books";
 
@@ -56,8 +55,17 @@ pub fn sampled_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
 ) -> impl Stream<Item = MarketEventEnvelope> + 'static {
-    tables_as_stream(table_paths, format, Some("order_books".to_string()), format!("select xch, to_timestamp_millis(event_ms) as event_ts, pr, asks, bids from (select * from {table}) as obs order by event_ms asc", table = "order_books")).map(events_from_orderbooks)
-        .flatten()
+    tables_as_stream(
+        table_paths,
+        format,
+        Some("order_books".to_string()),
+        format!(
+            "select xch, to_timestamp_millis(event_ms) as event_ts, pr, asks, bids from {table} order by event_ms asc",
+            table = "order_books"
+        ),
+    )
+    .map(events_from_orderbooks)
+    .flatten()
 }
 
 /// Find all distinct pairs in the sampled orderbook partitions
@@ -92,11 +100,8 @@ pub async fn sampled_orderbooks_pairs_df<P: 'static + AsRef<Path> + Debug>(
 /// xch : String
 fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = MarketEventEnvelope> + 'static {
     let sa: StructArray = record_batch.into();
-
     stream! {
-        for (i, column) in sa.columns().iter().enumerate() {
-            trace!("orderbook[{}] = {:?}", i, column.data_type());
-        }
+        print_struct_schema(&sa, "orderbook");
 
         let asks_col = get_col_as::<ListArray>(&sa, "asks");
         let bids_col = get_col_as::<ListArray>(&sa, "bids");
