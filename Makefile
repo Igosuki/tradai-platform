@@ -132,7 +132,7 @@ flamegraph_stack:
 
 .PHONE: flamegraph
 flamegraph:
-	LD_LIBRARY_PATH=/usr/local/lib CARGO_PROFILE_RELEASE_DEBUG=true RUST_BACKTRACE=1 RUST_LOG=info CARGO_HOME=.cargo_debug $(CARGO_BIN) flamegraph --bin $(target) --features=$(features) -- $(args)
+	LD_LIBRARY_PATH=/usr/local/lib CARGO_PROFILE_RELEASE_DEBUG=true RUST_BACKTRACE=1 RUST_LOG=debug CARGO_HOME=.cargo_debug $(CARGO_BIN) flamegraph --no-inline --bin $(target) --features=$(features) -- $(args)
 
 .PHONY: filt
 filt:

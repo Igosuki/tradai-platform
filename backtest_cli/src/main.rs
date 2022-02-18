@@ -6,6 +6,7 @@ extern crate futures;
 use backtest::{Backtest, BacktestConfig};
 use futures::FutureExt;
 use structopt::StructOpt;
+use tradai_python::script_strat;
 
 #[derive(StructOpt, Debug)]
 enum BacktestCmd {
@@ -33,6 +34,8 @@ fn main() -> anyhow::Result<()> {
 }
 
 async fn run_main() -> anyhow::Result<()> {
+    strategies::init();
+    #[cfg(feature = "python")]
     tradai_python::prepare();
     #[cfg(feature = "console_tracing")]
     util::trace::init_console_subscriber();

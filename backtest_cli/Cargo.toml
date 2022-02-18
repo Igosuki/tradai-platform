@@ -12,15 +12,16 @@ name = "backtest_data_server"
 path = "src/data_server.rs"
 
 [features]
-default = ["release_max_level_trace"]
+default = ["release_max_level_trace", "python"]
 release_max_level_debug = ["backtest/release_max_level_debug"]
 release_max_level_trace = ["backtest/release_max_level_trace"]
 console = ["util/console_tracing"]
+python  = ["tradai_python"]
 
 [dependencies]
 backtest = { path = "../backtest" }
 strategies = { path = "../strategies" }
-tradai_python = { path = "../python_crate" }
+tradai_python = { path = "../python_crate", optional = true }
 util = { path = "../util" }
 
 

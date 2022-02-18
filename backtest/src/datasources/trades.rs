@@ -1,10 +1,11 @@
-use crate::datafusion_util::{get_col_as, tables_as_stream};
+use crate::datafusion_util::{get_col_as, print_struct_schema, tables_as_stream, StringArray,
+                             TimestampMillisecondArray, UInt16DictionaryArray};
 use brokers::pair::symbol_to_pair;
 use brokers::prelude::*;
 use brokers::types::Candle;
 use chrono::{DateTime, Utc};
 use datafusion::arrow::array::*;
-use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::record_batch::RecordBatch;
 use futures::{Stream, StreamExt};
 use stats::kline::Resolution;
 use stats::kline::TimeUnit::Minute;
@@ -68,9 +69,7 @@ fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEve
     let sa: StructArray = record_batch.into();
 
     stream! {
-        for (i, column) in sa.columns().iter().enumerate() {
-            trace!("trades[{}] = {:?}", i, column.data_type());
-        }
+        print_struct_schema(&sa, "trades");
 
         let price_col = get_col_as::<Float64Array>(&sa, "price");
         let qty_col = get_col_as::<Float64Array>(&sa, "qty");
@@ -87,14 +86,14 @@ fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEve
             let is_buyer_maker = is_buyer_maker_col.value(i);
             let ts = event_ms_col.value(i);
 
-            let p = pair_col.keys().value(i);
-            let pair = pair_values.value(p as usize);
+            // let p = pair_col.keys().value(i);
+            // let pair = pair_values.value(p as usize);
+            //
+            // let k = xch_col.keys().value(i);
+            // let xch = xch_values.value(k as usize);
+            // let xchg = Exchange::from_str(xch).unwrap_or_else(|_| panic!("wrong xchg {}", xch));
 
-            let k = xch_col.keys().value(i);
-            let xch = xch_values.value(k as usize);
-            let xchg = Exchange::from_str(xch).unwrap_or_else(|_| panic!("wrong xchg {}", xch));
-
-            yield MarketEventEnvelope::trade_event(xchg, symbol_to_pair(&xchg, &pair.into()).unwrap(), ts, price, qty, is_buyer_maker.into());
+            yield MarketEventEnvelope::trade_event(Exchange::Binance, "BTC_USDT".into(), ts, price, qty, is_buyer_maker.into());
         }
     }
 }

@@ -33,6 +33,32 @@ pub trait StrategyOptions: StrategySettingsReplicator {
     fn key(&self) -> StrategyKey;
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct DefaultOptions {
+    key: String,
+    pair: String,
+}
+
+impl StrategySettingsReplicator for DefaultOptions {
+    fn replicate_for_pairs(&self, pairs: HashSet<Pair>) -> Vec<Value> {
+        let mut values = vec![];
+        for pair in pairs {
+            values.push(
+                serde_json::to_value(Self {
+                    pair: pair.to_string(),
+                    key: self.key.clone(),
+                })
+                .unwrap(),
+            );
+        }
+        values
+    }
+}
+
+impl StrategyOptions for DefaultOptions {
+    fn key(&self) -> StrategyKey { StrategyKey(self.key.clone(), String::new()) }
+}
+
 /// Handles replicating strategy configurations
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type")]

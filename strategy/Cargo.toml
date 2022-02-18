@@ -44,7 +44,7 @@ env_logger = "0.9"
 itertools = "0.10"
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "0.8", features = ["v4"] }
+uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng",] }
 backoff = { version = "0.4", features = ["tokio"] }
 lazy_static = "1.4"
 ordered-float = "2.1"
@@ -63,7 +63,7 @@ async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
 
 # graph_ql
-juniper = { version = "^0.15", features = ["expose-test-schema"] }
+juniper = { git = "https://github.com/Igosuki/juniper", branch = "uuid_latest", version = "^0.16.0-dev", features = ["expose-test-schema"] }
 
 # metrics and tracing
 tracing = { version = "0.1", features = ["log"] }

@@ -50,15 +50,12 @@ actix_derive = "0.6"
 awc = { version = "3.0.0-beta", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
 
 # API Server
-juniper = { version = "^0.15", features = ["expose-test-schema"] }
+juniper = { git = "https://github.com/Igosuki/juniper", branch = "uuid_latest", version = "^0.16.0-dev", features = ["expose-test-schema"] }
 native-tls = "0.2"
 
 # Errors
 anyhow = "1.0"
 thiserror = "1.0"
-
-# Codecs
-avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "master_merge" }
 
 # Async
 futures = { version = "0.3", features = ["thread-pool"] }
@@ -76,7 +73,7 @@ notify = "4.0"
 once_cell = "1.4"
 parse_duration = "2.1"
 rand = "0.8"
-uuid = { version = "0.8", features = ["v4"] }
+uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng",] }
 url = "2.2"
 glob = { version = "0.3", optional = true }
 

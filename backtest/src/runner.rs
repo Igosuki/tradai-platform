@@ -57,9 +57,10 @@ impl BacktestRunner {
         engine: Arc<TradingEngine>,
         settings: StrategyDriverSettings,
     ) -> Arc<RwLock<Self>> {
-        let logger = Arc::new(StreamWriterLogger::<TimedData<StratEvent>>::new());
+        let logger = Arc::new(StreamWriterLogger::<TimedData<StratEvent>>::new(sink_size));
         let logger2 = logger.clone();
         let strategy_driver = task::spawn_blocking(move || {
+            debug!("plugin_registry() = {:?}", plugin_registry());
             let plugin = plugin_registry().get(settings.strat.strat_type.as_str()).unwrap();
             strategy::settings::from_driver_settings(plugin, &db_conf, &settings, engine, Some(logger.clone())).unwrap()
         })
@@ -73,7 +74,7 @@ impl BacktestRunner {
         sink_size: Option<usize>,
         driver: Box<dyn StrategyDriver>,
     ) -> Arc<RwLock<Self>> {
-        let logger = Arc::new(StreamWriterLogger::<TimedData<StratEvent>>::new());
+        let logger = Arc::new(StreamWriterLogger::<TimedData<StratEvent>>::new(sink_size));
         let logger2 = logger.clone();
         let runner = Self::new(Arc::new(Mutex::new(driver)), logger2, sink_size);
         Arc::new(RwLock::new(runner))
