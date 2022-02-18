@@ -177,7 +177,7 @@ pub async fn backtest_single<'a>(
     let path = util::test::test_dir();
 
     let engine = Arc::new(mock_engine(path.path(), providers));
-    let test_results_dir = util::test::test_results_dir(test_name);
+    let test_results_dir = backtest_results_dir(test_name);
     let options = DbOptions::new(path);
     let db = get_or_create(&options, "", vec![]);
     let strat = provider(StrategyInitContext {
@@ -240,4 +240,16 @@ async fn build_msg_broker(
         }
     }
     broker
+}
+
+/// The base directory of backtest results
+/// # Panics
+///
+/// Panics if the test results directory cannot be created
+#[must_use]
+pub fn backtest_results_dir(test_name: &str) -> String {
+    let base_path = std::env::var("TRADAI_BACKTESTS_OUT_DIR").unwrap_or("backtest_results".to_string());
+    let test_results_dir = format!("{}/{}", base_path, test_name);
+    std::fs::create_dir_all(&test_results_dir).unwrap();
+    test_results_dir
 }

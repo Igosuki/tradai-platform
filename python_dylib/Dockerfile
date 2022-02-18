@@ -35,7 +35,7 @@ RUN apt-get update && apt-get install -y xz-utils wget llvm-dev libclang-dev cla
 RUN wget https://www.python.org/ftp/python/3.10.0/Python-3.10.0.tgz \
     && tar -xf Python-3.10.*.tgz \
     && cd Python-3.10.*/ \
-    && ./configure --enable-optimizations --enable-shared \
+    && ./configure --enable-optimizations --enable-shared --prefix=/opt/python/python3.10 \
     && make -j 4 \
     && make altinstall
 
@@ -44,11 +44,13 @@ RUN wget https://www.python.org/ftp/python/3.10.0/Python-3.10.0.tgz \
 #RUN apt install software-properties-common -y && add-apt-repository ppa:deadsnakes/ppa
 #RUN apt-get update && apt install python3.10-dev &&
 
-RUN apt-get install -y libclang1-3.9
+#RUN apt-get install -y libclang1-3.9
 RUN apt-get clean && rm -Rf /var/lib/apt/lists/*
 
-RUN pip3 install kaleido
-RUN cargo install ruget --locked
+#RUN pip3 install kaleido
+#RUN cargo install ruget --locked
 #ENV PKG_CONFIG_PATH=/opt/_internal/cpython-3.10.2/lib/pkgconfig
+
+ENV PATH /opt/python/python3.10/bin:$PATH
 
 ENTRYPOINT ["maturin"]

@@ -1,5 +1,5 @@
 use crate::datafusion_util::{get_col_as, print_struct_schema, tables_as_stream, StringArray,
-                             TimestampMillisecondArray, UInt16DictionaryArray};
+                             TimestampMillisecondArray, UInt8DictionaryArray};
 use brokers::pair::symbol_to_pair;
 use brokers::prelude::*;
 use brokers::types::Candle;
@@ -75,9 +75,9 @@ fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEve
         let qty_col = get_col_as::<Float64Array>(&sa, "qty");
         let is_buyer_maker_col = get_col_as::<BooleanArray>(&sa, "is_buyer_maker");
         let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ts");
-        let pair_col = get_col_as::<UInt16DictionaryArray>(&sa, "pr");
+        let pair_col = get_col_as::<UInt8DictionaryArray>(&sa, "pr");
         let pair_values = pair_col.values().as_any().downcast_ref::<StringArray>().unwrap();
-        let xch_col = get_col_as::<UInt16DictionaryArray>(&sa, "xch");
+        let xch_col = get_col_as::<UInt8DictionaryArray>(&sa, "xch");
         let xch_values = xch_col.values().as_any().downcast_ref::<StringArray>().unwrap();
 
         for i in 0..sa.len() {
@@ -86,14 +86,14 @@ fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEve
             let is_buyer_maker = is_buyer_maker_col.value(i);
             let ts = event_ms_col.value(i);
 
-            // let p = pair_col.keys().value(i);
-            // let pair = pair_values.value(p as usize);
-            //
-            // let k = xch_col.keys().value(i);
-            // let xch = xch_values.value(k as usize);
-            // let xchg = Exchange::from_str(xch).unwrap_or_else(|_| panic!("wrong xchg {}", xch));
+            let p = pair_col.keys().value(i);
+            let pair = pair_values.value(p as usize);
 
-            yield MarketEventEnvelope::trade_event(Exchange::Binance, "BTC_USDT".into(), ts, price, qty, is_buyer_maker.into());
+            let k = xch_col.keys().value(i);
+            let xch = xch_values.value(k as usize);
+            let xchg = Exchange::from_str(xch).unwrap_or_else(|_| panic!("wrong xchg {}", xch));
+
+            yield MarketEventEnvelope::trade_event(xchg, symbol_to_pair(&xchg, &pair.into()).unwrap(), ts, price, qty, is_buyer_maker.into());
         }
     }
 }

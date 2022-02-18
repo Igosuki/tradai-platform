@@ -22,6 +22,7 @@ use std::time::Instant;
 pub type StringArray = Utf8Array<i32>;
 pub type TimestampMillisecondArray = Int64Array;
 pub type UInt16DictionaryArray = DictionaryArray<u16>;
+pub type UInt8DictionaryArray = DictionaryArray<u8>;
 pub type ListArray = GenericListArray<i32>;
 pub type Float64Type = f64;
 pub type Int64Type = i64;
@@ -137,7 +138,7 @@ pub fn table_as_stream<P: 'static + AsRef<Path> + Debug>(
         let now = Instant::now();
         let collected = table_as_df(base_path.clone(), partitions.clone(), format, table_name, sql_query).await.unwrap();
         let elapsed = now.elapsed();
-        info!(
+        debug!(
             "Read records in {} for {:?} in {}.{}s",
             base_path,
             partitions,
@@ -148,7 +149,7 @@ pub fn table_as_stream<P: 'static + AsRef<Path> + Debug>(
             yield batch.unwrap();
         }
         let elapsed = now.elapsed();
-        info!(
+        debug!(
             "Pushed record stream in {} for {:?} in {}.{}s",
             base_path,
             partitions,
