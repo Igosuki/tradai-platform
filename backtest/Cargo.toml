@@ -12,8 +12,8 @@ default = ["mock_time"]
 mock_time = ["util/mock_time"]
 release_max_level_debug = ["util/release_max_level_debug", "tracing/release_max_level_debug"]
 release_max_level_trace = ["util/release_max_level_trace", "tracing/release_max_level_trace"]
-remote_execution = ["ballista"]
-standalone_execution = ["ballista", "ballista/standalone"]
+#remote_execution = ["ballista"]
+#standalone_execution = ["ballista", "ballista/standalone"]
 
 [dependencies]
 # trader
@@ -59,9 +59,9 @@ float-cmp = "0.9"
 num_cpus = "1.13"
 
 # datafusion
-datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_i", features = ["avro-schema", "avro", "crypto_expressions", "regex_expressions", "unicode_expressions"] }
-ballista = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_i", optional = true }
-#datafusion = { version = "6.0.0", features = ["avro-schema", "avro", "crypto_expressions", "regex_expressions", "unicode_expressions"] }
+#datafusion = { version = "7.0.0", features = ["avro", "crypto_expressions", "regex_expressions", "unicode_expressions"] }
+#atafusion = { path = "/home/geps/dev/oss/arrow-datafusion/datafusion", features = ["avro", "crypto_expressions", "regex_expressions", "unicode_expressions"]}
+datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "fix_dict_key_size", features = ["avro", "crypto_expressions", "regex_expressions", "unicode_expressions"]}
 #ballista = { version = "0.6.0", optional = true }
 
 # reporting

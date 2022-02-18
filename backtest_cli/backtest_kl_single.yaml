@@ -23,7 +23,7 @@ fees: 0.001
 period:
   type: interval
   from: 2022-01-01
-  to: 2022-01-02
+  to: 2022-02-07
 
 input_format: parquet
 input_dataset: trades
@@ -44,4 +44,4 @@ report:
     algorithm: gz
     level: 5
 
-coindata_cache_dir: /home/geps/dev/tradai/tradai-etl/tmp/tests/parquet
+coindata_cache_dir: /home/geps/dev/tradai/test_data
