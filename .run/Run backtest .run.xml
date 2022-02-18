@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run backtest " type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="run --package backtest --bin backtest --profile=&quot;dev-noinc&quot; -- --config backtest/backtest_kl_single.yaml " />
+    <option name="command" value="run --package backtest_cli --bin backtest --profile=&quot;dev-noinc&quot; -- --config backtest_cli/backtest_kl_single.yaml " />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />

@@ -4,7 +4,7 @@ use brokers::prelude::*;
 use brokers::types::Candle;
 use chrono::{DateTime, Utc};
 use datafusion::arrow::array::*;
-use datafusion::record_batch::RecordBatch;
+use datafusion::arrow::record_batch::RecordBatch;
 use futures::{Stream, StreamExt};
 use stats::kline::Resolution;
 use stats::kline::TimeUnit::Minute;
@@ -68,18 +68,18 @@ fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEve
     let sa: StructArray = record_batch.into();
 
     stream! {
-        for (i, column) in sa.fields().iter().enumerate() {
+        for (i, column) in sa.columns().iter().enumerate() {
             trace!("trades[{}] = {:?}", i, column.data_type());
         }
 
         let price_col = get_col_as::<Float64Array>(&sa, "price");
         let qty_col = get_col_as::<Float64Array>(&sa, "qty");
         let is_buyer_maker_col = get_col_as::<BooleanArray>(&sa, "is_buyer_maker");
-        let event_ms_col = get_col_as::<Int64Array>(&sa, "event_ts");
-        let pair_col = get_col_as::<DictionaryArray<u8>>(&sa, "pr");
-        let pair_values = pair_col.values().as_any().downcast_ref::<Utf8Array<i32>>().unwrap();
-        let xch_col = get_col_as::<DictionaryArray<u8>>(&sa, "xch");
-        let xch_values = xch_col.values().as_any().downcast_ref::<Utf8Array<i32>>().unwrap();
+        let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ts");
+        let pair_col = get_col_as::<UInt16DictionaryArray>(&sa, "pr");
+        let pair_values = pair_col.values().as_any().downcast_ref::<StringArray>().unwrap();
+        let xch_col = get_col_as::<UInt16DictionaryArray>(&sa, "xch");
+        let xch_values = xch_col.values().as_any().downcast_ref::<StringArray>().unwrap();
 
         for i in 0..sa.len() {
             let price = price_col.value(i);
