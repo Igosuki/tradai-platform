@@ -5,9 +5,9 @@ build-backend = "maturin"
 [project]
 name = "tradai"
 version = "2021.0.0"
-description = "The python SDK of the trading api"
-requires-python = ">=3.6"
-keywords = ["trading", "backtest", "strategy"]
+description = "The python SDK of the tradai api"
+requires-python = ">=3.10"
+keywords = ["trading", "backtest", "strategy", "tradai"]
 authors = [
     {email = "igosuki.github@gmail.com"},
     {name = "Guillaume Balaine"}
@@ -17,7 +17,8 @@ maintainers = [
 ]
 classifiers = [
     "Development Status :: 1 - Beta",
-    "Programming Language :: Python"
+    "Programming Language :: Python",
+    "Programming Language :: Rust"
 ]
 
 dependencies = []
@@ -29,7 +30,7 @@ test = [
 ]
 
 [project.urls]
-homepage = "github.com/Igosuki/bitcoins"
-repository = "github.com/Igosuki/bitcoins"
-changelog = "github.com/Igosuki/bitcoins"
+homepage = "github.com/Igosuki/tradai-platform"
+repository = "github.com/Igosuki/tradai-platform"
+changelog = "github.com/Igosuki/tradai-platform"
 
