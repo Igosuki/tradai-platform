@@ -21,6 +21,7 @@ use std::time::Instant;
 
 pub type StringArray = Utf8Array<i32>;
 pub type TimestampMillisecondArray = Int64Array;
+#[allow(dead_code)]
 pub type UInt16DictionaryArray = DictionaryArray<u16>;
 pub type UInt8DictionaryArray = DictionaryArray<u8>;
 pub type ListArray = GenericListArray<i32>;

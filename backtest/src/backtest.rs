@@ -12,7 +12,7 @@ use futures::StreamExt;
 use strategy::driver::{StratProviderRef, Strategy, StrategyInitContext};
 use strategy::prelude::{GenericDriver, GenericDriverOptions, PortfolioOptions};
 use strategy::Channel;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::{Receiver, UnboundedSender};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use trading::engine::mock_engine;
@@ -20,11 +20,49 @@ use util::compress::Compression;
 use util::time::{DateRange, DurationRangeType};
 
 use crate::config::BacktestConfig;
-use crate::dataset::DatasetReader;
+use crate::dataset::{default_data_mapper, DatasetReader};
 use crate::error::*;
 use crate::report::{BacktestReport, GlobalReport, ReportConfig};
 use crate::runner::BacktestRunner;
-use crate::{DataFormat, MarketEventDatasetType};
+
+pub(crate) async fn init_brokerages(xchs: &[Exchange]) {
+    let exchange_apis = Brokerages::public_apis(xchs).await;
+    Brokerages::load_pair_registries(&exchange_apis).await.unwrap();
+}
+
+async fn build_msg_broker(
+    runners: &[Arc<RwLock<BacktestRunner>>],
+) -> ChannelMessageBroker<Channel, MarketEventEnvelope> {
+    let mut broker = ChannelMessageBroker::new();
+    for runner in runners {
+        let runner = runner.read().await;
+        for channel in runner.channels().await {
+            broker.register(channel, runner.event_sink());
+        }
+    }
+    broker
+}
+
+/// The base directory of backtest results
+/// # Panics
+///
+/// Panics if the test results directory cannot be created
+#[must_use]
+pub fn backtest_results_dir(test_name: &str) -> String {
+    let base_path = std::env::var("TRADAI_BACKTESTS_OUT_DIR").unwrap_or("backtest_results".to_string());
+    let test_results_dir = format!("{}/{}", base_path, test_name);
+    std::fs::create_dir_all(&test_results_dir).unwrap();
+    test_results_dir
+}
+
+pub struct BacktestRange {
+    from: Date<Utc>,
+    to: Date<Utc>,
+}
+
+impl BacktestRange {
+    pub fn new(from: Date<Utc>, to: Date<Utc>) -> Self { Self { from, to } }
+}
 
 pub struct Backtest {
     runners: Vec<Arc<RwLock<BacktestRunner>>>,
@@ -32,6 +70,7 @@ pub struct Backtest {
     dataset: DatasetReader,
     stop_token: CancellationToken,
     report_conf: ReportConfig,
+    period: DateRange,
 }
 
 impl Backtest {
@@ -53,10 +92,10 @@ impl Backtest {
         Ok(Self {
             stop_token,
             runners,
+            period: conf.period.as_range(),
             output_dir: output_path,
             dataset: DatasetReader {
                 input_format: conf.input_format.clone(),
-                period: conf.period.as_range(),
                 ds_type: conf.input_dataset,
                 base_dir: conf.coindata_cache_dir(),
                 input_sample_rate: conf.input_sample_rate,
@@ -81,7 +120,7 @@ impl Backtest {
         let num_runners = self.spawn_runners(&global_report, reports_tx).await;
         // Read input datasets
         let before_read = Instant::now();
-        self.dataset.read_market_events(broker).await?;
+        self.dataset.stream_broker(&broker, self.period).await?;
         self.stop_token.cancel();
         let elapsed = before_read.elapsed();
         info!(
@@ -150,30 +189,13 @@ impl Backtest {
     }
 }
 
-pub(crate) async fn init_brokerages(xchs: &[Exchange]) {
-    let exchange_apis = Brokerages::public_apis(xchs).await;
-    Brokerages::load_pair_registries(&exchange_apis).await.unwrap();
-}
-
-pub struct BacktestRange {
-    from: Date<Utc>,
-    to: Date<Utc>,
-}
-
-impl BacktestRange {
-    pub fn new(from: Date<Utc>, to: Date<Utc>) -> Self { Self { from, to } }
-}
-
-/// Take a dataframe, a period, a strategy provider and configuration and launch a backtest
-#[allow(clippy::too_many_lines)]
-pub async fn backtest_single<'a>(
+async fn build_runner<'a>(
     test_name: &'a str,
     provider: StratProviderRef,
-    date_range: &'a BacktestRange,
     providers: &'a [Exchange],
     starting_cash: f64,
     fees_rate: f64,
-) -> Result<BacktestReport> {
+) -> (Arc<RwLock<BacktestRunner>>, Receiver<BacktestReport>, CancellationToken) {
     let path = util::test::test_dir();
 
     let engine = Arc::new(mock_engine(path.path(), providers));
@@ -202,54 +224,74 @@ pub async fn backtest_single<'a>(
     }
     let driver = Box::new(GenericDriver::try_new(channels, db, &generic_options, strat, engine, None).unwrap());
     let runner_ref = BacktestRunner::spawn_with_driver(None, driver).await;
-    let broker = build_msg_broker(&[runner_ref.clone()]).await;
-
     let stop_token = CancellationToken::new();
-    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    let (tx, rx) = tokio::sync::mpsc::channel(1);
     let stop_token_a = stop_token.clone();
+    let runner_ref_a = runner_ref.clone();
     tokio::spawn(async move {
-        let mut runner = runner_ref.write().await;
+        let mut runner = runner_ref_a.write().await;
         let report = runner.run(test_results_dir, Compression::none(), stop_token_a).await;
         report.finish().await.unwrap();
         tx.send(report).await.unwrap();
     });
+    (runner_ref.clone(), rx, stop_token.clone())
+}
 
-    let dataset = DatasetReader {
-        input_format: DataFormat::Parquet,
-        ds_type: MarketEventDatasetType::Trades,
-        base_dir: util::test::data_cache_dir(),
-        period: DateRange(date_range.from, date_range.to, DurationRangeType::Days, 1),
-        input_sample_rate: chrono::Duration::seconds(1),
-    };
-    dataset.read_market_events(broker).await?;
-
+/// Backtest over a period of time, reading data from the required channels
+pub async fn backtest_with_range<'a>(
+    test_name: &'a str,
+    provider: StratProviderRef,
+    date_range: &'a BacktestRange,
+    providers: &'a [Exchange],
+    starting_cash: f64,
+    fees_rate: f64,
+) -> Result<BacktestReport> {
+    let (runner_ref, mut rx, stop_token) = build_runner(test_name, provider, providers, starting_cash, fees_rate).await;
+    let broker = build_msg_broker(&[runner_ref.clone()]).await;
+    let data_mapper = default_data_mapper();
+    let period = DateRange(date_range.from, date_range.to, DurationRangeType::Days, 1);
+    for c in broker.subjects() {
+        let dataset = data_mapper.get_reader(c);
+        dataset.stream_broker(&broker, period).await?;
+    }
     stop_token.cancel();
     rx.recv().await.ok_or(crate::error::Error::AnyhowError(anyhow!(
         "Did not receive a backtest report"
     )))
 }
 
-async fn build_msg_broker(
-    runners: &[Arc<RwLock<BacktestRunner>>],
-) -> ChannelMessageBroker<Channel, MarketEventEnvelope> {
-    let mut broker = ChannelMessageBroker::new();
-    for runner in runners {
-        let runner = runner.read().await;
-        for channel in runner.channels().await {
-            broker.register(channel, runner.event_sink());
-        }
+/// Load market events over the provided range
+pub async fn load_market_events(
+    channels: Vec<Channel>,
+    date_range: &BacktestRange,
+) -> Result<Vec<MarketEventEnvelope>> {
+    let data_mapper = default_data_mapper();
+    let period = DateRange(date_range.from, date_range.to, DurationRangeType::Days, 1);
+    let mut market_events = vec![];
+    for c in channels {
+        let dataset = data_mapper.get_reader(&c);
+        market_events.extend(dataset.read_all_events(&[c], period).await?);
     }
-    broker
+    market_events.sort_by(|me1, me2| me1.e.time().timestamp_millis().cmp(&me2.e.time().timestamp_millis()));
+    Ok(market_events)
 }
 
-/// The base directory of backtest results
-/// # Panics
-///
-/// Panics if the test results directory cannot be created
-#[must_use]
-pub fn backtest_results_dir(test_name: &str) -> String {
-    let base_path = std::env::var("TRADAI_BACKTESTS_OUT_DIR").unwrap_or("backtest_results".to_string());
-    let test_results_dir = format!("{}/{}", base_path, test_name);
-    std::fs::create_dir_all(&test_results_dir).unwrap();
-    test_results_dir
+/// Backtest over the given event stream, reading data from the required channels
+pub async fn backtest_with_events<'a>(
+    test_name: &'a str,
+    provider: StratProviderRef,
+    events: Vec<MarketEventEnvelope>,
+    providers: &'a [Exchange],
+    starting_cash: f64,
+    fees_rate: f64,
+) -> Result<BacktestReport> {
+    let (runner_ref, mut rx, stop_token) = build_runner(test_name, provider, providers, starting_cash, fees_rate).await;
+    let runner = runner_ref.write().await;
+    for event in events {
+        runner.event_sink().send(event).await.unwrap();
+    }
+    stop_token.cancel();
+    rx.recv().await.ok_or(crate::error::Error::AnyhowError(anyhow!(
+        "Did not receive a backtest report"
+    )))
 }

@@ -35,15 +35,15 @@ use pyo3::prelude::*;
 
 use py_strat::*;
 
+use crate::brokerage::PyMarketEvent;
 use crate::channel::PyChannel;
-use crate::coinnect::PyMarketEvent;
 use crate::script_strat::*;
 use crate::trading::*;
 
 mod asyncio;
 mod backtest;
+mod brokerage;
 mod channel;
-mod coinnect;
 mod db;
 mod error;
 mod json_cannonical;
