@@ -1,6 +1,6 @@
 use brokers::prelude::MarketEventEnvelope;
 
-#[pyclass(name = "MarketEvent", module = "strategy", subclass)]
+#[pyclass(name = "MarketEvent", module = "tradai", subclass)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyMarketEvent {
     pub(crate) inner: MarketEventEnvelope,
@@ -27,4 +27,14 @@ impl From<PyMarketEvent> for MarketEventEnvelope {
 
 impl From<MarketEventEnvelope> for PyMarketEvent {
     fn from(e: MarketEventEnvelope) -> Self { PyMarketEvent { inner: e } }
+}
+
+#[pyclass(name = "MarketEvents", module = "tradai", subclass)]
+#[derive(Debug, Clone)]
+pub(crate) struct PyMarketEvents {
+    pub(crate) inner: Vec<MarketEventEnvelope>,
+}
+
+impl From<Vec<MarketEventEnvelope>> for PyMarketEvents {
+    fn from(e: Vec<MarketEventEnvelope>) -> Self { PyMarketEvents { inner: e } }
 }
