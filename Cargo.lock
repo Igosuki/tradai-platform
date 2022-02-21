@@ -5967,6 +5967,7 @@ dependencies = [
  "serde 1.0.136",
  "serde_derive",
  "smallvec",
+ "strum 0.23.0",
  "strum_macros 0.23.1",
  "ta",
  "thiserror",

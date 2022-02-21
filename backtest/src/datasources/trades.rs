@@ -1,5 +1,5 @@
 use crate::datafusion_util::{get_col_as, print_struct_schema, tables_as_stream, StringArray,
-                             TimestampMillisecondArray, UInt8DictionaryArray};
+                             TimestampMillisecondArray, UInt16DictionaryArray};
 use brokers::pair::symbol_to_pair;
 use brokers::prelude::*;
 use brokers::types::Candle;
@@ -19,10 +19,12 @@ use std::str::FromStr;
 pub fn candles_df<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
+    resolution: Option<Resolution>,
 ) -> impl Stream<Item = MarketEventEnvelope> {
+    let resolution = resolution.unwrap_or_else(|| Resolution::new(Minute, 15));
     trades_df(table_paths, format)
         .scan(
-            stats::kline::Kline::new(Resolution::new(Minute, 15), 2_usize.pow(16)),
+            stats::kline::Kline::new(resolution, 2_usize.pow(16)),
             |kl, msg: MarketEventEnvelope| {
                 let candles = Next::<(f64, f64, DateTime<Utc>)>::next(kl, (msg.e.price(), msg.e.vol(), msg.e.time()));
                 let candle = candles.first().unwrap();
@@ -75,9 +77,9 @@ fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEve
         let qty_col = get_col_as::<Float64Array>(&sa, "qty");
         let is_buyer_maker_col = get_col_as::<BooleanArray>(&sa, "is_buyer_maker");
         let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ts");
-        let pair_col = get_col_as::<UInt8DictionaryArray>(&sa, "pr");
+        let pair_col = get_col_as::<UInt16DictionaryArray>(&sa, "pr");
         let pair_values = pair_col.values().as_any().downcast_ref::<StringArray>().unwrap();
-        let xch_col = get_col_as::<UInt8DictionaryArray>(&sa, "xch");
+        let xch_col = get_col_as::<UInt16DictionaryArray>(&sa, "xch");
         let xch_values = xch_col.values().as_any().downcast_ref::<StringArray>().unwrap();
 
         for i in 0..sa.len() {

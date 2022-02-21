@@ -10,6 +10,7 @@ use crate::datasources::orderbook::{flat_orderbooks_df, raw_orderbooks_df, sampl
 use brokers::broker::{Broker, ChannelMessageBroker};
 use brokers::prelude::{Exchange, Pair};
 use brokers::types::{AssetType, MarketEventEnvelope};
+use stats::kline::{Resolution, TimeUnit};
 use strategy::Channel;
 use util::time::DateRange;
 
@@ -38,12 +39,37 @@ pub fn default_data_mapper() -> DataMapper {
         ds_type: MarketEventDatasetType::OrderbooksByMinute,
         base_dir: util::test::data_cache_dir(),
         input_sample_rate: Duration::seconds(1),
+        candle_resolution_period: TimeUnit::Second,
+        candle_resolution_unit: 0,
     });
     datasets.insert("trades".to_string(), DatasetReader {
         input_format: DataFormat::Parquet,
         ds_type: MarketEventDatasetType::Trades,
         base_dir: util::test::data_cache_dir(),
         input_sample_rate: Duration::seconds(1),
+        candle_resolution_period: TimeUnit::Minute,
+        candle_resolution_unit: 15,
+    });
+    DataMapper { datasets }
+}
+
+pub fn default_test_data_mapper() -> DataMapper {
+    let mut datasets = HashMap::new();
+    datasets.insert("orderbooks".to_string(), DatasetReader {
+        input_format: DataFormat::Avro,
+        ds_type: MarketEventDatasetType::OrderbooksByMinute,
+        base_dir: util::test::test_data_dir(),
+        input_sample_rate: Duration::seconds(1),
+        candle_resolution_period: TimeUnit::Second,
+        candle_resolution_unit: 0,
+    });
+    datasets.insert("trades".to_string(), DatasetReader {
+        input_format: DataFormat::Parquet,
+        ds_type: MarketEventDatasetType::Trades,
+        base_dir: util::test::test_data_dir(),
+        input_sample_rate: Duration::seconds(1),
+        candle_resolution_period: TimeUnit::MilliSecond,
+        candle_resolution_unit: 200,
     });
     DataMapper { datasets }
 }
@@ -54,6 +80,8 @@ pub struct DatasetReader {
     pub ds_type: MarketEventDatasetType,
     pub base_dir: PathBuf,
     pub input_sample_rate: Duration,
+    pub candle_resolution_period: TimeUnit,
+    pub candle_resolution_unit: u32,
 }
 
 impl DatasetReader {
@@ -94,6 +122,7 @@ impl DatasetReader {
                 _ => None,
             })
             .collect();
+
         let input_format = self.input_format.to_string();
         let stream: Pin<Box<dyn Stream<Item = MarketEventEnvelope>>> = match self.ds_type {
             MarketEventDatasetType::OrderbooksByMinute | MarketEventDatasetType::OrderbooksBySecond => {
@@ -109,7 +138,14 @@ impl DatasetReader {
             }
             MarketEventDatasetType::Trades => Box::pin(futures::stream::select(
                 trades_df(trades_partitions, input_format.clone()),
-                candles_df(candles_partitions, input_format.clone()),
+                candles_df(
+                    candles_partitions,
+                    input_format.clone(),
+                    Some(Resolution::new(
+                        self.candle_resolution_period,
+                        self.candle_resolution_unit,
+                    )),
+                ),
             )),
         };
         stream
@@ -187,25 +223,31 @@ impl MarketEventDatasetType {
         let dt_par = date.format("%Y%m%d").to_string();
         match self {
             MarketEventDatasetType::OrderbooksByMinute => (base_dir, vec![
-                ("xch", xch.to_string()),
                 ("chan", "1mn_order_books".to_string()),
+                ("xch", xch.to_string()),
                 ("dt", dt_par),
             ]),
             MarketEventDatasetType::OrderbooksBySecond => (base_dir, vec![
-                ("xch", xch.to_string()),
                 ("chan", "1s_order_books".to_string()),
+                ("xch", xch.to_string()),
                 ("dt", dt_par),
             ]),
-            MarketEventDatasetType::OrderbooksRaw | MarketEventDatasetType::OrderbooksFlat => {
-                (base_dir.join(xch.to_string()).join("order_books"), vec![
-                    ("pr", pair.to_string()),
-                    ("dt", dt_par),
-                ])
-            }
+            MarketEventDatasetType::OrderbooksRaw => (base_dir, vec![
+                ("chan", "raw_order_books".to_string()),
+                ("xch", xch.to_string()),
+                ("pr", pair.to_string()),
+                ("dt", dt_par),
+            ]),
+            MarketEventDatasetType::OrderbooksFlat => (base_dir, vec![
+                ("chan", "flat_order_books".to_string()),
+                ("xch", xch.to_string()),
+                ("pr", pair.to_string()),
+                ("dt", dt_par),
+            ]),
             MarketEventDatasetType::Trades => (base_dir, vec![
+                ("chan", "trades".to_string()),
                 ("xch", xch.to_string()),
                 ("asset", asset_type.unwrap_or(AssetType::Spot).as_ref().to_string()),
-                ("chan", "trades".to_string()),
                 ("pr", pair.to_string().replace('_', "")),
                 ("dt", dt_par),
             ]),

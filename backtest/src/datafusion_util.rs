@@ -23,6 +23,7 @@ pub type StringArray = Utf8Array<i32>;
 pub type TimestampMillisecondArray = Int64Array;
 #[allow(dead_code)]
 pub type UInt16DictionaryArray = DictionaryArray<u16>;
+#[allow(dead_code)]
 pub type UInt8DictionaryArray = DictionaryArray<u8>;
 pub type ListArray = GenericListArray<i32>;
 pub type Float64Type = f64;
@@ -134,10 +135,13 @@ pub fn table_as_stream<P: 'static + AsRef<Path> + Debug>(
     table_name: Option<String>,
     sql_query: String,
 ) -> impl Stream<Item = RecordBatch> + 'static {
+    trace!("base_path = {:?}", base_path);
+    trace!("partitions = {:?}", partitions);
+
     stream! {
         let base_path = base_path.as_ref().to_str().unwrap_or("").to_string();
         let now = Instant::now();
-        let collected = table_as_df(base_path.clone(), partitions.clone(), format, table_name, sql_query).await.unwrap();
+        let collected = table_as_df(base_path.clone(), partitions.clone(), format, table_name, sql_query).await.expect(&format!("table path {}", base_path));
         let elapsed = now.elapsed();
         debug!(
             "Read records in {} for {:?} in {}.{}s",
