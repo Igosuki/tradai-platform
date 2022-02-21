@@ -49,6 +49,8 @@ mod error;
 mod json_cannonical;
 mod model;
 mod py_strat;
+#[cfg(feature = "pyarrow")]
+mod pyarrow;
 pub mod script_strat;
 mod ta;
 mod test_util;

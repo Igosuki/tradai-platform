@@ -148,7 +148,7 @@ impl Resolution {
         Self { time_unit, units }
     }
 
-    fn truncate(&self, dt: DateTime<Utc>) -> DateTime<Utc> {
+    pub fn truncate(&self, dt: DateTime<Utc>) -> DateTime<Utc> {
         let date_part = dt.date();
         let units = self.units as i64;
         let maybe_duration = match self.time_unit {
@@ -169,21 +169,23 @@ impl Resolution {
         }
     }
 
-    fn as_secs(&self) -> i64 {
+    pub fn as_secs(&self) -> i64 { self.as_millis() / 1000 }
+
+    pub fn as_millis(&self) -> i64 {
         match self.time_unit {
-            TimeUnit::Second => Duration::seconds(1),
-            TimeUnit::Minute => Duration::minutes(1),
-            TimeUnit::Hour => Duration::hours(1),
-            TimeUnit::Day => Duration::days(1),
-            TimeUnit::Week => Duration::weeks(1),
-            TimeUnit::Month => Duration::days(1).mul(30),
-            TimeUnit::Year => Duration::days(1).mul(365),
-            TimeUnit::MilliSecond => Duration::milliseconds(1000),
+            TimeUnit::Second => Duration::seconds(self.units as i64),
+            TimeUnit::Minute => Duration::minutes(self.units as i64),
+            TimeUnit::Hour => Duration::hours(self.units as i64),
+            TimeUnit::Day => Duration::days(self.units as i64),
+            TimeUnit::Week => Duration::weeks(self.units as i64),
+            TimeUnit::Month => Duration::days(self.units as i64).mul(30),
+            TimeUnit::Year => Duration::days(self.units as i64).mul(365),
+            TimeUnit::MilliSecond => Duration::milliseconds(self.units as i64),
         }
-        .num_seconds()
+        .num_milliseconds()
     }
 
-    fn add(&self, to: DateTime<Utc>) -> DateTime<Utc> {
+    pub fn add(&self, to: DateTime<Utc>) -> DateTime<Utc> {
         match self.time_unit {
             TimeUnit::MilliSecond => to.add(Duration::milliseconds(self.units as i64)),
             TimeUnit::Second => to.add(Duration::seconds(self.units as i64)),

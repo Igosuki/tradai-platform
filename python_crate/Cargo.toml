@@ -14,9 +14,14 @@ path = "src/lib.rs"
 name = "tradai_python"
 
 [features]
+default = ["pyarrow"]
+pyarrow = ["arrow"]
 static = ["db/rocksdb-vendor"]
 
 [dependencies]
+
+arrow = { package = "arrow2", version = "0.9", optional = true }
+
 strategy = { path = "../strategy", features = ["python"] }
 trading = { path = "../trading" }
 ext = { path = "../ext" }

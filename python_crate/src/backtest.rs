@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::thread;
 
 use backtest::report::BacktestReport;
-use backtest::{backtest_with_events, backtest_with_range, load_market_events};
+use backtest::{backtest_with_events, backtest_with_range, load_market_events, load_market_events_df, RecordBatch};
 use chrono::{Date, TimeZone, Utc};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -21,6 +21,7 @@ use trading::position::Position;
 
 use crate::brokerage::PyMarketEvents;
 use crate::db::PyDb;
+use crate::pyarrow::PyArrowConvert;
 use crate::{PyChannel, PyPosition, PyStrategyWrapper};
 
 pub(crate) fn init_module(m: &PyModule) -> PyResult<()> {
@@ -229,6 +230,28 @@ fn load_events<'p>(py: Python<'p>, channels: &'p PyAny, from: NaiveDate, to: Nai
 
         let py_events: PyMarketEvents = events.into();
         Python::with_gil(|py| Ok(py_events.into_py(py)))
+    })
+}
+
+/// Lods market events over a provided range and channels
+#[pyfunction(name = "load_events_df", module = "backtest")]
+#[pyo3(text_signature = "(channels, from, to, /)")]
+fn load_events_df<'p>(py: Python<'p>, channels: &'p PyAny, from: NaiveDate, to: NaiveDate) -> PyResult<&'p PyAny> {
+    let channels: Vec<PyChannel> = channels.extract()?;
+    let from: Date<Utc> = Utc.from_utc_date(&from.0);
+    let to: Date<Utc> = Utc.from_utc_date(&to.0);
+    pyo3_asyncio::tokio::future_into_py_with_locals(py, pyo3_asyncio::tokio::get_current_locals(py)?, async move {
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<RecordBatch>>(1);
+        thread::spawn(move || {
+            actix_multi_rt().block_on(async move {
+                let channels = channels.into_iter().map(Into::<Channel>::into).collect();
+                let events = load_market_events_df(channels, &backtest::BacktestRange::new(from, to), None).await;
+                tx.send(events.unwrap()).await.unwrap();
+            });
+        });
+        let events = rx.recv().await.unwrap();
+
+        Python::with_gil(|py| RecordBatch::to_pyarrow(events.first().unwrap(), py))
     })
 }
 
