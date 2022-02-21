@@ -9,6 +9,7 @@ use brokers::types::MarketEventEnvelope;
 use brokers::Brokerages;
 use db::{get_or_create, DbOptions};
 use futures::StreamExt;
+use stats::kline::TimeUnit;
 use strategy::driver::{StratProviderRef, Strategy, StrategyInitContext};
 use strategy::prelude::{GenericDriver, GenericDriverOptions, PortfolioOptions};
 use strategy::Channel;
@@ -20,7 +21,7 @@ use util::compress::Compression;
 use util::time::{DateRange, DurationRangeType};
 
 use crate::config::BacktestConfig;
-use crate::dataset::{default_data_mapper, DatasetReader};
+use crate::dataset::{default_data_mapper, DataMapper, DatasetReader};
 use crate::error::*;
 use crate::report::{BacktestReport, GlobalReport, ReportConfig};
 use crate::runner::BacktestRunner;
@@ -99,6 +100,8 @@ impl Backtest {
                 ds_type: conf.input_dataset,
                 base_dir: conf.coindata_cache_dir(),
                 input_sample_rate: conf.input_sample_rate,
+                candle_resolution_period: TimeUnit::Minute,
+                candle_resolution_unit: 15,
             },
             report_conf: conf.report.clone(),
         })
@@ -264,8 +267,9 @@ pub async fn backtest_with_range<'a>(
 pub async fn load_market_events(
     channels: Vec<Channel>,
     date_range: &BacktestRange,
+    mapper: Option<DataMapper>,
 ) -> Result<Vec<MarketEventEnvelope>> {
-    let data_mapper = default_data_mapper();
+    let data_mapper = mapper.unwrap_or_else(|| default_data_mapper());
     let period = DateRange(date_range.from, date_range.to, DurationRangeType::Days, 1);
     let mut market_events = vec![];
     for c in channels {
@@ -294,4 +298,86 @@ pub async fn backtest_with_events<'a>(
     rx.recv().await.ok_or(crate::error::Error::AnyhowError(anyhow!(
         "Did not receive a backtest report"
     )))
+}
+
+#[cfg(test)]
+mod test {
+    use crate::dataset::default_test_data_mapper;
+    use crate::{load_market_events, BacktestRange};
+    use brokers::exchange::Exchange;
+    use brokers::pair::register_pair_default;
+    use brokers::types::MarketEvent;
+    use chrono::{Date, NaiveDate, Utc};
+    use strategy::Channel;
+
+    fn init() { register_pair_default(Exchange::Binance, "BTCUSDT", "BTC_USDT"); }
+
+    #[tokio::test]
+    async fn load_order_books() {
+        init();
+        let date = Date::from_utc(NaiveDate::from_ymd(2021, 12, 13), Utc);
+        let events = load_market_events(
+            vec![Channel::Orderbooks {
+                xch: Exchange::Binance,
+                pair: "BTC_USDT".into(),
+            }],
+            &BacktestRange::new(date, date),
+            Some(default_test_data_mapper()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(events.len(), 100);
+        let all_events_are_channel_type = events.iter().find(|e| !matches!(e.e, MarketEvent::Orderbook(_)));
+        assert!(
+            all_events_are_channel_type.is_none(),
+            "{:?}",
+            all_events_are_channel_type
+        );
+    }
+
+    #[tokio::test]
+    async fn load_trades() {
+        init();
+        let date = Date::from_utc(NaiveDate::from_ymd(2022, 01, 22), Utc);
+        let events = load_market_events(
+            vec![Channel::Trades {
+                xch: Exchange::Binance,
+                pair: "BTC_USDT".into(),
+            }],
+            &BacktestRange::new(date, date),
+            Some(default_test_data_mapper()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(events.len(), 100);
+        let all_events_are_channel_type = events.iter().find(|e| !matches!(e.e, MarketEvent::Trade(_)));
+        assert!(
+            all_events_are_channel_type.is_none(),
+            "{:?}",
+            all_events_are_channel_type
+        );
+    }
+
+    #[tokio::test]
+    async fn load_candles() {
+        init();
+        let date = Date::from_utc(NaiveDate::from_ymd(2022, 01, 22), Utc);
+        let events = load_market_events(
+            vec![Channel::Candles {
+                xch: Exchange::Binance,
+                pair: "BTC_USDT".into(),
+            }],
+            &BacktestRange::new(date, date),
+            Some(default_test_data_mapper()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(events.len(), 8);
+        let all_events_are_channel_type = events.iter().find(|e| !matches!(e.e, MarketEvent::CandleTick(_)));
+        assert!(
+            all_events_are_channel_type.is_none(),
+            "{:?}",
+            all_events_are_channel_type
+        );
+    }
 }

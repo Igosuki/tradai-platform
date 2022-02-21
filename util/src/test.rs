@@ -36,7 +36,7 @@ pub fn data_cache_dir() -> PathBuf {
 /// The base directory of test data
 #[must_use]
 pub fn test_data_dir() -> PathBuf {
-    Path::new(&std::env::var("COINDATA_TEST_DIR").unwrap_or("".to_string())).join("test_data")
+    Path::new(&std::env::var("COINDATA_TEST_DIR").unwrap_or("test_data".to_string())).to_path_buf()
 }
 
 /// The base directory of test results
