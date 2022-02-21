@@ -10,9 +10,10 @@ use std::str::FromStr;
 use brokers::prelude::MarketEventEnvelope;
 use futures::StreamExt;
 use tokio_stream::Stream;
+use tracing::Level;
 
-use crate::datafusion_util::{get_col_as, print_struct_schema, tables_as_stream, Float64Type, Int64Type, ListArray,
-                             StringArray, TimestampMillisecondArray, UInt16DictionaryArray};
+use crate::datafusion_util::{get_col_as, multitables_as_df, multitables_as_stream, print_struct_schema, Float64Type,
+                             Int64Type, ListArray, StringArray, TimestampMillisecondArray, UInt16DictionaryArray};
 
 const ORDER_BOOK_TABLE_NAME: &str = "order_books";
 
@@ -26,13 +27,13 @@ pub fn flat_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
         "select to_timestamp_millis(event_ms) as event_ts, * from {table} order by event_ms asc",
         table = ORDER_BOOK_TABLE_NAME
     );
-    tables_as_stream(table_paths, format, Some(ORDER_BOOK_TABLE_NAME.to_string()), sql_query)
+    multitables_as_stream(table_paths, format, Some(ORDER_BOOK_TABLE_NAME.to_string()), sql_query)
         .map(move |rb| events_from_csv_orderbooks(rb, levels))
         .flatten()
 }
 
 /// Read partitions as raw order books
-pub fn raw_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
+pub fn raw_orderbooks_stream<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     sample_rate: Duration,
     format: String,
@@ -44,17 +45,40 @@ pub fn raw_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
         sample_rate = sample_rate.num_milliseconds(),
         table = ORDER_BOOK_TABLE_NAME
     );
-    tables_as_stream(table_paths, format, Some(ORDER_BOOK_TABLE_NAME.to_string()), sql_query)
+    multitables_as_stream(table_paths, format, Some(ORDER_BOOK_TABLE_NAME.to_string()), sql_query)
         .map(events_from_orderbooks)
         .flatten()
 }
 
-/// Read partitions as sampled order books
-pub fn sampled_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
+/// Read partitions as raw order books recordbatch
+pub async fn raw_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
+    table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
+    sample_rate: Duration,
+    format: String,
+) -> crate::error::Result<RecordBatch> {
+    let sql_query = format!(
+        "select to_timestamp_millis(event_ms) as event_ms, asks, bids from
+   (select asks, bids, event_ms, ROW_NUMBER() OVER (PARTITION BY sample_time order by event_ms) as row_num
+    FROM (select asks, bids, event_ms / {sample_rate} as sample_time, event_ms from {table})) where row_num = 1;",
+        sample_rate = sample_rate.num_milliseconds(),
+        table = ORDER_BOOK_TABLE_NAME
+    );
+    let batch = multitables_as_df(table_paths, format, Some(ORDER_BOOK_TABLE_NAME.to_string()), sql_query).await?;
+    if tracing::enabled!(Level::TRACE) {
+        trace!(
+            "raw_orderbooks = {:?}",
+            datafusion::arrow_print::write(&[batch.clone()])
+        );
+    }
+    Ok(batch)
+}
+
+/// Read partitions as a sampled order books stream
+pub fn sampled_orderbooks_stream<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
 ) -> impl Stream<Item = MarketEventEnvelope> + 'static {
-    tables_as_stream(
+    multitables_as_stream(
         table_paths,
         format,
         Some("order_books".to_string()),
@@ -67,13 +91,37 @@ pub fn sampled_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
     .flatten()
 }
 
+/// Read partitions as a sampled order books stream
+pub async fn sampled_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
+    table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
+    format: String,
+) -> crate::error::Result<RecordBatch> {
+    let batch = multitables_as_df(
+        table_paths,
+        format,
+        Some("order_books".to_string()),
+        format!(
+            "select xch, to_timestamp_millis(event_ms) as event_ts, pr, asks, bids from {table} order by event_ms asc",
+            table = "order_books"
+        ),
+    )
+    .await?;
+    if tracing::enabled!(Level::TRACE) {
+        trace!(
+            "sampled_orderbooks = {:?}",
+            datafusion::arrow_print::write(&[batch.clone()])
+        );
+    }
+    Ok(batch)
+}
+
 /// Find all distinct pairs in the sampled orderbook partitions
 #[allow(dead_code)]
 pub async fn sampled_orderbooks_pairs_df<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
 ) -> impl Stream<Item = String> + 'static {
-    tables_as_stream(
+    multitables_as_stream(
         table_paths,
         format,
         Some("order_books".to_string()),

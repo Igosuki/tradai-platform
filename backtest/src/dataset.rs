@@ -3,10 +3,12 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 use chrono::{Date, Duration, Utc};
+use datafusion::record_batch::RecordBatch;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
 
-use crate::datasources::orderbook::{flat_orderbooks_df, raw_orderbooks_df, sampled_orderbooks_df};
+use crate::datasources::orderbook::{flat_orderbooks_df, raw_orderbooks_df, raw_orderbooks_stream,
+                                    sampled_orderbooks_df, sampled_orderbooks_stream};
 use brokers::broker::{Broker, ChannelMessageBroker};
 use brokers::prelude::{Exchange, Pair};
 use brokers::types::{AssetType, MarketEventEnvelope};
@@ -14,8 +16,10 @@ use stats::kline::{Resolution, TimeUnit};
 use strategy::Channel;
 use util::time::DateRange;
 
-use crate::datasources::trades::{candles_df, trades_df};
+use crate::datasources::trades::{candles_df, candles_stream, trades_df, trades_stream};
 use crate::error::*;
+
+// TODO: recode this entire module
 
 /// The base directory of historical cache data, uses the env var COINDATA_CACHE_DIR
 #[must_use]
@@ -91,18 +95,16 @@ pub struct DatasetReader {
     pub candle_resolution_unit: u32,
 }
 
+type PartitionSet = HashSet<(PathBuf, Vec<(&'static str, String)>)>;
+
 impl DatasetReader {
-    pub async fn read_channel_to_stream<'a, I>(
-        &self,
-        channels: I,
-        dt: Date<Utc>,
-    ) -> Pin<Box<dyn Stream<Item = MarketEventEnvelope>>>
+    fn partitions<'a, I>(&self, channels: I, dt: Date<Utc>) -> (PartitionSet, PartitionSet, PartitionSet)
     where
         I: Iterator<Item = &'a Channel>,
     {
         let (ob_chan_iter, rest) = channels.tee();
         let (trade_chan_iter, candle_chan_iter) = rest.tee();
-        let orderbook_partitions: HashSet<(PathBuf, Vec<(&'static str, String)>)> = ob_chan_iter
+        let orderbook_partitions: PartitionSet = ob_chan_iter
             .filter(|c| matches!(c, Channel::Orderbooks { .. }))
             .filter_map(|c| match c {
                 Channel::Orderbooks { xch, pair } => {
@@ -111,7 +113,7 @@ impl DatasetReader {
                 _ => None,
             })
             .collect();
-        let trades_partitions: HashSet<(PathBuf, Vec<(&'static str, String)>)> = trade_chan_iter
+        let trades_partitions: PartitionSet = trade_chan_iter
             .filter(|c| matches!(c, Channel::Trades { .. }))
             .filter_map(|c| match c {
                 Channel::Trades { xch, pair } => {
@@ -120,7 +122,7 @@ impl DatasetReader {
                 _ => None,
             })
             .collect();
-        let candles_partitions: HashSet<(PathBuf, Vec<(&'static str, String)>)> = candle_chan_iter
+        let candles_partitions: PartitionSet = candle_chan_iter
             .filter(|c| matches!(c, Channel::Candles { .. }))
             .filter_map(|c| match c {
                 Channel::Candles { xch, pair } => {
@@ -129,13 +131,24 @@ impl DatasetReader {
                 _ => None,
             })
             .collect();
+        (orderbook_partitions, trades_partitions, candles_partitions)
+    }
 
+    pub async fn read_channels_to_stream<'a, I>(
+        &self,
+        channels: I,
+        dt: Date<Utc>,
+    ) -> Pin<Box<dyn Stream<Item = MarketEventEnvelope>>>
+    where
+        I: Iterator<Item = &'a Channel>,
+    {
+        let (orderbook_partitions, trades_partitions, candles_partitions) = self.partitions(channels, dt);
         let input_format = self.input_format.to_string();
         let stream: Pin<Box<dyn Stream<Item = MarketEventEnvelope>>> = match self.ds_type {
             MarketEventDatasetType::OrderbooksByMinute | MarketEventDatasetType::OrderbooksBySecond => {
-                Box::pin(sampled_orderbooks_df(orderbook_partitions, input_format))
+                Box::pin(sampled_orderbooks_stream(orderbook_partitions, input_format))
             }
-            MarketEventDatasetType::OrderbooksRaw => Box::pin(raw_orderbooks_df(
+            MarketEventDatasetType::OrderbooksRaw => Box::pin(raw_orderbooks_stream(
                 orderbook_partitions,
                 self.input_sample_rate,
                 input_format,
@@ -144,8 +157,8 @@ impl DatasetReader {
                 Box::pin(flat_orderbooks_df(orderbook_partitions, input_format, 5))
             }
             MarketEventDatasetType::Trades => Box::pin(futures::stream::select(
-                trades_df(trades_partitions, input_format.clone()),
-                candles_df(
+                trades_stream(trades_partitions, input_format.clone()),
+                candles_stream(
                     candles_partitions,
                     input_format.clone(),
                     Some(Resolution::new(
@@ -158,13 +171,46 @@ impl DatasetReader {
         stream
     }
 
+    pub async fn read_channels_to_df<'a, I>(&self, channels: I, dt: Date<Utc>) -> Result<Vec<RecordBatch>>
+    where
+        I: Iterator<Item = &'a Channel>,
+    {
+        let (orderbook_partitions, trades_partitions, candles_partitions) = self.partitions(channels, dt);
+
+        let input_format = self.input_format.to_string();
+        let rb = match self.ds_type {
+            MarketEventDatasetType::OrderbooksByMinute | MarketEventDatasetType::OrderbooksBySecond => {
+                vec![sampled_orderbooks_df(orderbook_partitions, input_format).await?]
+            }
+            MarketEventDatasetType::OrderbooksRaw => {
+                vec![raw_orderbooks_df(orderbook_partitions, self.input_sample_rate, input_format).await?]
+            }
+            MarketEventDatasetType::Trades if !trades_partitions.is_empty() => {
+                vec![trades_df(trades_partitions, input_format.clone()).await?]
+            }
+            MarketEventDatasetType::Trades if !candles_partitions.is_empty() => vec![
+                candles_df(
+                    candles_partitions,
+                    input_format.clone(),
+                    Some(Resolution::new(
+                        self.candle_resolution_period,
+                        self.candle_resolution_unit,
+                    )),
+                )
+                .await?,
+            ],
+            _ => todo!(),
+        };
+        Ok(rb)
+    }
+
     pub async fn stream_broker(
         &self,
         broker: &ChannelMessageBroker<Channel, MarketEventEnvelope>,
         period: DateRange,
     ) -> Result<()> {
         for dt in period {
-            let stream = self.read_channel_to_stream(Broker::subjects(broker), dt).await;
+            let stream = self.read_channels_to_stream(Broker::subjects(broker), dt).await;
             stream.for_each(|event| Broker::broadcast(broker, event)).await;
         }
         Ok(())
@@ -173,8 +219,17 @@ impl DatasetReader {
     pub async fn read_all_events(&self, channels: &[Channel], period: DateRange) -> Result<Vec<MarketEventEnvelope>> {
         let mut events = vec![];
         for dt in period {
-            let stream = self.read_channel_to_stream(channels.into_iter(), dt).await;
+            let stream = self.read_channels_to_stream(channels.into_iter(), dt).await;
             events.extend(stream.collect::<Vec<MarketEventEnvelope>>().await);
+        }
+        Ok(events)
+    }
+
+    pub async fn read_all_events_df(&self, channels: &[Channel], period: DateRange) -> Result<Vec<RecordBatch>> {
+        let mut events = vec![];
+        for dt in period {
+            let rbs = self.read_channels_to_df(channels.into_iter(), dt).await?;
+            events.extend(rbs);
         }
         Ok(events)
     }
