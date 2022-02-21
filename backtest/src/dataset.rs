@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 use chrono::{Date, Duration, Utc};
@@ -17,11 +17,17 @@ use util::time::DateRange;
 use crate::datasources::trades::{candles_df, trades_df};
 use crate::error::*;
 
-pub struct DataMapper {
+/// The base directory of historical cache data, uses the env var COINDATA_CACHE_DIR
+#[must_use]
+pub fn data_cache_dir() -> PathBuf {
+    Path::new(&std::env::var("COINDATA_CACHE_DIR").unwrap_or("".to_string())).join("data")
+}
+
+pub struct DatasetCatalog {
     datasets: HashMap<String, DatasetReader>,
 }
 
-impl DataMapper {
+impl DatasetCatalog {
     pub fn get_reader(&self, channel: &Channel) -> DatasetReader {
         match channel {
             Channel::Orders { .. } => todo!(),
@@ -32,12 +38,12 @@ impl DataMapper {
     }
 }
 
-pub fn default_data_mapper() -> DataMapper {
+pub fn default_data_catalog() -> DatasetCatalog {
     let mut datasets = HashMap::new();
     datasets.insert("orderbooks".to_string(), DatasetReader {
         input_format: DataFormat::Avro,
         ds_type: MarketEventDatasetType::OrderbooksByMinute,
-        base_dir: util::test::data_cache_dir(),
+        base_dir: data_cache_dir(),
         input_sample_rate: Duration::seconds(1),
         candle_resolution_period: TimeUnit::Second,
         candle_resolution_unit: 0,
@@ -45,15 +51,16 @@ pub fn default_data_mapper() -> DataMapper {
     datasets.insert("trades".to_string(), DatasetReader {
         input_format: DataFormat::Parquet,
         ds_type: MarketEventDatasetType::Trades,
-        base_dir: util::test::data_cache_dir(),
+        base_dir: data_cache_dir(),
         input_sample_rate: Duration::seconds(1),
         candle_resolution_period: TimeUnit::Minute,
         candle_resolution_unit: 15,
     });
-    DataMapper { datasets }
+    DatasetCatalog { datasets }
 }
 
-pub fn default_test_data_mapper() -> DataMapper {
+#[cfg(test)]
+pub fn default_test_data_catalog() -> DatasetCatalog {
     let mut datasets = HashMap::new();
     datasets.insert("orderbooks".to_string(), DatasetReader {
         input_format: DataFormat::Avro,
@@ -71,7 +78,7 @@ pub fn default_test_data_mapper() -> DataMapper {
         candle_resolution_period: TimeUnit::MilliSecond,
         candle_resolution_unit: 200,
     });
-    DataMapper { datasets }
+    DatasetCatalog { datasets }
 }
 
 #[derive(Clone)]
