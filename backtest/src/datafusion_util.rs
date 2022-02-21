@@ -5,12 +5,16 @@ use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::listing::ListingOptions;
 use datafusion::execution::dataframe_impl::DataFrameImpl;
-use datafusion::field_util::StructArrayExt;
+use datafusion::field_util::{SchemaExt, StructArrayExt};
 use datafusion::logical_plan::Expr;
 use datafusion::prelude::{col, lit};
 use datafusion::record_batch::RecordBatch;
 //use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow::datatypes::Schema;
+use datafusion::dataframe::DataFrame;
+use datafusion::physical_plan::coalesce_batches::concat_batches;
 use ext::ResultExt;
+use futures::FutureExt;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
 use std::collections::HashSet;
@@ -107,7 +111,9 @@ pub fn listing_options(format: String, partition: Vec<(&str, String)>) -> Listin
     }
 }
 
-pub fn tables_as_stream<P: 'static + AsRef<Path> + Debug>(
+pub const DEFAULT_TABLE_NAME: &str = "listing_table";
+
+pub fn multitables_as_stream<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
     table_name: Option<String>,
@@ -115,7 +121,7 @@ pub fn tables_as_stream<P: 'static + AsRef<Path> + Debug>(
 ) -> impl Stream<Item = RecordBatch> + 'static {
     debug!("reading partitions {:?}", &table_paths);
     let s = table_paths.into_iter().map(move |(base_path, partitions)| {
-        table_as_stream(
+        tables_as_stream(
             base_path,
             partitions,
             format.clone(),
@@ -126,9 +132,7 @@ pub fn tables_as_stream<P: 'static + AsRef<Path> + Debug>(
     tokio_stream::iter(s).flatten()
 }
 
-pub const DEFAULT_TABLE_NAME: &str = "listing_table";
-
-pub fn table_as_stream<P: 'static + AsRef<Path> + Debug>(
+pub fn tables_as_stream<P: 'static + AsRef<Path> + Debug>(
     base_path: P,
     partitions: Vec<(&'static str, String)>,
     format: String,
@@ -141,7 +145,8 @@ pub fn table_as_stream<P: 'static + AsRef<Path> + Debug>(
     stream! {
         let base_path = base_path.as_ref().to_str().unwrap_or("").to_string();
         let now = Instant::now();
-        let collected = table_as_df(base_path.clone(), partitions.clone(), format, table_name, sql_query).await.expect(&format!("table path {}", base_path));
+        let df = table_as_df(base_path.clone(), partitions.clone(), format, table_name, sql_query).await.expect(&format!("table path {}", base_path));
+        let stream = df.execute_stream().await.unwrap();
         let elapsed = now.elapsed();
         debug!(
             "Read records in {} for {:?} in {}.{}s",
@@ -150,7 +155,7 @@ pub fn table_as_stream<P: 'static + AsRef<Path> + Debug>(
             elapsed.as_secs(),
             elapsed.subsec_millis()
         );
-        for await batch in collected {
+        for await batch in stream {
             yield batch.unwrap();
         }
         let elapsed = now.elapsed();
@@ -164,7 +169,70 @@ pub fn table_as_stream<P: 'static + AsRef<Path> + Debug>(
     }
 }
 
-use datafusion::dataframe::DataFrame;
+pub async fn multitables_as_df<P: 'static + AsRef<Path> + Debug>(
+    table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
+    format: String,
+    table_name: Option<String>,
+    sql_query: String,
+) -> crate::error::Result<RecordBatch> {
+    debug!("reading partitions {:?}", &table_paths);
+    let records: Vec<RecordBatch> =
+        futures::future::join_all(table_paths.into_iter().map(move |(base_path, partitions)| {
+            tables_as_df(
+                base_path,
+                partitions,
+                format.clone(),
+                table_name.clone(),
+                sql_query.clone(),
+            )
+            .map(|r| r.unwrap())
+        }))
+        .await;
+    if records.is_empty() {
+        return Ok(RecordBatch::new_empty(Arc::new(Schema::empty())));
+    }
+    let rb = concat_batches(
+        &records[0].schema().clone(),
+        &records,
+        records.iter().map(|rb| rb.num_rows()).sum(),
+    )?;
+    Ok(rb)
+}
+
+pub async fn tables_as_df<P: 'static + AsRef<Path> + Debug>(
+    base_path: P,
+    partitions: Vec<(&'static str, String)>,
+    format: String,
+    table_name: Option<String>,
+    sql_query: String,
+) -> crate::error::Result<RecordBatch> {
+    trace!("base_path = {:?}", base_path);
+    trace!("partitions = {:?}", partitions);
+
+    let base_path = base_path.as_ref().to_str().unwrap_or("").to_string();
+    let now = Instant::now();
+    let df = table_as_df(base_path.clone(), partitions.clone(), format, table_name, sql_query)
+        .await
+        .expect(&format!("table path {}", base_path));
+    let records = df.collect().await?;
+    if records.is_empty() {
+        return Ok(RecordBatch::new_empty(Arc::new(Schema::empty())));
+    }
+    let rb = concat_batches(
+        &records[0].schema().clone(),
+        &records,
+        records.iter().map(|rb| rb.num_rows()).sum(),
+    )?;
+    let elapsed = now.elapsed();
+    debug!(
+        "Read records in {} for {:?} in {}.{}s",
+        base_path,
+        partitions,
+        elapsed.as_secs(),
+        elapsed.subsec_millis()
+    );
+    Ok(rb)
+}
 
 pub async fn table_as_df(
     base_path: String,
@@ -172,7 +240,7 @@ pub async fn table_as_df(
     format: String,
     table_name: Option<String>,
     sql_query: String,
-) -> crate::error::Result<impl Stream<Item = Result<RecordBatch, datafusion::arrow::error::ArrowError>> + 'static> {
+) -> crate::error::Result<Arc<dyn DataFrame>> {
     let table_name = table_name.unwrap_or_else(|| DEFAULT_TABLE_NAME.to_string());
     let mut ctx = crate::datafusion_util::new_context();
     let listing_options = listing_options(format, partitions.clone());
@@ -188,22 +256,12 @@ pub async fn table_as_df(
             err
         })?;
     let mut table: Arc<dyn DataFrame> = ctx.clone().table("listing_table")?;
-    // let data = ctx
-    //     .clone()
-    //     .sql("select count(*) from listing_table")
-    //     .await
-    //     .unwrap()
-    //     .collect()
-    //     .await
-    //     .unwrap();
-    // info!("data = {:?}", data);
     if let Some(filter) = partition_filter_clause(partitions) {
         table = table.filter(filter)?;
     }
     let df_impl = Arc::new(DataFrameImpl::new(ctx.state.clone(), &table.to_logical_plan()));
     ctx.register_table(table_name.as_str(), df_impl.clone())?;
-    let df = ctx.clone().sql(&sql_query).await?;
-    df.execute_stream().await.err_into()
+    ctx.clone().sql(&sql_query).await.err_into()
 }
 
 pub fn print_struct_schema(sa: &StructArray, name: &str) {
