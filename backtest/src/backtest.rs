@@ -1,4 +1,5 @@
 use chrono::{Date, Utc};
+use datafusion::record_batch::RecordBatch;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -292,6 +293,22 @@ pub async fn load_market_events(
     Ok(market_events)
 }
 
+/// Load market events over the provided range
+pub async fn load_market_events_df(
+    channels: Vec<Channel>,
+    date_range: &BacktestRange,
+    mapper: Option<DatasetCatalog>,
+) -> Result<Vec<RecordBatch>> {
+    let data_mapper = mapper.unwrap_or_else(|| default_data_catalog());
+    let period = DateRange(date_range.from, date_range.to, DurationRangeType::Days, 1);
+    let mut market_events = vec![];
+    for c in channels {
+        let dataset = data_mapper.get_reader(&c);
+        market_events.extend(dataset.read_all_events_df(&[c], period).await?);
+    }
+    Ok(market_events)
+}
+
 /// Backtest over the given event stream, reading data from the required channels
 pub async fn backtest_with_events<'a>(
     test_name: &'a str,
@@ -320,7 +337,7 @@ pub async fn backtest_with_events<'a>(
 #[cfg(test)]
 mod test {
     use crate::dataset::default_test_data_catalog;
-    use crate::{backtest_with_range, load_market_events, BacktestRange};
+    use crate::{backtest_with_range, load_market_events, load_market_events_df, BacktestRange};
     use brokers::exchange::Exchange;
     use brokers::pair::register_pair_default;
     use brokers::prelude::MarketEventEnvelope;
@@ -332,7 +349,10 @@ mod test {
     use strategy::models::io::SerializedModel;
     use strategy::Channel;
 
-    fn init() { register_pair_default(Exchange::Binance, "BTCUSDT", "BTC_USDT"); }
+    fn init() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        register_pair_default(Exchange::Binance, "BTCUSDT", "BTC_USDT");
+    }
 
     fn default_trades_date() -> Date<Utc> { Date::from_utc(NaiveDate::from_ymd(2022, 01, 22), Utc) }
 
@@ -403,6 +423,64 @@ mod test {
             "{:?}",
             all_events_are_channel_type
         );
+    }
+
+    #[actix_rt::test]
+    async fn load_order_books_df() {
+        init();
+        let date = Date::from_utc(NaiveDate::from_ymd(2021, 12, 13), Utc);
+        let events = load_market_events_df(
+            vec![Channel::Orderbooks {
+                xch: Exchange::Binance,
+                pair: "BTC_USDT".into(),
+            }],
+            &BacktestRange::new(date, date),
+            Some(default_test_data_catalog()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(events.len(), 1);
+        let rb = events.first().unwrap();
+        assert_eq!(rb.num_rows(), 100);
+    }
+
+    #[actix_rt::test]
+    async fn load_trades_df() {
+        init();
+        let events = load_market_events_df(
+            vec![Channel::Trades {
+                xch: Exchange::Binance,
+                pair: "BTC_USDT".into(),
+            }],
+            &BacktestRange::new(default_trades_date(), default_trades_date()),
+            Some(default_test_data_catalog()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(events.len(), 1);
+        let rb = events.first().unwrap();
+        assert_eq!(rb.num_rows(), 100);
+    }
+
+    // TODO: this should give 8 candles, but since we don't use ids and there are several candles in the same ms, there are 15 candles
+    #[actix_rt::test]
+    #[ignore]
+    async fn load_candles_df() {
+        init();
+        let events = load_market_events_df(
+            vec![Channel::Candles {
+                xch: Exchange::Binance,
+                pair: "BTC_USDT".into(),
+            }],
+            &BacktestRange::new(default_trades_date(), default_trades_date()),
+            Some(default_test_data_catalog()),
+        )
+        .await
+        .unwrap();
+        info!("candles = {:?}", datafusion::arrow_print::write(&events.clone()));
+        assert_eq!(events.len(), 1);
+        let rb = events.first().unwrap();
+        assert_eq!(rb.num_rows(), 8);
     }
 
     struct TestStrategy(Vec<Channel>, usize);

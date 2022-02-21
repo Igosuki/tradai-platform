@@ -1,4 +1,4 @@
-use crate::datafusion_util::{get_col_as, print_struct_schema, tables_as_stream, StringArray,
+use crate::datafusion_util::{get_col_as, multitables_as_df, multitables_as_stream, print_struct_schema, StringArray,
                              TimestampMillisecondArray, UInt16DictionaryArray};
 use brokers::pair::symbol_to_pair;
 use brokers::prelude::*;
@@ -14,15 +14,16 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 use std::path::Path;
 use std::str::FromStr;
+use tracing::Level;
 
 /// Read partitions as trades
-pub fn candles_df<P: 'static + AsRef<Path> + Debug>(
+pub fn candles_stream<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
     resolution: Option<Resolution>,
 ) -> impl Stream<Item = MarketEventEnvelope> {
     let resolution = resolution.unwrap_or_else(|| Resolution::new(Minute, 15));
-    trades_df(table_paths, format)
+    trades_stream(table_paths, format)
         .scan(
             stats::kline::Kline::new(resolution, 2_usize.pow(16)),
             |kl, msg: MarketEventEnvelope| {
@@ -53,11 +54,11 @@ pub fn candles_df<P: 'static + AsRef<Path> + Debug>(
 }
 
 /// Read partitions as trades
-pub fn trades_df<P: 'static + AsRef<Path> + Debug>(
+pub fn trades_stream<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
 ) -> impl Stream<Item = MarketEventEnvelope> + 'static {
-    tables_as_stream(table_paths, format, Some("trades".to_string()), format!("select xch, to_timestamp_millis(event_ms) as event_ts, pr, asset, price, qty, quote_qty, is_buyer_maker from {table} order by event_ms asc", table = "trades")).map(events_from_trades)
+    multitables_as_stream(table_paths, format, Some("trades".to_string()), format!("select xch, to_timestamp_millis(event_ms) as event_ts, pr, asset, price, qty, quote_qty, is_buyer_maker from {table} order by event_ms asc", table = "trades")).map(events_from_trades)
         .flatten()
 }
 
@@ -98,4 +99,50 @@ fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEve
             yield MarketEventEnvelope::trade_event(xchg, symbol_to_pair(&xchg, &pair.into()).unwrap(), ts, price, qty, is_buyer_maker.into());
         }
     }
+}
+
+/// Read partitions as trades
+pub async fn trades_df<P: 'static + AsRef<Path> + Debug>(
+    table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
+    format: String,
+) -> crate::error::Result<RecordBatch> {
+    let batch = multitables_as_df(table_paths, format, Some("trades".to_string()), format!("select xch, to_timestamp_millis(event_ms) as event_ts, pr, asset, price, qty, quote_qty, is_buyer_maker from {table} order by event_ms asc", table = "trades")).await?;
+    if tracing::enabled!(Level::TRACE) {
+        trace!("trades = {:?}", datafusion::arrow_print::write(&[batch.clone()]));
+    }
+    Ok(batch)
+}
+
+/// Read trades partitions as candles
+pub async fn candles_df<P: 'static + AsRef<Path> + Debug>(
+    table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
+    format: String,
+    resolution: Option<Resolution>,
+) -> crate::error::Result<RecordBatch> {
+    let resolution = resolution.unwrap_or_else(|| Resolution::new(Minute, 15));
+    let resolution_millis = resolution.as_millis();
+    let sql_query = format!(
+        r#"
+        SELECT t1.price AS open,
+           m.high,
+           m.low,
+           t2.price as close,
+           open_time
+        FROM (SELECT MIN(event_ms) AS min_time,
+                     MAX(event_ms) AS max_time,
+                     MIN(price) as low,
+                     MAX(price) as high,
+                     FLOOR(event_ms / {resolution}) as open_time
+              FROM trades
+              GROUP BY open_time) m
+        JOIN trades t1 ON t1.event_ms = min_time
+        JOIN trades t2 ON t2.event_ms = max_time
+    "#,
+        resolution = resolution_millis
+    );
+    let batch = multitables_as_df(table_paths, format, Some("trades".to_string()), sql_query.to_string()).await?;
+    if tracing::enabled!(Level::TRACE) {
+        trace!("candles = {:?}", datafusion::arrow_print::write(&[batch.clone()]));
+    }
+    Ok(batch)
 }

@@ -40,6 +40,7 @@ extern crate serde;
 extern crate tracing;
 #[macro_use]
 extern crate anyhow;
+extern crate core;
 
 // // TODO: https://github.com/rust-lang/rust/issues/47384
 // use brokers::prelude::*;
@@ -59,3 +60,4 @@ pub use crate::{backtest::*,
                 config::*,
                 dataset::{DataFormat, MarketEventDatasetType},
                 error::*};
+pub use datafusion::record_batch::RecordBatch;
