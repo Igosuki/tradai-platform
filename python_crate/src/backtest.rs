@@ -209,7 +209,7 @@ fn range_backtest_wrapper<'p>(
 }
 
 /// Lods market events over a provided range and channels
-#[pyfunction(name = "backtest_with_range", module = "backtest")]
+#[pyfunction(name = "load_events", module = "backtest")]
 #[pyo3(text_signature = "(channels, from, to, /)")]
 fn load_events<'p>(py: Python<'p>, channels: &'p PyAny, from: NaiveDate, to: NaiveDate) -> PyResult<&'p PyAny> {
     let channels: Vec<PyChannel> = channels.extract()?;

@@ -106,14 +106,24 @@ impl OHLCV for Candle {
     fn volume(&self) -> ValueType { self.volume }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone, AsRefStr, Copy)]
+#[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone, AsRefStr, Copy, EnumString)]
+#[serde(rename_all = "snake_case")]
 pub enum TimeUnit {
+    #[strum(serialize = "millisecond")]
+    MilliSecond,
+    #[strum(serialize = "second")]
     Second,
+    #[strum(serialize = "minute")]
     Minute,
+    #[strum(serialize = "hour")]
     Hour,
+    #[strum(serialize = "day")]
     Day,
+    #[strum(serialize = "week")]
     Week,
+    #[strum(serialize = "month")]
     Month,
+    #[strum(serialize = "year")]
     Year,
 }
 
@@ -127,6 +137,7 @@ pub struct Resolution {
 impl Resolution {
     pub fn new(time_unit: TimeUnit, units: u32) -> Self {
         match time_unit {
+            TimeUnit::MilliSecond => assert!(units <= 1000),
             TimeUnit::Second | TimeUnit::Minute => assert!(units <= 60),
             TimeUnit::Hour => assert!(units <= 24),
             TimeUnit::Day => assert!(units <= 31),
@@ -140,7 +151,8 @@ impl Resolution {
     fn truncate(&self, dt: DateTime<Utc>) -> DateTime<Utc> {
         let date_part = dt.date();
         let units = self.units as i64;
-        let maybe_secs = match self.time_unit {
+        let maybe_duration = match self.time_unit {
+            TimeUnit::MilliSecond => Some(Duration::milliseconds(units)),
             TimeUnit::Second => Some(Duration::seconds(units)),
             TimeUnit::Minute => Some(Duration::minutes(units)),
             TimeUnit::Hour => Some(Duration::hours(units)),
@@ -148,8 +160,8 @@ impl Resolution {
             TimeUnit::Week => Some(Duration::days(units).mul(7)),
             _ => None,
         };
-        if let Some(secs) = maybe_secs {
-            dt.duration_trunc(secs).unwrap()
+        if let Some(duration) = maybe_duration {
+            dt.duration_trunc(duration).unwrap()
         } else if self.time_unit == TimeUnit::Month {
             Utc.ymd(date_part.year(), date_part.month0(), 0).and_hms(0, 0, 0)
         } else {
@@ -166,12 +178,14 @@ impl Resolution {
             TimeUnit::Week => Duration::weeks(1),
             TimeUnit::Month => Duration::days(1).mul(30),
             TimeUnit::Year => Duration::days(1).mul(365),
+            TimeUnit::MilliSecond => Duration::milliseconds(1000),
         }
         .num_seconds()
     }
 
     fn add(&self, to: DateTime<Utc>) -> DateTime<Utc> {
         match self.time_unit {
+            TimeUnit::MilliSecond => to.add(Duration::milliseconds(self.units as i64)),
             TimeUnit::Second => to.add(Duration::seconds(self.units as i64)),
             TimeUnit::Minute => to.add(Duration::minutes(self.units as i64)),
             TimeUnit::Hour => to.add(Duration::hours(self.units as i64)),

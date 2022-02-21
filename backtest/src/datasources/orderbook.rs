@@ -12,7 +12,7 @@ use futures::StreamExt;
 use tokio_stream::Stream;
 
 use crate::datafusion_util::{get_col_as, print_struct_schema, tables_as_stream, Float64Type, Int64Type, ListArray,
-                             StringArray, TimestampMillisecondArray, UInt8DictionaryArray};
+                             StringArray, TimestampMillisecondArray, UInt16DictionaryArray};
 
 const ORDER_BOOK_TABLE_NAME: &str = "order_books";
 
@@ -106,7 +106,7 @@ fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = Marke
         let bids_col = get_col_as::<ListArray>(&sa, "bids");
         let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ts");
         let pair_col = get_col_as::<StringArray>(&sa, "pr");
-        let xch_col = get_col_as::<UInt8DictionaryArray>(&sa, "xch");
+        let xch_col = get_col_as::<UInt16DictionaryArray>(&sa, "xch");
         let xch_values = xch_col.values().as_any().downcast_ref::<StringArray>().unwrap();
 
         for i in 0..sa.len() {

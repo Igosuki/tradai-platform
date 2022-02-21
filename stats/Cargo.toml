@@ -38,6 +38,7 @@ yata = { version = "0.6", features = ["period_type_u32"] }
 ordered-float = "2.8"
 ringbuffer = "0.8"
 smallvec = "1.8"
+strum = "0.23"
 
 # std
 chrono = { version = "0.4", features = ["serde"] }
