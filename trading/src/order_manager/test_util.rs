@@ -89,13 +89,13 @@ pub fn create_ok_order_mock<'a>(server: &'a MockServer, order: &'a OrderDetail) 
             binance::rest_model::Fill {
                 price: price * 0.99,
                 qty: qty * 0.8,
-                commission: quote_qty * Exchange::Binance.default_fees(),
+                commission: quote_qty * Exchange::default_fees(),
                 commission_asset: "USDT".to_string(),
             },
             binance::rest_model::Fill {
                 price: price * 0.98,
                 qty: qty * 0.2,
-                commission: quote_qty * Exchange::Binance.default_fees(),
+                commission: quote_qty * Exchange::default_fees(),
                 commission_asset: "USDT".to_string(),
             },
         ],
@@ -144,13 +144,13 @@ pub fn create_ok_margin_order_mock(server: &MockServer, order: OrderDetail) -> M
             binance::rest_model::Fill {
                 price: price * 0.99,
                 qty: qty * 0.8,
-                commission: quote_qty * Exchange::Binance.default_fees(),
+                commission: quote_qty * Exchange::default_fees(),
                 commission_asset: "USDT".to_string(),
             },
             binance::rest_model::Fill {
                 price: price * 0.98,
                 qty: qty * 0.2,
-                commission: quote_qty * Exchange::Binance.default_fees(),
+                commission: quote_qty * Exchange::default_fees(),
                 commission_asset: "USDT".to_string(),
             },
         ],

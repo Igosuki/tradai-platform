@@ -37,8 +37,6 @@ extern crate async_trait;
 #[macro_use]
 extern crate serde;
 #[macro_use]
-extern crate tokio;
-#[macro_use]
 extern crate tracing;
 #[macro_use]
 extern crate anyhow;

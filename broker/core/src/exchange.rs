@@ -20,9 +20,8 @@ pub enum Exchange {
 }
 
 impl Exchange {
-    #[allow(clippy::unused_self)]
     #[must_use]
-    pub fn default_fees(&self) -> f64 { 0.001 }
+    pub fn default_fees() -> f64 { 0.001 }
 
     #[must_use]
     pub fn capitalized(&self) -> String {

@@ -27,12 +27,6 @@ pub fn repo_dir() -> String {
         .unwrap_or_else(|| "..".to_string())
 }
 
-/// The base directory of historical cache data
-#[must_use]
-pub fn data_cache_dir() -> PathBuf {
-    Path::new(&std::env::var("COINDATA_CACHE_DIR").unwrap_or("".to_string())).join("data")
-}
-
 /// The base directory of test data
 #[must_use]
 pub fn test_data_dir() -> PathBuf {

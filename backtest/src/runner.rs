@@ -116,7 +116,7 @@ impl BacktestRunner {
         // Main loop
         let mut driver = self.driver.lock().await;
         'main: loop {
-            select! {
+            tokio::select! {
                 biased;
 
                 market_event = self.events_stream.recv() => {

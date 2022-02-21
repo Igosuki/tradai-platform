@@ -1,5 +1,5 @@
 use chrono::{Date, Utc};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -21,7 +21,7 @@ use util::compress::Compression;
 use util::time::{DateRange, DurationRangeType};
 
 use crate::config::BacktestConfig;
-use crate::dataset::{default_data_mapper, DataMapper, DatasetReader};
+use crate::dataset::{default_data_catalog, DatasetCatalog, DatasetReader};
 use crate::error::*;
 use crate::report::{BacktestReport, GlobalReport, ReportConfig};
 use crate::runner::BacktestRunner;
@@ -50,12 +50,15 @@ async fn build_msg_broker(
 /// Panics if the test results directory cannot be created
 #[must_use]
 pub fn backtest_results_dir(test_name: &str) -> String {
-    let base_path = std::env::var("TRADAI_BACKTESTS_OUT_DIR").unwrap_or("backtest_results".to_string());
-    let test_results_dir = format!("{}/{}", base_path, test_name);
+    let base_path = std::env::var("TRADAI_BACKTESTS_OUT_DIR")
+        .or(std::env::var("CARGO_MANIFEST_DIR"))
+        .unwrap_or("".to_string());
+    let test_results_dir = Path::new(&base_path).join("backtest_results").join(test_name);
     std::fs::create_dir_all(&test_results_dir).unwrap();
-    test_results_dir
+    format!("{}", test_results_dir.as_path().display())
 }
 
+#[derive(Copy, Clone)]
 pub struct BacktestRange {
     from: Date<Utc>,
     to: Date<Utc>,
@@ -193,16 +196,14 @@ impl Backtest {
 }
 
 async fn build_runner<'a>(
-    test_name: &'a str,
     provider: StratProviderRef,
     providers: &'a [Exchange],
     starting_cash: f64,
     fees_rate: f64,
-) -> (Arc<RwLock<BacktestRunner>>, Receiver<BacktestReport>, CancellationToken) {
+) -> Arc<RwLock<BacktestRunner>> {
     let path = util::test::test_dir();
 
     let engine = Arc::new(mock_engine(path.path(), providers));
-    let test_results_dir = backtest_results_dir(test_name);
     let options = DbOptions::new(path);
     let db = get_or_create(&options, "", vec![]);
     let strat = provider(StrategyInitContext {
@@ -227,31 +228,42 @@ async fn build_runner<'a>(
     }
     let driver = Box::new(GenericDriver::try_new(channels, db, &generic_options, strat, engine, None).unwrap());
     let runner_ref = BacktestRunner::spawn_with_driver(None, driver).await;
+
+    runner_ref.clone()
+}
+
+async fn start_bt(
+    test_name: &str,
+    runner_ref: Arc<RwLock<BacktestRunner>>,
+) -> (Receiver<BacktestReport>, CancellationToken) {
+    let test_results_dir = backtest_results_dir(test_name);
+
     let stop_token = CancellationToken::new();
     let (tx, rx) = tokio::sync::mpsc::channel(1);
     let stop_token_a = stop_token.clone();
-    let runner_ref_a = runner_ref.clone();
     tokio::spawn(async move {
-        let mut runner = runner_ref_a.write().await;
+        let mut runner = runner_ref.write().await;
         let report = runner.run(test_results_dir, Compression::none(), stop_token_a).await;
         report.finish().await.unwrap();
         tx.send(report).await.unwrap();
     });
-    (runner_ref.clone(), rx, stop_token.clone())
+    (rx, stop_token.clone())
 }
 
 /// Backtest over a period of time, reading data from the required channels
 pub async fn backtest_with_range<'a>(
     test_name: &'a str,
     provider: StratProviderRef,
-    date_range: &'a BacktestRange,
+    date_range: BacktestRange,
     providers: &'a [Exchange],
     starting_cash: f64,
     fees_rate: f64,
+    data_mapper: Option<DatasetCatalog>,
 ) -> Result<BacktestReport> {
-    let (runner_ref, mut rx, stop_token) = build_runner(test_name, provider, providers, starting_cash, fees_rate).await;
+    let runner_ref = build_runner(provider, providers, starting_cash, fees_rate).await;
     let broker = build_msg_broker(&[runner_ref.clone()]).await;
-    let data_mapper = default_data_mapper();
+    let (mut rx, stop_token) = start_bt(test_name, runner_ref).await;
+    let data_mapper = data_mapper.unwrap_or_else(|| default_data_catalog());
     let period = DateRange(date_range.from, date_range.to, DurationRangeType::Days, 1);
     for c in broker.subjects() {
         let dataset = data_mapper.get_reader(c);
@@ -267,9 +279,9 @@ pub async fn backtest_with_range<'a>(
 pub async fn load_market_events(
     channels: Vec<Channel>,
     date_range: &BacktestRange,
-    mapper: Option<DataMapper>,
+    mapper: Option<DatasetCatalog>,
 ) -> Result<Vec<MarketEventEnvelope>> {
-    let data_mapper = mapper.unwrap_or_else(|| default_data_mapper());
+    let data_mapper = mapper.unwrap_or_else(|| default_data_catalog());
     let period = DateRange(date_range.from, date_range.to, DurationRangeType::Days, 1);
     let mut market_events = vec![];
     for c in channels {
@@ -289,10 +301,15 @@ pub async fn backtest_with_events<'a>(
     starting_cash: f64,
     fees_rate: f64,
 ) -> Result<BacktestReport> {
-    let (runner_ref, mut rx, stop_token) = build_runner(test_name, provider, providers, starting_cash, fees_rate).await;
-    let runner = runner_ref.write().await;
+    let runner_ref = build_runner(provider, providers, starting_cash, fees_rate).await;
+    let sink = async {
+        let runner = runner_ref.read().await;
+        runner.event_sink()
+    }
+    .await;
+    let (mut rx, stop_token) = start_bt(test_name, runner_ref).await;
     for event in events {
-        runner.event_sink().send(event).await.unwrap();
+        sink.send(event).await.unwrap();
     }
     stop_token.cancel();
     rx.recv().await.ok_or(crate::error::Error::AnyhowError(anyhow!(
@@ -302,17 +319,26 @@ pub async fn backtest_with_events<'a>(
 
 #[cfg(test)]
 mod test {
-    use crate::dataset::default_test_data_mapper;
-    use crate::{load_market_events, BacktestRange};
+    use crate::dataset::default_test_data_catalog;
+    use crate::{backtest_with_range, load_market_events, BacktestRange};
     use brokers::exchange::Exchange;
     use brokers::pair::register_pair_default;
+    use brokers::prelude::MarketEventEnvelope;
     use brokers::types::MarketEvent;
     use chrono::{Date, NaiveDate, Utc};
+    use std::collections::HashSet;
+    use std::sync::Arc;
+    use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
+    use strategy::models::io::SerializedModel;
     use strategy::Channel;
 
     fn init() { register_pair_default(Exchange::Binance, "BTCUSDT", "BTC_USDT"); }
 
-    #[tokio::test]
+    fn default_trades_date() -> Date<Utc> { Date::from_utc(NaiveDate::from_ymd(2022, 01, 22), Utc) }
+
+    fn default_orderbooks_date() -> Date<Utc> { Date::from_utc(NaiveDate::from_ymd(2021, 12, 13), Utc) }
+
+    #[actix_rt::test]
     async fn load_order_books() {
         init();
         let date = Date::from_utc(NaiveDate::from_ymd(2021, 12, 13), Utc);
@@ -322,7 +348,7 @@ mod test {
                 pair: "BTC_USDT".into(),
             }],
             &BacktestRange::new(date, date),
-            Some(default_test_data_mapper()),
+            Some(default_test_data_catalog()),
         )
         .await
         .unwrap();
@@ -335,17 +361,16 @@ mod test {
         );
     }
 
-    #[tokio::test]
+    #[actix_rt::test]
     async fn load_trades() {
         init();
-        let date = Date::from_utc(NaiveDate::from_ymd(2022, 01, 22), Utc);
         let events = load_market_events(
             vec![Channel::Trades {
                 xch: Exchange::Binance,
                 pair: "BTC_USDT".into(),
             }],
-            &BacktestRange::new(date, date),
-            Some(default_test_data_mapper()),
+            &BacktestRange::new(default_trades_date(), default_trades_date()),
+            Some(default_test_data_catalog()),
         )
         .await
         .unwrap();
@@ -358,17 +383,16 @@ mod test {
         );
     }
 
-    #[tokio::test]
+    #[actix_rt::test]
     async fn load_candles() {
         init();
-        let date = Date::from_utc(NaiveDate::from_ymd(2022, 01, 22), Utc);
         let events = load_market_events(
             vec![Channel::Candles {
                 xch: Exchange::Binance,
                 pair: "BTC_USDT".into(),
             }],
-            &BacktestRange::new(date, date),
-            Some(default_test_data_mapper()),
+            &BacktestRange::new(default_trades_date(), default_trades_date()),
+            Some(default_test_data_catalog()),
         )
         .await
         .unwrap();
@@ -379,5 +403,98 @@ mod test {
             "{:?}",
             all_events_are_channel_type
         );
+    }
+
+    struct TestStrategy(Vec<Channel>, usize);
+
+    #[async_trait]
+    impl Strategy for TestStrategy {
+        fn key(&self) -> String { "test".to_string() }
+
+        fn init(&mut self) -> strategy::error::Result<()> { Ok(()) }
+
+        async fn eval(
+            &mut self,
+            e: &MarketEventEnvelope,
+            _ctx: &DefaultStrategyContext,
+        ) -> strategy::error::Result<Option<TradeSignals>> {
+            if self.0.contains(&Channel::from(e)) {
+                self.1 += 1;
+            }
+            Ok(None)
+        }
+
+        fn model(&self) -> SerializedModel { Default::default() }
+
+        fn channels(&self) -> HashSet<Channel> {
+            let mut channels = HashSet::new();
+            for c in &self.0 {
+                channels.insert(c.clone());
+            }
+            channels
+        }
+    }
+
+    #[test]
+    fn backtest_range() {
+        init();
+        actix::System::with_tokio_rt(move || {
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .expect("Default Tokio runtime could not be created.")
+        })
+        .block_on(async {
+            let backtest_fn = |channels: Vec<Channel>, range: BacktestRange| {
+                backtest_with_range(
+                    "backtest_range",
+                    Arc::new(move |_| Box::new(TestStrategy(channels.clone(), 0))),
+                    range,
+                    &[Exchange::Binance],
+                    100.0,
+                    Exchange::default_fees(),
+                    Some(default_test_data_catalog()),
+                )
+            };
+            let report = backtest_fn(
+                vec![Channel::Candles {
+                    xch: Exchange::Binance,
+                    pair: "BTC_USDT".into(),
+                }],
+                BacktestRange::new(default_trades_date(), default_trades_date()),
+            )
+            .await
+            .unwrap();
+            let candles = report.candles_ss.read_all().unwrap();
+            assert_eq!(candles.len(), 8);
+
+            let report = backtest_fn(
+                vec![Channel::Trades {
+                    xch: Exchange::Binance,
+                    pair: "BTC_USDT".into(),
+                }],
+                BacktestRange::new(default_trades_date(), default_trades_date()),
+            )
+            .await
+            .unwrap();
+            let candles = report.candles_ss.read_all().unwrap();
+            assert_eq!(candles.len(), 0);
+            let ticks = report.market_stats_ss.read_all().unwrap();
+            assert_eq!(ticks.len(), 100);
+
+            let report = backtest_fn(
+                vec![Channel::Orderbooks {
+                    xch: Exchange::Binance,
+                    pair: "BTC_USDT".into(),
+                }],
+                BacktestRange::new(default_orderbooks_date(), default_trades_date()),
+            )
+            .await
+            .unwrap();
+            let candles = report.candles_ss.read_all().unwrap();
+            assert_eq!(candles.len(), 0);
+            let ticks = report.market_stats_ss.read_all().unwrap();
+            assert_eq!(ticks.len(), 100);
+        });
     }
 }
