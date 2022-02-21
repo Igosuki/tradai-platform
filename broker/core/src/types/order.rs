@@ -291,8 +291,8 @@ impl From<AddOrderRequest> for OrderSubmission {
         let pair_string = aor.pair.to_string();
         let (base_asset, quote_asset) = pair_string.split_once('_').unwrap();
         let (fee, fee_asset) = match aor.side {
-            TradeType::Sell => (price * qty * aor.xch.default_fees(), quote_asset),
-            TradeType::Buy => (qty * aor.xch.default_fees(), base_asset),
+            TradeType::Sell => (price * qty * Exchange::default_fees(), quote_asset),
+            TradeType::Buy => (qty * Exchange::default_fees(), base_asset),
         };
         Self {
             timestamp: util::get_unix_timestamp_ms(),

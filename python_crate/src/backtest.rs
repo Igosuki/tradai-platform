@@ -192,10 +192,11 @@ fn range_backtest_wrapper<'p>(
                 let report = backtest_with_range(
                     &name,
                     provider,
-                    &backtest::BacktestRange::new(from, to),
+                    backtest::BacktestRange::new(from, to),
                     &[Exchange::Binance],
                     100.0,
                     0.001,
+                    None,
                 )
                 .await;
                 tx.send(report.unwrap()).await.unwrap();
@@ -220,7 +221,7 @@ fn load_events<'p>(py: Python<'p>, channels: &'p PyAny, from: NaiveDate, to: Nai
         thread::spawn(move || {
             actix_multi_rt().block_on(async move {
                 let channels = channels.into_iter().map(Into::<Channel>::into).collect();
-                let events = load_market_events(channels, &backtest::BacktestRange::new(from, to)).await;
+                let events = load_market_events(channels, &backtest::BacktestRange::new(from, to), None).await;
                 tx.send(events.unwrap()).await.unwrap();
             });
         });

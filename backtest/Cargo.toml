@@ -36,6 +36,7 @@ tokio-stream = { version = "0.1", features = ["sync", "fs", "net", "io-util", "t
 
 # actors
 actix = "0.12"
+actix-rt = "2.6"
 
 # config
 config = { version = "0.11", features = ["yaml", "toml", "json"], default-features = false }
