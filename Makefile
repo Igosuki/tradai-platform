@@ -207,10 +207,10 @@ python_arch=linux_x86_64
 python_cp_target=cp310
 python_dylib_v=2021.0.0
 release-python-lib-local:
-	maturin build --release --no-sdist  -i $(python_target) -m python_dylib/Cargo.toml
+	maturin build --release --no-sdist --rustc-extra-args="-Clink-arg=-Wl,--allow-multiple-definition" -i $(python_target) -m python_dylib/Cargo.toml && pip3.10 install --force-reinstall $(PWD)/python_dylib/target/wheels/tradai-$(python_dylib_v)-$(python_cp_target)-$(python_cp_target)-$(python_arch).whl
 
 build-python-lib-local:
-	maturin build --no-sdist -i $(python_target) -m python_dylib/Cargo.toml && pip3.10 install --force-reinstall $(PWD)/target/wheels/tradai-$(python_dylib_v)-$(python_cp_target)-$(python_cp_target)-$(python_arch).whl
+	maturin build --no-sdist -i $(python_target) -m python_dylib/Cargo.toml --rustc-extra-args="-Clink-arg=-Wl,--allow-multiple-definition" && pip3.10 install --force-reinstall $(PWD)/python_dylib/target/wheels/tradai-$(python_dylib_v)-$(python_cp_target)-$(python_cp_target)-$(python_arch).whl
 
 dev-python-lib:
 	maturin develop -m python_dylib/Cargo.toml --extras pytest,pytest-cov[all] --rustc-extra-args="-Clink-arg=-Wl,--allow-multiple-definition"

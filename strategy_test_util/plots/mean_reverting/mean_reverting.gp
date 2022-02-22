@@ -25,12 +25,12 @@ set xlabel 'Time'
 plot server_ema_file using 1:2 with lines title "server_short_ema" noenhanced, \
     '' using 1:3 with lines title "server_long_ema" noenhanced
 
-plot server_ema_file using 1:4 with lines title "server_apo" noenhanced
+plot server_ema_file using 1:4 with lines title "server_ppo" noenhanced
 
 plot server_ema_file using 1:5 with lines title "server_value_strat" noenhanced
 
 plot server_trades_file using 1:5 with lines title "server_price" noenhanced
- 
+
 plot server_trades_file using 1:6 with lines title "server_qty" noenhanced
 
 plot server_trades_file using 1:7 with lines title "server_trades_value_strat" noenhanced
@@ -41,7 +41,7 @@ plot server_threshold_file using 1:3 with lines title "server_threshold_long" no
 
 plot server_threshold_file using 1:3 with lines title "server_threshold_long" noenhanced, \
     server_threshold_file using 1:2 with lines title "server_threshold_short" noenhanced, \
-    server_ema_file using 1:4 with lines title "server_apo" noenhanced, \
+    server_ema_file using 1:4 with lines title "server_ppo" noenhanced, \
     server_trades_file using 1:(strcol(4) eq 'buy'?0:1/0) with points title "buy" linecolor rgb "red", \
     server_trades_file using 1:(strcol(4) eq 'sell'?0:1/0) with points title "sell" linecolor rgb "blue"
 

@@ -32,7 +32,7 @@ impl PyStrategy {
     fn new(_conf: PyObject) -> Self { Self {} }
 
     /// Return a unique key identifying this strategy
-    #[pyo3(text_signature = "($self)")]
+    #[pyo3(text_signature = "($self) -> str")]
     fn whoami(&self) -> PyResult<&'static str> { Ok("PythonStrat") }
 
     /// Initialize the strategy, for instance load remote data, called only once after start
@@ -40,15 +40,15 @@ impl PyStrategy {
     fn init(&mut self) -> PyResult<()> { Err(PyNotImplementedError::new_err("init")) }
 
     /// This is an async function
-    #[pyo3(text_signature = "($self, market_event)")]
+    #[pyo3(text_signature = "($self, market_event: tradai.MarketEvent) -> List[tradai.TradeSignal]")]
     fn eval(&mut self, _e: PyObject) -> PyResult<Vec<PyTradeSignal>> { Err(PyNotImplementedError::new_err("eval")) }
 
     /// Return a list of key, value tuples for each model value, this is used for analytical purposes only
-    #[pyo3(text_signature = "($self)")]
+    #[pyo3(text_signature = "($self) -> List[(str, Option[Dict])]")]
     fn model(&self) -> PyResult<Vec<(&str, Option<PyObject>)>> { Err(PyNotImplementedError::new_err("model")) }
 
     /// Return the channels this strategy subscribes to, see tradai.Channel
-    #[pyo3(text_signature = "($self)")]
+    #[pyo3(text_signature = "($self) -> List[tradai.Channel]")]
     fn channels(&self) -> PyResult<Vec<PyChannel>> { Err(PyNotImplementedError::new_err("channels")) }
 }
 
