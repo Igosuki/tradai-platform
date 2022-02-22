@@ -5266,8 +5266,3 @@ dependencies = [
  "cc",
  "libc",
 ]
-
-[[patch.unused]]
-name = "avro-rs"
-version = "0.13.0"
-source = "git+https://github.com/Igosuki/avro-rs.git?branch=update_deps#9a970abb57046527c059251359b5cd3c3f21b882"

@@ -4,6 +4,7 @@ use pyo3::PyResult;
 use serde::{Deserialize, Serialize};
 
 use stats::indicators::macd_apo::MACDApo;
+#[allow(unused_imports)]
 use stats::*;
 use stats::{Close, Next};
 
@@ -59,7 +60,8 @@ pub(crate) fn macd_apo(short_window: u32, long_window: u32) -> PyIndicator {
     }
 }
 
-pub(crate) fn init_module(m: &PyModule) -> PyResult<()> {
+#[pymodule]
+pub(crate) fn ta(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(macd_apo, m)?)?;
     Ok(())
 }
