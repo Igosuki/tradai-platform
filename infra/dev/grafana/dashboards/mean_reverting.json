@@ -577,7 +577,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "apo{pair=~\"$pair\"}",
+          "expr": "ppo{pair=~\"$pair\"}",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -686,7 +686,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(apo{pair=~\"$pair\"}[5m]) == 0",
+          "expr": "rate(ppo{pair=~\"$pair\"}[5m]) == 0",
           "interval": "",
           "legendFormat": "",
           "refId": "A"

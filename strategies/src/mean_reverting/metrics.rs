@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use prometheus::{CounterVec, GaugeVec, Registry};
 
 use metrics::prelude::*;
-use stats::indicators::macd_apo::MACDApo;
+use stats::indicators::ppo::PercentPriceOscillator;
 use trading::book::BookPosition;
 use trading::position::{OperationKind, PositionKind};
 
-type ModelIndicatorFn = (String, fn(&MACDApo) -> f64);
+type ModelIndicatorFn = (String, fn(&PercentPriceOscillator) -> f64);
 
 lazy_static! {
     static ref METRIC_STORE: MetricStore<String, MeanRevertingStrategyMetrics> = MetricStore::new();
@@ -53,7 +53,7 @@ impl MeanRevertingStrategyMetrics {
             gauges.insert(gauge_name.to_string(), gauge_vec);
         }
 
-        let model_gauges: Vec<ModelIndicatorFn> = vec![("apo".to_string(), |x| x.apo)];
+        let model_gauges: Vec<ModelIndicatorFn> = vec![("ppo".to_string(), |x| x.ppo)];
         let threshold_gauges: Vec<String> = vec!["mr_threshold_short".to_string(), "mr_threshold_long".to_string()];
         {
             for gauge_name in threshold_gauges.iter().chain(model_gauges.iter().map(|g| &g.0)) {
@@ -92,7 +92,7 @@ impl MeanRevertingStrategyMetrics {
             g.with_label_values(&[]).set(threshold_long);
         }
     }
-    pub(super) fn log_model(&self, model: &MACDApo) {
+    pub(super) fn log_model(&self, model: &PercentPriceOscillator) {
         for (gauge_name, model_gauge_fn) in &self.model_indicator_fns {
             if let Some(g) = self.common_gauges.get(gauge_name) {
                 g.with_label_values(&[]).set(model_gauge_fn(model));

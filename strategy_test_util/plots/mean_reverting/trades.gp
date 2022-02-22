@@ -30,7 +30,7 @@ set xlabel 'Time'
 
 plot server_threshold_file using 1:3 with lines title "server_threshold_long" noenhanced, \
     server_threshold_file using 1:2 with lines title "server_threshold_short" noenhanced, \
-    server_ema_file using 1:4 with lines title "server_apo" noenhanced, \
+    server_ema_file using 1:4 with lines title "server_ppo" noenhanced, \
     server_trades_file using 1:($2==0?0:1/0) with points title "buy" linecolor rgb "red", \
     server_trades_file using 1:($2==1?0:1/0) with points title "sell" linecolor rgb "blue"
 

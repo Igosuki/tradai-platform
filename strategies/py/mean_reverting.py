@@ -36,7 +36,8 @@ class MeanReverting(Strategy):
             }
         }
         db = ctx.db
-        dis.apo_model = model.persistent_ta("apo_%s" % dis.conf['pair'], db, ta.macd_apo(
+
+        dis.ppo_model = model.persistent_ta("ppo_%s" % dis.conf['pair'], db, ta.ppo(
             dis.conf['short_window_size'], dis.conf['long_window_size']))
         if dis.conf['dynamic_threshold'] is True:
             dis.threshold_model = model.persistent_window_ta("thresholds_%s" % dis.conf['pair'], db, dis.conf['threshold_window_size'], windowed_ta.thresholds(
@@ -53,19 +54,19 @@ class MeanReverting(Strategy):
 
     def init(self):
         if self.initialized is not True:
-            self.apo_model.try_load()
+            self.ppo_model.try_load()
             self.threshold_model.try_load()
             self.initialized = True
             print(f"Initialized {self.whoami()}")
 
     async def eval(self, event):
         #event.debug()
-        self.apo_model.next(event.vwap())
-        apo = self.apo_model.values()[0]
-        if apo is None:
+        self.ppo_model.next(event.vwap())
+        ppo = self.ppo_model.values()[0]
+        if ppo is None:
             return
         if self.conf['dynamic_threshold']:
-            self.threshold_model.next(apo)
+            self.threshold_model.next(ppo)
             threshold_long = self.threshold_model.values()[0]
             threshold_short = self.threshold_model.values()[1]
         else:
@@ -73,23 +74,23 @@ class MeanReverting(Strategy):
             threshold_short = self.conf['threshold_short']
 
         signals = []
-        if event.low() > 0 and apo < 0.0:
+        if event.low() > 0 and ppo < 0.0:
             signals.append(signal(PositionKind.Short, OperationKind.Close, TradeKind.Buy, event.low(
             ), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
-        if event.high() > 0 and apo > 0.0:
+        if event.high() > 0 and ppo > 0.0:
             signals.append(signal(PositionKind.Long, OperationKind.Close, TradeKind.Sell, event.high(
             ), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
-        if event.low() > 0 and apo < threshold_long:
+        if event.low() > 0 and ppo < threshold_long:
             signals.append(signal(PositionKind.Long, OperationKind.Open, TradeKind.Buy, event.low(
             ), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
-        if event.high() > 0 and apo > threshold_short:
+        if event.high() > 0 and ppo > threshold_short:
             signals.append(signal(PositionKind.Short, OperationKind.Open, TradeKind.Sell, event.high(
             ), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
 
         return signals
 
     def models(self):
-        return self.apo_model.export() + self.threshold_model.export()
+        return self.ppo_model.export() + self.threshold_model.export()
 
     def channels(self):
         return ((Channel("orderbooks", self.conf['xch'], self.conf['pair']),))
@@ -108,7 +109,7 @@ MEAN_REVERTING_DRAW_ENTRIES = [(
             ("short_ema", x['model']['short_ema']['current']),
             ("long_ema", x['model']['long_ema']['current'])])
     ,
-    ("APO", lambda x: [("apo", x['model']['apo']), ("threshold_low", x['model']['low']), ("threshold_short", x['model']['high'])]),
+    ("APO", lambda x: [("ppo", x['model']['ppo']), ("threshold_low", x['model']['low']), ("threshold_short", x['model']['high'])]),
     (
         "Portfolio Return",
         lambda x: [("pfl_return", x['snapshot']['current_return'])]),

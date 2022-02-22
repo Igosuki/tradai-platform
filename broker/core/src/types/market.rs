@@ -222,6 +222,7 @@ impl MarketEvent {
         }
     }
 
+    /// Volume Weighted Average Price
     pub fn vwap(&self) -> f64 {
         match self {
             MarketEvent::Trade(t) => t.price,

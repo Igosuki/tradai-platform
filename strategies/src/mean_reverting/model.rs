@@ -9,7 +9,7 @@ use serde::ser::Serializer;
 use brokers::types::{MarketEvent, MarketEventEnvelope};
 use db::Storage;
 use ext::ResultExt;
-use stats::indicators::macd_apo::MACDApo;
+use stats::indicators::ppo::PercentPriceOscillator;
 use stats::indicators::thresholds::Thresholds;
 use strategy::error::{Error, Result};
 use strategy::models::indicator_windowed_model::IndicatorWindowedModel;
@@ -22,15 +22,15 @@ use super::options::Options;
 #[derive(Debug)]
 pub struct MeanRevertingModel {
     sampler: Sampler,
-    apo: IndicatorModel<MACDApo, f64>,
+    ppo: IndicatorModel<PercentPriceOscillator, f64>,
     thresholds: Option<IndicatorWindowedModel<f64, Thresholds>>,
     thresholds_0: (f64, f64),
 }
 
 impl MeanRevertingModel {
     pub fn new(n: &Options, db: Arc<dyn Storage>) -> Self {
-        let macd_apo = MACDApo::new(n.long_window_size, n.short_window_size);
-        let ema_model = IndicatorModel::new(&format!("model_{}", n.pair), db.clone(), macd_apo);
+        let ppo = PercentPriceOscillator::new(n.long_window_size, n.short_window_size);
+        let ppo_model = IndicatorModel::new(&format!("model_{}", n.pair), db.clone(), ppo);
         let threshold_table = if n.dynamic_threshold() {
             n.threshold_window_size.map(|thresold_window_size| {
                 IndicatorWindowedModel::new(
@@ -46,7 +46,7 @@ impl MeanRevertingModel {
         };
         Self {
             sampler: Sampler::new(n.sample_freq(), Utc.timestamp_millis(0)),
-            apo: ema_model,
+            ppo: ppo_model,
             thresholds: threshold_table,
             thresholds_0: (n.threshold_short, n.threshold_long),
         }
@@ -62,21 +62,21 @@ impl MeanRevertingModel {
             _ => return Ok(()),
         };
         let vwap = ob.vwap().unwrap();
-        self.apo
+        self.ppo
             .update(vwap)
             .err_into()
             .and_then(|_| {
-                self.apo
+                self.ppo
                     .value()
                     .ok_or_else(|| Error::ModelLoadError("no mean reverting model value".to_string()))
             })
             .map_err(|e| {
-                tracing::debug!(err = %e, "failed to update apo");
+                tracing::debug!(err = %e, "failed to update ppo");
                 e
             })?;
-        if let Some(apo) = self.apo.value().map(|m| m.apo) {
+        if let Some(ppo) = self.ppo.value().map(|m| m.ppo) {
             if let Some(t) = self.thresholds.as_mut() {
-                t.push(apo);
+                t.push(ppo);
                 if t.is_filled() {
                     t.update().map_err(|e| {
                         tracing::debug!(err = %e, "failed to update thresholds");
@@ -90,8 +90,8 @@ impl MeanRevertingModel {
 
     pub fn try_load(&mut self) -> strategy::error::Result<()> {
         {
-            self.apo.try_load()?;
-            if let Some(_model_time) = self.apo.last_model_time() {
+            self.ppo.try_load()?;
+            if let Some(_model_time) = self.ppo.last_model_time() {
                 // TODO: set last sample time from loaded data
                 //self.sampler.set_last_time(model_time);
             }
@@ -113,14 +113,14 @@ impl MeanRevertingModel {
     }
 
     pub(crate) fn is_loaded(&self) -> bool {
-        self.apo.is_loaded() && self.thresholds.as_ref().map_or(true, Model::is_loaded)
+        self.ppo.is_loaded() && self.thresholds.as_ref().map_or(true, Model::is_loaded)
     }
 
     // TODO: use this in the new trait that will be returned to the driver
     #[allow(dead_code)]
     pub(crate) fn reset(&mut self, name: Option<&str>) -> Result<()> {
-        if name == Some("apo") || name.is_none() {
-            self.apo.wipe()?;
+        if name == Some("ppo") || name.is_none() {
+            self.ppo.wipe()?;
         }
         if name == Some("thresholds") || name.is_none() {
             self.thresholds.as_mut().map(Model::wipe).transpose()?;
@@ -131,8 +131,8 @@ impl MeanRevertingModel {
     pub(crate) fn values(&self) -> Vec<(String, Option<serde_json::Value>)> {
         vec![
             (
-                "apo".to_string(),
-                self.apo.value().and_then(|v| serde_json::to_value(v.apo).ok()),
+                "ppo".to_string(),
+                self.ppo.value().and_then(|v| serde_json::to_value(v.ppo).ok()),
             ),
             (
                 "high".to_string(),
@@ -149,9 +149,9 @@ impl MeanRevertingModel {
         ]
     }
 
-    pub(crate) fn apo(&self) -> Option<f64> { self.apo.value().map(|m| m.apo) }
+    pub(crate) fn ppo(&self) -> Option<f64> { self.ppo.value().map(|m| m.ppo) }
 
-    pub(crate) fn apo_value(&self) -> Option<MACDApo> { self.apo.value() }
+    pub(crate) fn ppo_value(&self) -> Option<PercentPriceOscillator> { self.ppo.value() }
 
     pub(crate) fn thresholds(&self) -> (f64, f64) {
         match self.thresholds.as_ref() {
@@ -170,8 +170,8 @@ impl LoadableModel for MeanRevertingModel {
             Box::new(BufReader::new(read))
         };
         let models: HashMap<String, serde_json::Value> = serde_json::from_reader(reader)?;
-        if let Some(model) = models.get("apo") {
-            self.apo.import(model.clone())?;
+        if let Some(model) = models.get("ppo") {
+            self.ppo.import(model.clone())?;
         }
         if let (Some(thresholds_model), Some(thresholds_table)) =
             (models.get("thresholds"), models.get("thresholds_table"))
@@ -191,8 +191,8 @@ impl LoadableModel for MeanRevertingModel {
         };
         let mut ser = serde_json::Serializer::new(writer);
         let mut ser_struct = ser.serialize_struct("MeanRevertingModel", 3).unwrap();
-        if let Some(model) = self.apo.value() {
-            ser_struct.serialize_field("apo", &model)?;
+        if let Some(model) = self.ppo.value() {
+            ser_struct.serialize_field("ppo", &model)?;
         }
         if let Some(windowed_model) = &self.thresholds {
             if let Some(model) = windowed_model.value() {

@@ -236,7 +236,7 @@ impl BacktestReport {
 
         if let Ok(models) = self.model_ss.read_all() {
             super::draw_lines(&mut plot, trace_offset, models.as_slice(), vec![("model", vec![
-                |m| extract_f64(m, "apo"),
+                |m| extract_f64(m, "ppo"),
                 |m| extract_f64(m, "high"),
                 |m| extract_f64(m, "low"),
             ])]);
