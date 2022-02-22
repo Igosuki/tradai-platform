@@ -59,4 +59,4 @@ pythonize = { git = "https://github.com/Igosuki/pythonize", rev = "d5309ca6491cd
 datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_i" }
 arrow2 = { git = "https://github.com/jorgecarleitao/arrow2.git", rev = "dded624dc6a6347d7e937efee7779a44a51c4edb" }
 inventory = { git = "https://github.com/Igosuki/inventory.git" }
-avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "update_deps" }
+#avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "update_deps" }

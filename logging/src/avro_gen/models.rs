@@ -1,4 +1,12 @@
 
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
+pub enum TradeType {
+    #[serde(rename = "BUY")]
+    Buy,
+    #[serde(rename = "SELL")]
+    Sell,
+}
+
 
 lazy_static! {
     pub static ref CANDLE_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"Candle\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"start_ms\",\"type\":\"long\"},{\"name\":\"end_ms\",\"type\":\"long\"},{\"name\":\"open\",\"type\":\"double\"},{\"name\":\"high\",\"type\":\"double\"},{\"name\":\"low\",\"type\":\"double\"},{\"name\":\"close\",\"type\":\"double\"},{\"name\":\"volume\",\"type\":\"double\"},{\"name\":\"quote_volume\",\"type\":\"double\"},{\"name\":\"trade_count\",\"type\":\"long\"}]}").unwrap();
@@ -65,14 +73,6 @@ impl Default for LiveOrder {
             tt: 0,
         }
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
-pub enum TradeType {
-    #[serde(rename = "BUY")]
-    Buy,
-    #[serde(rename = "SELL")]
-    Sell,
 }
 
 

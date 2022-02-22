@@ -104,11 +104,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "actix-macros"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "465a6172cf69b960917811022d8f29bc0b7fa1398bc4f78b3c466673db1213b6"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "actix-rt"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdf3f2183be1241ed4dd22611850b85d38de0b08a09f1f7bcccbd0809084b359"
 dependencies = [
+ "actix-macros",
  "futures-core",
  "tokio",
 ]
@@ -625,6 +636,7 @@ name = "backtest"
 version = "0.1.0"
 dependencies = [
  "actix",
+ "actix-rt",
  "anyhow",
  "async-stream",
  "async-trait",
@@ -4178,6 +4190,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "smallvec",
+ "strum 0.23.0",
  "strum_macros 0.23.1",
  "ta",
  "thiserror",
@@ -4735,6 +4748,7 @@ version = "0.1.0"
 dependencies = [
  "actix",
  "anyhow",
+ "arrow2",
  "async-trait",
  "backtest",
  "brokers",
