@@ -102,7 +102,7 @@ test_all: ## Tests all features
 test: ## Tests all features and targets, skipping coinnect
 	RUST_LOG=info BITCOINS_REPO=$(current_dir)/.. $(CARGO_BIN) test --all-targets -- --skip coinnect_tests --skip coinbase_tests
 
-.PHONY: test_strats
+.PHONY: test-strats
 test_strats: ## Tests strategies
 	RUST_LOG=info BITCOINS_REPO=$(current_dir)/.. $(CARGO_BIN) test --package strategies
 
@@ -165,59 +165,65 @@ release:
 	docker run --cpus=$(shell nproc) --rm -it -v "$(PWD)/build/cargo-git":/home/rust/.cargo/git:rw -v "$(PWD)/build/cargo-registry":/home/rust/.cargo/registry -v "$(PWD)/build/cargo-target":/home/rust/src/target -v "$(PWD)":/home/rust/src -v "$(PWD)/config_release.toml":/home/rust/src/.cargo/config.toml -e LIB_LDFLAGS=-L/usr/lib/x86_64-linux-gnu -e BUILD_GIT_SHA="$(GIT_SHA)" -e CFLAGS=-I/usr/local/musl/include -e CC=musl-gcc rust-musl-builder-nightly cargo build --bin $(target) --profile $(profile) --target=$(target_arch) --no-default-features --features=$(features) -Z unstable-options
 	cp build/cargo-target/$(target_arch)/release/$(target) build/binaries/$(target)
 
-release_local_debug:
+release-local-debug:
 	LD_LIBRARY_PATH=/usr/local/lib CARGO_PROFILE_RELEASE_DEBUG=true CARGO_HOME=.cargo_debug $(CARGO_BIN) build --release --bin $(target) --features=$(features)
 
-release_trader_musl:
+release-trader-musl:
 	make target_arch=x86_64-unknown-linux-musl release
 
-release_trader:
+release-trader:
 	make target=trader release
 
-release_debug_trader:
+release-debug-trader:
 	make profile=release-debug release
 
-release_db_tool:
+release-db-tool:
 	make target=db_tool release
 
-release_om_tool:
+release-om-tool:
 	make target=om_tool release
 
-release_backtest:
+release-backtest:
 	make target=backtest
 
-release_local_backtest:
+release-local-backtest:
 	@$(CARGO_BIN) build --release --bin backtest --features=release_default
 
-release_local_backtest_debug:
+release-local-backtest-debug:
 	make features=release_default target=backtest release_local_debug
 
-release_local_backtest_ballista:
+release-local-backtest-ballista:
 	@$(CARGO_BIN) build --release --bin backtest --features=release_default,remote_execution
 
 bin_tag=latest
-download_binary:
+download-binary:
 	mkdir -p build/binaries
 	aws --profile btcfeed s3 cp --endpoint=https://nyc3.digitaloceanspaces.com s3://btcfeed/binaries/$(target)/$(target)-$(bin_tag) build/binaries/$(target)
 
+### Python library
 
 python_target=python3.10
 python_arch=linux_x86_64
 python_cp_target=cp310
 python_dylib_v=2021.0.0
-release_python_lib:
+release-python-lib-local:
 	maturin build --release --no-sdist  -i $(python_target) -m python_dylib/Cargo.toml
 
+build-python-lib-local:
+	maturin build --no-sdist -i $(python_target) -m python_dylib/Cargo.toml && pip3.10 install --force-reinstall $(PWD)/target/wheels/tradai-$(python_dylib_v)-$(python_cp_target)-$(python_cp_target)-$(python_arch).whl
+
+dev-python-lib:
+	maturin develop -m python_dylib/Cargo.toml --extras pytest,pytest-cov[all] --rustc-extra-args="-Clink-arg=-Wl,--allow-multiple-definition"
+
 mx_cargo_home=/root/.cargo
-release_python_lib_docker:
+release-python-lib-docker:
 	docker run --rm --cpus=$(shell nproc) -it -e LD_LIBRARY_PATH=/opt/python/python3.10/lib \
 	-e BUILD_GIT_SHA="$(GIT_SHA)" -v "$(PWD)/build/cargo-git":$(mx_cargo_home)/git:rw -v "$(PWD)/build/cargo-registry":$(mx_cargo_home)/registry \
-	-v "$(PWD)/build/cargo-target":/io/target_release -v "$(PWD)":/io -v "$(PWD)/config_release.toml":/io/.cargo/config.toml maturin_builder2 \
+	-v "$(PWD)/build/cargo-target":/io/target_release -v "$(PWD)":/io -v "$(PWD)/config_release.toml":/io/.cargo/config.toml maturin_builder \
 	build --release --no-sdist -i $(python_target) -m python_dylib/Cargo.toml
 
-build_python_lib:
-	maturin build --release --no-sdist -i $(python_target) -m python_dylib/Cargo.toml && pip3.10 install --force-reinstall $(PWD)/target/wheels/tradai-$(python_dylib_v)-$(python_cp_target)-$(python_cp_target)-$(python_arch).whl
-
+maturin-builder-image:
+	docker build -f python_dylib/Dockerfile -t maturin_builder python_dylib
 
 ### DOCKER
 
@@ -232,13 +238,13 @@ docker-logs:
 
 ### Deploy
 
-deploy_trader:
+deploy-trader:
 	./infra/prod/deploy_trader.sh
 
-deploy_feeder24:
+deploy-feeder24:
 	./infra/prod/deploy_feeder24.sh
 
-deploy_tools:
+deploy-tools:
 	./infra/prod/deploy_tools.sh
 
 ### Checks
@@ -260,5 +266,5 @@ check-unused-deps:
 
 ### Database Management
 
-migrate_engine_db:
+migrate-engine-db:
 	 diesel migration run --migration-dir strategies/migrations
