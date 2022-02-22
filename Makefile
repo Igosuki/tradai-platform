@@ -210,7 +210,10 @@ release_python_lib:
 
 mx_cargo_home=/root/.cargo
 release_python_lib_docker:
-	docker run --rm --cpus=$(shell nproc) -it -e LD_LIBRARY_PATH=/opt/python/python3.10/lib -e BUILD_GIT_SHA="$(GIT_SHA)" -v "$(PWD)/build/cargo-git":$(mx_cargo_home)/git:rw -v "$(PWD)/build/cargo-registry":$(mx_cargo_home)/registry -v "$(PWD)/build/cargo-target":/io/target -v "$(PWD)":/io -v "$(PWD)/config_release.toml":$(mx_cargo_home)/config.toml maturin_builder2 build --release --no-sdist -i $(python_target) -m python_dylib/Cargo.toml
+	docker run --rm --cpus=$(shell nproc) -it -e LD_LIBRARY_PATH=/opt/python/python3.10/lib \
+	-e BUILD_GIT_SHA="$(GIT_SHA)" -v "$(PWD)/build/cargo-git":$(mx_cargo_home)/git:rw -v "$(PWD)/build/cargo-registry":$(mx_cargo_home)/registry \
+	-v "$(PWD)/build/cargo-target":/io/target_release -v "$(PWD)":/io -v "$(PWD)/config_release.toml":/io/.cargo/config.toml maturin_builder2 \
+	build --release --no-sdist -i $(python_target) -m python_dylib/Cargo.toml
 
 build_python_lib:
 	maturin build --release --no-sdist -i $(python_target) -m python_dylib/Cargo.toml && pip3.10 install --force-reinstall $(PWD)/target/wheels/tradai-$(python_dylib_v)-$(python_cp_target)-$(python_cp_target)-$(python_arch).whl
