@@ -7,3 +7,4 @@ rustflags = [
 
 [build]
 rustflags = ["-Clink-arg=-Wl,--allow-multiple-definition", "-Clink-arg=-fPIC"]
+target-dir = "target_release"
