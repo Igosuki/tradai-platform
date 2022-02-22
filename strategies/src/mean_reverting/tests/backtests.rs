@@ -40,7 +40,7 @@ lazy_static! {
                     ]
                 }),
             ),
-            ("APO", Arc::new(|x| vec![("apo", get_f64(&x.model, "apo"))])),
+            ("APO", Arc::new(|x| vec![("ppo", get_f64(&x.model, "ppo"))])),
             (
                 "Portfolio Return",
                 Arc::new(|x| vec![("pfl_return", x.snapshot.current_return)]),

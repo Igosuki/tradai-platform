@@ -137,7 +137,7 @@ impl MeanRevertingStrategy {
     ) -> strategy::error::Result<Option<TradeSignal>> {
         self.metrics.log_pos(lr);
 
-        let apo = self.model.apo().expect("model required");
+        let ppo = self.model.ppo().expect("model required");
 
         let thresholds = self.model.thresholds();
         let threshold_short = thresholds.0;
@@ -155,7 +155,7 @@ impl MeanRevertingStrategy {
                     }
                 }
                 // Possibly close a short position
-                if pos.is_short() && (apo < 0.0 || maybe_stop.is_some()) {
+                if pos.is_short() && (ppo < 0.0 || maybe_stop.is_some()) {
                     Some(self.make_signal(
                         lr.trace_id,
                         lr.event_time,
@@ -166,7 +166,7 @@ impl MeanRevertingStrategy {
                     ))
                 }
                 // Possibly close a long position
-                else if pos.is_long() && (apo > 0.0 || maybe_stop.is_some()) {
+                else if pos.is_long() && (ppo > 0.0 || maybe_stop.is_some()) {
                     Some(self.make_signal(
                         lr.trace_id,
                         lr.event_time,
@@ -179,7 +179,7 @@ impl MeanRevertingStrategy {
                     None
                 }
             }
-            None if (apo > threshold_short) && lr.ask > 0.0 => {
+            None if (ppo > threshold_short) && lr.ask > 0.0 => {
                 // Possibly open a short position
                 let qty = Some(portfolio.value() / lr.ask);
                 Some(self.make_signal(
@@ -191,7 +191,7 @@ impl MeanRevertingStrategy {
                     qty,
                 ))
             }
-            None if (apo < threshold_long) && lr.bid > 0.0 => {
+            None if (ppo < threshold_long) && lr.bid > 0.0 => {
                 // Possibly open a long position
                 let qty = Some(portfolio.value() / lr.bid);
                 Some(self.make_signal(
@@ -231,8 +231,8 @@ impl Strategy for MeanRevertingStrategy {
         }
         let t = self.model.thresholds();
         self.metrics.log_thresholds(t.0, t.1);
-        if let Some(apo) = self.model.apo_value() {
-            self.metrics.log_model(&apo);
+        if let Some(ppo) = self.model.ppo_value() {
+            self.metrics.log_model(&ppo);
         }
 
         let mut signals = TradeSignals::new();
