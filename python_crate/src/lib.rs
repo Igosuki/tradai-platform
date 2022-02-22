@@ -59,12 +59,19 @@ mod util;
 mod uuid;
 mod windowed_ta;
 
+use crate::backtest::__PYO3_PYMODULE_DEF_BACKTEST;
+use crate::model::__PYO3_PYMODULE_DEF_MODEL;
+use crate::ta::__PYO3_PYMODULE_DEF_TA;
+use crate::uuid::__PYO3_PYMODULE_DEF_UUID;
+use crate::windowed_ta::__PYO3_PYMODULE_DEF_WINDOWED_TA;
+
 create_exception!(strat, ModelError, pyo3::exceptions::PyException);
 create_exception!(strat, EvalError, pyo3::exceptions::PyException);
 
 #[pymodule]
 #[pyo3(name = "tradai_core")]
 pub fn tradai(py: Python, m: &PyModule) -> PyResult<()> {
+    // Core
     m.add_class::<PyStrategy>()?;
     m.add_class::<PyTradeSignal>()?;
     m.add_class::<PyMarketEvent>()?;
@@ -83,30 +90,12 @@ pub fn tradai(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(signal, m)?)?;
     m.add_function(wrap_pyfunction!(mstrategy, m)?)?;
 
-    // Register backtest as a submodule
-    let backtest = PyModule::new(py, "backtest")?;
-    backtest::init_module(backtest)?;
-    m.add_submodule(backtest)?;
-
-    // Register uuid as a submodule
-    let uuid = PyModule::new(py, "uuid")?;
-    uuid::init_module(uuid)?;
-    m.add_submodule(uuid)?;
-
-    // Register ta as a submodule
-    let ta = PyModule::new(py, "ta")?;
-    ta::init_module(ta)?;
-    m.add_submodule(ta)?;
-
-    // Register windowed_ta as a submodule
-    let ta = PyModule::new(py, "windowed_ta")?;
-    windowed_ta::init_module(ta)?;
-    m.add_submodule(ta)?;
-
-    // Register model as a submodule
-    let model = PyModule::new(py, "model")?;
-    model::init_module(model)?;
-    m.add_submodule(model)?;
+    // Submodules
+    m.add_wrapped(wrap_pymodule!(backtest))?;
+    m.add_wrapped(wrap_pymodule!(uuid))?;
+    m.add_wrapped(wrap_pymodule!(ta))?;
+    m.add_wrapped(wrap_pymodule!(windowed_ta))?;
+    m.add_wrapped(wrap_pymodule!(model))?;
     Ok(())
 }
 

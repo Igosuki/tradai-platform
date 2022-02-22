@@ -3,8 +3,9 @@ import logging
 import json
 from datetime import datetime, date
 
+import tradai
 from tradai import Strategy, signal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
-    OrderType, uuid, ta, windowed_ta, model, mstrategy
+    OrderType,  ta, windowed_ta, model, mstrategy, util, uuid
 
 FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'
 logging.basicConfig(format=FORMAT)
@@ -84,6 +85,7 @@ class MeanReverting(Strategy):
         if event.high() > 0 and apo > threshold_short:
             signals.append(signal(PositionKind.Short, OperationKind.Open, TradeKind.Sell, event.high(
             ), self.conf['pair'], self.conf['xch'], True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None))
+
         return signals
 
     def models(self):
@@ -91,10 +93,6 @@ class MeanReverting(Strategy):
 
     def channels(self):
         return ((Channel("orderbooks", self.conf['xch'], self.conf['pair']),))
-
-
-async def backtest_run(*args, **kwargs):
-    return await backtest.it_backtest(*args, **kwargs)
 
 def print_and_zero(log):
     print(log)
@@ -146,8 +144,9 @@ if __name__ == '__main__':
             'execution_instruction': None
         }
     }
-    positions = asyncio.run(backtest_run("mr_py_test", lambda ctx: MeanReverting(
+    positions = asyncio.run(util.run_in_loop(backtest.it_backtest, "mr_py_test", lambda ctx: MeanReverting(
         conf, ctx), date(2021, 8, 1), date(2021, 8, 9), MEAN_REVERTING_DRAW_ENTRIES))
+
     print('took %d positions' % len(positions))
 
 

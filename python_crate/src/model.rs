@@ -148,7 +148,8 @@ pub(crate) fn persistent_window_ta(
     IndicatorWindowedModel::new(key, db.db(), window_size, max_size, indicator).into()
 }
 
-pub(crate) fn init_module(m: &PyModule) -> PyResult<()> {
+#[pymodule]
+pub(crate) fn model(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(persistent_ta, m)?)?;
     m.add_function(wrap_pyfunction!(persistent_window_ta, m)?)?;
     Ok(())

@@ -3,7 +3,7 @@ use strategy::Channel;
 
 #[pyclass(name = "Channel", module = "strategy", subclass)]
 #[derive(Clone)]
-#[pyo3(text_signature = "Channel(source, exchange, pair, /)")]
+#[pyo3(text_signature = "(source, exchange, pair, /)")]
 pub struct PyChannel {
     source: String,
     exchange: String,
@@ -12,6 +12,9 @@ pub struct PyChannel {
 
 #[pymethods]
 impl PyChannel {
+    /// The source may be one of 'orderbooks', 'trades', 'candles'
+    /// Exchange must be one of the supported exchanges in lowercase (see platform documentation)
+    /// Pair is a trading pair (to be later redefined as 'security')
     #[new]
     fn new(source: &str, exchange: &str, pair: &str) -> Self {
         Self {
@@ -30,10 +33,6 @@ impl From<PyChannel> for Channel {
                 pair: sc.pair.into(),
             },
             "trades" => Channel::Trades {
-                xch: Exchange::from(sc.exchange),
-                pair: sc.pair.into(),
-            },
-            "orders" => Channel::Orders {
                 xch: Exchange::from(sc.exchange),
                 pair: sc.pair.into(),
             },

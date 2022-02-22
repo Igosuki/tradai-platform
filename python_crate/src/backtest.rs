@@ -24,15 +24,6 @@ use crate::db::PyDb;
 use crate::pyarrow::PyArrowConvert;
 use crate::{PyChannel, PyPosition, PyStrategyWrapper};
 
-pub(crate) fn init_module(m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(it_backtest_wrapper, m)?)?;
-    m.add_function(wrap_pyfunction!(range_backtest_wrapper, m)?)?;
-    m.add_function(wrap_pyfunction!(event_backtest_wrapper, m)?)?;
-    m.add_class::<PyPosition>()?;
-    m.add_class::<PyBacktestReport>()?;
-    Ok(())
-}
-
 #[pyclass]
 pub(crate) struct PyStrategyInitContext {
     inner: StrategyInitContext,
@@ -286,4 +277,14 @@ fn event_backtest_wrapper<'p>(
         let py_report: PyBacktestReport = report.into();
         Python::with_gil(|py| Ok(py_report.into_py(py)))
     })
+}
+
+#[pymodule]
+pub(crate) fn backtest(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(it_backtest_wrapper, m)?)?;
+    m.add_function(wrap_pyfunction!(range_backtest_wrapper, m)?)?;
+    m.add_function(wrap_pyfunction!(event_backtest_wrapper, m)?)?;
+    m.add_class::<PyPosition>()?;
+    m.add_class::<PyBacktestReport>()?;
+    Ok(())
 }
