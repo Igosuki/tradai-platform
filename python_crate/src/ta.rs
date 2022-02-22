@@ -4,6 +4,7 @@ use pyo3::PyResult;
 use serde::{Deserialize, Serialize};
 
 use stats::indicators::macd_apo::MACDApo;
+use stats::*;
 use stats::{Close, Next};
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
