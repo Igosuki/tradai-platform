@@ -57,7 +57,7 @@ impl BacktestRunner {
         engine: Arc<TradingEngine>,
         settings: StrategyDriverSettings,
     ) -> Arc<RwLock<Self>> {
-        let logger = Arc::new(StreamWriterLogger::<TimedData<StratEvent>>::new(sink_size));
+        let logger = Self::strat_event_logger(sink_size);
         let logger2 = logger.clone();
         let strategy_driver = task::spawn_blocking(move || {
             debug!("plugin_registry() = {:?}", plugin_registry());
@@ -72,12 +72,15 @@ impl BacktestRunner {
 
     pub(crate) async fn spawn_with_driver(
         sink_size: Option<usize>,
+        events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
         driver: Box<dyn StrategyDriver>,
     ) -> Arc<RwLock<Self>> {
-        let logger = Arc::new(StreamWriterLogger::<TimedData<StratEvent>>::new(sink_size));
-        let logger2 = logger.clone();
-        let runner = Self::new(Arc::new(Mutex::new(driver)), logger2, sink_size);
+        let runner = Self::new(Arc::new(Mutex::new(driver)), events_logger, sink_size);
         Arc::new(RwLock::new(runner))
+    }
+
+    pub(crate) fn strat_event_logger(sink_size: Option<usize>) -> Arc<StreamWriterLogger<TimedData<StratEvent>>> {
+        Arc::new(StreamWriterLogger::<TimedData<StratEvent>>::new(sink_size))
     }
 
     pub(crate) async fn channels(&self) -> HashSet<Channel> {
@@ -191,8 +194,5 @@ fn simplify_pos_events(event: TimedData<StratEvent>) -> Vec<TimedData<StratEvent
 }
 
 fn op_and_trade_to_strat((op, trade): (OperationEvent, TradeEvent)) -> Vec<TimedData<StratEvent>> {
-    vec![
-        TimedData::new(op.at, StratEvent::Operation(op)),
-        TimedData::new(trade.at, StratEvent::Trade(trade)),
-    ]
+    vec![TimedData::new(op.at, StratEvent::PositionSummary((op, trade)))]
 }
