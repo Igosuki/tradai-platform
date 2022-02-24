@@ -365,7 +365,7 @@ mod test {
     use brokers::exchange::Exchange;
     use chrono::{DateTime, Duration, NaiveDate, Utc};
     use plotly::common::Marker;
-    use plotly::layout::{LayoutGrid, Shape, ShapeType};
+    use plotly::layout::{Axis, LayoutGrid, RangeSlider, Shape, ShapeType};
     use plotly::{Layout, NamedColor, Scatter};
     use serde_json::Value;
     use stats::kline::{Resolution, TimeUnit};
@@ -409,7 +409,7 @@ mod test {
                 provider,
                 DateRange::by_day(
                     DateTime::from_utc(NaiveDate::from_ymd(2021, 12, 10).and_hms(0, 0, 0), Utc),
-                    DateTime::from_utc(NaiveDate::from_ymd(2021, 12, 10).and_hms(10, 0, 0), Utc),
+                    DateTime::from_utc(NaiveDate::from_ymd(2021, 12, 10).and_hms(3, 0, 0), Utc),
                 ),
                 &[Exchange::Binance],
                 10000.0,
@@ -421,7 +421,9 @@ mod test {
             report.write_html();
 
             let mut plot = report.tradeview_plot();
-            let mut layout = Layout::new().grid(LayoutGrid::new().columns(1).rows(6));
+            let mut layout = Layout::new()
+                .grid(LayoutGrid::new().columns(1).rows(6))
+                .x_axis(Axis::new().range_slider(RangeSlider::new().visible(false)));
             // PLOT TRADES
             let mut long_entries_time = vec![];
             let mut long_entries_price = vec![];
@@ -499,7 +501,7 @@ mod test {
             }
 
             {
-                let rect_draw_offset = Duration::minutes(15).num_milliseconds();
+                let rect_draw_offset = Duration::minutes(1).num_milliseconds();
                 let x_id = format!("x{}", signal_plot_offset);
                 let y_id = format!("y{}", signal_plot_offset);
                 let mut sell_signal_time = vec![];
