@@ -251,7 +251,7 @@ pub async fn backtest_with_range<'a>(
     providers: &'a [Exchange],
     starting_cash: f64,
     fees_rate: f64,
-    data_mapper: Option<DatasetCatalog>,
+    data_catalog: Option<DatasetCatalog>,
 ) -> Result<BacktestReport> {
     let runner_ref = build_runner(provider, providers, starting_cash, fees_rate).await;
     let broker = build_msg_broker(&[runner_ref.clone()]).await;
@@ -259,7 +259,7 @@ pub async fn backtest_with_range<'a>(
     local
         .run_until(async move {
             let (mut rx, stop_token) = start_bt(test_name, runner_ref).await;
-            let data_mapper = data_mapper.unwrap_or_else(|| default_data_catalog());
+            let data_mapper = data_catalog.unwrap_or_else(|| default_data_catalog());
             let date_range = dt_range.into();
             for c in broker.subjects() {
                 let dataset = data_mapper.get_reader(c);
