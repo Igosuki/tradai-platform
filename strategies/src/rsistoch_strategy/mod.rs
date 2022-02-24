@@ -501,7 +501,7 @@ mod test {
             }
 
             {
-                let rect_draw_offset = Duration::minutes(1).num_milliseconds();
+                let rect_draw_offset = Duration::minutes(15).num_milliseconds();
                 let x_id = format!("x{}", signal_plot_offset);
                 let y_id = format!("y{}", signal_plot_offset);
                 let mut sell_signal_time = vec![];
