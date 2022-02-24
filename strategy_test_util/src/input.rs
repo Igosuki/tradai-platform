@@ -17,7 +17,7 @@ use brokers::exchange::Exchange;
 use brokers::types::{MarketEvent, MarketEventEnvelope, Orderbook, Pair};
 use util::ser::date_time_format;
 use util::test::test_data_dir;
-use util::time::{DateRange, DurationRangeType};
+use util::time::DateRange;
 
 async fn dl_test_data(base_path: &str, exchange_name: &str, channel: &str, pair: String) {
     let out_file_name = format!("{}.zip", pair);
@@ -113,7 +113,7 @@ pub fn read_csv(path: &str) -> Result<Vec<CsvRecord>> {
 ///
 /// if glob files cannot be listed
 pub fn load_records_from_csv<R>(
-    dr: &DateRange,
+    dr: DateRange,
     base_path: &Path,
     pairs: &[&str],
     glob_str: &str,
@@ -153,7 +153,7 @@ fn load_records(path: &str) -> Vec<CsvRecord> { read_csv(path).unwrap() }
 ///
 /// if the base directory for the dataset cannot be created
 pub async fn load_csv_dataset(
-    dr: &DateRange,
+    dr: DateRange,
     pairs: &[&str],
     exchange: &str,
     channel: &str,
@@ -186,7 +186,7 @@ pub async fn load_csv_records(
 ) -> Vec<(String, Vec<CsvRecord>)> {
     let now = Instant::now();
     let csv_records = load_csv_dataset(
-        &DateRange(from, to, DurationRangeType::Days, 1),
+        DateRange::by_day(from.and_hms(0, 0, 0), to.and_hms(0, 0, 0)),
         &pairs,
         exchange,
         channel,

@@ -2,7 +2,7 @@ use std::mem;
 
 #[cfg(feature = "mock_time")]
 use chrono::TimeZone;
-use chrono::{Date, DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 #[cfg(feature = "mock_time")]
 use mock_instant::MockClock;
 
@@ -14,18 +14,28 @@ pub enum DurationRangeType {
 }
 
 #[derive(Clone, Copy)]
-pub struct DateRange(pub Date<Utc>, pub Date<Utc>, pub DurationRangeType, pub i64);
+pub struct DateRange(pub DateTime<Utc>, pub DateTime<Utc>, pub DurationRangeType, pub i64);
+
+impl DateRange {
+    pub fn by_day(from: DateTime<Utc>, to: DateTime<Utc>) -> Self { Self(from, to, DurationRangeType::Days, 1) }
+
+    fn range(&self) -> Duration {
+        match self.2 {
+            DurationRangeType::Days => Duration::days(self.3),
+            DurationRangeType::Seconds => Duration::seconds(self.3),
+            DurationRangeType::Millis => Duration::milliseconds(self.3),
+        }
+    }
+
+    /// Returns Some(upper) if the upper bound is within range of the current lower bound
+    pub fn upper_bound_in_range(&self) -> Option<DateTime<Utc>> { (self.0 + self.range() > self.1).then(|| self.1) }
+}
 
 impl Iterator for DateRange {
-    type Item = Date<Utc>;
+    type Item = DateTime<Utc>;
     fn next(&mut self) -> Option<Self::Item> {
         if self.0 <= self.1 {
-            let d = match self.2 {
-                DurationRangeType::Days => Duration::days(self.3),
-                DurationRangeType::Seconds => Duration::seconds(self.3),
-                DurationRangeType::Millis => Duration::milliseconds(self.3),
-            };
-            let next = self.0 + d;
+            let next = self.0 + self.range();
             Some(mem::replace(&mut self.0, next))
         } else {
             None

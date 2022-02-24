@@ -402,7 +402,7 @@ impl Portfolio {
                 .iter()
                 .map(|(_, pos)| pos.unreal_profit_loss)
                 .sum::<f64>()
-                / self.pnl
+                / self.open_positions.len() as f64
         }
     }
 

@@ -39,6 +39,7 @@ pub mod breakout;
 pub mod kline_logger;
 pub mod mean_reverting;
 pub mod naive_pair_trading;
+pub mod rsistoch_strategy;
 
 pub fn init() {
     trace!("strat crate initialized");

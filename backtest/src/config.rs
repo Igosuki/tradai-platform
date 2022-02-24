@@ -12,7 +12,7 @@ use db::{DbEngineOptions, DbOptions, RocksDbOptions};
 use strategy::settings::StrategyCopySettings;
 use strategy::settings::StrategyDriverSettings;
 use util::test::test_dir;
-use util::time::{DateRange, DurationRangeType};
+use util::time::DateRange;
 
 use crate::backtest::init_brokerages;
 use crate::{DataFormat, MarketEventDatasetType};
@@ -34,13 +34,12 @@ impl Period {
             Period::Since { since } => {
                 let duration = Duration::from_std(parse(since).unwrap()).unwrap();
                 let now = Utc::now();
-                DateRange(now.sub(duration).date(), now.date(), DurationRangeType::Days, 1)
+                DateRange::by_day(now.sub(duration).date().and_hms(0, 0, 0), now.date().and_hms(0, 0, 0))
             }
-            Period::Interval { from, to } => DateRange(
-                Utc.from_utc_date(from),
-                Utc.from_utc_date(&to.unwrap_or_else(|| Utc::now().naive_utc().date())),
-                DurationRangeType::Days,
-                1,
+            Period::Interval { from, to } => DateRange::by_day(
+                Utc.from_utc_date(from).and_hms(0, 0, 0),
+                Utc.from_utc_date(&to.unwrap_or_else(|| Utc::now().naive_utc().date()))
+                    .and_hms(0, 0, 0),
             ),
         }
     }
