@@ -245,7 +245,9 @@ impl StochRsiStrategy {
                                 }
                             }
                             // Possibly close a short position
-                            if pos.is_short() && maybe_stop.is_some() {
+                            if pos.is_short()
+                                && (maybe_stop.is_some() || !matches!(self.main_signal, Some(Action::Sell(_))))
+                            {
                                 Some(self.make_signal(
                                     le.trace_id,
                                     le.ts,
@@ -256,7 +258,9 @@ impl StochRsiStrategy {
                                 ))
                             }
                             // Possibly close a long position
-                            else if pos.is_long() && maybe_stop.is_some() {
+                            else if pos.is_long()
+                                && (maybe_stop.is_some() || !matches!(self.main_signal, Some(Action::Buy(_))))
+                            {
                                 Some(self.make_signal(
                                     le.trace_id,
                                     le.ts,
@@ -362,17 +366,19 @@ impl Strategy for StochRsiStrategy {
 mod test {
     use crate::rsistoch_strategy::{Options, StochRsiStrategy};
     use backtest::report::draw_lines;
+    use backtest::{data_cache_dir, DataFormat, DatasetCatalog, DatasetReader, MarketEventDatasetType};
     use brokers::exchange::Exchange;
     use chrono::{DateTime, Duration, NaiveDate, Utc};
-    use plotly::common::Marker;
+    use plotly::common::{Marker, Mode, Position};
     use plotly::layout::{Axis, LayoutGrid, RangeSlider, Shape, ShapeType};
     use plotly::{Layout, NamedColor, Scatter};
     use serde_json::Value;
     use stats::kline::{Resolution, TimeUnit};
+    use std::collections::HashMap;
     use std::sync::Arc;
     use strategy::driver::StratProviderRef;
     use strategy::prelude::StratEvent;
-    use trading::position::PositionKind;
+    use trading::position::{OperationKind, PositionKind};
     use util::time::DateRange;
 
     fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
@@ -404,17 +410,28 @@ mod test {
                     .unwrap(),
                 )
             });
+            let candle_resolution_unit = 1;
+            let mut datasets = HashMap::new();
+            datasets.insert("trades".to_string(), DatasetReader {
+                input_format: DataFormat::Parquet,
+                ds_type: MarketEventDatasetType::Trades,
+                base_dir: data_cache_dir(),
+                input_sample_rate: Duration::seconds(1),
+                candle_resolution_period: TimeUnit::Minute,
+                candle_resolution_unit,
+            });
+            let catalog = DatasetCatalog { datasets };
             let report = backtest::backtest_with_range(
                 "rsistoch_btc",
                 provider,
                 DateRange::by_day(
-                    DateTime::from_utc(NaiveDate::from_ymd(2021, 12, 10).and_hms(0, 0, 0), Utc),
-                    DateTime::from_utc(NaiveDate::from_ymd(2021, 12, 10).and_hms(3, 0, 0), Utc),
+                    DateTime::from_utc(NaiveDate::from_ymd(2022, 2, 20).and_hms(0, 0, 0), Utc),
+                    DateTime::from_utc(NaiveDate::from_ymd(2022, 2, 20).and_hms(9, 0, 0), Utc),
                 ),
                 &[Exchange::Binance],
                 10000.0,
                 0.001,
-                None,
+                Some(catalog),
             )
             .await
             .unwrap();
@@ -435,6 +452,24 @@ mod test {
             let mut short_exits_price = vec![];
             for strat_event in report.strat_events().unwrap() {
                 match strat_event.value {
+                    StratEvent::PositionSummary { op, trade } => match (op.op, op.pos) {
+                        (OperationKind::Open, PositionKind::Long) => {
+                            long_entries_price.push(trade.price);
+                            long_entries_time.push(op.at);
+                        }
+                        (OperationKind::Close, PositionKind::Long) => {
+                            long_exits_price.push(trade.price);
+                            long_exits_time.push(op.at);
+                        }
+                        (OperationKind::Open, PositionKind::Short) => {
+                            short_entries_price.push(trade.price);
+                            short_entries_time.push(op.at);
+                        }
+                        (OperationKind::Close, PositionKind::Short) => {
+                            short_exits_price.push(trade.price);
+                            short_exits_time.push(op.at);
+                        }
+                    },
                     StratEvent::OpenPosition(p) => {
                         let order = p.open_order.unwrap();
                         match p.kind {
@@ -464,21 +499,37 @@ mod test {
                     _ => {}
                 }
             }
+            let long_entries_text = long_entries_price.iter().map(|p| format!("Len {}", p)).collect();
             let long_entries_trace = Scatter::new(long_entries_time, long_entries_price)
                 .name("long_exits")
-                .marker(Marker::new().color(NamedColor::LightSkyBlue).size(20));
+                .marker(Marker::new().color(NamedColor::LightSkyBlue).size(10))
+                .mode(Mode::MarkersText)
+                .text_position(Position::BottomCenter)
+                .text_array(long_entries_text);
             plot.add_trace(long_entries_trace);
+            let short_entries_text = short_entries_price.iter().map(|p| format!("Sen {}", p)).collect();
             let short_entries_trace = Scatter::new(short_entries_time, short_entries_price)
                 .name("short_entries")
-                .marker(Marker::new().color(NamedColor::LightCoral).size(20));
+                .marker(Marker::new().color(NamedColor::LightCoral).size(10))
+                .mode(Mode::MarkersText)
+                .text_position(Position::BottomCenter)
+                .text_array(short_entries_text);
             plot.add_trace(short_entries_trace);
+            let long_exit_text = long_exits_price.iter().map(|p| format!("Lex {}", p)).collect();
             let long_exits_trace = Scatter::new(long_exits_time, long_exits_price)
                 .name("long_exits")
-                .marker(Marker::new().color(NamedColor::DeepSkyBlue).size(20));
+                .marker(Marker::new().color(NamedColor::DeepSkyBlue).size(10))
+                .mode(Mode::MarkersText)
+                .text_position(Position::TopCenter)
+                .text_array(long_exit_text);
             plot.add_trace(long_exits_trace);
+            let short_exit_text = short_exits_price.iter().map(|p| format!("Sex {}", p)).collect();
             let short_exits_trace = Scatter::new(short_exits_time, short_exits_price)
                 .name("short_exits")
-                .marker(Marker::new().color(NamedColor::Coral).size(20));
+                .marker(Marker::new().color(NamedColor::Coral).size(10))
+                .mode(Mode::MarkersText)
+                .text_position(Position::TopCenter)
+                .text_array(short_exit_text);
             plot.add_trace(short_exits_trace);
 
             // PLOT MODELS
@@ -501,7 +552,7 @@ mod test {
             }
 
             {
-                let rect_draw_offset = Duration::minutes(15).num_milliseconds();
+                let rect_draw_offset = Duration::minutes(candle_resolution_unit.into()).num_milliseconds();
                 let x_id = format!("x{}", signal_plot_offset);
                 let y_id = format!("y{}", signal_plot_offset);
                 let mut sell_signal_time = vec![];

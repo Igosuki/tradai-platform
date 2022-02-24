@@ -28,7 +28,7 @@ pub fn data_cache_dir() -> PathBuf {
 }
 
 pub struct DatasetCatalog {
-    datasets: HashMap<String, DatasetReader>,
+    pub datasets: HashMap<String, DatasetReader>,
 }
 
 impl DatasetCatalog {
@@ -117,7 +117,10 @@ impl DatasetReader {
             .filter(|c| matches!(c, Channel::Trades { .. }))
             .filter_map(|c| match c {
                 Channel::Trades { xch, pair } => {
-                    Some(self.ds_type.partition(self.base_dir.clone(), dt, *xch, pair, None))
+                    Some(
+                        self.ds_type
+                            .partition(self.base_dir.clone(), dt, *xch, pair, Some(AssetType::Futures)),
+                    )
                 }
                 _ => None,
             })
@@ -126,7 +129,10 @@ impl DatasetReader {
             .filter(|c| matches!(c, Channel::Candles { .. }))
             .filter_map(|c| match c {
                 Channel::Candles { xch, pair } => {
-                    Some(self.ds_type.partition(self.base_dir.clone(), dt, *xch, pair, None))
+                    Some(
+                        self.ds_type
+                            .partition(self.base_dir.clone(), dt, *xch, pair, Some(AssetType::Futures)),
+                    )
                 }
                 _ => None,
             })
