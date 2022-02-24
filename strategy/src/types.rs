@@ -34,7 +34,7 @@ pub enum StratEvent {
     Trade(TradeEvent),
     OpenPosition(Position),
     ClosePosition(Position),
-    PositionSummary((OperationEvent, TradeEvent)),
+    PositionSummary { op: OperationEvent, trade: TradeEvent },
 }
 
 impl StratEvent {

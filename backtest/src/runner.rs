@@ -158,11 +158,11 @@ impl BacktestRunner {
                                     report.failures += 1;
                                 }
                             }
-                        }
-                        match driver.data(DataQuery::Indicators).await {
-                            Ok(DataResult::Indicators(i)) => report.push_snapshot(TimedData::new(market_event.e.time(), i)),
-                            _ => {
-                                report.failures += 1;
+                            match driver.data(DataQuery::Indicators).await {
+                                Ok(DataResult::Indicators(i)) => report.push_snapshot(TimedData::new(market_event.e.time(), i)),
+                                _ => {
+                                    report.failures += 1;
+                                }
                             }
                         }
                     }
@@ -194,5 +194,5 @@ fn simplify_pos_events(event: TimedData<StratEvent>) -> Vec<TimedData<StratEvent
 }
 
 fn op_and_trade_to_strat((op, trade): (OperationEvent, TradeEvent)) -> Vec<TimedData<StratEvent>> {
-    vec![TimedData::new(op.at, StratEvent::PositionSummary((op, trade)))]
+    vec![TimedData::new(op.at, StratEvent::PositionSummary { op, trade })]
 }
