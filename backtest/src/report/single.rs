@@ -25,13 +25,13 @@ use crate::error::Result;
 use super::TimedData;
 
 #[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct BacktestReportMiscStats {
-    pub(crate) pnl_std_dev: stats::StandardDeviation,
-    pub(crate) pnl_std_dev_last: f64,
-    pub(crate) pnl_inc_ratio: f64,
-    pub(crate) count: u64,
-    pub(crate) loss_count: u64,
-    pub(crate) last_pnl: Option<f64>,
+pub struct BacktestReportMiscStats {
+    pub pnl_std_dev: stats::ta_indicators::StandardDeviation,
+    pub pnl_std_dev_last: f64,
+    pub pnl_inc_ratio: f64,
+    pub count: u64,
+    pub loss_count: u64,
+    pub last_pnl: Option<f64>,
 }
 
 impl BacktestReportMiscStats {
@@ -53,7 +53,7 @@ impl BacktestReportMiscStats {
 impl Default for BacktestReportMiscStats {
     fn default() -> Self {
         Self {
-            pnl_std_dev: stats::StandardDeviation::new(10).unwrap(),
+            pnl_std_dev: stats::ta_indicators::StandardDeviation::new(10).unwrap(),
             pnl_std_dev_last: 0.0,
             pnl_inc_ratio: 0.0,
             count: 0,
@@ -170,6 +170,16 @@ impl BacktestReport {
     /// Get report snapshots
     pub fn snapshots(&self) -> Result<Vec<TimedData<PortfolioSnapshot>>> { self.snapshots_ss.read_all().err_into() }
 
+    pub fn candles(&self) -> Result<Vec<TimedData<Candle>>> { self.candles_ss.read_all().err_into() }
+
+    pub fn strat_events(&self) -> Result<Vec<TimedData<StratEvent>>> { self.events_ss.read_all().err_into() }
+
+    pub fn market_events(&self) -> Result<Vec<TimedData<MarketStat>>> { self.market_stats_ss.read_all().err_into() }
+
+    pub fn models(&self) -> Result<Vec<TimedModelValue>> { self.model_ss.read_all().err_into() }
+
+    pub fn misc_stats(&self) -> &BacktestReportMiscStats { &self.misc_stats }
+
     /// Start writing received data to files in a streaming manner
     pub async fn start(&self) -> Result<()> {
         std::fs::create_dir_all(self.output_dir.clone())?;
@@ -203,22 +213,17 @@ impl BacktestReport {
         self.write_html_tradeview();
     }
 
-    fn write_html_report(&self) -> String {
+    pub fn write_plot(&self, plot: Plot, file_name: &str) -> String {
         let output_dir = self.output_dir.clone();
-        let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), REPORT_HTML_FILE);
-        let plot = self.report_plot();
+        let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), file_name);
+        tracing::debug!("writing html to {}", out_file);
         plot.to_html(&out_file);
         out_file
     }
 
-    fn write_html_tradeview(&self) -> String {
-        let output_dir = self.output_dir.clone();
-        let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), TRADEVIEW_HTML_FILE);
-        let plot = self.tradeview_plot();
-        plot.to_html(&out_file);
+    fn write_html_report(&self) -> String { self.write_plot(self.report_plot(), REPORT_HTML_FILE) }
 
-        out_file
-    }
+    fn write_html_tradeview(&self) -> String { self.write_plot(self.tradeview_plot(), TRADEVIEW_HTML_FILE) }
 
     pub async fn reload<P: AsRef<Path>>(key: &str, path: P, report_compression: Compression) -> Self {
         let report = BacktestReport::new(path.as_ref(), key.to_string(), report_compression);
@@ -230,7 +235,7 @@ impl BacktestReport {
         .unwrap()
     }
 
-    fn report_plot(&self) -> Plot {
+    pub fn report_plot(&self) -> Plot {
         let mut plot = Plot::new();
         let mut trace_offset = 0;
 
@@ -267,7 +272,7 @@ impl BacktestReport {
         plot
     }
 
-    fn tradeview_plot(&self) -> Plot {
+    pub fn tradeview_plot(&self) -> Plot {
         let mut plot = Plot::new();
         let trace_offset = 0;
         if let Ok(candles) = self.candles_ss.read_all() {

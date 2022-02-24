@@ -7,10 +7,11 @@ use serde_json::Value;
 use brokers::prelude::*;
 use strategy::driver::{StratProviderRef, StrategyInitContext};
 use strategy_test_util::draw::StrategyEntry;
-use strategy_test_util::it_backtest::{generic_backtest, BacktestRange};
+use strategy_test_util::it_backtest::generic_backtest;
 use strategy_test_util::log::StrategyLog;
 use trading::order_manager::types::OrderDetail;
 use trading::types::{OrderConf, OrderMode};
+use util::time::DateRange;
 
 use crate::naive_pair_trading::options::Options;
 use crate::naive_pair_trading::{covar_model, NaiveTradingStrategy};
@@ -106,7 +107,10 @@ async fn spot_backtest() {
         &full_test_name,
         provider,
         &NAIVE_STRATEGY_DRAW_ENTRIES,
-        &BacktestRange::new(Utc.ymd(2020, 3, 25), Utc.ymd(2020, 4, 8)),
+        DateRange::by_day(
+            Utc.ymd(2020, 3, 25).and_hms(0, 0, 0),
+            Utc.ymd(2020, 4, 8).and_hms(0, 0, 0),
+        ),
         &[exchange],
         100.0,
         0.001,
@@ -155,7 +159,10 @@ async fn margin_backtest() {
         &full_test_name,
         provider,
         &NAIVE_STRATEGY_DRAW_ENTRIES,
-        &BacktestRange::new(Utc.ymd(2020, 3, 25), Utc.ymd(2020, 4, 8)),
+        DateRange::by_day(
+            Utc.ymd(2020, 3, 25).and_hms(0, 0, 0),
+            Utc.ymd(2020, 4, 8).and_hms(0, 0, 0),
+        ),
         &[exchange],
         100.0,
         0.001,

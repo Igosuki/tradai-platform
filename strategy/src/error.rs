@@ -5,6 +5,8 @@ use trading::order_manager;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("bad configuration")]
+    BadConfiguration(String),
     #[error("io {0}")]
     IOError(#[from] std::io::Error),
     #[error("json {0}")]
@@ -78,6 +80,7 @@ impl Error {
             Error::Portfolio(_) => "portfolio",
             Error::NoSignal => "no_signal",
             Error::StrategyPluginNotFound => "strategy_plugin_not_found",
+            Error::BadConfiguration(_) => "bad_configuration",
         }
     }
 }
