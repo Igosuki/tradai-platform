@@ -216,8 +216,11 @@ async fn build_runner<'a>(
             &channel.pair(),
         );
     }
-    let driver = Box::new(GenericDriver::try_new(channels, db, &generic_options, strat, engine, None).unwrap());
-    let runner_ref = BacktestRunner::spawn_with_driver(None, driver).await;
+    let logger = BacktestRunner::strat_event_logger(None);
+    let logger2 = logger.clone();
+    let driver =
+        Box::new(GenericDriver::try_new(channels, db, &generic_options, strat, engine, Some(logger2)).unwrap());
+    let runner_ref = BacktestRunner::spawn_with_driver(None, logger, driver).await;
 
     runner_ref.clone()
 }
