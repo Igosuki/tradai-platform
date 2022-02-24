@@ -410,7 +410,7 @@ mod test {
                     .unwrap(),
                 )
             });
-            let candle_resolution_unit = 1;
+            let candle_resolution_unit = 15;
             let mut datasets = HashMap::new();
             datasets.insert("trades".to_string(), DatasetReader {
                 input_format: DataFormat::Parquet,
@@ -426,7 +426,7 @@ mod test {
                 provider,
                 DateRange::by_day(
                     DateTime::from_utc(NaiveDate::from_ymd(2022, 2, 20).and_hms(0, 0, 0), Utc),
-                    DateTime::from_utc(NaiveDate::from_ymd(2022, 2, 20).and_hms(9, 0, 0), Utc),
+                    DateTime::from_utc(NaiveDate::from_ymd(2022, 2, 22).and_hms(0, 0, 0), Utc),
                 ),
                 &[Exchange::Binance],
                 10000.0,
@@ -439,7 +439,7 @@ mod test {
 
             let mut plot = report.tradeview_plot();
             let mut layout = Layout::new()
-                .grid(LayoutGrid::new().columns(1).rows(6))
+                .grid(LayoutGrid::new().columns(1).rows(5))
                 .x_axis(Axis::new().range_slider(RangeSlider::new().visible(false)));
             // PLOT TRADES
             let mut long_entries_time = vec![];
@@ -601,7 +601,6 @@ mod test {
             if let Ok(snapshots) = report.snapshots() {
                 draw_lines(&mut plot, 4, snapshots.as_slice(), vec![
                     ("pnl", vec![|i| i.pnl]),
-                    ("value", vec![|i| i.value]),
                     ("return", vec![|i| i.current_return]),
                 ]);
             }
