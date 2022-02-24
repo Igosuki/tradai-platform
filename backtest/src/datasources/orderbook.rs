@@ -1,5 +1,5 @@
 use brokers::prelude::{Exchange, Pair};
-use chrono::Duration;
+use chrono::{DateTime, Duration, Utc};
 use datafusion::arrow::array::{Array, PrimitiveArray, StructArray};
 use datafusion::record_batch::RecordBatch;
 use std::collections::HashSet;
@@ -14,6 +14,7 @@ use tracing::Level;
 
 use crate::datafusion_util::{get_col_as, multitables_as_df, multitables_as_stream, print_struct_schema, Float64Type,
                              Int64Type, ListArray, StringArray, TimestampMillisecondArray, UInt16DictionaryArray};
+use crate::datasources::event_ms_where_clause;
 
 const ORDER_BOOK_TABLE_NAME: &str = "order_books";
 
@@ -55,13 +56,15 @@ pub async fn raw_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     sample_rate: Duration,
     format: String,
+    lower_dt: Option<DateTime<Utc>>,
+    upper_dt: Option<DateTime<Utc>>,
 ) -> crate::error::Result<RecordBatch> {
     let sql_query = format!(
         "select to_timestamp_millis(event_ms) as event_ms, asks, bids from
    (select asks, bids, event_ms, ROW_NUMBER() OVER (PARTITION BY sample_time order by event_ms) as row_num
-    FROM (select asks, bids, event_ms / {sample_rate} as sample_time, event_ms from {table})) where row_num = 1;",
+    FROM (select asks, bids, event_ms / {sample_rate} as sample_time, event_ms from {table} {where})) where row_num = 1;",
         sample_rate = sample_rate.num_milliseconds(),
-        table = ORDER_BOOK_TABLE_NAME
+        table = ORDER_BOOK_TABLE_NAME, where = event_ms_where_clause("event_ms", upper_dt, lower_dt)
     );
     let batch = multitables_as_df(table_paths, format, Some(ORDER_BOOK_TABLE_NAME.to_string()), sql_query).await?;
     if tracing::enabled!(Level::TRACE) {
@@ -77,14 +80,16 @@ pub async fn raw_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
 pub fn sampled_orderbooks_stream<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
+    lower_dt: Option<DateTime<Utc>>,
+    upper_dt: Option<DateTime<Utc>>,
 ) -> impl Stream<Item = MarketEventEnvelope> + 'static {
     multitables_as_stream(
         table_paths,
         format,
         Some("order_books".to_string()),
         format!(
-            "select xch, to_timestamp_millis(event_ms) as event_ts, pr, asks, bids from {table} order by event_ms asc",
-            table = "order_books"
+            "select xch, to_timestamp_millis(event_ms) as event_ts, pr, asks, bids from {table} {where} order by event_ms asc",
+            table = "order_books", where = event_ms_where_clause("event_ms", upper_dt, lower_dt)
         ),
     )
     .map(events_from_orderbooks)
@@ -95,14 +100,16 @@ pub fn sampled_orderbooks_stream<P: 'static + AsRef<Path> + Debug>(
 pub async fn sampled_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
+    lower_dt: Option<DateTime<Utc>>,
+    upper_dt: Option<DateTime<Utc>>,
 ) -> crate::error::Result<RecordBatch> {
     let batch = multitables_as_df(
         table_paths,
         format,
         Some("order_books".to_string()),
         format!(
-            "select xch, to_timestamp_millis(event_ms) as event_ts, pr, asks, bids from {table} order by event_ms asc",
-            table = "order_books"
+            "select xch, to_timestamp_millis(event_ms) as event_ts, pr, asks, bids from {table} {where} order by event_ms asc",
+            table = "order_books", where = event_ms_where_clause("event_ms", upper_dt, lower_dt)
         ),
     )
     .await?;

@@ -7,10 +7,11 @@ use serde_json::Value;
 use brokers::prelude::*;
 use strategy::driver::{StratProviderRef, StrategyInitContext};
 use strategy_test_util::draw::StrategyEntry;
-use strategy_test_util::it_backtest::{generic_backtest, BacktestRange};
+use strategy_test_util::it_backtest::generic_backtest;
 use strategy_test_util::log::StrategyLog;
 use trading::order_manager::types::OrderDetail;
 use trading::types::{OrderConf, OrderMode};
+use util::time::DateRange;
 
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::MeanRevertingStrategy;
@@ -81,7 +82,10 @@ async fn spot_backtest() {
         &full_test_name,
         provider,
         &entries,
-        &BacktestRange::new(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 9)),
+        DateRange::by_day(
+            Utc.ymd(2021, 8, 1).and_hms(0, 0, 0),
+            Utc.ymd(2021, 8, 9).and_hms(0, 0, 0),
+        ),
         &[exchange],
         100.0,
         0.001,
@@ -132,7 +136,10 @@ async fn margin_backtest() {
         &full_test_name,
         provider,
         &entries,
-        &BacktestRange::new(Utc.ymd(2021, 8, 1), Utc.ymd(2021, 8, 9)),
+        DateRange::by_day(
+            Utc.ymd(2021, 8, 1).and_hms(0, 0, 0),
+            Utc.ymd(2021, 8, 9).and_hms(0, 0, 0),
+        ),
         &[exchange],
         100.0,
         0.001,

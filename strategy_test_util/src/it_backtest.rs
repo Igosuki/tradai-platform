@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use chrono::{Date, Utc};
 use itertools::Itertools;
 use tokio::time::Duration;
 
@@ -13,21 +12,13 @@ use strategy::query::{DataQuery, DataResult, PortfolioSnapshot};
 use trading::engine::mock_engine;
 use trading::position::Position;
 use util::test::test_results_dir;
+use util::time::DateRange;
 
 use crate::draw::{draw_line_plot, StrategyEntryFnRef};
 use crate::fs::copy_file;
 use crate::init;
 use crate::log::{write_models, write_trade_events, StrategyLog};
 use crate::{input, test_db_with_path};
-
-pub struct BacktestRange {
-    from: Date<Utc>,
-    to: Date<Utc>,
-}
-
-impl BacktestRange {
-    pub fn new(from: Date<Utc>, to: Date<Utc>) -> Self { Self { from, to } }
-}
 
 /// # Panics
 ///
@@ -37,7 +28,7 @@ pub async fn generic_backtest<'a, S2>(
     test_name: &'a str,
     provider: StratProviderRef,
     draw_entries: &'a [(S2, StrategyEntryFnRef<StrategyLog, S2>)],
-    range: &'a BacktestRange,
+    range: DateRange,
     exchanges: &'a [Exchange],
     starting_cash: f64,
     fees_rate: f64,
@@ -78,8 +69,8 @@ where
     for c in &driver.channels() {
         events.extend(
             input::load_csv_events(
-                range.from,
-                range.to,
+                range.0.date(),
+                range.1.date(),
                 vec![c.pair().as_ref()],
                 &c.exchange().capitalized(),
                 c.name(),

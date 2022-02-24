@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use prometheus::{GaugeVec, Registry};
 
 use metrics::prelude::*;
-use stats::BollingerBandsOutput;
+use stats::ta_indicators::BollingerBandsOutput;
 
 type ModelIndicatorFn = (String, fn(&BollingerBandsOutput) -> f64);
 

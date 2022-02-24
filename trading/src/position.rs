@@ -227,6 +227,7 @@ impl Position {
         self.meta.last_update = event.e.time();
         self.current_symbol_price = price;
         self.unreal_profit_loss = self.calculate_unreal_profit_loss(fees_rate, interests);
+        //eprintln!("self.unreal_profit_loss = {:?}", self.unreal_profit_loss);
         self.interests = interests;
     }
 
@@ -248,6 +249,12 @@ impl Position {
             PositionKind::Long => ((current_value * (1.0 - fees_rate)) - enter_value - interests) / enter_value,
             PositionKind::Short => {
                 let open_price = self.open_order.as_ref().map(|o| o.weighted_price).unwrap();
+                // eprintln!("enter_value = {:?}", enter_value);
+                // eprintln!("current_value = {:?}", current_value);
+                // eprintln!("interests = {:?}", interests);
+                // eprintln!("open_price = {:?}", open_price);
+                // eprintln!("fees_rate = {:?}", fees_rate);
+                // eprintln!("current_symbol_price = {:?}", self.current_symbol_price);
                 (enter_value - (current_value * (1.0 + fees_rate)) - (interests * open_price)) / enter_value
             }
         }

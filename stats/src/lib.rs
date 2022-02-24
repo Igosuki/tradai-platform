@@ -36,10 +36,13 @@ extern crate anyhow;
 #[macro_use]
 extern crate strum_macros;
 
-pub use ta::indicators::*;
+pub use ta::indicators as ta_indicators;
 pub use ta::{Close, High, Low, Next, Open, Period, Reset, Volume};
-pub use yata::core::{Action, Method, Window};
-pub use yata::methods::{LowerReversalSignal, UpperReversalSignal};
+pub use yata::core::{Action, Method, Source, Window};
+pub use yata::helpers::MA;
+pub use yata::indicators as yata_indicators;
+pub use yata::methods::*;
+pub use yata::prelude as yata_prelude;
 
 pub mod dispersion;
 pub mod error;

@@ -4,10 +4,10 @@ use std::thread;
 
 use backtest::report::BacktestReport;
 use backtest::{backtest_with_events, backtest_with_range, load_market_events, load_market_events_df, RecordBatch};
-use chrono::{Date, TimeZone, Utc};
+use chrono::{TimeZone, Utc};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3_chrono::NaiveDate;
+use pyo3_chrono::NaiveDateTime;
 use pythonize::pythonize;
 
 use brokers::prelude::Exchange;
@@ -15,9 +15,10 @@ use brokers::types::MarketEventEnvelope;
 use strategy::driver::{StratProviderRef, StrategyInitContext};
 use strategy::Channel;
 use strategy_test_util::draw::StrategyEntryFnRef;
-use strategy_test_util::it_backtest::{generic_backtest, BacktestRange};
+use strategy_test_util::it_backtest::generic_backtest;
 use strategy_test_util::log::StrategyLog;
 use trading::position::Position;
+use util::time::DateRange;
 
 use crate::brokerage::PyMarketEvents;
 use crate::db::PyDb;
@@ -113,8 +114,8 @@ fn it_backtest_wrapper<'p>(
     py: Python<'p>,
     test_name: &'p PyAny,
     provider_fn: &'p PyAny,
-    from: NaiveDate,
-    to: NaiveDate,
+    from: NaiveDateTime,
+    to: NaiveDateTime,
     draw_entries: Vec<(&'p str, &'p PyAny)>,
 ) -> PyResult<&'p PyAny> {
     let name: String = test_name.extract()?;
@@ -122,8 +123,6 @@ fn it_backtest_wrapper<'p>(
         return Err(PyErr::new::<PyTypeError, _>("provider_fn must be a function"));
     }
     let provider = wrap_strat_provider(py, provider_fn);
-    let from: Date<Utc> = Utc.from_utc_date(&from.0);
-    let to: Date<Utc> = Utc.from_utc_date(&to.0);
     let draw_entries: Vec<(String, StrategyEntryFnRef<StrategyLog, String>)> = draw_entries
         .into_iter()
         .map(|entry| {
@@ -141,7 +140,7 @@ fn it_backtest_wrapper<'p>(
                     &name,
                     provider,
                     arc.as_slice(),
-                    &BacktestRange::new(from, to),
+                    backtest_range(from, to),
                     &[Exchange::Binance],
                     100.0,
                     0.001,
@@ -167,30 +166,20 @@ fn range_backtest_wrapper<'p>(
     py: Python<'p>,
     test_name: &'p PyAny,
     provider_fn: &'p PyAny,
-    from: NaiveDate,
-    to: NaiveDate,
+    from: NaiveDateTime,
+    to: NaiveDateTime,
 ) -> PyResult<&'p PyAny> {
     let name: String = test_name.extract()?;
     if !provider_fn.is_callable() {
         return Err(PyErr::new::<PyTypeError, _>("provider_fn must be a function"));
     }
     let provider = wrap_strat_provider(py, provider_fn);
-    let from: Date<Utc> = Utc.from_utc_date(&from.0);
-    let to: Date<Utc> = Utc.from_utc_date(&to.0);
+    let btr = backtest_range(from, to);
     pyo3_asyncio::tokio::future_into_py_with_locals(py, pyo3_asyncio::tokio::get_current_locals(py)?, async move {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<BacktestReport>(1);
         thread::spawn(move || {
             actix_multi_rt().block_on(async move {
-                let report = backtest_with_range(
-                    &name,
-                    provider,
-                    backtest::BacktestRange::new(from, to),
-                    &[Exchange::Binance],
-                    100.0,
-                    0.001,
-                    None,
-                )
-                .await;
+                let report = backtest_with_range(&name, provider, btr, &[Exchange::Binance], 100.0, 0.001, None).await;
                 tx.send(report.unwrap()).await.unwrap();
             });
         });
@@ -204,16 +193,15 @@ fn range_backtest_wrapper<'p>(
 /// Lods market events over a provided range and channels
 #[pyfunction(name = "market_events", module = "backtest")]
 #[pyo3(text_signature = "(channels, from, to, /)")]
-fn load_events<'p>(py: Python<'p>, channels: &'p PyAny, from: NaiveDate, to: NaiveDate) -> PyResult<&'p PyAny> {
+fn load_events<'p>(py: Python<'p>, channels: &'p PyAny, from: NaiveDateTime, to: NaiveDateTime) -> PyResult<&'p PyAny> {
     let channels: Vec<PyChannel> = channels.extract()?;
-    let from: Date<Utc> = Utc.from_utc_date(&from.0);
-    let to: Date<Utc> = Utc.from_utc_date(&to.0);
+    let btr = backtest_range(from, to);
     pyo3_asyncio::tokio::future_into_py_with_locals(py, pyo3_asyncio::tokio::get_current_locals(py)?, async move {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<MarketEventEnvelope>>(1);
         thread::spawn(move || {
             actix_multi_rt().block_on(async move {
                 let channels = channels.into_iter().map(Into::<Channel>::into).collect();
-                let events = load_market_events(channels, &backtest::BacktestRange::new(from, to), None).await;
+                let events = load_market_events(channels, btr, None).await;
                 tx.send(events.unwrap()).await.unwrap();
             });
         });
@@ -227,16 +215,20 @@ fn load_events<'p>(py: Python<'p>, channels: &'p PyAny, from: NaiveDate, to: Nai
 /// Lods market events over a provided range and channels
 #[pyfunction(name = "market_events_df", module = "backtest")]
 #[pyo3(text_signature = "(channels, from, to, /)")]
-fn load_events_df<'p>(py: Python<'p>, channels: &'p PyAny, from: NaiveDate, to: NaiveDate) -> PyResult<&'p PyAny> {
+fn load_events_df<'p>(
+    py: Python<'p>,
+    channels: &'p PyAny,
+    from: NaiveDateTime,
+    to: NaiveDateTime,
+) -> PyResult<&'p PyAny> {
     let channels: Vec<PyChannel> = channels.extract()?;
-    let from: Date<Utc> = Utc.from_utc_date(&from.0);
-    let to: Date<Utc> = Utc.from_utc_date(&to.0);
+    let btr = backtest_range(from, to);
     pyo3_asyncio::tokio::future_into_py_with_locals(py, pyo3_asyncio::tokio::get_current_locals(py)?, async move {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<RecordBatch>>(1);
         thread::spawn(move || {
             actix_multi_rt().block_on(async move {
                 let channels = channels.into_iter().map(Into::<Channel>::into).collect();
-                let events = load_market_events_df(channels, &backtest::BacktestRange::new(from, to), None).await;
+                let events = load_market_events_df(channels, btr, None).await;
                 tx.send(events.unwrap()).await.unwrap();
             });
         });
@@ -287,4 +279,10 @@ pub(crate) fn backtest(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyPosition>()?;
     m.add_class::<PyBacktestReport>()?;
     Ok(())
+}
+
+fn backtest_range(from: NaiveDateTime, to: NaiveDateTime) -> DateRange {
+    let from = Utc.from_utc_datetime(&from.0);
+    let to = Utc.from_utc_datetime(&to.0);
+    DateRange::by_day(from, to)
 }
