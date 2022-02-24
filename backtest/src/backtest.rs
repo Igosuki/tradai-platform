@@ -234,7 +234,7 @@ async fn start_bt(
     let stop_token = CancellationToken::new();
     let (tx, rx) = tokio::sync::mpsc::channel(1);
     let stop_token_a = stop_token.clone();
-    tokio::spawn(async move {
+    tokio::task::spawn_local(async move {
         let mut runner = runner_ref.write().await;
         let report = runner.run(test_results_dir, Compression::none(), stop_token_a).await;
         report.finish().await.unwrap();
@@ -255,17 +255,22 @@ pub async fn backtest_with_range<'a>(
 ) -> Result<BacktestReport> {
     let runner_ref = build_runner(provider, providers, starting_cash, fees_rate).await;
     let broker = build_msg_broker(&[runner_ref.clone()]).await;
-    let (mut rx, stop_token) = start_bt(test_name, runner_ref).await;
-    let data_mapper = data_mapper.unwrap_or_else(|| default_data_catalog());
-    let date_range = dt_range.into();
-    for c in broker.subjects() {
-        let dataset = data_mapper.get_reader(c);
-        dataset.stream_with_broker(&broker, date_range).await?;
-    }
-    stop_token.cancel();
-    rx.recv().await.ok_or(crate::error::Error::AnyhowError(anyhow!(
-        "Did not receive a backtest report"
-    )))
+    let local = tokio::task::LocalSet::new();
+    local
+        .run_until(async move {
+            let (mut rx, stop_token) = start_bt(test_name, runner_ref).await;
+            let data_mapper = data_mapper.unwrap_or_else(|| default_data_catalog());
+            let date_range = dt_range.into();
+            for c in broker.subjects() {
+                let dataset = data_mapper.get_reader(c);
+                dataset.stream_with_broker(&broker, date_range).await?;
+            }
+            stop_token.cancel();
+            rx.recv().await.ok_or(crate::error::Error::AnyhowError(anyhow!(
+                "Did not receive a backtest report"
+            )))
+        })
+        .await
 }
 
 /// Load market events over the provided range
@@ -315,14 +320,19 @@ pub async fn backtest_with_events<'a>(
         runner.event_sink()
     }
     .await;
-    let (mut rx, stop_token) = start_bt(test_name, runner_ref).await;
-    for event in events {
-        sink.send(event).await.unwrap();
-    }
-    stop_token.cancel();
-    rx.recv().await.ok_or(crate::error::Error::AnyhowError(anyhow!(
-        "Did not receive a backtest report"
-    )))
+    let local = tokio::task::LocalSet::new();
+    local
+        .run_until(async move {
+            let (mut rx, stop_token) = start_bt(test_name, runner_ref).await;
+            for event in events {
+                sink.send(event).await.unwrap();
+            }
+            stop_token.cancel();
+            rx.recv().await.ok_or(crate::error::Error::AnyhowError(anyhow!(
+                "Did not receive a backtest report"
+            )))
+        })
+        .await
 }
 
 #[cfg(test)]
