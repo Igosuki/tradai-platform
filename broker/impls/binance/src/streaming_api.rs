@@ -146,7 +146,7 @@ impl BinanceStreamingApi {
     }
 
     fn get_pair(&self, symbol: &str) -> Result<Pair> {
-        symbol_to_pair(&Self::EXCHANGE, &Symbol::from(symbol)).map_err(|e| {
+        symbol_to_pair(&Self::EXCHANGE, &MarketSymbol::from(symbol)).map_err(|e| {
             self.metrics.in_unsupported_pair(symbol, "order_books");
             e
         })

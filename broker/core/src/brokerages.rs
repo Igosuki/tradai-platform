@@ -16,7 +16,7 @@ use crate::manager::{BrokerageManager, BrokerageRegistry};
 use crate::pair::{filter_pairs, refresh_pairs};
 use crate::plugin::{get_exchange_plugin, BrokerageBotInitContext, PrivateBotInitContext};
 use crate::settings::{BrokerSettings, OrderbookSettings, OrderbookStyle, TradesSettings};
-use crate::types::{AccountType, Pair, PrivateStreamChannel, StreamChannel, Symbol};
+use crate::types::{AccountType, MarketSymbol, Pair, PrivateStreamChannel, StreamChannel};
 
 #[derive(Debug)]
 pub struct Brokerages;
@@ -47,7 +47,7 @@ impl Brokerages {
         creds: Box<dyn Credentials>,
         s: BrokerSettings,
     ) -> Result<Box<MarketDataStreamer>> {
-        let mut channels: HashMap<StreamChannel, HashSet<Symbol>> = HashMap::new();
+        let mut channels: HashMap<StreamChannel, HashSet<MarketSymbol>> = HashMap::new();
         if let Some(OrderbookSettings { ref symbols, ref style }) = s.orderbook {
             let pairs = filter_pairs(&exchange, symbols)?;
             let order_book_pairs: HashSet<Pair> = pairs
@@ -65,7 +65,7 @@ impl Brokerages {
         if let Some(TradesSettings { ref symbols }) = s.trades {
             // Live trade pairs
             let pairs = filter_pairs(&exchange, symbols)?;
-            let trade_pairs: HashSet<Symbol> = pairs
+            let trade_pairs: HashSet<MarketSymbol> = pairs
                 .into_iter()
                 .filter(|p| crate::pair::pair_to_symbol(&exchange, p).is_ok())
                 .collect();

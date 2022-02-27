@@ -68,7 +68,7 @@ pub trait Brokerage: Debug + Send + Sync {
     /// * `symbol`: the asset for which to fetch the interest rate
     ///
     /// returns: Result<InterestRate, Error>
-    async fn margin_interest_rate(&self, _symbol: Symbol) -> Result<InterestRate> {
+    async fn margin_interest_rate(&self, _symbol: MarketSymbol) -> Result<InterestRate> {
         return Err(Error::BrokerFeatureNotImplemented);
     }
 
@@ -167,7 +167,7 @@ mod mock {
         fn uses_account(&self) -> bool { false }
 
         #[allow(clippy::cast_sign_loss)]
-        async fn margin_interest_rate(&self, symbol: Symbol) -> Result<InterestRate> {
+        async fn margin_interest_rate(&self, symbol: MarketSymbol) -> Result<InterestRate> {
             Ok(InterestRate {
                 symbol: symbol.to_string(),
                 rate: self.flat_interest_rate,

@@ -55,23 +55,6 @@ dependencies = [
 
 [[package]]
 name = "actix-codec"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a36c014a3e811624313b51a227b775ecba55d36ef9462bbaac7d4f13e54c9271"
-dependencies = [
- "bitflags",
- "bytes",
- "futures-core",
- "futures-sink",
- "log",
- "memchr",
- "pin-project-lite",
- "tokio",
- "tokio-util 0.6.9",
-]
-
-[[package]]
-name = "actix-codec"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57a7559404a7f3573127aab53c08ce37a6c6a315c374a31070f3c91cd1b4a7fe"
@@ -89,9 +72,9 @@ dependencies = [
 
 [[package]]
 name = "actix-cors"
-version = "0.6.0-beta.10"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8debd30414af03e9411186aac95e0230b0bb1e91146f48015dfab5c049940223"
+checksum = "30dbd116ef7532f56e2f6d7c511736ea0b124d914ee8820a5271247bf89f06aa"
 dependencies = [
  "actix-service",
  "actix-utils",
@@ -105,11 +88,11 @@ dependencies = [
 
 [[package]]
 name = "actix-http"
-version = "3.0.0-rc.3"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8b5ba038f3bb4aa29ad9bdd7eba09955ff04503263c497fc61a389d6412f4e8"
+checksum = "0f3fdd63b9cfeaf92eeeece719dabbddddb420a57d3fd171ce1490ecfb7086b1"
 dependencies = [
- "actix-codec 0.5.0",
+ "actix-codec",
  "actix-rt",
  "actix-service",
  "actix-tls",
@@ -147,7 +130,7 @@ version = "3.0.0-beta.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09594b8a7eaa15da5cfd0e25c779d4b1d6ded62d4a79904f1d91b0dcf97c78e7"
 dependencies = [
- "actix-codec 0.5.0",
+ "actix-codec",
  "actix-rt",
  "actix-server",
  "actix-service",
@@ -179,9 +162,9 @@ dependencies = [
 
 [[package]]
 name = "actix-router"
-version = "0.5.0-rc.3"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb6506dbef336634ff35d994d58daa0a412ea23751f15f9b4dcac4d594b1ed1f"
+checksum = "eb60846b52c118f2f04a56cc90880a274271c489b2498623d58176f8ca21fa80"
 dependencies = [
  "bytestring",
  "firestorm",
@@ -237,7 +220,7 @@ version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fde0cf292f7cdc7f070803cb9a0d45c018441321a78b1042ffbbb81ec333297"
 dependencies = [
- "actix-codec 0.5.0",
+ "actix-codec",
  "actix-rt",
  "actix-service",
  "actix-utils",
@@ -264,11 +247,11 @@ dependencies = [
 
 [[package]]
 name = "actix-web"
-version = "4.0.0-rc.3"
+version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83e3c85bc4116b69913b03f16cff8cade1212508fcd321847d9cfe3d3e41f991"
+checksum = "f4e5ebffd51d50df56a3ae0de0e59487340ca456f05dd0b90c0a7a6dd6a74d31"
 dependencies = [
- "actix-codec 0.4.2",
+ "actix-codec",
  "actix-http",
  "actix-router",
  "actix-rt",
@@ -278,6 +261,7 @@ dependencies = [
  "actix-utils",
  "ahash",
  "bytes",
+ "bytestring",
  "cfg-if 1.0.0",
  "cookie",
  "derive_more",
@@ -338,7 +322,7 @@ version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fcb51a0695d8f838b1ee009b3fbf66bda078cd64590202a864a8f3e8c4315c47"
 dependencies = [
- "getrandom 0.2.4",
+ "getrandom 0.2.5",
  "once_cell",
  "version_check",
 ]
@@ -378,9 +362,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.54"
+version = "1.0.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a99269dff3bc004caa411f38845c20303f1e393ca2bd6581576fa3a7f59577d"
+checksum = "159bb86af3a200e19a068f4224eae4c8bb2d0fa054c7e5d1cacd5cef95e684cd"
 
 [[package]]
 name = "array-init"
@@ -760,7 +744,7 @@ version = "3.0.0-beta.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d91ad5074d7d2d8be6ef74d4ecb79c0f4d5f58bdc7ec896d5fbaa9f2fb9bfa5e"
 dependencies = [
- "actix-codec 0.5.0",
+ "actix-codec",
  "actix-http",
  "actix-rt",
  "actix-service",
@@ -797,7 +781,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b62ddb9cb1ec0a098ad4bbf9344d0713fa193ae1a80af55febcff2627b6a00c1"
 dependencies = [
  "futures-core",
- "getrandom 0.2.4",
+ "getrandom 0.2.5",
  "instant",
  "pin-project-lite",
  "rand 0.8.5",
@@ -903,9 +887,9 @@ dependencies = [
 
 [[package]]
 name = "binance-rs-async"
-version = "1.1.6"
+version = "1.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d15e59f686d35c9e3c01db93e51e101805f3a53d726ce0de2e89590776374f33"
+checksum = "1375c711d8010568c8fed0aa46a0bbf6706464a3f2a76aebd16707617fc375e9"
 dependencies = [
  "chrono",
  "futures",
@@ -1177,7 +1161,7 @@ name = "broker_core"
 version = "0.1.0"
 dependencies = [
  "actix",
- "actix-codec 0.5.0",
+ "actix-codec",
  "actix-http",
  "actix_derive",
  "anyhow",
@@ -1263,7 +1247,7 @@ dependencies = [
 name = "broker_test_util"
 version = "0.1.0"
 dependencies = [
- "actix-codec 0.5.0",
+ "actix-codec",
  "actix-http",
  "actix-http-test",
  "binance-rs-async",
@@ -1289,7 +1273,7 @@ dependencies = [
  "broker_core",
  "broker_kraken",
  "broker_poloniex",
- "clap 3.1.1",
+ "clap 3.1.2",
  "dashmap",
  "dyn-clone",
  "env_logger 0.9.0",
@@ -1589,9 +1573,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.1"
+version = "3.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d76c22c9b9b215eeb8d016ad3a90417bd13cb24cf8142756e6472445876cab7"
+checksum = "5177fac1ab67102d8989464efd043c6ff44191b1557ec1ddd489b4f7e1447e77"
 dependencies = [
  "atty",
  "bitflags",
@@ -2168,9 +2152,9 @@ checksum = "ee2626afccd7561a06cf1367e2950c4718ea04565e20fb5029b6c7d8ad09abcf"
 
 [[package]]
 name = "ed25519"
-version = "1.3.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74e1069e39f1454367eb2de793ed062fac4c35c2934b76a81d90dd9abcd28816"
+checksum = "eed12bbf7b5312f8da1c2722bc06d8c6b12c2d86a7fb35a194c7f3e6fc2bbe39"
 dependencies = [
  "signature",
 ]
@@ -2633,9 +2617,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "418d37c8b1d42553c93648be529cb70f920d3baf8ef469b74b9638df426e0b4c"
+checksum = "d39cd93900197114fa1fcb7ae84ca742095eed9442088988ae74fa744e930e77"
 dependencies = [
  "cfg-if 1.0.0",
  "libc",
@@ -3093,9 +3077,9 @@ checksum = "48dc51180a9b377fd75814d0cc02199c20f8e99433d6762f650d39cdbbd3b56f"
 
 [[package]]
 name = "integer-encoding"
-version = "3.0.2"
+version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90c11140ffea82edce8dcd74137ce9324ec24b3cf0175fc9d7e29164da9915b8"
+checksum = "0e85a1509a128c855368e135cffcde7eac17d8e1083f41e2b98c58bc1a5074be"
 dependencies = [
  "async-trait",
  "futures-util",
@@ -4310,7 +4294,7 @@ dependencies = [
  "async-trait",
  "byteorder",
  "futures",
- "integer-encoding 3.0.2",
+ "integer-encoding 3.0.3",
  "ordered-float 1.1.1",
 ]
 
@@ -5057,7 +5041,7 @@ version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d34f1408f55294453790c48b2f1ebbb1c5b4b7563eb1f418bcfcfdbb06ebb4e7"
 dependencies = [
- "getrandom 0.2.4",
+ "getrandom 0.2.5",
 ]
 
 [[package]]
@@ -5576,9 +5560,9 @@ dependencies = [
 
 [[package]]
 name = "semver"
-version = "1.0.5"
+version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0486718e92ec9a68fbed73bb5ef687d71103b142595b406835649bebd33f72c7"
+checksum = "a4a3381e03edd24287172047536f20cabde766e2cd3e65e6b00fb3af51c4f38d"
 
 [[package]]
 name = "serde"
@@ -5814,7 +5798,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd0dd6308a6e7db9e347b4de26f75d3bbd223b8335a0133a9b57b840b2515715"
 dependencies = [
  "actix",
- "actix-codec 0.5.0",
+ "actix-codec",
  "actix-http",
  "actix-web",
  "awc",
@@ -6825,7 +6809,7 @@ version = "0.1.0"
 dependencies = [
  "account",
  "actix",
- "actix-codec 0.5.0",
+ "actix-codec",
  "actix-cors",
  "actix-rt",
  "actix-web",
@@ -6837,7 +6821,7 @@ dependencies = [
  "bytes",
  "checkers",
  "chrono",
- "clap 3.1.1",
+ "clap 3.1.2",
  "config",
  "data-encoding",
  "db",
@@ -6895,7 +6879,7 @@ dependencies = [
  "broker_test_util",
  "brokers",
  "chrono",
- "clap 3.1.1",
+ "clap 3.1.2",
  "db",
  "derive_more",
  "env_logger 0.9.0",
@@ -7158,7 +7142,7 @@ version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
 dependencies = [
- "getrandom 0.2.4",
+ "getrandom 0.2.5",
  "serde 1.0.136",
 ]
 
@@ -7168,7 +7152,7 @@ version = "1.0.0-alpha.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb3ab47baa004111b323696c6eaa2752e7356f7f77cf6b6dc7a2087368ce1ca4"
 dependencies = [
- "getrandom 0.2.4",
+ "getrandom 0.2.5",
  "rand 0.8.5",
  "serde 1.0.136",
 ]
@@ -7529,9 +7513,9 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.5.2"
+version = "1.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c88870063c39ee00ec285a2f8d6a966e5b6fb2becc4e8dac77ed0d370ed6006"
+checksum = "50344758e2f40e3a1fcfc8f6f91aa57b5f8ebd8d27919fe6451f15aaaf9ee608"
 dependencies = [
  "zeroize_derive",
 ]

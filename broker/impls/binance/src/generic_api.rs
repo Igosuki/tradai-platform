@@ -233,7 +233,7 @@ impl Brokerage for BinanceApi {
     fn uses_account(&self) -> bool { self.api_key.is_some() && self.api_secret.is_some() }
 
     #[allow(clippy::cast_possible_truncation)]
-    async fn margin_interest_rate(&self, symbol: Symbol) -> Result<InterestRate> {
+    async fn margin_interest_rate(&self, symbol: MarketSymbol) -> Result<InterestRate> {
         let margin = self.margin();
         let history = margin
             .interest_rate_history(InterestRateHistoryQuery {

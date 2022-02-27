@@ -65,7 +65,7 @@ fn expected_ok_status(order: &OrderDetail) -> binance::rest_model::OrderStatus {
 #[allow(clippy::cast_sign_loss)]
 pub fn create_ok_order_mock<'a>(server: &'a MockServer, order: &'a OrderDetail) -> Mock<'a> {
     let symbol = format!("{}{}", order.base_asset, order.quote_asset);
-    register_pair_default(Exchange::Binance, &symbol, &order.pair);
+    register_pair_default(Exchange::Binance, &symbol, &order.symbol);
     let price = order.price.unwrap_or_else(random);
     let qty = order.base_qty.unwrap_or_else(random);
     let quote_qty = price * qty;
@@ -114,7 +114,7 @@ pub fn create_ok_order_mock<'a>(server: &'a MockServer, order: &'a OrderDetail) 
 #[allow(clippy::cast_sign_loss)]
 pub fn create_ok_margin_order_mock(server: &MockServer, order: OrderDetail) -> Mock<'_> {
     let symbol = format!("{}{}", order.base_asset, order.quote_asset);
-    register_pair_default(Exchange::Binance, &symbol, &order.pair);
+    register_pair_default(Exchange::Binance, &symbol, &order.symbol);
     let price = order.price.unwrap_or_else(random);
     let qty = order.base_qty.unwrap_or_else(random);
     let quote_qty = price * qty;

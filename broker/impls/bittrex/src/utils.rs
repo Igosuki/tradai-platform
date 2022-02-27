@@ -7,12 +7,14 @@ use broker_core::types::*;
 
 /// Return the name associated to the pair used by Bittrex
 /// If the Pair is not supported, None is returned.
-pub fn get_pair_string(pair: &Pair) -> Result<Symbol> { broker_core::pair::pair_to_symbol(&Exchange::Bittrex, pair) }
+pub fn get_pair_string(pair: &Pair) -> Result<MarketSymbol> {
+    broker_core::pair::pair_to_symbol(&Exchange::Bittrex, pair)
+}
 
 /// Return the Pair associated to the string used by Bittrex
 /// If the Pair is not supported, None is returned.
 pub fn get_pair_enum(symbol: &str) -> Result<Pair> {
-    broker_core::pair::symbol_to_pair(&Exchange::Bittrex, &Symbol::from(symbol))
+    broker_core::pair::symbol_to_pair(&Exchange::Bittrex, &MarketSymbol::from(symbol))
 }
 
 /// If error array is null, return the result (which can be an array, object or null)

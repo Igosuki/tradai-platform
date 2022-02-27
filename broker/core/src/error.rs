@@ -98,6 +98,8 @@ pub enum Error {
     UnsupportedAccountType,
     #[error("Feature is not implemented for this exchange")]
     BrokerFeatureNotImplemented,
+    #[error("Cannot perform {0} on {1}")]
+    InvalidOperation(String, String),
 }
 
 impl PartialEq for Error {
