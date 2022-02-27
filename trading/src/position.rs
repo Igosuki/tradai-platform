@@ -194,7 +194,7 @@ impl Position {
             },
             quantity: order.total_executed_qty,
             exchange: Exchange::from_str(order.exchange.as_str()).unwrap(),
-            symbol: order.pair.clone().into(),
+            symbol: order.symbol.clone().into(),
             kind,
             open_order: Some(order.clone()),
             ..Position::default()

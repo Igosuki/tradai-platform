@@ -138,7 +138,10 @@ impl OrderManager {
 
     /// Updates an already registered order
     pub(crate) async fn update_order(&mut self, order: OrderUpdate) -> Result<()> {
-        let order_id = order.orig_order_id.clone();
+        if order.orig_order_id.is_none() {
+            return Err(Error::OrderNotFound("".to_string()));
+        }
+        let order_id = order.orig_order_id.as_ref().unwrap().clone();
         let tr = if order.new_status.is_rejection() {
             TransactionStatus::Rejected(Rejection::from_status(&order.new_status, order.rejection_reason))
         } else if order.new_status == OrderStatus::PartiallyFilled {

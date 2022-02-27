@@ -366,7 +366,7 @@ impl Default for OrderUpdate {
         OrderUpdate {
             enforcement: OrderEnforcement::GTC,
             side: TradeType::Sell,
-            orig_order_id: "".to_string(),
+            orig_order_id: None,
             order_id: 0,
             symbol: "".to_string(),
             timestamp: 0,
@@ -413,7 +413,7 @@ pub struct BalanceUpdate {
 pub struct OrderUpdate {
     pub enforcement: OrderEnforcement,
     pub side: TradeType,
-    pub orig_order_id: String,
+    pub orig_order_id: Option<String>,
     pub order_id: u64,
     pub symbol: String,
     pub timestamp: u64,
@@ -441,7 +441,7 @@ impl From<Order> for OrderUpdate {
         OrderUpdate {
             enforcement: o.enforcement,
             side: o.side,
-            orig_order_id: o.orig_order_id,
+            orig_order_id: Some(o.orig_order_id),
             order_id: o.order_id.parse::<u64>().unwrap_or(0),
             symbol: o.symbol.to_string(),
             timestamp: o.last_event_time,

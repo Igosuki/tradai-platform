@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
 
-use broker_core::types::{MarketEvent, Orderbook, Pair, StreamChannel, Symbol, Ticker as CoinnectTicker, Trade};
+use broker_core::types::{MarketEvent, MarketSymbol, Orderbook, Pair, StreamChannel, Ticker as CoinnectTicker, Trade};
 
 use super::utils;
 
@@ -169,7 +169,7 @@ pub fn subscription(c: StreamChannel, currency_pair: &str) -> Subscription {
 #[non_exhaustive]
 pub(crate) struct PublicQuery {
     pub method: &'static str,
-    pub pair: Symbol,
+    pub pair: MarketSymbol,
 }
 
 #[derive(Deserialize)]

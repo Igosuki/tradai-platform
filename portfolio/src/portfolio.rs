@@ -31,7 +31,7 @@ pub enum MarketLockRule {
 pub type PositionKey = (Exchange, Pair);
 
 fn pos_key_from_order(order: &OrderDetail) -> Result<PositionKey> {
-    Ok((Exchange::from_str(&order.exchange)?, order.pair.clone().into()))
+    Ok((Exchange::from_str(&order.exchange)?, order.symbol.clone().into()))
 }
 
 fn pos_key_from_position(pos: &Position) -> PositionKey { (pos.exchange, pos.symbol.clone()) }
@@ -255,7 +255,7 @@ impl Portfolio {
     ) {
         debug!(
             pos_knd = %kind,
-            pair = %order.pair,
+            pair = %order.symbol,
             fees = format!("{:.6}", order.quote_fees()).as_str(),
             realized_quote_value = format!("{:.2}", order.realized_quote_value()).as_str(),
             quote_value = format!("{:.2}", order.quote_value()).as_str(),

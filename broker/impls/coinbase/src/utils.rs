@@ -5,18 +5,18 @@ use sha2::Sha256;
 
 use broker_core::error::*;
 use broker_core::prelude::*;
-use broker_core::types::{Asset, Pair, Symbol};
+use broker_core::types::{Asset, MarketSymbol, Pair};
 use broker_core::util::get_unix_timestamp_ms;
 
 /// Return the name associated to the pair used by Gdax
 /// If the Pair is not supported, None is returned.
-pub fn get_symbol(pair: &Pair) -> Result<Symbol> { broker_core::pair::pair_to_symbol(&Exchange::Coinbase, pair) }
+pub fn get_symbol(pair: &Pair) -> Result<MarketSymbol> { broker_core::pair::pair_to_symbol(&Exchange::Coinbase, pair) }
 
 /// Return the Pair associated to the string used by Gdax
 /// If the Pair is not supported, None is returned.
 #[allow(dead_code)]
 pub fn get_pair(symbol: &str) -> Result<Pair> {
-    broker_core::pair::symbol_to_pair(&Exchange::Coinbase, &Symbol::from(symbol))
+    broker_core::pair::symbol_to_pair(&Exchange::Coinbase, &MarketSymbol::from(symbol))
 }
 
 pub fn build_signature(nonce: &str, passphrase: &str, api_key: &str, api_secret: &str) -> Result<String> {
