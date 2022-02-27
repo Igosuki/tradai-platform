@@ -4,13 +4,15 @@ use broker_core::types::*;
 
 /// Return the name associated to the pair used by Kraken
 /// If the Pair is not supported, None is returned.
-pub fn get_pair_string(pair: &Pair) -> Result<Symbol> { broker_core::pair::pair_to_symbol(&Exchange::Kraken, pair) }
+pub fn get_pair_string(pair: &Pair) -> Result<MarketSymbol> {
+    broker_core::pair::pair_to_symbol(&Exchange::Kraken, pair)
+}
 
 /// Return the Pair associated to the string used by Kraken
 /// If the Pair is not supported, None is returned.
 #[allow(dead_code)]
 pub fn get_pair(symbol: &str) -> Result<Pair> {
-    broker_core::pair::symbol_to_pair(&Exchange::Kraken, &Symbol::from(symbol))
+    broker_core::pair::symbol_to_pair(&Exchange::Kraken, &MarketSymbol::from(symbol))
 }
 
 #[derive(Deserialize)]

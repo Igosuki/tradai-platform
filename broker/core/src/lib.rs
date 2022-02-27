@@ -71,6 +71,7 @@ pub mod bot;
 pub mod broker;
 pub mod brokerages;
 pub mod credential;
+pub mod currency;
 pub mod error;
 pub mod exchange;
 pub mod json_util;

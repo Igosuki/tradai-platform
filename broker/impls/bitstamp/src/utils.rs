@@ -1,6 +1,6 @@
 use broker_core::error::*;
 use broker_core::prelude::Exchange;
-use broker_core::types::{Asset, Pair, Symbol};
+use broker_core::types::{Asset, MarketSymbol, Pair};
 use broker_core::util::get_unix_timestamp_ms;
 use hmac::{Hmac, Mac};
 use serde_json::value::Map;
@@ -9,13 +9,15 @@ use sha2::Sha256;
 
 /// Return the name associated to the pair used by Bitstamp
 /// If the Pair is not supported, None is returned.
-pub fn get_pair_string(pair: &Pair) -> Result<Symbol> { broker_core::pair::pair_to_symbol(&Exchange::Bitstamp, pair) }
+pub fn get_pair_string(pair: &Pair) -> Result<MarketSymbol> {
+    broker_core::pair::pair_to_symbol(&Exchange::Bitstamp, pair)
+}
 
 /// Return the Pair associated to the string used by Bitstamp
 /// If the Pair is not supported, None is returned.
 #[allow(dead_code)]
 pub fn get_pair_enum(symbol: &str) -> Result<Pair> {
-    broker_core::pair::symbol_to_pair(&Exchange::Bitstamp, &Symbol::from(symbol))
+    broker_core::pair::symbol_to_pair(&Exchange::Bitstamp, &MarketSymbol::from(symbol))
 }
 
 pub fn build_signature(nonce: &str, customer_id: &str, api_key: &str, api_secret: &str) -> Result<String> {

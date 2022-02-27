@@ -7,13 +7,13 @@ use broker_core::types::*;
 
 /// Return the name associated to the pair used by Poloniex
 /// If the Pair is not supported, None is returned.
-pub fn get_symbol(pair: &Pair) -> Result<Symbol> { broker_core::pair::pair_to_symbol(&Exchange::Poloniex, pair) }
+pub fn get_symbol(pair: &Pair) -> Result<MarketSymbol> { broker_core::pair::pair_to_symbol(&Exchange::Poloniex, pair) }
 
 /// Return the Pair associated to the string used by Poloniex
 /// If the Pair is not supported, None is returned.
 #[allow(dead_code)]
 pub fn get_pair(symbol: &str) -> Result<Pair> {
-    broker_core::pair::symbol_to_pair(&Exchange::Poloniex, &Symbol::from(symbol))
+    broker_core::pair::symbol_to_pair(&Exchange::Poloniex, &MarketSymbol::from(symbol))
 }
 
 /// If error array is null, return the result (encoded in a json object)

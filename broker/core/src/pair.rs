@@ -13,13 +13,14 @@ use once_cell::sync::OnceCell;
 use crate::api::Brokerage;
 use crate::error::*;
 use crate::exchange::Exchange;
-use crate::types::{Pair, Symbol};
+use crate::types::{MarketSymbol, Pair};
 
 static DEFAULT_PAIR_REGISTRY: OnceCell<PairRegistry> = OnceCell::new();
 
 /// Default registry (global static).
 pub fn default_pair_registry() -> &'static PairRegistry { DEFAULT_PAIR_REGISTRY.get_or_init(PairRegistry::default) }
 
+/// A market pair configuration
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct PairConf {
     /// the base asset the conf applies to
@@ -27,7 +28,7 @@ pub struct PairConf {
     /// the quote (or counter) asset
     pub quote: String,
     /// the exchange side symbol
-    pub symbol: Symbol,
+    pub symbol: MarketSymbol,
     /// the server side pair
     pub pair: Pair,
     /// price >= min_price
@@ -54,6 +55,8 @@ pub struct PairConf {
     pub base_precision: Option<u32>,
     /// The quote asset precision
     pub quote_precision: Option<u32>,
+    /// The option strike scale
+    pub strike_price: Option<u32>,
     /// If spot trading is allowed
     pub spot_allowed: bool,
     /// If margin trading is allowed
@@ -81,8 +84,8 @@ impl Ord for PairConf {
     fn cmp(&self, other: &PairConf) -> Ordering { self.symbol.cmp(&other.symbol) }
 }
 
-impl Borrow<Symbol> for PairConf {
-    fn borrow(&self) -> &Symbol { &self.symbol }
+impl Borrow<MarketSymbol> for PairConf {
+    fn borrow(&self) -> &MarketSymbol { &self.symbol }
 }
 
 /// A struct for registering pairs for an exchange
@@ -111,7 +114,7 @@ impl PairRegistry {
         writer.insert(xchg, exchange_map);
     }
 
-    pub fn pair_to_symbol(&self, xchg: &Exchange, p: &Pair) -> Result<Symbol> {
+    pub fn pair_to_symbol(&self, xchg: &Exchange, p: &Pair) -> Result<MarketSymbol> {
         let pairs_map = self.pairs.as_ref();
         pairs_map
             .get(xchg)
@@ -119,11 +122,11 @@ impl PairRegistry {
             .ok_or(Error::PairUnsupported)
     }
 
-    pub fn symbol_to_pair(&self, xchg: &Exchange, symbol: &Symbol) -> Result<Pair> {
+    pub fn symbol_to_pair(&self, xchg: &Exchange, symbol: &MarketSymbol) -> Result<Pair> {
         let pairs_map = self.pairs.as_ref();
         let option = pairs_map.get(xchg);
         option
-            .and_then(|pair_to_symbol| pair_to_symbol.get_by_right::<Symbol>(symbol).cloned())
+            .and_then(|pair_to_symbol| pair_to_symbol.get_by_right::<MarketSymbol>(symbol).cloned())
             .ok_or_else(|| Error::SymbolPairConversion(symbol.to_string()))
     }
 
@@ -169,7 +172,7 @@ impl PairRegistry {
             })
     }
 
-    pub fn register_pair(&self, xchg: &Exchange, pair: Pair, symbol: Symbol) {
+    pub fn register_pair(&self, xchg: &Exchange, pair: Pair, symbol: MarketSymbol) {
         self.register(*xchg, vec![PairConf {
             symbol,
             pair,
@@ -178,29 +181,45 @@ impl PairRegistry {
     }
 }
 
-pub fn pair_to_symbol(xchg: &Exchange, p: &Pair) -> Result<Symbol> { default_pair_registry().pair_to_symbol(xchg, p) }
+/// Gets the corresponding market symbol for this market pair
+pub fn pair_to_symbol(xchg: &Exchange, p: &Pair) -> Result<MarketSymbol> {
+    default_pair_registry().pair_to_symbol(xchg, p)
+}
 
-pub fn symbol_to_pair(xchg: &Exchange, symbol: &Symbol) -> Result<Pair> {
+/// Gets the corresponding market pair for this market symbol
+pub fn symbol_to_pair(xchg: &Exchange, symbol: &MarketSymbol) -> Result<Pair> {
     default_pair_registry().symbol_to_pair(xchg, symbol)
 }
 
-pub fn pair_conf(xchg: &Exchange, p: &Pair) -> Result<PairConf> { default_pair_registry().pair_conf(xchg, p) }
-
-pub fn pair_confs(xchg: &Exchange) -> Result<Vec<PairConf>> { default_pair_registry().pair_confs(xchg) }
-
-pub fn pair_string(xchg: Exchange, pair: &Pair) -> Result<String> { pair_to_symbol(&xchg, pair).map(|p| p.to_string()) }
-
-pub fn filter_pairs(xchg: &Exchange, pairs_expressions: &[String]) -> Result<HashSet<Pair>> {
-    default_pair_registry().filter_pairs(xchg, pairs_expressions)
+/// Get the base and quote assets for this market pair
+pub fn decompose(xch: &Exchange, p: &Pair) -> Result<(String, String)> {
+    let c = pair_conf(xch, p)?;
+    Ok((c.base, c.quote))
 }
 
+/// The exchange configuration for this market pair
+pub fn pair_conf(xchg: &Exchange, p: &Pair) -> Result<PairConf> { default_pair_registry().pair_conf(xchg, p) }
+
+/// The all available market pair configurations for this exchange
+pub fn pair_confs(xchg: &Exchange) -> Result<Vec<PairConf>> { default_pair_registry().pair_confs(xchg) }
+
+/// A string representation of the remote currency pair symbol for this market pair
+pub fn pair_string(xchg: Exchange, pair: &Pair) -> Result<String> { pair_to_symbol(&xchg, pair).map(|p| p.to_string()) }
+
+/// Get all market pairs corresponding to regex filter expressions
+pub fn filter_pairs(xchg: &Exchange, expressions: &[String]) -> Result<HashSet<Pair>> {
+    default_pair_registry().filter_pairs(xchg, expressions)
+}
+
+/// Refresh registry pairs using the provided brokerage
 pub async fn refresh_pairs(xchg: &Exchange, api: &'_ dyn Brokerage) -> Result<()> {
     let pair_confs = api.pairs().await?;
     default_pair_registry().register(*xchg, pair_confs);
     Ok(())
 }
 
-pub fn register_pair(xchg: &Exchange, pair: Pair, symbol: Symbol) {
+/// Manually register a market pair with a market symbol
+pub fn register_pair(xchg: &Exchange, pair: Pair, symbol: MarketSymbol) {
     default_pair_registry().register_pair(xchg, pair, symbol);
 }
 
@@ -258,13 +277,13 @@ mod test {
 
     use crate::exchange::Exchange;
     use crate::pair::{PairConf, PairRegistry};
-    use crate::types::{Pair, Symbol};
+    use crate::types::{MarketSymbol, Pair};
 
     #[tokio::test]
     async fn registry_and_pair_fns() {
         let registry = PairRegistry::default();
         let exchange = Exchange::Binance;
-        let symbol: Symbol = "BTCUSDT".into();
+        let symbol: MarketSymbol = "BTCUSDT".into();
         let conf = PairConf {
             symbol: symbol.clone(),
             pair: "BTC_USDT".into(),
@@ -300,7 +319,7 @@ mod test {
     fn symbol_to_pair2_bench(b: &mut Bencher) {
         let registry = PairRegistry::default();
         let exchange = Exchange::Binance;
-        let symbol: Symbol = "BTCUSDT".into();
+        let symbol: MarketSymbol = "BTCUSDT".into();
         let conf = PairConf {
             symbol: symbol.clone(),
             pair: "BTC_USDT".into(),
@@ -314,7 +333,7 @@ mod test {
     fn pair_to_symbol2_bench(b: &mut Bencher) {
         let registry = PairRegistry::default();
         let exchange = Exchange::Binance;
-        let symbol: Symbol = "BTCUSDT".into();
+        let symbol: MarketSymbol = "BTCUSDT".into();
         let pair: Pair = "BTC_USDT".into();
         let conf = PairConf {
             symbol,
@@ -329,7 +348,7 @@ mod test {
     async fn filter_pairs_with_regex() {
         let registry = PairRegistry::default();
         let exchange = Exchange::Binance;
-        let symbol: Symbol = "BTCUSDT".into();
+        let symbol: MarketSymbol = "BTCUSDT".into();
         let pair: Pair = "BTC_USDT".into();
         let conf = PairConf {
             symbol,
