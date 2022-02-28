@@ -5,7 +5,7 @@ use nats::Connection;
 use serde::de::DeserializeOwned;
 
 use brokers::types::{MarketEvent, MarketEventEnvelope};
-use strategy::Channel;
+use strategy::MarketChannel;
 
 type Result<T> = anyhow::Result<T>;
 
@@ -21,7 +21,7 @@ pub trait Subject {
 
     fn glob() -> String;
 
-    fn from_channel(channel: &Channel) -> String;
+    fn from_channel(channel: &MarketChannel) -> String;
 }
 
 impl Subject for MarketEventEnvelope {
@@ -35,12 +35,12 @@ impl Subject for MarketEventEnvelope {
 
     fn glob() -> String { "live_event.>".to_string() }
 
-    fn from_channel(channel: &Channel) -> String {
+    fn from_channel(channel: &MarketChannel) -> String {
         match channel {
-            Channel::Orderbooks { xch, pair } => format!("live_event.{}.{}.obs", xch, pair),
-            Channel::Orders { xch, pair } => format!("live_event.{}.{}.orders", xch, pair),
-            Channel::Trades { xch, pair } => format!("live_event.{}.{}.trades", xch, pair),
-            Channel::Candles { xch, pair } => format!("live_event.{}.{}.candles", xch, pair),
+            MarketChannel::Orderbooks { xch, pair } => format!("live_event.{}.{}.obs", xch, pair),
+            MarketChannel::Orders { xch, pair } => format!("live_event.{}.{}.orders", xch, pair),
+            MarketChannel::Trades { xch, pair } => format!("live_event.{}.{}.trades", xch, pair),
+            MarketChannel::Candles { xch, pair } => format!("live_event.{}.{}.candles", xch, pair),
         }
     }
 }

@@ -13,7 +13,7 @@ use pythonize::pythonize;
 use brokers::prelude::Exchange;
 use brokers::types::MarketEventEnvelope;
 use strategy::driver::{StratProviderRef, StrategyInitContext};
-use strategy::Channel;
+use strategy::MarketChannel;
 use strategy_test_util::draw::StrategyEntryFnRef;
 use strategy_test_util::it_backtest::generic_backtest;
 use strategy_test_util::log::StrategyLog;
@@ -200,7 +200,7 @@ fn load_events<'p>(py: Python<'p>, channels: &'p PyAny, from: NaiveDateTime, to:
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<MarketEventEnvelope>>(1);
         thread::spawn(move || {
             actix_multi_rt().block_on(async move {
-                let channels = channels.into_iter().map(Into::<Channel>::into).collect();
+                let channels = channels.into_iter().map(Into::<MarketChannel>::into).collect();
                 let events = load_market_events(channels, btr, None).await;
                 tx.send(events.unwrap()).await.unwrap();
             });
@@ -227,7 +227,7 @@ fn load_events_df<'p>(
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<RecordBatch>>(1);
         thread::spawn(move || {
             actix_multi_rt().block_on(async move {
-                let channels = channels.into_iter().map(Into::<Channel>::into).collect();
+                let channels = channels.into_iter().map(Into::<MarketChannel>::into).collect();
                 let events = load_market_events_df(channels, btr, None).await;
                 tx.send(events.unwrap()).await.unwrap();
             });

@@ -8,7 +8,7 @@ use brokers::prelude::MarketEventEnvelope;
 use ext::ResultExt;
 use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::models::io::SerializedModel;
-use strategy::Channel;
+use strategy::MarketChannel;
 use trading::position::OperationKind;
 use trading::signal::TradeSignal;
 
@@ -155,7 +155,7 @@ impl Strategy for PyStrategyWrapper {
         })
     }
 
-    fn channels(&self) -> HashSet<Channel> {
+    fn channels(&self) -> HashSet<MarketChannel> {
         self.with_strat(|inner| {
             inner
                 .call_method0("channels")
@@ -163,7 +163,7 @@ impl Strategy for PyStrategyWrapper {
                 .unwrap_or_else(|_| Vec::<PyChannel>::new())
         })
         .into_iter()
-        .map(Into::<Channel>::into)
+        .map(Into::<MarketChannel>::into)
         .collect()
     }
 }
@@ -175,7 +175,7 @@ mod test {
 
     use brokers::exchange::Exchange;
     use strategy::driver::Strategy;
-    use strategy::Channel;
+    use strategy::MarketChannel;
 
     use crate::util::register_tradai_module;
     use crate::PyStrategyWrapper;
@@ -209,7 +209,7 @@ mod test {
         assert!(!channels.is_empty());
         assert_eq!(
             channels.iter().last(),
-            Some(&Channel::Orderbooks {
+            Some(&MarketChannel::Orderbooks {
                 xch: Exchange::Binance,
                 pair: "BTC_USDT".into()
             })

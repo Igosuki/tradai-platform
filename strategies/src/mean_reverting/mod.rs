@@ -16,7 +16,7 @@ use strategy::models::io::{IterativeModel, SerializedModel};
 use strategy::models::Sampler;
 use strategy::plugin::{provide_options, StrategyPlugin, StrategyPluginContext};
 use strategy::prelude::*;
-use strategy::{Channel, StratEventLoggerRef};
+use strategy::{MarketChannel, StratEventLoggerRef};
 use trading::book::BookPosition;
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};
@@ -257,8 +257,8 @@ impl Strategy for MeanRevertingStrategy {
 
     fn model(&self) -> SerializedModel { self.model.values() }
 
-    fn channels(&self) -> HashSet<Channel> {
-        let channels = vec![Channel::Orderbooks {
+    fn channels(&self) -> HashSet<MarketChannel> {
+        let channels = vec![MarketChannel::Orderbooks {
             xch: self.exchange,
             pair: self.pair.clone(),
         }];

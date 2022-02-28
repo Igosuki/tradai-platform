@@ -13,7 +13,7 @@ use util::ser::decode_duration_str;
 
 use crate::driver::StrategyDriver;
 use crate::query::{DataQuery, ModelReset, Mutation, StateFieldMutation};
-use crate::{Channel, StrategyLifecycleCmd, StrategyStatus};
+use crate::{MarketChannel, StrategyLifecycleCmd, StrategyStatus};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct StrategyActorOptions {
@@ -40,7 +40,7 @@ pub struct StrategyActor {
     inner: Arc<RwLock<Box<dyn StrategyDriver>>>,
     #[allow(dead_code)]
     conn_backoff: ExponentialBackoff,
-    channels: HashSet<Channel>,
+    channels: HashSet<MarketChannel>,
     order_resolution_interval: Duration,
     is_checking_orders: bool,
 }
@@ -71,7 +71,7 @@ impl StrategyActor {
         }
     }
 
-    pub(crate) fn channels(&self) -> HashSet<Channel> { self.channels.clone() }
+    pub(crate) fn channels(&self) -> HashSet<MarketChannel> { self.channels.clone() }
 }
 
 impl Actor for StrategyActor {

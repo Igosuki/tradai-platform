@@ -18,7 +18,7 @@ use strategy::event::{close_events, open_events};
 use strategy::prelude::StrategyDriverSettings;
 use strategy::query::{DataQuery, DataResult};
 use strategy::types::{OperationEvent, StratEvent, TradeEvent};
-use strategy::Channel;
+use strategy::MarketChannel;
 use trading::engine::TradingEngine;
 use util::compress::Compression;
 use util::time::{set_current_time, TimedData};
@@ -83,7 +83,7 @@ impl BacktestRunner {
         Arc::new(StreamWriterLogger::<TimedData<StratEvent>>::new(sink_size))
     }
 
-    pub(crate) async fn channels(&self) -> HashSet<Channel> {
+    pub(crate) async fn channels(&self) -> HashSet<MarketChannel> {
         let reader = self.driver.lock().await;
         reader.channels()
     }
