@@ -1,5 +1,5 @@
 use brokers::prelude::Exchange;
-use strategy::Channel;
+use strategy::MarketChannel;
 
 #[pyclass(name = "Channel", module = "strategy", subclass)]
 #[derive(Clone)]
@@ -25,18 +25,18 @@ impl PyChannel {
     }
 }
 
-impl From<PyChannel> for Channel {
+impl From<PyChannel> for MarketChannel {
     fn from(sc: PyChannel) -> Self {
         match sc.source.as_str() {
-            "orderbooks" => Channel::Orderbooks {
+            "orderbooks" => MarketChannel::Orderbooks {
                 xch: Exchange::from(sc.exchange),
                 pair: sc.pair.into(),
             },
-            "trades" => Channel::Trades {
+            "trades" => MarketChannel::Trades {
                 xch: Exchange::from(sc.exchange),
                 pair: sc.pair.into(),
             },
-            "candles" => Channel::Candles {
+            "candles" => MarketChannel::Candles {
                 xch: Exchange::from(sc.exchange),
                 pair: sc.pair.into(),
             },

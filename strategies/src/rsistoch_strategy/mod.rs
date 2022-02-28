@@ -12,7 +12,7 @@ use std::collections::HashSet;
 use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::*;
 use strategy::prelude::StratEvent;
-use strategy::{Channel, StratEventLoggerRef};
+use strategy::{MarketChannel, StratEventLoggerRef};
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};
 use trading::stop::TrailingStopper;
@@ -351,8 +351,8 @@ impl Strategy for StochRsiStrategy {
             .unwrap_or_else(|| vec![])
     }
 
-    fn channels(&self) -> HashSet<Channel> {
-        let channels = vec![Channel::Candles {
+    fn channels(&self) -> HashSet<MarketChannel> {
+        let channels = vec![MarketChannel::Candles {
             xch: self.exchange,
             pair: self.pair.clone(),
         }];

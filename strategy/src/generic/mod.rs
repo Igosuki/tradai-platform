@@ -17,7 +17,7 @@ use crate::driver::{DefaultStrategyContext, Strategy, StrategyDriver};
 use crate::error::Result;
 use crate::generic::repo::{DriverRepository, GenericDriverRepository};
 use crate::query::{DataQuery, DataResult, ModelReset, MutableField, Mutation, PortfolioSnapshot};
-use crate::{Channel, StratEventLoggerRef, StrategyStatus};
+use crate::{MarketChannel, StratEventLoggerRef, StrategyStatus};
 
 mod metrics;
 mod repo;
@@ -42,7 +42,7 @@ impl GenericDriverOptions {
 }
 
 pub struct GenericDriver {
-    channels: HashSet<Channel>,
+    channels: HashSet<MarketChannel>,
     pub(crate) inner: RwLock<Box<dyn Strategy>>,
     initialized: bool,
     start_trading: Option<bool>,
@@ -57,7 +57,7 @@ pub struct GenericDriver {
 
 impl GenericDriver {
     pub fn try_new(
-        channels: HashSet<Channel>,
+        channels: HashSet<MarketChannel>,
         db: Arc<dyn Storage>,
         driver_options: &GenericDriverOptions,
         strat: Box<dyn Strategy>,
@@ -93,15 +93,15 @@ impl GenericDriver {
     fn handles(&self, le: &MarketEventEnvelope) -> bool {
         // TODO : replace this with a hashtable
         let c = match le.e {
-            MarketEvent::Trade(_) => Channel::Trades {
+            MarketEvent::Trade(_) => MarketChannel::Trades {
                 pair: le.pair.clone(),
                 xch: le.xch,
             },
-            MarketEvent::Orderbook(_) => Channel::Orderbooks {
+            MarketEvent::Orderbook(_) => MarketChannel::Orderbooks {
                 pair: le.pair.clone(),
                 xch: le.xch,
             },
-            MarketEvent::CandleTick(_) => Channel::Candles {
+            MarketEvent::CandleTick(_) => MarketChannel::Candles {
                 pair: le.pair.clone(),
                 xch: le.xch,
             },
@@ -276,7 +276,7 @@ impl StrategyDriver for GenericDriver {
         }
     }
 
-    fn channels(&self) -> HashSet<Channel> { self.channels.clone() }
+    fn channels(&self) -> HashSet<MarketChannel> { self.channels.clone() }
 
     fn stop_trading(&mut self) -> Result<()> { self.set_status(StrategyStatus::NotTrading) }
 

@@ -69,6 +69,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use actix::{Addr, Message, Recipient};
+use chrono::Duration;
 use serde::Deserialize;
 use strum_macros::AsRefStr;
 use uuid::Uuid;
@@ -76,9 +77,11 @@ use uuid::Uuid;
 use actor::StrategyActor;
 use brokers::broker::{MarketEventEnvelopeMsg, Subject};
 use brokers::prelude::*;
+use brokers::types::{SecurityType, Symbol};
 use db::DbOptions;
 use error::*;
 use ext::ResultExt;
+use stats::kline::Resolution;
 use trading::engine::TradingEngine;
 use util::time::TimedData;
 
@@ -108,83 +111,103 @@ pub mod settings;
 mod test_util;
 pub mod types;
 
+/// A market channel represents a unique stream of data that will be required to run a strategy
+/// Historical and Real-Time data will be provided from this on a best effort basis.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Channel {
-    Orders { xch: Exchange, pair: Pair },
-    Trades { xch: Exchange, pair: Pair },
-    Orderbooks { xch: Exchange, pair: Pair },
-    Candles { xch: Exchange, pair: Pair },
+pub struct MarketChannel {
+    /// A unique identifier for the security requested by this market data channel
+    symbol: Symbol,
+    /// The type of the ticker
+    r#type: MarketChannelType,
+    /// The minimal tick rate for the data, in reality max(tick_rate, exchange_tick_rate) will be used
+    tick_rate: Option<Duration>,
+    /// If set, the data will be aggregated in OHLCV candles
+    resolution: Option<Resolution>,
+    /// Only send final candles
+    only_final: Option<bool>,
 }
 
-impl Channel {
-    pub fn exchange(&self) -> Exchange {
-        match self {
-            Channel::Orders { xch, .. }
-            | Channel::Trades { xch, .. }
-            | Channel::Orderbooks { xch, .. }
-            | Channel::Candles { xch, .. } => *xch,
-        }
-    }
+impl MarketChannel {
+    pub fn exchange(&self) -> Exchange { self.symbol.id.xch }
 
-    pub fn pair(&self) -> Pair {
-        match self {
-            Channel::Orders { pair, .. }
-            | Channel::Trades { pair, .. }
-            | Channel::Orderbooks { pair, .. }
-            | Channel::Candles { pair, .. } => pair.clone(),
-        }
-    }
+    pub fn pair(&self) -> Pair { self.symbol.id.symbol }
 
     pub fn name(&self) -> &'static str {
-        match self {
-            Channel::Orders { .. } => "orders",
-            Channel::Trades { .. } => "trades",
-            Channel::Orderbooks { .. } => "order_books",
-            Channel::Candles { .. } => "candles",
+        match self.r#type {
+            MarketChannelType::Trades => "trades",
+            MarketChannelType::Orderbooks => "order_books",
+            MarketChannelType::OpenInterest => "interests",
+            MarketChannelType::Candles => "candles",
+            MarketChannelType::Quotes => "quotes",
         }
     }
 }
 
-impl From<&MarketEventEnvelope> for Channel {
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum MarketChannelType {
+    /// Raw Trades see [MarketEvent::Trade]
+    Trades,
+    /// Order book changes see [MarketEvent::Orderbook]
+    Orderbooks,
+    /// Kline events see [MarketEvent::CandleTick]
+    Candles,
+    /// Open interest for futures see [MarketEvent::OpenInterest]
+    OpenInterest,
+    /// Order book quotes see [MarketEvent::Quote]
+    Quotes,
+}
+
+impl From<&MarketEventEnvelope> for MarketChannel {
     fn from(msg: &MarketEventEnvelope) -> Self {
-        match msg.e {
-            MarketEvent::Trade(_) => Self::Trades {
-                xch: msg.xch,
-                pair: msg.pair.clone(),
+        Self {
+            xch: msg.xch,
+            pair: msg.pair.clone(),
+            r#type: match msg.e {
+                MarketEvent::Trade(_) => MarketChannelType::Trades,
+                MarketEvent::Orderbook(_) => MarketChannelType::Orderbooks,
+                MarketEvent::CandleTick(_) => MarketChannelType::Candles,
             },
-            MarketEvent::Orderbook(_) => Self::Orderbooks {
-                xch: msg.xch,
-                pair: msg.pair.clone(),
-            },
-            MarketEvent::CandleTick(_) => Self::Candles {
-                xch: msg.xch,
-                pair: msg.pair.clone(),
-            },
+            sec_type: msg.sec_type,
+            tick_rate: None,
+            resolution: None,
+            only_final: None,
         }
     }
 }
 
-impl From<MarketEventEnvelopeMsg> for Channel {
+impl From<MarketEventEnvelopeMsg> for MarketChannel {
     fn from(msg: MarketEventEnvelopeMsg) -> Self { Self::from(msg.as_ref()) }
 }
 
-impl From<MarketEventEnvelope> for Channel {
+impl From<MarketEventEnvelope> for MarketChannel {
     fn from(msg: MarketEventEnvelope) -> Self { Self::from(&msg) }
 }
 
-impl Subject<MarketEventEnvelopeMsg> for Channel {}
+impl Subject<MarketEventEnvelopeMsg> for MarketChannel {}
 
-impl Subject<MarketEventEnvelope> for Channel {}
+impl Subject<MarketEventEnvelope> for MarketChannel {}
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum StrategyStatus {
+    /// Stopped, no instances are running
     #[strum(serialize = "stopped")]
     Stopped,
+    /// Is running without issues
     #[strum(serialize = "running")]
     Running,
+    /// Stopped trading for custom reasons
     #[strum(serialize = "not_trading")]
     NotTrading,
+    /// Did not initialize properly
+    #[strum(serialize = "deploy_error")]
+    DeployError,
+    /// Positions got liquidated
+    #[strum(serialize = "liquidated")]
+    Liquidated,
+    /// Ran to completion without errors
+    #[strum(serialize = "completed")]
+    Completed,
 }
 
 impl Default for StrategyStatus {
@@ -222,7 +245,7 @@ pub type StratEventLoggerRef = Arc<dyn EventLogger<TimedData<StratEvent>>>;
 pub struct Trader {
     pub key: StrategyKey,
     actor: Addr<StrategyActor>,
-    pub channels: HashSet<Channel>,
+    pub channels: HashSet<MarketChannel>,
 }
 
 impl Trader {
@@ -321,8 +344,8 @@ mod test {
 
         fn mutate(&mut self, _: Mutation) -> Result<()> { Ok(()) }
 
-        fn channels(&self) -> HashSet<Channel> {
-            vec![Channel::Orderbooks {
+        fn channels(&self) -> HashSet<MarketChannel> {
+            vec![MarketChannel::Orderbooks {
                 xch: Exchange::Binance,
                 pair: TEST_PAIR.into(),
             }]

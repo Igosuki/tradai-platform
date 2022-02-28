@@ -13,7 +13,7 @@ use strategy::error::Result;
 use strategy::models::io::SerializedModel;
 use strategy::plugin::{provide_options, StrategyPlugin, StrategyPluginContext};
 use strategy::settings::{StrategyOptions, StrategySettingsReplicator};
-use strategy::{Channel, StrategyKey};
+use strategy::{MarketChannel, StrategyKey};
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::new_trade_signal;
 use trading::types::OrderConf;
@@ -302,5 +302,5 @@ impl Strategy for BreakoutStrategy {
 
     fn model(&self) -> SerializedModel { todo!() }
 
-    fn channels(&self) -> HashSet<Channel> { todo!() }
+    fn channels(&self) -> HashSet<MarketChannel> { todo!() }
 }

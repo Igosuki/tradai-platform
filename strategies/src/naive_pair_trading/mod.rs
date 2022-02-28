@@ -16,7 +16,7 @@ use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::*;
 use strategy::plugin::{provide_options, StrategyPlugin};
 use strategy::types::StratEvent;
-use strategy::Channel;
+use strategy::MarketChannel;
 use strategy::StratEventLoggerRef;
 use trading::book::BookPosition;
 use trading::engine::TradingEngine;
@@ -333,13 +333,13 @@ impl Strategy for NaiveTradingStrategy {
 
     fn model(&self) -> Vec<(String, Option<Value>)> { self.model.serialized() }
 
-    fn channels(&self) -> HashSet<Channel> {
+    fn channels(&self) -> HashSet<MarketChannel> {
         let channels = vec![
-            Channel::Orderbooks {
+            MarketChannel::Orderbooks {
                 xch: self.exchange,
                 pair: self.left_pair.clone(),
             },
-            Channel::Orderbooks {
+            MarketChannel::Orderbooks {
                 xch: self.exchange,
                 pair: self.right_pair.clone(),
             },
