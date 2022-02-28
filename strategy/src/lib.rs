@@ -130,7 +130,7 @@ pub struct MarketChannel {
 impl MarketChannel {
     pub fn exchange(&self) -> Exchange { self.symbol.id.xch }
 
-    pub fn pair(&self) -> Pair { self.symbol.id.symbol }
+    pub fn pair(&self) -> &Pair { &self.symbol.id.symbol }
 
     pub fn name(&self) -> &'static str {
         match self.r#type {
@@ -157,6 +157,9 @@ pub enum MarketChannelType {
     Quotes,
 }
 
+// TODO: to fix this, create an aggregator for every market channel, the aggregator wraps the sender channel
+// the subject should be something unique for the aggregator, derived from the channel,
+// so a pair of symbol.id + channel type for instance
 impl From<&MarketEventEnvelope> for MarketChannel {
     fn from(msg: &MarketEventEnvelope) -> Self {
         Self {
