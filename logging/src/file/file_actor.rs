@@ -220,7 +220,7 @@ mod test {
     use brokers::exchange::Exchange;
     use fs_extra::dir::get_dir_content;
 
-    use brokers::types::MarketEventEnvelope;
+    use brokers::types::{MarketEventEnvelope, SecurityType, Symbol};
 
     use crate::market_event::MarketEventPartitioner;
 
@@ -247,8 +247,7 @@ mod test {
         System::new().block_on(async move {
             let addr = SyncArbiter::start(1, move || actor(new_dir.clone().as_str()));
             let order_book_event = Arc::new(MarketEventEnvelope::order_book_event(
-                Exchange::Binance,
-                "BTC_USDT".into(),
+                Symbol::new("BTC_USDT".to_string(), SecurityType::Crypto, Exchange::Binance),
                 chrono::Utc::now().timestamp(),
                 vec![(0.1, 0.1), (0.2, 0.2)],
                 vec![(0.1, 0.1), (0.2, 0.2)],

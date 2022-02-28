@@ -28,7 +28,7 @@ impl Partitioner<MarketEventEnvelope> for MarketEventPartitioner {
     /// /k1=v1/k2=v2/...
     /// Dates are formatted using strftime/Ymd
     fn partition(&self, data: &MarketEventEnvelope) -> Option<Partition> {
-        let exchange = format!("{:?}", data.xch);
+        let exchange = format!("{:?}", data.symbol.xch);
         match &data.e {
             MarketEvent::Orderbook(ob) => Some((ob.timestamp, "order_books", ob.pair.clone())),
             MarketEvent::Trade(t) => Some((t.event_ms, "trades", t.pair.clone())),

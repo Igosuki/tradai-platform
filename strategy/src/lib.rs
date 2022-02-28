@@ -113,24 +113,27 @@ pub mod types;
 
 /// A market channel represents a unique stream of data that will be required to run a strategy
 /// Historical and Real-Time data will be provided from this on a best effort basis.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, typed_builder::TypedBuilder)]
 pub struct MarketChannel {
     /// A unique identifier for the security requested by this market data channel
-    symbol: Symbol,
+    pub symbol: Symbol,
     /// The type of the ticker
-    r#type: MarketChannelType,
+    pub r#type: MarketChannelType,
     /// The minimal tick rate for the data, in reality max(tick_rate, exchange_tick_rate) will be used
-    tick_rate: Option<Duration>,
+    #[builder(default)]
+    pub tick_rate: Option<Duration>,
     /// If set, the data will be aggregated in OHLCV candles
-    resolution: Option<Resolution>,
+    #[builder(default)]
+    pub resolution: Option<Resolution>,
     /// Only send final candles
-    only_final: Option<bool>,
+    #[builder(default)]
+    pub only_final: Option<bool>,
 }
 
 impl MarketChannel {
-    pub fn exchange(&self) -> Exchange { self.symbol.id.xch }
+    pub fn exchange(&self) -> Exchange { self.symbol.xch }
 
-    pub fn pair(&self) -> &Pair { &self.symbol.id.symbol }
+    pub fn pair(&self) -> &Pair { &self.symbol.value }
 
     pub fn name(&self) -> &'static str {
         match self.r#type {
@@ -280,6 +283,7 @@ mod test {
     use futures::StreamExt;
 
     use brokers::prelude::*;
+    use brokers::types::SecurityType;
 
     use crate::driver::StrategyDriver;
     use crate::query::{DataQuery, DataResult, ModelReset, Mutation};
@@ -315,10 +319,14 @@ mod test {
         fn mutate(&mut self, _: Mutation) -> Result<()> { Ok(()) }
 
         fn channels(&self) -> HashSet<MarketChannel> {
-            vec![MarketChannel::Orderbooks {
-                xch: Exchange::Binance,
-                pair: TEST_PAIR.into(),
-            }]
+            vec![MarketChannel::builder()
+                .symbol(Symbol::new(
+                    TEST_PAIR.to_string(),
+                    SecurityType::Crypto,
+                    Exchange::Binance,
+                ))
+                .r#type(MarketChannelType::Orderbooks)
+                .build()]
             .into_iter()
             .collect()
         }
@@ -337,8 +345,7 @@ mod test {
         init();
         System::new().block_on(async move {
             let order_book_event = MarketEventEnvelope::order_book_event(
-                Exchange::Binance,
-                TEST_PAIR.into(),
+                Symbol::new(TEST_PAIR.to_string(), SecurityType::Crypto, Exchange::Binance),
                 chrono::Utc::now().timestamp(),
                 vec![(0.1, 0.1), (0.2, 0.2)],
                 vec![(0.1, 0.1), (0.2, 0.2)],

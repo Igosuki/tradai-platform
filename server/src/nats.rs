@@ -5,7 +5,7 @@ use nats::Connection;
 use serde::de::DeserializeOwned;
 
 use brokers::types::{MarketEvent, MarketEventEnvelope};
-use strategy::MarketChannel;
+use strategy::{MarketChannel, MarketChannelType};
 
 type Result<T> = anyhow::Result<T>;
 
@@ -26,7 +26,7 @@ pub trait Subject {
 
 impl Subject for MarketEventEnvelope {
     fn subject(&self) -> String {
-        format!("live_event.{}.{}", self.xch, match &self.e {
+        format!("live_event.{}.{}", self.symbol.xch, match &self.e {
             MarketEvent::Trade(lt) => format!("{}.trades", lt.pair),
             MarketEvent::Orderbook(ob) => format!("{}.obs", ob.pair),
             MarketEvent::CandleTick(ct) => format!("{}.cts", ct.pair),
@@ -36,11 +36,14 @@ impl Subject for MarketEventEnvelope {
     fn glob() -> String { "live_event.>".to_string() }
 
     fn from_channel(channel: &MarketChannel) -> String {
-        match channel {
-            MarketChannel::Orderbooks { xch, pair } => format!("live_event.{}.{}.obs", xch, pair),
-            MarketChannel::Orders { xch, pair } => format!("live_event.{}.{}.orders", xch, pair),
-            MarketChannel::Trades { xch, pair } => format!("live_event.{}.{}.trades", xch, pair),
-            MarketChannel::Candles { xch, pair } => format!("live_event.{}.{}.candles", xch, pair),
+        let xch = channel.symbol.xch;
+        let pair = channel.symbol.value;
+        match channel.r#type {
+            MarketChannelType::Orderbooks => format!("live_event.{}.{}.obs", xch, pair),
+            MarketChannelType::Trades => format!("live_event.{}.{}.trades", xch, pair),
+            MarketChannelType::Candles => format!("live_event.{}.{}.candles", xch, pair),
+            MarketChannelType::OpenInterest => format!("live_event.{}.{}.oi", xch, pair),
+            MarketChannelType::Quotes => format!("live_event.{}.{}.quotes", xch, pair),
         }
     }
 }

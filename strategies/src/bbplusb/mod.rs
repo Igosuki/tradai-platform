@@ -2,7 +2,6 @@ mod metrics;
 
 use crate::bbplusb::metrics::BBPlusMetrics;
 use brokers::exchange::Exchange;
-use brokers::prelude::MarketEventEnvelope;
 use brokers::types::Pair;
 use chrono::Duration;
 use serde_json::Value;
@@ -123,7 +122,7 @@ impl Strategy for BollingerPlusStrategy {
 
     async fn eval(
         &mut self,
-        e: &MarketEventEnvelope,
+        e: &brokers::types::MarketEventEnvelope,
         ctx: &DefaultStrategyContext,
     ) -> strategy::error::Result<Option<TradeSignals>> {
         let market_event = &e.e;
@@ -204,12 +203,10 @@ impl Strategy for BollingerPlusStrategy {
     }
 
     fn channels(&self) -> HashSet<MarketChannel> {
-        let channels = vec![MarketChannel::Orderbooks {
-            xch: self.exchange,
-            pair: self.pair.clone(),
-        }];
-        let mut hs = HashSet::new();
-        hs.extend(channels);
-        hs
+        // MarketChannel::builder()
+        // .symbol(Symbol::new(self.pair.to_string(), SecurityType::Crypto, self.exchange))
+        // .r#type(MarketChannelType::Orderbook)
+        // .build()
+        vec![].into_iter().collect()
     }
 }

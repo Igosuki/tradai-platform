@@ -1,4 +1,4 @@
-use brokers::prelude::{Exchange, Pair};
+use brokers::prelude::Exchange;
 use chrono::{DateTime, Duration, Utc};
 use datafusion::arrow::array::{Array, PrimitiveArray, StructArray};
 use datafusion::record_batch::RecordBatch;
@@ -8,6 +8,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 use brokers::prelude::MarketEventEnvelope;
+use brokers::types::{SecurityType, Symbol};
 use futures::StreamExt;
 use tokio_stream::Stream;
 use tracing::Level;
@@ -205,8 +206,7 @@ fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = Marke
             let xchg = Exchange::from_str(xch).unwrap_or_else(|_| panic!("wrong xchg {}", xch));
 
             yield MarketEventEnvelope::order_book_event(
-                xchg,
-                Pair::from(pair),
+                Symbol::new(pair.to_string(), SecurityType::Crypto, xchg),
                 ts,
                 asks,
                 bids,
@@ -234,8 +234,7 @@ fn events_from_csv_orderbooks(records: RecordBatch, _levels: usize) -> impl Stre
             let asks = vec![];
             let ts = event_ms_col.value(i);
             yield MarketEventEnvelope::order_book_event(
-                Exchange::from_str(xch_col.value(i)).unwrap(),
-                pair_col.value(i).into(),
+                Symbol::new(pair_col.value(i).to_string(), SecurityType::Crypto, Exchange::from_str(xch_col.value(i)).unwrap()),
                 ts,
                 asks,
                 bids,
