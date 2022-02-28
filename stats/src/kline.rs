@@ -106,7 +106,7 @@ impl OHLCV for Candle {
     fn volume(&self) -> ValueType { self.volume }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone, AsRefStr, Copy, EnumString)]
+#[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone, AsRefStr, Copy, EnumString, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum TimeUnit {
     #[strum(serialize = "millisecond")]
@@ -128,7 +128,7 @@ pub enum TimeUnit {
 }
 
 /// Defines the possible intervals that a [Candle] represents.
-#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Resolution {
     pub time_unit: TimeUnit,
     pub units: u32,

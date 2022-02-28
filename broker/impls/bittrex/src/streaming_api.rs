@@ -215,11 +215,10 @@ impl HubClientHandler for BittrexStreamingApi {
         if let Ok(les) = live_events {
             for le in les {
                 if let Err(e) = self.sink.send(Arc::new(MarketEventEnvelope::new(
-                    Exchange::Bittrex,
-                    le.pair().clone(),
+                    Symbol::new(le.pair().to_string(), SecurityType::Crypto, Exchange::Bittrex),
                     le,
                 ))) {
-                    error!("broadcast failure for {}, {}", e.0.pair.as_ref(), e.0.e.chan());
+                    error!("broadcast failure for {}, {}", e.0.symbol.value.as_ref(), e.0.e.chan());
                 }
             }
         }

@@ -6,6 +6,7 @@ use chrono::{DateTime, Duration, TimeZone, Utc};
 use uuid::Uuid;
 
 use brokers::prelude::*;
+use brokers::types::{SecurityType, Symbol};
 use db::Storage;
 use model::MeanRevertingModel;
 use options::Options;
@@ -16,7 +17,7 @@ use strategy::models::io::{IterativeModel, SerializedModel};
 use strategy::models::Sampler;
 use strategy::plugin::{provide_options, StrategyPlugin, StrategyPluginContext};
 use strategy::prelude::*;
-use strategy::{MarketChannel, StratEventLoggerRef};
+use strategy::{MarketChannel, MarketChannelType, StratEventLoggerRef};
 use trading::book::BookPosition;
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};
@@ -258,12 +259,11 @@ impl Strategy for MeanRevertingStrategy {
     fn model(&self) -> SerializedModel { self.model.values() }
 
     fn channels(&self) -> HashSet<MarketChannel> {
-        let channels = vec![MarketChannel::Orderbooks {
-            xch: self.exchange,
-            pair: self.pair.clone(),
-        }];
-        let mut hs = HashSet::new();
-        hs.extend(channels);
-        hs
+        vec![MarketChannel::builder()
+            .symbol(Symbol::new(self.pair.to_string(), SecurityType::Crypto, self.exchange))
+            .r#type(MarketChannelType::Orderbooks)
+            .build()]
+        .into_iter()
+        .collect()
     }
 }

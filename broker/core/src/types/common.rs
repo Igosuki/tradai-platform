@@ -2,6 +2,7 @@
 use crate::error::Error;
 use crate::exchange::Exchange;
 use chrono::{DateTime, TimeZone, Utc};
+use std::hash::{Hash, Hasher};
 use string_cache::DefaultAtom as Atom;
 
 pub type Amount = f64;
@@ -18,32 +19,22 @@ pub type MarketSymbol = Atom;
 pub type Asset = Atom;
 
 /// Type of tradable security / underlying asset
-#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum SecurityType {
-    /// Base class for all security types
-    Base,
-
     /// US Equity Security
     Equity,
-
     /// Option Security Type
     Option,
-
     /// Commodity Security Type
     Commodity,
-
     /// FOREX Security
     Forex,
-
     /// Future Security Type
     Future,
-
     /// Contract For a Difference Security Type.
     Cfd,
-
     /// Cryptocurrency Security Type.
     Crypto,
-
     /// Futures Options Security Type.
     /// <remarks>
     /// Futures options function similar to equity options, but with a few key differences.
@@ -53,10 +44,8 @@ pub enum SecurityType {
     /// of the option, which can also differ from the underlying future's multiplier.
     /// </remarks>
     FutureOption,
-
     /// Index Security Type.
     Index,
-
     /// Index Option Security Type.
     /// For index options traded on American markets, they tend to be European-style options and are Cash-settled.
     IndexOption,
@@ -66,73 +55,14 @@ impl SecurityType {
     pub fn is_option(&self) -> bool { matches!(self, Self::Option | Self::FutureOption | Self::IndexOption) }
 }
 
-/// A unique identifier for securities for : ticker symbol, exchange, security type
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Symbol {
-    /// A unique key for this symbol
-    pub value: String,
-    /// A unique id for the security
-    pub id: SecurityId,
-    /// Optional underlying symbol used for options
-    underlying: Box<Option<Symbol>>,
-}
-
-impl Symbol {
-    pub fn new(symbol: String, security_type: SecurityType, exchange: Exchange) -> Self {
-        let alias = format!("{}_{}", exchange, &symbol);
-        let id = SecurityId::builder()
-            .xch(exchange)
-            .symbol(symbol.into())
-            .r#type(security_type)
-            .build();
-        Self::new_with_sid(id, alias)
-    }
-
-    pub fn new_option(symbol: String, exchange: Exchange, strike_price: f64, option_type: OptionType) -> Self {
-        let alias = format!("{}_{}", exchange, &symbol);
-        let id = SecurityId::builder()
-            .xch(exchange)
-            .symbol(symbol.into())
-            .r#type(SecurityType::Option)
-            .strike_price(strike_price)
-            .option_type(option_type)
-            .build();
-        Self::new_with_sid(id, alias)
-    }
-
-    pub fn new_future(symbol: String, exchange: Exchange, expiry: Option<DateTime<Utc>>) -> Self {
-        let alias = format!("{}_{}", exchange, &symbol);
-        let id = SecurityId::builder()
-            .xch(exchange)
-            .symbol(symbol.into())
-            .r#type(SecurityType::Future)
-            .date(expiry.unwrap_or(Utc.timestamp_millis(0)))
-            .build();
-        Self::new_with_sid(id, alias)
-    }
-
-    pub fn new_with_sid(id: SecurityId, value: String) -> Self {
-        let underlying = id.underlying.clone().map(|underlying| {
-            let symbol = underlying.symbol.clone();
-            Self::new_with_sid(underlying.clone(), symbol.to_string())
-        });
-        Self {
-            value,
-            id,
-            underlying: Box::new(underlying),
-        }
-    }
-}
-
+/// A unique value for a ticker symbol, an exchange market, and a security type
 #[derive(typed_builder::TypedBuilder, Serialize, Deserialize, Debug, Clone)]
-pub struct SecurityId {
+pub struct Symbol {
     pub r#type: SecurityType,
-    #[builder(default_code = "Box::new(None)")]
-    underlying: Box<Option<SecurityId>>,
     /// First date at which the security was traded
     #[builder(default_code = "Utc.timestamp_millis(0)")]
     pub date: DateTime<Utc>,
-    pub symbol: Pair,
+    pub value: Pair,
     pub xch: Exchange,
     #[builder(default, setter(strip_option))]
     strike_price: Option<f64>,
@@ -140,7 +70,34 @@ pub struct SecurityId {
     option_type: Option<OptionType>,
 }
 
-impl SecurityId {
+impl Symbol {
+    pub fn new(symbol: String, security_type: SecurityType, exchange: Exchange) -> Self {
+        Self::builder()
+            .xch(exchange)
+            .value(symbol.into())
+            .r#type(security_type)
+            .build()
+    }
+
+    pub fn new_option(symbol: String, exchange: Exchange, strike_price: f64, option_type: OptionType) -> Self {
+        Self::builder()
+            .xch(exchange)
+            .value(symbol.into())
+            .r#type(SecurityType::Option)
+            .strike_price(strike_price)
+            .option_type(option_type)
+            .build()
+    }
+
+    pub fn new_future(symbol: String, exchange: Exchange, expiry: Option<DateTime<Utc>>) -> Self {
+        Self::builder()
+            .xch(exchange)
+            .value(symbol.into())
+            .r#type(SecurityType::Future)
+            .date(expiry.unwrap_or(Utc.timestamp_millis(0)))
+            .build()
+    }
+
     pub fn strike_price(&self) -> crate::error::Result<f64> {
         match self.strike_price {
             Some(v) => Ok(v),
@@ -170,9 +127,21 @@ impl SecurityId {
     }
 }
 
-impl PartialEq for SecurityId {
-    fn eq(&self, other: &Self) -> bool { self.symbol.eq(&other.symbol) && self.underlying.eq(&other.underlying) }
+impl Hash for Symbol {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.value.hash(state);
+        self.xch.hash(state);
+        self.r#type.hash(state);
+    }
 }
+
+impl PartialEq for Symbol {
+    fn eq(&self, other: &Self) -> bool {
+        self.value.eq(&other.value) && self.xch.eq(&other.xch) && self.r#type.eq(&other.r#type)
+    }
+}
+
+impl Eq for Symbol {}
 
 /// Types of options
 #[derive(Copy, Clone, Serialize, Deserialize, Debug)]

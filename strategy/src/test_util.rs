@@ -12,7 +12,7 @@ pub mod fixtures {
 
     use brokers::exchange::Exchange;
     use brokers::prelude::MarketEventEnvelope;
-    use brokers::types::{MarketEvent, Orderbook};
+    use brokers::types::{MarketEvent, Orderbook, SecurityType, Symbol};
     use util::time::now;
 
     static DEFAULT_PAIR: &str = "BTC_USDT";
@@ -20,8 +20,7 @@ pub mod fixtures {
 
     pub(crate) fn default_order_book_event() -> MarketEventEnvelope {
         MarketEventEnvelope::new(
-            DEFAULT_EXCHANGE,
-            DEFAULT_PAIR.into(),
+            Symbol::new(DEFAULT_PAIR.to_string(), SecurityType::Crypto, DEFAULT_EXCHANGE),
             MarketEvent::Orderbook(Orderbook {
                 pair: DEFAULT_PAIR.into(),
                 asks: vec![(1.0, 10.0)],
