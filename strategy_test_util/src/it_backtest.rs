@@ -88,7 +88,7 @@ where
         let now = Instant::now();
         let event_time = event.e.time();
         util::time::set_current_time(event_time);
-        driver.add_event(&event).await.unwrap();
+        driver.on_market_event(&event).await.unwrap();
         let mut tries = 0;
         loop {
             if tries > 5 {
@@ -104,7 +104,7 @@ where
         }
         if let MarketEvent::Orderbook(ob) = &event.e {
             let models = driver
-                .data(DataQuery::Models)
+                .query(DataQuery::Models)
                 .await
                 .map(|dr| match dr {
                     DataResult::Models(v) => v,

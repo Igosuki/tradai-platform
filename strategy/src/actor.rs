@@ -139,7 +139,7 @@ impl Handler<Arc<MarketEventEnvelope>> for StrategyActor {
         Box::pin(
             async move {
                 let mut inner = lock.write().await;
-                inner.add_event(msg.as_ref()).await.map_err(|e| anyhow!(e))
+                inner.on_market_event(msg.as_ref()).await.map_err(|e| anyhow!(e))
             }
             .into_actor(self),
         )
@@ -156,7 +156,7 @@ impl Handler<DataQuery> for StrategyActor {
             async move {
                 let mut inner = lock.write().await;
                 Ok(inner
-                    .data(msg)
+                    .query(msg)
                     .await
                     .map_err(|e| {
                         error!("{}", e);

@@ -75,9 +75,9 @@ use strum_macros::AsRefStr;
 use uuid::Uuid;
 
 use actor::StrategyActor;
-use brokers::broker::{MarketEventEnvelopeMsg, Subject};
+use brokers::broker::MarketEventEnvelopeMsg;
 use brokers::prelude::*;
-use brokers::types::{SecurityType, Symbol};
+use brokers::types::Symbol;
 use db::DbOptions;
 use error::*;
 use ext::ResultExt;
@@ -156,39 +156,6 @@ pub enum MarketChannelType {
     /// Order book quotes see [MarketEvent::Quote]
     Quotes,
 }
-
-// TODO: to fix this, create an aggregator for every market channel, the aggregator wraps the sender channel
-// the subject should be something unique for the aggregator, derived from the channel,
-// so a pair of symbol.id + channel type for instance
-impl From<&MarketEventEnvelope> for MarketChannel {
-    fn from(msg: &MarketEventEnvelope) -> Self {
-        Self {
-            xch: msg.xch,
-            pair: msg.pair.clone(),
-            r#type: match msg.e {
-                MarketEvent::Trade(_) => MarketChannelType::Trades,
-                MarketEvent::Orderbook(_) => MarketChannelType::Orderbooks,
-                MarketEvent::CandleTick(_) => MarketChannelType::Candles,
-            },
-            sec_type: msg.sec_type,
-            tick_rate: None,
-            resolution: None,
-            only_final: None,
-        }
-    }
-}
-
-impl From<MarketEventEnvelopeMsg> for MarketChannel {
-    fn from(msg: MarketEventEnvelopeMsg) -> Self { Self::from(msg.as_ref()) }
-}
-
-impl From<MarketEventEnvelope> for MarketChannel {
-    fn from(msg: MarketEventEnvelope) -> Self { Self::from(&msg) }
-}
-
-impl Subject<MarketEventEnvelopeMsg> for MarketChannel {}
-
-impl Subject<MarketEventEnvelope> for MarketChannel {}
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "snake_case")]
@@ -337,13 +304,13 @@ mod test {
 
         async fn key(&self) -> String { "logging".to_string() }
 
-        async fn add_event(&mut self, e: &MarketEventEnvelope) -> Result<()> {
+        async fn on_market_event(&mut self, e: &MarketEventEnvelope) -> Result<()> {
             let mut g = self.log.lock().unwrap();
             g.push(e.clone());
             Ok(())
         }
 
-        async fn data(&mut self, _: DataQuery) -> Result<DataResult> { Ok(DataResult::Success(true)) }
+        async fn query(&mut self, _: DataQuery) -> Result<DataResult> { Ok(DataResult::Success(true)) }
 
         fn mutate(&mut self, _: Mutation) -> Result<()> { Ok(()) }
 
