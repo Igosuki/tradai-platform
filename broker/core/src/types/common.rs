@@ -1,6 +1,7 @@
 #[allow(dead_code)]
 use crate::error::Error;
-use chrono::{Date, Utc};
+use crate::exchange::Exchange;
+use chrono::{DateTime, TimeZone, Utc};
 use string_cache::DefaultAtom as Atom;
 
 pub type Amount = f64;
@@ -17,8 +18,9 @@ pub type MarketSymbol = Atom;
 pub type Asset = Atom;
 
 /// Type of tradable security / underlying asset
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 pub enum SecurityType {
-    /// Base class for all security types:
+    /// Base class for all security types
     Base,
 
     /// US Equity Security
@@ -64,20 +66,77 @@ impl SecurityType {
     pub fn is_option(&self) -> bool { matches!(self, Self::Option | Self::FutureOption | Self::IndexOption) }
 }
 
-struct Symbol {
-    value: String,
-    id: SecurityId,
+/// A unique identifier for securities for : ticker symbol, exchange, security type
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Symbol {
+    /// A unique key for this symbol
+    pub value: String,
+    /// A unique id for the security
+    pub id: SecurityId,
+    /// Optional underlying symbol used for options
     underlying: Box<Option<Symbol>>,
-    r#type: SecurityType,
 }
 
-struct SecurityId {
-    r#type: SecurityType,
+impl Symbol {
+    pub fn new(symbol: String, security_type: SecurityType, exchange: Exchange) -> Self {
+        let alias = format!("{}_{}", exchange, &symbol);
+        let id = SecurityId::builder()
+            .xch(exchange)
+            .symbol(symbol.into())
+            .r#type(security_type)
+            .build();
+        Self::new_with_sid(id, alias)
+    }
+
+    pub fn new_option(symbol: String, exchange: Exchange, strike_price: f64, option_type: OptionType) -> Self {
+        let alias = format!("{}_{}", exchange, &symbol);
+        let id = SecurityId::builder()
+            .xch(exchange)
+            .symbol(symbol.into())
+            .r#type(SecurityType::Option)
+            .strike_price(strike_price)
+            .option_type(option_type)
+            .build();
+        Self::new_with_sid(id, alias)
+    }
+
+    pub fn new_future(symbol: String, exchange: Exchange, expiry: Option<DateTime<Utc>>) -> Self {
+        let alias = format!("{}_{}", exchange, &symbol);
+        let id = SecurityId::builder()
+            .xch(exchange)
+            .symbol(symbol.into())
+            .r#type(SecurityType::Future)
+            .date(expiry.unwrap_or(Utc.timestamp_millis(0)))
+            .build();
+        Self::new_with_sid(id, alias)
+    }
+
+    pub fn new_with_sid(id: SecurityId, value: String) -> Self {
+        let underlying = id.underlying.clone().map(|underlying| {
+            let symbol = underlying.symbol.clone();
+            Self::new_with_sid(underlying.clone(), symbol.to_string())
+        });
+        Self {
+            value,
+            id,
+            underlying: Box::new(underlying),
+        }
+    }
+}
+
+#[derive(typed_builder::TypedBuilder, Serialize, Deserialize, Debug, Clone)]
+pub struct SecurityId {
+    pub r#type: SecurityType,
+    #[builder(default_code = "Box::new(None)")]
     underlying: Box<Option<SecurityId>>,
-    date: Date<Utc>,
-    symbol: String,
-    xch: String,
+    /// First date at which the security was traded
+    #[builder(default_code = "Utc.timestamp_millis(0)")]
+    pub date: DateTime<Utc>,
+    pub symbol: Pair,
+    pub xch: Exchange,
+    #[builder(default, setter(strip_option))]
     strike_price: Option<f64>,
+    #[builder(default, setter(strip_option))]
     option_type: Option<OptionType>,
 }
 
@@ -111,18 +170,41 @@ impl SecurityId {
     }
 }
 
+impl PartialEq for SecurityId {
+    fn eq(&self, other: &Self) -> bool { self.symbol.eq(&other.symbol) && self.underlying.eq(&other.underlying) }
+}
+
 /// Types of options
-#[derive(Copy, Clone)]
-enum OptionType {
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
+pub enum OptionType {
     /// A call option, the right to buy at the strike price
     Call,
     /// A put option, the right to sell at the strike price
     Put,
 }
 
-enum OptionStyle {
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
+pub enum OptionStyle {
     /// American style options are able to be exercised at any time on or before the expiration date
     American,
     /// European style options are able to be exercised on the expiration date only
     European,
+}
+
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
+pub enum DelistingType {
+    Warning,
+    Delisted,
+}
+
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
+pub enum SplitType {
+    Warning,
+    Split,
+}
+
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
+pub enum SettlementType {
+    PhysicalDelivery,
+    Cash,
 }

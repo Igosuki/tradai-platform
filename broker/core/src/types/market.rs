@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::exchange::Exchange;
 use crate::types::order::{Order, OrderEnforcement, OrderStatus, TradeType};
-use crate::types::{Pair, Price, Volume};
+use crate::types::{Pair, Price, SecurityType, Volume};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Deserialize, AsRefStr)]
 pub enum StreamChannel {
@@ -289,6 +289,7 @@ pub struct MarketEventEnvelope {
     pub trace_id: Uuid,
     pub ts: DateTime<Utc>,
     pub e: MarketEvent,
+    pub sec_type: SecurityType,
 }
 
 impl MarketEventEnvelope {
@@ -299,6 +300,7 @@ impl MarketEventEnvelope {
             e,
             trace_id: Uuid::new_v4(),
             ts: Utc::now(),
+            sec_type: SecurityType::Crypto,
         }
     }
 

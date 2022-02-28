@@ -5,7 +5,7 @@ use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::*;
 use strategy::plugin::{provide_options, StrategyPlugin};
 use strategy::settings::DefaultOptions;
-use strategy::Channel;
+use strategy::MarketChannel;
 
 inventory::submit! {
     StrategyPlugin::new("kline_logger", provide_options::<DefaultOptions>, |name, _ctx, _conf| {
@@ -42,8 +42,8 @@ impl Strategy for KlineLoggerStrategy {
 
     fn model(&self) -> Vec<(String, Option<Value>)> { vec![] }
 
-    fn channels(&self) -> HashSet<Channel> {
-        let channels = vec![Channel::Candles {
+    fn channels(&self) -> HashSet<MarketChannel> {
+        let channels = vec![MarketChannel::Candles {
             xch: self.exchange,
             pair: self.pair.clone(),
         }];

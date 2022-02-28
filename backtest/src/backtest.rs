@@ -12,7 +12,7 @@ use futures::StreamExt;
 use stats::kline::TimeUnit;
 use strategy::driver::{StratProviderRef, Strategy, StrategyInitContext};
 use strategy::prelude::{GenericDriver, GenericDriverOptions, PortfolioOptions};
-use strategy::Channel;
+use strategy::MarketChannel;
 use tokio::sync::mpsc::{Receiver, UnboundedSender};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
@@ -33,7 +33,7 @@ pub(crate) async fn init_brokerages(xchs: &[Exchange]) {
 
 async fn build_msg_broker(
     runners: &[Arc<RwLock<BacktestRunner>>],
-) -> ChannelMessageBroker<Channel, MarketEventEnvelope> {
+) -> ChannelMessageBroker<MarketChannel, MarketEventEnvelope> {
     let mut broker = ChannelMessageBroker::new();
     for runner in runners {
         let runner = runner.read().await;
@@ -275,7 +275,7 @@ pub async fn backtest_with_range<'a>(
 
 /// Load market events over the provided range
 pub async fn load_market_events(
-    channels: Vec<Channel>,
+    channels: Vec<MarketChannel>,
     dt_range: DateRange,
     mapper: Option<DatasetCatalog>,
 ) -> Result<Vec<MarketEventEnvelope>> {
@@ -291,7 +291,7 @@ pub async fn load_market_events(
 
 /// Load market events over the provided range
 pub async fn load_market_events_df(
-    channels: Vec<Channel>,
+    channels: Vec<MarketChannel>,
     dt_range: DateRange,
     mapper: Option<DatasetCatalog>,
 ) -> Result<Vec<RecordBatch>> {
@@ -348,7 +348,7 @@ mod test {
     use std::sync::Arc;
     use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
     use strategy::models::io::SerializedModel;
-    use strategy::Channel;
+    use strategy::MarketChannel;
     use util::time::DateRange;
 
     fn init() {
@@ -370,7 +370,7 @@ mod test {
     async fn load_order_books() {
         init();
         let events = load_market_events(
-            vec![Channel::Orderbooks {
+            vec![MarketChannel::Orderbooks {
                 xch: Exchange::Binance,
                 pair: "BTC_USDT".into(),
             }],
@@ -392,7 +392,7 @@ mod test {
     async fn load_trades() {
         init();
         let events = load_market_events(
-            vec![Channel::Trades {
+            vec![MarketChannel::Trades {
                 xch: Exchange::Binance,
                 pair: "BTC_USDT".into(),
             }],
@@ -414,7 +414,7 @@ mod test {
     async fn load_candles() {
         init();
         let events = load_market_events(
-            vec![Channel::Candles {
+            vec![MarketChannel::Candles {
                 xch: Exchange::Binance,
                 pair: "BTC_USDT".into(),
             }],
@@ -436,7 +436,7 @@ mod test {
     async fn load_order_books_df() {
         init();
         let events = load_market_events_df(
-            vec![Channel::Orderbooks {
+            vec![MarketChannel::Orderbooks {
                 xch: Exchange::Binance,
                 pair: "BTC_USDT".into(),
             }],
@@ -454,7 +454,7 @@ mod test {
     async fn load_trades_df() {
         init();
         let events = load_market_events_df(
-            vec![Channel::Trades {
+            vec![MarketChannel::Trades {
                 xch: Exchange::Binance,
                 pair: "BTC_USDT".into(),
             }],
@@ -474,7 +474,7 @@ mod test {
     async fn load_candles_df() {
         init();
         let events = load_market_events_df(
-            vec![Channel::Candles {
+            vec![MarketChannel::Candles {
                 xch: Exchange::Binance,
                 pair: "BTC_USDT".into(),
             }],
@@ -489,7 +489,7 @@ mod test {
         assert_eq!(rb.num_rows(), 8);
     }
 
-    struct TestStrategy(Vec<Channel>, usize);
+    struct TestStrategy(Vec<MarketChannel>, usize);
 
     #[async_trait]
     impl Strategy for TestStrategy {
@@ -502,7 +502,7 @@ mod test {
             e: &MarketEventEnvelope,
             _ctx: &DefaultStrategyContext,
         ) -> strategy::error::Result<Option<TradeSignals>> {
-            if self.0.contains(&Channel::from(e)) {
+            if self.0.contains(&MarketChannel::from(e)) {
                 self.1 += 1;
             }
             Ok(None)
@@ -510,7 +510,7 @@ mod test {
 
         fn model(&self) -> SerializedModel { Default::default() }
 
-        fn channels(&self) -> HashSet<Channel> {
+        fn channels(&self) -> HashSet<MarketChannel> {
             let mut channels = HashSet::new();
             for c in &self.0 {
                 channels.insert(c.clone());
@@ -529,7 +529,7 @@ mod test {
                 .expect("Default Tokio runtime could not be created.")
         })
         .block_on(async {
-            let backtest_fn = |channels: Vec<Channel>, range: DateRange| {
+            let backtest_fn = |channels: Vec<MarketChannel>, range: DateRange| {
                 backtest_with_range(
                     "backtest_range",
                     Arc::new(move |_| Box::new(TestStrategy(channels.clone(), 0))),
@@ -541,7 +541,7 @@ mod test {
                 )
             };
             let report = backtest_fn(
-                vec![Channel::Candles {
+                vec![MarketChannel::Candles {
                     xch: Exchange::Binance,
                     pair: "BTC_USDT".into(),
                 }],
@@ -553,7 +553,7 @@ mod test {
             assert_eq!(candles.len(), 8);
 
             let report = backtest_fn(
-                vec![Channel::Trades {
+                vec![MarketChannel::Trades {
                     xch: Exchange::Binance,
                     pair: "BTC_USDT".into(),
                 }],
@@ -567,7 +567,7 @@ mod test {
             assert_eq!(ticks.len(), 100);
 
             let report = backtest_fn(
-                vec![Channel::Orderbooks {
+                vec![MarketChannel::Orderbooks {
                     xch: Exchange::Binance,
                     pair: "BTC_USDT".into(),
                 }],

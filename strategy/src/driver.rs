@@ -11,7 +11,7 @@ use trading::signal::TradeSignal;
 use crate::error::*;
 use crate::models::io::SerializedModel;
 use crate::query::{DataQuery, DataResult, Mutation};
-use crate::{error, Channel};
+use crate::{error, MarketChannel};
 
 #[async_trait]
 pub trait StrategyDriver: Send + Sync {
@@ -33,7 +33,7 @@ pub trait StrategyDriver: Send + Sync {
     fn mutate(&mut self, m: Mutation) -> error::Result<()>;
 
     /// The channels this strategy plugs into
-    fn channels(&self) -> HashSet<Channel>;
+    fn channels(&self) -> HashSet<MarketChannel>;
 
     /// Stop emitting trading signals
     fn stop_trading(&mut self) -> Result<()>;
@@ -70,7 +70,7 @@ pub trait Strategy: Sync + Send {
     fn constants(&self) -> SerializedModel { vec![] }
 
     /// Channels the strategy subscribes to
-    fn channels(&self) -> HashSet<Channel>;
+    fn channels(&self) -> HashSet<MarketChannel>;
 }
 
 pub struct DefaultStrategyContext<'a> {
