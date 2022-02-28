@@ -129,7 +129,7 @@ impl BacktestRunner {
                     let start = Instant::now();
                     let market_event = market_event.unwrap();
                     set_current_time(market_event.e.time());
-                    driver.add_event(&market_event).await.unwrap();
+                    driver.on_market_event(&market_event).await.unwrap();
                     // If there is an ongoing operation, resolve orders
                     let mut tries = 0;
                     'resolve: loop {
@@ -151,14 +151,14 @@ impl BacktestRunner {
                     if let MarketEvent::CandleTick(candle) = &market_event.e {
                         if candle.is_final {
                             report.push_candle(TimedData::new(market_event.e.time(), candle.clone()));
-                            match driver.data(DataQuery::Models).await {
+                            match driver.query(DataQuery::Models).await {
                                 Ok(DataResult::Models(models)) => report
                                     .push_model(TimedData::new(market_event.e.time(), models.into_iter().collect())),
                                 _ => {
                                     report.failures += 1;
                                 }
                             }
-                            match driver.data(DataQuery::Indicators).await {
+                            match driver.query(DataQuery::Indicators).await {
                                 Ok(DataResult::Indicators(i)) => report.push_snapshot(TimedData::new(market_event.e.time(), i)),
                                 _ => {
                                     report.failures += 1;

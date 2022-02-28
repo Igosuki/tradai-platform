@@ -24,16 +24,20 @@ mod repo;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PortfolioOptions {
+    /// The initial cash allocation
     pub initial_quote_cash: f64,
+    /// Fees to anticipate order return
     // TODO: replace by getting it from the exchange conf
     pub fees_rate: f64,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct GenericDriverOptions {
+    /// Options for [Portfolio]
     pub portfolio: PortfolioOptions,
     /// Start trading after first start
     pub start_trading: Option<bool>,
+    /// Orders will be simulated
     pub dry_mode: Option<bool>,
 }
 
@@ -42,16 +46,27 @@ impl GenericDriverOptions {
 }
 
 pub struct GenericDriver {
+    /// The list of channels the driver is subscribed to
     channels: HashSet<MarketChannel>,
+    /// The inner algorithm to run
     pub(crate) inner: RwLock<Box<dyn Strategy>>,
+    /// If the driver has been initialized
     initialized: bool,
+    /// Whether or not to start trading after initializing, defaults to true
     start_trading: Option<bool>,
+    /// Current driver status
     status: StrategyStatus,
+    /// The portfolio managing order allocation
     pub(crate) portfolio: Portfolio,
+    /// The engine, used to access engine services
     engine: Arc<TradingEngine>,
-    strat_key: String,
+    /// The unique name of this driver
+    name: String,
+    /// The last market event seen by the driver
     last_event: Option<MarketEventEnvelope>,
+    /// An event logger for driver generated events
     logger: Option<StratEventLoggerRef>,
+    /// A repository to manage driver state
     repo: GenericDriverRepository,
 }
 
@@ -83,7 +98,7 @@ impl GenericDriver {
             status: StrategyStatus::default(),
             portfolio,
             engine,
-            strat_key,
+            name: strat_key,
             last_event: None,
             logger,
             repo,
@@ -118,13 +133,13 @@ impl GenericDriver {
     }
 
     async fn process_signals(&mut self, signals: &[TradeSignal]) -> Result<()> {
-        metrics::get().log_signals(self.strat_key.as_str(), signals);
+        metrics::get().log_signals(self.name.as_str(), signals);
         let mut orders = vec![];
         for signal in signals {
             let conversion = self.portfolio.maybe_convert(signal).await;
             match conversion {
                 Ok(Some(order)) => orders.push(order),
-                Err(e) => error!(err = %e, key = %self.strat_key, pair = %signal.pair, "failed to convert order"),
+                Err(e) => error!(err = %e, key = %self.name, pair = %signal.pair, "failed to convert order"),
                 _ => trace!(signal = ?signal, "did not convert to an order"),
             }
         }
@@ -149,7 +164,7 @@ impl GenericDriver {
                 }
             }
         }
-        metrics::get().log_portfolio(self.strat_key.as_str(), &self.portfolio);
+        metrics::get().log_portfolio(self.name.as_str(), &self.portfolio);
         Ok(())
     }
 
@@ -170,7 +185,7 @@ impl GenericDriver {
             let mut inner = self.inner.write().await;
             inner.eval(le, &self.ctx()).await?
         };
-        metrics::get().log_is_trading(self.strat_key.as_str(), self.is_trading());
+        metrics::get().log_is_trading(self.name.as_str(), self.is_trading());
         if self.portfolio.has_any_failed_position() {
             metrics::get().log_failed_position(le.xch, &le.pair);
             return Ok(());
@@ -225,7 +240,7 @@ impl StrategyDriver for GenericDriver {
         r.key()
     }
 
-    async fn add_event(&mut self, le: &MarketEventEnvelope) -> Result<()> {
+    async fn on_market_event(&mut self, le: &MarketEventEnvelope) -> Result<()> {
         // TODO: return an error instead if not initialized ?
         if !self.initialized {
             self.init().await.unwrap();
@@ -241,7 +256,7 @@ impl StrategyDriver for GenericDriver {
         })
     }
 
-    async fn data(&mut self, q: DataQuery) -> Result<DataResult> {
+    async fn query(&mut self, q: DataQuery) -> Result<DataResult> {
         match q {
             DataQuery::CancelOngoingOp => Ok(DataResult::Success(false)),
             DataQuery::Models => {
