@@ -22,11 +22,11 @@ pub trait StrategyDriver: Send + Sync {
     async fn key(&self) -> String;
 
     /// Receive a data event from live streams
-    async fn add_event(&mut self, le: &MarketEventEnvelope) -> error::Result<()>;
+    async fn on_market_event(&mut self, le: &MarketEventEnvelope) -> error::Result<()>;
 
     /// Handle a `DataQuery`
     /// this is used to inspect the internal state of strategies
-    async fn data(&mut self, q: DataQuery) -> crate::error::Result<DataResult>;
+    async fn query(&mut self, q: DataQuery) -> crate::error::Result<DataResult>;
 
     /// Handle a `Mutation`
     /// this is used to correct strategies manually
