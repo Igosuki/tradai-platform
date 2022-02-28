@@ -14,7 +14,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use brokers::exchange::Exchange;
-use brokers::types::{MarketEvent, MarketEventEnvelope, Orderbook, Pair};
+use brokers::types::{MarketEvent, MarketEventEnvelope, Orderbook, Pair, SecurityType, Symbol};
 use util::ser::date_time_format;
 use util::test::test_data_dir;
 use util::time::DateRange;
@@ -222,8 +222,7 @@ pub async fn load_csv_events(
             let pair: Pair = pair.as_str().into();
             csv_records.iter().map(move |csvr| {
                 MarketEventEnvelope::new(
-                    exchange,
-                    pair.clone(),
+                    Symbol::new(pair.to_string(), SecurityType::Crypto, exchange),
                     MarketEvent::Orderbook(csvr.to_orderbook(pair.clone())),
                 )
             })

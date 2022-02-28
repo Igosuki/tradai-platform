@@ -8,6 +8,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use brokers::prelude::*;
+use brokers::types::{SecurityType, Symbol};
 use db::Storage;
 use options::Options;
 use portfolio::portfolio::Portfolio;
@@ -16,8 +17,8 @@ use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::*;
 use strategy::plugin::{provide_options, StrategyPlugin};
 use strategy::types::StratEvent;
-use strategy::MarketChannel;
 use strategy::StratEventLoggerRef;
+use strategy::{MarketChannel, MarketChannelType};
 use trading::book::BookPosition;
 use trading::engine::TradingEngine;
 use trading::position::{OperationKind, PositionKind};
@@ -334,18 +335,25 @@ impl Strategy for NaiveTradingStrategy {
     fn model(&self) -> Vec<(String, Option<Value>)> { self.model.serialized() }
 
     fn channels(&self) -> HashSet<MarketChannel> {
-        let channels = vec![
-            MarketChannel::Orderbooks {
-                xch: self.exchange,
-                pair: self.left_pair.clone(),
-            },
-            MarketChannel::Orderbooks {
-                xch: self.exchange,
-                pair: self.right_pair.clone(),
-            },
-        ];
-        let mut hs = HashSet::new();
-        hs.extend(channels);
-        hs
+        vec![
+            MarketChannel::builder()
+                .symbol(Symbol::new(
+                    self.left_pair.to_string(),
+                    SecurityType::Crypto,
+                    self.exchange,
+                ))
+                .r#type(MarketChannelType::Orderbooks)
+                .build(),
+            MarketChannel::builder()
+                .symbol(Symbol::new(
+                    self.right_pair.to_string(),
+                    SecurityType::Crypto,
+                    self.exchange,
+                ))
+                .r#type(MarketChannelType::Orderbooks)
+                .build(),
+        ]
+        .into_iter()
+        .collect()
     }
 }

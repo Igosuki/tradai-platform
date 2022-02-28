@@ -7,9 +7,8 @@ use chrono::{DateTime, TimeZone, Utc};
 use ordered_float::OrderedFloat;
 use uuid::Uuid;
 
-use crate::exchange::Exchange;
 use crate::types::order::{Order, OrderEnforcement, OrderStatus, TradeType};
-use crate::types::{Pair, Price, SecurityType, Volume};
+use crate::types::{Pair, Price, SecurityType, Symbol, Volume};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Deserialize, AsRefStr)]
 pub enum StreamChannel {
@@ -284,8 +283,7 @@ impl MarketEvent {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type")]
 pub struct MarketEventEnvelope {
-    pub xch: Exchange,
-    pub pair: Pair,
+    pub symbol: Symbol,
     pub trace_id: Uuid,
     pub ts: DateTime<Utc>,
     pub e: MarketEvent,
@@ -293,10 +291,9 @@ pub struct MarketEventEnvelope {
 }
 
 impl MarketEventEnvelope {
-    pub fn new(xch: Exchange, pair: Pair, e: MarketEvent) -> Self {
+    pub fn new(symbol: Symbol, e: MarketEvent) -> Self {
         Self {
-            xch,
-            pair,
+            symbol,
             e,
             trace_id: Uuid::new_v4(),
             ts: Utc::now(),
@@ -305,39 +302,30 @@ impl MarketEventEnvelope {
     }
 
     pub fn order_book_event(
-        exchange: Exchange,
-        pair: Pair,
+        symbol: Symbol,
         ts: i64,
         asks: Vec<(f64, f64)>,
         bids: Vec<(f64, f64)>,
     ) -> MarketEventEnvelope {
-        let atom = pair.clone();
         let orderbook = Orderbook {
             timestamp: ts,
-            pair,
+            pair: symbol.value.clone(),
             asks,
             bids,
             last_order_id: None,
         };
-        Self::new(exchange, atom, MarketEvent::Orderbook(orderbook))
+        Self::new(symbol, MarketEvent::Orderbook(orderbook))
     }
 
-    pub fn trade_event(
-        exchange: Exchange,
-        pair: Pair,
-        ts: i64,
-        price: f64,
-        qty: f64,
-        tt: TradeType,
-    ) -> MarketEventEnvelope {
+    pub fn trade_event(symbol: Symbol, ts: i64, price: f64, qty: f64, tt: TradeType) -> MarketEventEnvelope {
         let trade = Trade {
             event_ms: ts,
-            pair: pair.clone(),
+            pair: symbol.value.clone(),
             amount: qty,
             price,
             tt,
         };
-        Self::new(exchange, pair, MarketEvent::Trade(trade))
+        Self::new(symbol, MarketEvent::Trade(trade))
     }
 }
 

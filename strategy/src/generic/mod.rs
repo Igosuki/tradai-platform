@@ -105,25 +105,6 @@ impl GenericDriver {
         })
     }
 
-    fn handles(&self, le: &MarketEventEnvelope) -> bool {
-        // TODO : replace this with a hashtable
-        let c = match le.e {
-            MarketEvent::Trade(_) => MarketChannel::Trades {
-                pair: le.pair.clone(),
-                xch: le.xch,
-            },
-            MarketEvent::Orderbook(_) => MarketChannel::Orderbooks {
-                pair: le.pair.clone(),
-                xch: le.xch,
-            },
-            MarketEvent::CandleTick(_) => MarketChannel::Candles {
-                pair: le.pair.clone(),
-                xch: le.xch,
-            },
-        };
-        self.channels.contains(&c)
-    }
-
     pub(crate) fn status(&self) -> StrategyStatus { self.status }
 
     pub(crate) fn set_status(&mut self, status: StrategyStatus) -> Result<()> {
@@ -186,19 +167,21 @@ impl GenericDriver {
             inner.eval(le, &self.ctx()).await?
         };
         metrics::get().log_is_trading(self.name.as_str(), self.is_trading());
+        let xch = le.symbol.xch;
+        let pair = &le.symbol.value;
         if self.portfolio.has_any_failed_position() {
-            metrics::get().log_failed_position(le.xch, &le.pair);
+            metrics::get().log_failed_position(xch, pair);
             return Ok(());
         }
         if !self.portfolio.locks().is_empty() {
-            metrics::get().log_lock(le.xch, &le.pair);
+            metrics::get().log_lock(xch, pair);
             return Ok(());
         }
         if self.is_trading() {
             if let Some(signals) = signals {
                 if !signals.is_empty() {
                     if let Err(e) = self.process_signals(signals.as_slice()).await {
-                        metrics::get().signal_error(le.xch, &le.pair);
+                        metrics::get().signal_error(xch, pair);
                         metrics::get().log_error(e.short_name());
                         error!(err = %e, "error processing signals");
                     }
@@ -245,9 +228,6 @@ impl StrategyDriver for GenericDriver {
         if !self.initialized {
             self.init().await.unwrap();
             self.initialized = true;
-        }
-        if !self.handles(le) {
-            return Ok(());
         }
         self.last_event = Some(le.clone());
         self.process_event(le).await.map_err(|e| {

@@ -3,7 +3,7 @@ use crate::datafusion_util::{get_col_as, multitables_as_df, multitables_as_strea
 use crate::datasources::event_ms_where_clause;
 use brokers::pair::symbol_to_pair;
 use brokers::prelude::*;
-use brokers::types::Candle;
+use brokers::types::{Candle, SecurityType, Symbol};
 use chrono::{DateTime, Utc};
 use datafusion::arrow::array::*;
 use datafusion::record_batch::RecordBatch;
@@ -34,7 +34,7 @@ pub fn candles_stream<P: 'static + AsRef<Path> + Debug>(
             let mut msg = msg;
             msg.e = MarketEvent::CandleTick(Candle {
                 event_time: candle.event_time,
-                pair: msg.pair.clone(),
+                pair: msg.symbol.value.clone(),
                 start_time: candle.start_time,
                 end_time: candle.end_time,
                 open: candle.open,
@@ -100,7 +100,18 @@ fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEve
             let xch = xch_values.value(k as usize);
             let xchg = Exchange::from_str(xch).unwrap_or_else(|_| panic!("wrong xchg {}", xch));
 
-            yield MarketEventEnvelope::trade_event(xchg, symbol_to_pair(&xchg, &pair.into()).unwrap(), ts, price, qty, is_buyer_maker.into());
+            yield MarketEventEnvelope::trade_event(
+                Symbol::new(
+                    symbol_to_pair(&xchg, &pair.into()).unwrap().to_string(),
+                    SecurityType::Crypto,
+                    xchg,
+                ),
+                ts,
+                price,
+                qty,
+                is_buyer_maker.into(),
+            );
+
         }
     }
 }

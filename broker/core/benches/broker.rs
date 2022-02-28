@@ -1,6 +1,6 @@
 use broker_core::broker::{AsyncBroker, Broker, ChannelMessageBroker, Subject};
 use broker_core::exchange::Exchange;
-use broker_core::types::{MarketEvent, MarketEventEnvelope, Pair, Trade, TradeType};
+use broker_core::types::{MarketEvent, MarketEventEnvelope, Pair, SecurityType, Symbol, Trade, TradeType};
 use criterion::{criterion_group, criterion_main, Criterion};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -44,8 +44,7 @@ fn spawn_channels<M: 'static + Send + Sync>(tokio_rt: &Runtime, channels: usize)
 fn default_event() -> MarketEventEnvelope {
     let pair: Pair = "BTC_USDT".into();
     MarketEventEnvelope::new(
-        Exchange::default(),
-        pair.clone(),
+        Symbol::new(pair.to_string(), SecurityType::Crypto, Exchange::default()),
         MarketEvent::Trade(Trade {
             event_ms: 0,
             pair,

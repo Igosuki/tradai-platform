@@ -1,9 +1,9 @@
 use brokers::prelude::*;
-use brokers::types::Candle;
+use brokers::types::{Candle, SecurityType, Symbol};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use stats::indicators::{macd, rsi, stoch};
-use stats::kline::{Kline, Resolution, TimeUnit};
+use stats::kline::{Resolution, TimeUnit};
 use stats::yata_indicators::{StochasticOscillator, MACD, RSI};
 use stats::yata_prelude::{IndicatorConfig, IndicatorInstance};
 use stats::Action;
@@ -12,7 +12,7 @@ use std::collections::HashSet;
 use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::*;
 use strategy::prelude::StratEvent;
-use strategy::{MarketChannel, StratEventLoggerRef};
+use strategy::{MarketChannel, MarketChannelType, StratEventLoggerRef};
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};
 use trading::stop::TrailingStopper;
@@ -122,7 +122,7 @@ pub struct StochRsiStrategy {
     rsi_instance: Option<<RSI as IndicatorConfig>::Instance>,
     main_signal: Option<Action>,
     last_macd_signal: Option<Action>,
-    kline: Kline,
+    //kline: Kline,
     stopper: TrailingStopper<f64>,
     logger: Option<StratEventLoggerRef>,
     order_conf: OrderConf,
@@ -151,7 +151,7 @@ impl StochRsiStrategy {
             rsi_instance: None,
             main_signal: None,
             macd_instance: None,
-            kline: Kline::new(n.resolution, 8),
+            //kline: Kline::new(n.resolution, 8),
             stopper: TrailingStopper::new(n.trailing_stop_start(), n.trailing_stop_loss(), n.stop_loss()),
             logger,
             order_conf: n.order_conf.clone(),
@@ -352,13 +352,12 @@ impl Strategy for StochRsiStrategy {
     }
 
     fn channels(&self) -> HashSet<MarketChannel> {
-        let channels = vec![MarketChannel::Candles {
-            xch: self.exchange,
-            pair: self.pair.clone(),
-        }];
-        let mut hs = HashSet::new();
-        hs.extend(channels);
-        hs
+        vec![MarketChannel::builder()
+            .symbol(Symbol::new(self.pair.to_string(), SecurityType::Crypto, self.exchange))
+            .r#type(MarketChannelType::Candles)
+            .build()]
+        .into_iter()
+        .collect()
     }
 }
 

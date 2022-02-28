@@ -94,7 +94,11 @@ where
             if tries > 5 {
                 break;
             }
-            if driver.ctx().portfolio.is_locked(&(event.xch, event.pair.clone())) {
+            if driver
+                .ctx()
+                .portfolio
+                .is_locked(&(event.symbol.xch, event.symbol.value.clone()))
+            {
                 driver.resolve_orders().await;
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 tries += 1;
@@ -121,7 +125,7 @@ where
                 .collect();
             strategy_logs.push(StrategyLog::new(
                 event_time,
-                hashmap! { (event.xch.to_string(), event.pair.to_string()) => ob.vwap().unwrap() },
+                hashmap! { (event.symbol.xch.to_string(), event.symbol.value.to_string()) => ob.vwap().unwrap() },
                 models,
                 PortfolioSnapshot {
                     value: portfolio.value(),

@@ -274,13 +274,15 @@ impl Portfolio {
     /// Interest rates could not be fetched
     pub async fn update_from_market(&mut self, event: &MarketEventEnvelope) -> Result<()> {
         // This ugly bit of code is because of the mutable borrow, it should be refactored away
-        let interests = if let Some(p) = self.open_positions.get(&(event.xch, event.pair.clone())) {
+        let pair = event.symbol.value.clone();
+        let xch = event.symbol.xch;
+        let interests = if let Some(p) = self.open_positions.get(&(xch, pair.clone())) {
             let option = p.open_order.as_ref();
             self.interest_fees_since_open(option).await
         } else {
             return Ok(());
         }?;
-        if let Some(p) = self.open_positions.get_mut(&(event.xch, event.pair.clone())) {
+        if let Some(p) = self.open_positions.get_mut(&(xch, pair.clone())) {
             p.update(event, self.fees_rate, interests);
         }
         Ok(())

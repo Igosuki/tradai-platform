@@ -60,9 +60,12 @@ impl BitstampStreamingApi {
     fn broadcast(&self, v: MarketEvent) {
         let (pair, channel) = (&v.pair(), v.chan());
         self.metrics.event_broadcasted(pair, channel);
-        let msg = Arc::new(MarketEventEnvelope::new(Self::EXCHANGE, pair.clone(), v));
+        let msg = Arc::new(MarketEventEnvelope::new(
+            Symbol::new(pair.to_string(), SecurityType::Crypto, Self::EXCHANGE),
+            v,
+        ));
         if let Err(e) = self.sink.send(msg) {
-            self.metrics.broadcast_failure(e.0.pair.as_ref(), e.0.e.chan());
+            self.metrics.broadcast_failure(e.0.symbol.value.as_ref(), e.0.e.chan());
         }
     }
 }
