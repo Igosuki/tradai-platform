@@ -14,7 +14,7 @@ use futures::TryFutureExt;
 use tokio::sync::RwLock;
 use tracing::Instrument;
 
-use brokers::broker::{ActixMessageBroker, Broker, MarketEventEnvelopeMsg};
+use brokers::broker::{ActixMessageBroker, Broker, MarketEventEnvelopeRef};
 // use actix::System;
 // use tokio::select;
 // use tokio::signal::unix::{signal, SignalKind};
@@ -29,7 +29,7 @@ use portfolio::balance::BalanceReporter;
 use portfolio::margin::MarginAccountReporter;
 use strategy::plugin::plugin_registry;
 use strategy::prelude::StrategyCopySettings;
-use strategy::{self, MarketChannel, StrategyKey, Trader};
+use strategy::{self, MarketChannelTopic, StrategyKey, Trader};
 use trading::engine::{new_trading_engine, TradingEngine};
 use trading::interest::MarginInterestRateProvider;
 use trading::order_manager::OrderManager;
@@ -61,7 +61,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
         .instrument(tracing::info_span!("loading pair registries"))
         .await?;
     // Message brokers
-    let mut market_broker = ActixMessageBroker::<MarketChannel, MarketEventEnvelopeMsg>::new();
+    let mut market_broker = ActixMessageBroker::<MarketChannelTopic, MarketEventEnvelopeRef>::new();
     let mut account_broker = ActixMessageBroker::<AccountChannel, AccountEventEnveloppe>::new();
     // Termination handles to fuse the server with
     let mut termination_handles: Vec<Pin<Box<dyn Future<Output = std::io::Result<()>>>>> = vec![];
@@ -103,7 +103,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                     .await;
                 for trader in strategies {
                     for channel in &trader.channels {
-                        market_broker.register(channel.clone(), trader.market_event_recipient());
+                        market_broker.register(channel.into(), trader.market_event_recipient());
                     }
                     strat_recipients.push(trader.market_event_recipient());
                     traders.push(trader.clone());

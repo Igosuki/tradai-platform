@@ -20,7 +20,7 @@ use crate::datasources::event_ms_where_clause;
 const ORDER_BOOK_TABLE_NAME: &str = "order_books";
 
 /// Read partitions as flat order booksm where asks and bids are flattened in columns [a{i}, aq{i}, b{i}, bq{i}]
-pub fn flat_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
+pub fn flat_orderbooks_stream<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
     levels: usize,
@@ -206,7 +206,7 @@ fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = Marke
             let xchg = Exchange::from_str(xch).unwrap_or_else(|_| panic!("wrong xchg {}", xch));
 
             yield MarketEventEnvelope::order_book_event(
-                Symbol::new(pair.to_string(), SecurityType::Crypto, xchg),
+                Symbol::new(pair.into(), SecurityType::Crypto, xchg),
                 ts,
                 asks,
                 bids,
@@ -234,7 +234,7 @@ fn events_from_csv_orderbooks(records: RecordBatch, _levels: usize) -> impl Stre
             let asks = vec![];
             let ts = event_ms_col.value(i);
             yield MarketEventEnvelope::order_book_event(
-                Symbol::new(pair_col.value(i).to_string(), SecurityType::Crypto, Exchange::from_str(xch_col.value(i)).unwrap()),
+                Symbol::new(pair_col.value(i).into(), SecurityType::Crypto, Exchange::from_str(xch_col.value(i)).unwrap()),
                 ts,
                 asks,
                 bids,

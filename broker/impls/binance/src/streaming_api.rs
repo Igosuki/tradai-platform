@@ -8,7 +8,7 @@ use awc::ws::Message;
 use binance::config::Config;
 use binance::ws_model::{CombinedStreamEvent, QueryResult, WebsocketEvent, WebsocketEventUntag};
 use broker_core::bot::{BotWrapper, DefaultWsActor, WsFramedSink, WsHandler};
-use broker_core::broker::MarketEventEnvelopeMsg;
+use broker_core::broker::MarketEventEnvelopeRef;
 use broker_core::metrics::ExchangeMetrics;
 use bstr::ByteSlice;
 use bytes::Bytes;
@@ -34,7 +34,7 @@ use super::adapters::*;
 pub struct BinanceStreamingApi {
     books: Arc<DashMap<Pair, LiveAggregatedOrderBook>>,
     channels: HashMap<StreamChannel, HashSet<Pair>>,
-    sink: UnboundedSender<MarketEventEnvelopeMsg>,
+    sink: UnboundedSender<MarketEventEnvelopeRef>,
     api: Arc<BinanceApi>,
     metrics: Arc<ExchangeMetrics>,
     orderbook_depth: Option<u16>,
@@ -47,7 +47,7 @@ impl BinanceStreamingApi {
         channels: HashMap<StreamChannel, HashSet<Pair>>,
         use_test: bool,
         orderbook_depth: Option<u16>,
-    ) -> Result<BotWrapper<DefaultWsActor, UnboundedReceiverStream<MarketEventEnvelopeMsg>>> {
+    ) -> Result<BotWrapper<DefaultWsActor, UnboundedReceiverStream<MarketEventEnvelopeRef>>> {
         let metrics = ExchangeMetrics::for_exchange(Exchange::Binance);
         let conf = if use_test { Config::testnet() } else { Config::default() };
         let exchange_api = BinanceApi::new_with_config(creds, conf.clone()).await?;
@@ -186,7 +186,7 @@ impl BinanceStreamingApi {
         let (pair, channel) = (&v.pair(), v.chan());
         self.metrics.event_broadcasted(pair, channel);
         let msg = Arc::new(MarketEventEnvelope::new(
-            Symbol::new(pair.to_string(), SecurityType::Crypto, Self::EXCHANGE),
+            Symbol::new(pair.clone(), SecurityType::Crypto, Self::EXCHANGE),
             v,
         ));
         if let Err(e) = self.sink.send(msg) {

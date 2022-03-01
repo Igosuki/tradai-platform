@@ -20,7 +20,7 @@ pub mod fixtures {
 
     pub(crate) fn default_order_book_event() -> MarketEventEnvelope {
         MarketEventEnvelope::new(
-            Symbol::new(DEFAULT_PAIR.to_string(), SecurityType::Crypto, DEFAULT_EXCHANGE),
+            Symbol::new(DEFAULT_PAIR.into(), SecurityType::Crypto, DEFAULT_EXCHANGE),
             MarketEvent::Orderbook(Orderbook {
                 pair: DEFAULT_PAIR.into(),
                 asks: vec![(1.0, 10.0)],

@@ -37,7 +37,7 @@ impl Subject for MarketEventEnvelope {
 
     fn from_channel(channel: &MarketChannel) -> String {
         let xch = channel.symbol.xch;
-        let pair = channel.symbol.value;
+        let pair = channel.symbol.value.clone();
         match channel.r#type {
             MarketChannelType::Orderbooks => format!("live_event.{}.{}.obs", xch, pair),
             MarketChannelType::Trades => format!("live_event.{}.{}.trades", xch, pair),
