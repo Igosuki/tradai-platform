@@ -7,7 +7,7 @@ use actix::io::SinkWrite;
 use async_trait::async_trait;
 use awc::ws::Message;
 use broker_core::bot::{BotWrapper, DefaultWsActor, WsFramedSink, WsHandler};
-use broker_core::broker::MarketEventEnvelopeMsg;
+use broker_core::broker::MarketEventEnvelopeRef;
 use broker_core::metrics::ExchangeMetrics;
 use bytes::Bytes;
 use derivative::Derivative;
@@ -26,7 +26,7 @@ use super::models::*;
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct BitstampStreamingApi {
-    sink: UnboundedSender<MarketEventEnvelopeMsg>,
+    sink: UnboundedSender<MarketEventEnvelopeRef>,
     channels: HashMap<StreamChannel, HashSet<Pair>>,
     #[derivative(Debug = "ignore")]
     metrics: Arc<ExchangeMetrics>,
@@ -37,7 +37,7 @@ impl BitstampStreamingApi {
     pub async fn new_bot(
         _creds: &dyn Credentials,
         channels: HashMap<StreamChannel, HashSet<Pair>>,
-    ) -> Result<BotWrapper<DefaultWsActor, UnboundedReceiverStream<MarketEventEnvelopeMsg>>> {
+    ) -> Result<BotWrapper<DefaultWsActor, UnboundedReceiverStream<MarketEventEnvelopeRef>>> {
         let metrics = Arc::new(ExchangeMetrics::for_exchange(Exchange::Binance));
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let api = BitstampStreamingApi {
@@ -61,7 +61,7 @@ impl BitstampStreamingApi {
         let (pair, channel) = (&v.pair(), v.chan());
         self.metrics.event_broadcasted(pair, channel);
         let msg = Arc::new(MarketEventEnvelope::new(
-            Symbol::new(pair.to_string(), SecurityType::Crypto, Self::EXCHANGE),
+            Symbol::new(pair.clone(), SecurityType::Crypto, Self::EXCHANGE),
             v,
         ));
         if let Err(e) = self.sink.send(msg) {

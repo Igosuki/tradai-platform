@@ -44,7 +44,7 @@ fn spawn_channels<M: 'static + Send + Sync>(tokio_rt: &Runtime, channels: usize)
 fn default_event() -> MarketEventEnvelope {
     let pair: Pair = "BTC_USDT".into();
     MarketEventEnvelope::new(
-        Symbol::new(pair.to_string(), SecurityType::Crypto, Exchange::default()),
+        Symbol::new(pair.clone(), SecurityType::Crypto, Exchange::default()),
         MarketEvent::Trade(Trade {
             event_ms: 0,
             pair,

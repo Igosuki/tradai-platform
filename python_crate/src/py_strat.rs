@@ -174,8 +174,9 @@ mod test {
     use pyo3::{PyObject, Python};
 
     use brokers::exchange::Exchange;
+    use brokers::types::{SecurityType, Symbol};
     use strategy::driver::Strategy;
-    use strategy::MarketChannel;
+    use strategy::{MarketChannel, MarketChannelType};
 
     use crate::util::register_tradai_module;
     use crate::PyStrategyWrapper;
@@ -209,10 +210,12 @@ mod test {
         assert!(!channels.is_empty());
         assert_eq!(
             channels.iter().last(),
-            Some(&MarketChannel::Orderbooks {
-                xch: Exchange::Binance,
-                pair: "BTC_USDT".into()
-            })
+            Some(
+                &MarketChannel::builder()
+                    .r#type(MarketChannelType::Orderbooks)
+                    .symbol(Symbol::new("BTC_USDT".into(), SecurityType::Crypto, Exchange::Binance))
+                    .build()
+            )
         );
     }
 }

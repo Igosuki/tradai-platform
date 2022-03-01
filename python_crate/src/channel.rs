@@ -1,5 +1,6 @@
 use brokers::prelude::Exchange;
-use strategy::MarketChannel;
+use brokers::types::{SecurityType, Symbol};
+use strategy::{MarketChannel, MarketChannelType};
 
 #[pyclass(name = "Channel", module = "strategy", subclass)]
 #[derive(Clone)]
@@ -27,20 +28,19 @@ impl PyChannel {
 
 impl From<PyChannel> for MarketChannel {
     fn from(sc: PyChannel) -> Self {
-        match sc.source.as_str() {
-            "orderbooks" => MarketChannel::Orderbooks {
-                xch: Exchange::from(sc.exchange),
-                pair: sc.pair.into(),
-            },
-            "trades" => MarketChannel::Trades {
-                xch: Exchange::from(sc.exchange),
-                pair: sc.pair.into(),
-            },
-            "candles" => MarketChannel::Candles {
-                xch: Exchange::from(sc.exchange),
-                pair: sc.pair.into(),
-            },
+        let market_channel_type = match sc.source.as_str() {
+            "orderbooks" => MarketChannelType::Orderbooks,
+            "trades" => MarketChannelType::Trades,
+            "candles" => MarketChannelType::Candles,
             _ => unimplemented!(),
-        }
+        };
+        MarketChannel::builder()
+            .r#type(market_channel_type)
+            .symbol(Symbol::new(
+                sc.pair.into(),
+                SecurityType::Crypto,
+                Exchange::from(sc.exchange),
+            ))
+            .build()
     }
 }

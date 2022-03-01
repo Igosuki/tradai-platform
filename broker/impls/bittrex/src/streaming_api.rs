@@ -3,7 +3,7 @@ use std::io::Read;
 use std::sync::{Arc, RwLock};
 
 use broker_core::bot::BotWrapper;
-use broker_core::broker::MarketEventEnvelopeMsg;
+use broker_core::broker::MarketEventEnvelopeRef;
 use broker_core::json_util::deserialize_json_s;
 use libflate::deflate::Decoder;
 use serde::de::DeserializeOwned;
@@ -20,7 +20,7 @@ use super::models::*;
 
 #[derive(Debug)]
 pub struct BittrexStreamingApi {
-    sink: UnboundedSender<MarketEventEnvelopeMsg>,
+    sink: UnboundedSender<MarketEventEnvelopeRef>,
     books: Arc<RwLock<HashMap<Pair, LiveAggregatedOrderBook>>>,
     order_book_pairs: HashSet<Pair>,
     trade_pairs: HashSet<Pair>,
@@ -36,7 +36,7 @@ impl BittrexStreamingApi {
     pub async fn new_bot(
         _creds: &dyn Credentials,
         channels: HashMap<StreamChannel, HashSet<Pair>>,
-    ) -> Result<BotWrapper<HubClient, UnboundedReceiverStream<MarketEventEnvelopeMsg>>> {
+    ) -> Result<BotWrapper<HubClient, UnboundedReceiverStream<MarketEventEnvelopeRef>>> {
         // Live order book pairs
         let order_book_pairs: HashSet<Pair> = channels.get(&StreamChannel::DiffOrderbook).cloned().unwrap_or_default();
         // Live trade pairs
@@ -215,7 +215,7 @@ impl HubClientHandler for BittrexStreamingApi {
         if let Ok(les) = live_events {
             for le in les {
                 if let Err(e) = self.sink.send(Arc::new(MarketEventEnvelope::new(
-                    Symbol::new(le.pair().to_string(), SecurityType::Crypto, Exchange::Bittrex),
+                    Symbol::new(le.pair(), SecurityType::Crypto, Exchange::Bittrex),
                     le,
                 ))) {
                     error!("broadcast failure for {}, {}", e.0.symbol.value.as_ref(), e.0.e.chan());

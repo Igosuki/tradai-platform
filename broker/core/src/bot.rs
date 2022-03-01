@@ -3,7 +3,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::broker::MarketEventEnvelopeMsg;
+use crate::broker::MarketEventEnvelopeRef;
 use actix::{io::SinkWrite, Actor, ActorContext, ActorFutureExt, ActorTryFutureExt, Addr, AsyncContext, Context,
             ContextFutureSpawner, Handler, StreamHandler, Supervisor, WrapFuture};
 use actix_codec::Framed;
@@ -271,7 +271,7 @@ impl actix::io::WriteHandler<WsProtocolError> for DefaultWsActor {}
 #[rtype(result = "()")]
 pub struct Ping;
 
-pub type MarketDataStreamer = dyn DataStreamer<MarketEventEnvelopeMsg>;
+pub type MarketDataStreamer = dyn DataStreamer<MarketEventEnvelopeRef>;
 pub type BrokerageAccountDataStreamer = dyn DataStreamer<AccountEventEnveloppe>;
 
 #[async_trait]

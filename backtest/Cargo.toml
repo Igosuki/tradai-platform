@@ -58,6 +58,8 @@ hdrhistogram = "7.4"
 dashmap = "5"
 float-cmp = "0.9"
 num_cpus = "1.13"
+strum = "0.24"
+strum_macros = "0.24"
 
 # datafusion
 datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_i", features = ["avro", "avro-schema", "crypto_expressions", "regex_expressions", "unicode_expressions"] }
