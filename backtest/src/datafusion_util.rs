@@ -213,7 +213,7 @@ pub async fn tables_as_df<P: 'static + AsRef<Path> + Debug>(
     let now = Instant::now();
     let df = table_as_df(base_path.clone(), partitions.clone(), format, table_name, sql_query)
         .await
-        .expect(&format!("table path {}", base_path));
+        .unwrap_or_else(|_| panic!("table path {}", base_path));
     let records = df.collect().await?;
     if records.is_empty() {
         return Ok(RecordBatch::new_empty(Arc::new(Schema::empty())));

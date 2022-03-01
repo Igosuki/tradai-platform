@@ -104,7 +104,7 @@ impl Symbol {
             .xch(exchange)
             .value(symbol)
             .r#type(SecurityType::Future)
-            .date(expiry.unwrap_or(Utc.timestamp_millis(0)))
+            .date(expiry.unwrap_or_else(|| Utc.timestamp_millis(0)))
             .build()
     }
 

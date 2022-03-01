@@ -104,7 +104,7 @@ impl PyArrowConvert for Field {
         let schema_ptr = Box::into_raw(schema_ptr);
 
         unsafe {
-            ffi::export_field_to_c(&self, schema_ptr);
+            ffi::export_field_to_c(self, schema_ptr);
         };
 
         let pa = py.import("pyarrow")?;

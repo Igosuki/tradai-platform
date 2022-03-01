@@ -456,6 +456,31 @@ impl From<Order> for OrderUpdate {
     }
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Hash)]
+pub struct OrderbookConf {
+    depth: Option<u16>,
+    level: OrderbookLevel,
+}
+
+impl Default for OrderbookConf {
+    fn default() -> Self {
+        Self {
+            depth: Some(5),
+            level: OrderbookLevel::Level2,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Hash)]
+pub enum OrderbookLevel {
+    /// Only top quote and bid
+    Level1,
+    /// Orderbook at arbitrary depth
+    Level2,
+    /// Complete orderbook
+    Level3,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct Orderbook {
     /// UNIX timestamp in ms (when the response was received)

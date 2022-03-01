@@ -16,6 +16,8 @@ mod single;
 pub struct ReportConfig {
     pub parallelism: Option<usize>,
     pub compression: Compression,
+    // #[serde(deserialize_with = "util::ser::decode_duration_str")]
+    // pub sample_rate: Duration,
 }
 
 pub type StrategyEntry<'a, T> = (&'a str, Vec<fn(&T) -> f64>);

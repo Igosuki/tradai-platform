@@ -9,7 +9,6 @@ use brokers::types::MarketEventEnvelope;
 use brokers::Brokerages;
 use db::{get_or_create, DbOptions};
 use futures::StreamExt;
-use stats::kline::TimeUnit;
 use strategy::driver::{StratProviderRef, Strategy, StrategyInitContext};
 use strategy::prelude::{GenericDriver, GenericDriverOptions, PortfolioOptions};
 use strategy::{MarketChannel, MarketChannelTopic};
@@ -21,7 +20,7 @@ use util::compress::Compression;
 use util::time::DateRange;
 
 use crate::config::BacktestConfig;
-use crate::dataset::{default_data_catalog, DatasetCatalog, DatasetReader};
+use crate::dataset::{data_catalog, default_data_catalog, DatasetCatalog, DatasetReader};
 use crate::error::*;
 use crate::report::{BacktestReport, GlobalReport, ReportConfig};
 use crate::runner::BacktestRunner;
@@ -60,8 +59,8 @@ async fn get_channels(runners: &[Arc<RwLock<BacktestRunner>>]) -> Vec<MarketChan
 #[must_use]
 pub fn backtest_results_dir(test_name: &str) -> String {
     let base_path = std::env::var("TRADAI_BACKTESTS_OUT_DIR")
-        .or(std::env::var("CARGO_MANIFEST_DIR"))
-        .unwrap_or("".to_string());
+        .or_else(|_| std::env::var("CARGO_MANIFEST_DIR"))
+        .unwrap_or_else(|_| "".to_string());
     let test_results_dir = Path::new(&base_path).join("backtest_results").join(test_name);
     std::fs::create_dir_all(&test_results_dir).unwrap();
     format!("{}", test_results_dir.as_path().display())
@@ -98,12 +97,7 @@ impl Backtest {
             period: conf.period.as_range(),
             output_dir: output_path,
             dataset: DatasetReader {
-                input_format: conf.input_format.clone(),
-                ds_type: conf.input_dataset,
-                base_dir: conf.coindata_cache_dir(),
-                input_sample_rate: conf.input_sample_rate,
-                candle_resolution_period: TimeUnit::Minute,
-                candle_resolution_unit: 15,
+                catalog: data_catalog(conf.coindata_cache_dir()),
             },
             report_conf: conf.report.clone(),
         })
@@ -194,9 +188,9 @@ impl Backtest {
     }
 }
 
-async fn build_runner<'a>(
+async fn build_runner(
     provider: StratProviderRef,
-    providers: &'a [Exchange],
+    providers: &[Exchange],
     starting_cash: f64,
     fees_rate: f64,
 ) -> Arc<RwLock<BacktestRunner>> {
@@ -222,7 +216,7 @@ async fn build_runner<'a>(
         brokers::pair::register_pair_default(
             channel.exchange(),
             &channel.pair().to_string().replace('_', ""),
-            &channel.pair(),
+            channel.pair(),
         );
     }
     let logger = BacktestRunner::strat_event_logger(None);
@@ -231,7 +225,7 @@ async fn build_runner<'a>(
         Box::new(GenericDriver::try_new(channels, db, &generic_options, strat, engine, Some(logger2)).unwrap());
     let runner_ref = BacktestRunner::spawn_with_driver(None, logger, driver).await;
 
-    runner_ref.clone()
+    runner_ref
 }
 
 async fn start_bt(
@@ -249,7 +243,7 @@ async fn start_bt(
         report.finish().await.unwrap();
         tx.send(report).await.unwrap();
     });
-    (rx, stop_token.clone())
+    (rx, stop_token)
 }
 
 /// Backtest over a period of time, reading data from the required channels
@@ -270,16 +264,13 @@ pub async fn backtest_with_range<'a>(
     local
         .run_until(async move {
             let (mut rx, stop_token) = start_bt(test_name, runner_ref).await;
-            let catalog = data_catalog.unwrap_or_else(|| default_data_catalog());
-            let date_range = dt_range.into();
-            for c in broker.subjects() {
-                let dataset = catalog.get_reader(c);
-                dataset.stream_with_broker(&channels, &broker, date_range).await?;
-            }
+            let catalog = data_catalog.unwrap_or_else(default_data_catalog);
+            let dataset = DatasetReader { catalog };
+            dataset.stream_with_broker(&channels, &broker, dt_range).await?;
             stop_token.cancel();
-            rx.recv().await.ok_or(crate::error::Error::AnyhowError(anyhow!(
-                "Did not receive a backtest report"
-            )))
+            rx.recv()
+                .await
+                .ok_or_else(|| crate::error::Error::AnyhowError(anyhow!("Did not receive a backtest report")))
         })
         .await
 }
@@ -290,12 +281,11 @@ pub async fn load_market_events(
     dt_range: DateRange,
     mapper: Option<DatasetCatalog>,
 ) -> Result<Vec<MarketEventEnvelope>> {
-    let data_mapper = mapper.unwrap_or_else(|| default_data_catalog());
+    let catalog = mapper.unwrap_or_else(default_data_catalog);
     let mut market_events = vec![];
+    let reader = DatasetReader { catalog };
     for c in channels {
-        let topic = c.clone().into();
-        let dataset = data_mapper.get_reader(&topic);
-        market_events.extend(dataset.read_all_events(&[c], dt_range).await?);
+        market_events.extend(reader.read_all_events(&[c], dt_range).await?);
     }
     market_events.sort_by(|me1, me2| me1.e.time().timestamp_millis().cmp(&me2.e.time().timestamp_millis()));
     Ok(market_events)
@@ -307,13 +297,11 @@ pub async fn load_market_events_df(
     dt_range: DateRange,
     mapper: Option<DatasetCatalog>,
 ) -> Result<Vec<RecordBatch>> {
-    let data_mapper = mapper.unwrap_or_else(|| default_data_catalog());
-    let date_range = dt_range.into();
+    let catalog = mapper.unwrap_or_else(default_data_catalog);
     let mut market_events = vec![];
+    let reader = DatasetReader { catalog };
     for c in channels {
-        let topic = c.clone().into();
-        let dataset = data_mapper.get_reader(&topic);
-        market_events.extend(dataset.read_all_events_df(&[c], date_range).await?);
+        market_events.extend(reader.read_all_events_df(&[c], dt_range).await?);
     }
     Ok(market_events)
 }
@@ -341,9 +329,9 @@ pub async fn backtest_with_events<'a>(
                 sink.send(event).await.unwrap();
             }
             stop_token.cancel();
-            rx.recv().await.ok_or(crate::error::Error::AnyhowError(anyhow!(
-                "Did not receive a backtest report"
-            )))
+            rx.recv()
+                .await
+                .ok_or_else(|| crate::error::Error::AnyhowError(anyhow!("Did not receive a backtest report")))
         })
         .await
 }
@@ -370,7 +358,7 @@ mod test {
     }
 
     fn default_trades_range() -> DateRange {
-        let dt = DateTime::from_utc(NaiveDate::from_ymd(2022, 01, 22).and_hms(0, 0, 0), Utc);
+        let dt = DateTime::from_utc(NaiveDate::from_ymd(2022, 1, 22).and_hms(0, 0, 0), Utc);
         DateRange::by_day(dt, dt)
     }
 
@@ -498,7 +486,7 @@ mod test {
         )
         .await
         .unwrap();
-        info!("candles = {:?}", datafusion::arrow_print::write(&events.clone()));
+        info!("candles = {:?}", datafusion::arrow_print::write(&events));
         assert_eq!(events.len(), 1);
         let rb = events.first().unwrap();
         assert_eq!(rb.num_rows(), 8);

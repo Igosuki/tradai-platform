@@ -15,7 +15,6 @@ use util::test::test_dir;
 use util::time::DateRange;
 
 use crate::backtest::init_brokerages;
-use crate::{DataFormat, MarketEventDatasetType};
 
 use crate::error::*;
 use crate::report::ReportConfig;
@@ -53,15 +52,11 @@ pub struct BacktestConfig {
     pub strat_copy: Option<StrategyCopySettings>,
     pub fees: f64,
     pub period: Period,
-    pub input_format: DataFormat,
-    pub input_dataset: MarketEventDatasetType,
     pub coindata_cache_dir: Option<PathBuf>,
     #[builder(default, setter(strip_option))]
     pub sql_override: Option<String>,
     #[builder(default, setter(strip_option))]
     pub output_dir: Option<PathBuf>,
-    #[serde(deserialize_with = "util::ser::decode_duration_str")]
-    pub input_sample_rate: Duration,
     pub db_conf: Option<DbEngineOptions>,
     pub report: ReportConfig,
     pub runner_queue_size: Option<usize>,
@@ -112,7 +107,7 @@ impl BacktestConfig {
     pub(crate) fn coindata_cache_dir(&self) -> PathBuf {
         self.coindata_cache_dir
             .clone()
-            .unwrap_or_else(|| Path::new(&std::env::var("COINDATA_CACHE_DIR").unwrap()).join("data"))
+            .unwrap_or_else(|| Path::new(&std::env::var("COINDATA_CACHE_DIR").unwrap()).to_path_buf())
     }
 
     pub(crate) async fn all_strategy_settings(&self) -> Vec<StrategyDriverSettings> {
