@@ -102,7 +102,7 @@ fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEve
 
             yield MarketEventEnvelope::trade_event(
                 Symbol::new(
-                    symbol_to_pair(&xchg, &pair.into()).unwrap().to_string(),
+                    symbol_to_pair(&xchg, &pair.into()).unwrap(),
                     SecurityType::Crypto,
                     xchg,
                 ),

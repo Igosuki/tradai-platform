@@ -14,7 +14,7 @@ extern crate serde;
 extern crate actix;
 
 use broker_core::bot::DataStreamer;
-use broker_core::broker::MarketEventEnvelopeMsg;
+use broker_core::broker::MarketEventEnvelopeRef;
 use broker_core::prelude::*;
 use std::sync::Arc;
 
@@ -46,7 +46,7 @@ impl BrokerConnector for BinanceExchangeConnector {
         &self,
         ctx: BrokerageBotInitContext,
     ) -> broker_core::error::Result<Box<MarketDataStreamer>> {
-        let b: Box<dyn DataStreamer<MarketEventEnvelopeMsg>> = Box::new(
+        let b: Box<dyn DataStreamer<MarketEventEnvelopeRef>> = Box::new(
             BinanceStreamingApi::try_new(
                 ctx.creds.as_ref(),
                 ctx.channels,

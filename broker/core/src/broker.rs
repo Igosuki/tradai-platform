@@ -11,9 +11,9 @@ use tokio::sync::mpsc::{Sender, UnboundedSender};
 
 use crate::types::MarketEventEnvelope;
 
-pub type MarketEventEnvelopeMsg = Arc<MarketEventEnvelope>;
+pub type MarketEventEnvelopeRef = Arc<MarketEventEnvelope>;
 
-pub type MarketEventBroker<C> = ActixMessageBroker<C, MarketEventEnvelopeMsg>;
+pub type MarketEventBroker<C> = ActixMessageBroker<C, MarketEventEnvelopeRef>;
 
 pub trait Subject<M>: 'static + Eq + Hash + Sync + Send + From<M> {}
 

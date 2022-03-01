@@ -1,4 +1,3 @@
-#[allow(dead_code)]
 use crate::error::Error;
 use crate::exchange::Exchange;
 use chrono::{DateTime, TimeZone, Utc};
@@ -19,21 +18,29 @@ pub type MarketSymbol = Atom;
 pub type Asset = Atom;
 
 /// Type of tradable security / underlying asset
-#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, Hash, EnumString, AsRefStr)]
+#[serde(rename_all = "snake_case")]
 pub enum SecurityType {
     /// US Equity Security
+    #[strum(serialize = "equity")]
     Equity,
     /// Option Security Type
+    #[strum(serialize = "option")]
     Option,
     /// Commodity Security Type
+    #[strum(serialize = "commodity")]
     Commodity,
     /// FOREX Security
+    #[strum(serialize = "forex")]
     Forex,
     /// Future Security Type
+    #[strum(serialize = "future")]
     Future,
     /// Contract For a Difference Security Type.
+    #[strum(serialize = "cfd")]
     Cfd,
     /// Cryptocurrency Security Type.
+    #[strum(serialize = "crypto")]
     Crypto,
     /// Futures Options Security Type.
     /// <remarks>
@@ -43,11 +50,14 @@ pub enum SecurityType {
     /// The contract multiplier for Futures Options plays a big part in determining the premium
     /// of the option, which can also differ from the underlying future's multiplier.
     /// </remarks>
+    #[strum(serialize = "future_option")]
     FutureOption,
     /// Index Security Type.
+    #[strum(serialize = "index")]
     Index,
     /// Index Option Security Type.
     /// For index options traded on American markets, they tend to be European-style options and are Cash-settled.
+    #[strum(serialize = "index_option")]
     IndexOption,
 }
 
@@ -71,28 +81,28 @@ pub struct Symbol {
 }
 
 impl Symbol {
-    pub fn new(symbol: String, security_type: SecurityType, exchange: Exchange) -> Self {
+    pub fn new(symbol: Pair, security_type: SecurityType, exchange: Exchange) -> Self {
         Self::builder()
             .xch(exchange)
-            .value(symbol.into())
+            .value(symbol)
             .r#type(security_type)
             .build()
     }
 
-    pub fn new_option(symbol: String, exchange: Exchange, strike_price: f64, option_type: OptionType) -> Self {
+    pub fn new_option(symbol: Pair, exchange: Exchange, strike_price: f64, option_type: OptionType) -> Self {
         Self::builder()
             .xch(exchange)
-            .value(symbol.into())
+            .value(symbol)
             .r#type(SecurityType::Option)
             .strike_price(strike_price)
             .option_type(option_type)
             .build()
     }
 
-    pub fn new_future(symbol: String, exchange: Exchange, expiry: Option<DateTime<Utc>>) -> Self {
+    pub fn new_future(symbol: Pair, exchange: Exchange, expiry: Option<DateTime<Utc>>) -> Self {
         Self::builder()
             .xch(exchange)
-            .value(symbol.into())
+            .value(symbol)
             .r#type(SecurityType::Future)
             .date(expiry.unwrap_or(Utc.timestamp_millis(0)))
             .build()

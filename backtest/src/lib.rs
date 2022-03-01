@@ -41,6 +41,8 @@ extern crate tracing;
 #[macro_use]
 extern crate anyhow;
 extern crate core;
+#[macro_use]
+extern crate strum_macros;
 
 // // TODO: https://github.com/rust-lang/rust/issues/47384
 // use brokers::prelude::*;

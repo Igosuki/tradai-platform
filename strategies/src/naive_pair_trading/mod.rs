@@ -337,16 +337,12 @@ impl Strategy for NaiveTradingStrategy {
     fn channels(&self) -> HashSet<MarketChannel> {
         vec![
             MarketChannel::builder()
-                .symbol(Symbol::new(
-                    self.left_pair.to_string(),
-                    SecurityType::Crypto,
-                    self.exchange,
-                ))
+                .symbol(Symbol::new(self.left_pair.clone(), SecurityType::Crypto, self.exchange))
                 .r#type(MarketChannelType::Orderbooks)
                 .build(),
             MarketChannel::builder()
                 .symbol(Symbol::new(
-                    self.right_pair.to_string(),
+                    self.right_pair.clone(),
                     SecurityType::Crypto,
                     self.exchange,
                 ))

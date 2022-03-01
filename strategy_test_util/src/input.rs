@@ -222,7 +222,7 @@ pub async fn load_csv_events(
             let pair: Pair = pair.as_str().into();
             csv_records.iter().map(move |csvr| {
                 MarketEventEnvelope::new(
-                    Symbol::new(pair.to_string(), SecurityType::Crypto, exchange),
+                    Symbol::new(pair.clone(), SecurityType::Crypto, exchange),
                     MarketEvent::Orderbook(csvr.to_orderbook(pair.clone())),
                 )
             })

@@ -75,7 +75,7 @@ use strum_macros::AsRefStr;
 use uuid::Uuid;
 
 use actor::StrategyActor;
-use brokers::broker::MarketEventEnvelopeMsg;
+use brokers::broker::{MarketEventEnvelopeRef, Subject};
 use brokers::prelude::*;
 use brokers::types::Symbol;
 use db::DbOptions;
@@ -146,7 +146,7 @@ impl MarketChannel {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum MarketChannelType {
     /// Raw Trades see [MarketEvent::Trade]
     Trades,
@@ -158,6 +158,47 @@ pub enum MarketChannelType {
     OpenInterest,
     /// Order book quotes see [MarketEvent::Quote]
     Quotes,
+}
+
+impl From<&MarketEvent> for MarketChannelType {
+    fn from(e: &MarketEvent) -> Self {
+        match e {
+            MarketEvent::Trade(_) => Self::Trades,
+            MarketEvent::Orderbook(_) => Self::Orderbooks,
+            MarketEvent::CandleTick(_) => Self::Candles,
+        }
+    }
+}
+
+impl From<MarketEvent> for MarketChannelType {
+    fn from(e: MarketEvent) -> Self { From::from(&e) }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct MarketChannelTopic(pub Symbol, pub MarketChannelType);
+
+impl From<MarketEventEnvelope> for MarketChannelTopic {
+    fn from(e: MarketEventEnvelope) -> Self { MarketChannelTopic(e.symbol, e.e.into()) }
+}
+
+impl From<&MarketEventEnvelope> for MarketChannelTopic {
+    fn from(e: &MarketEventEnvelope) -> Self { MarketChannelTopic(e.symbol.clone(), (&e.e).into()) }
+}
+
+impl Subject<MarketEventEnvelope> for MarketChannelTopic {}
+
+impl From<MarketEventEnvelopeRef> for MarketChannelTopic {
+    fn from(e: MarketEventEnvelopeRef) -> Self { MarketChannelTopic(e.symbol.clone(), (&e.e).into()) }
+}
+
+impl Subject<MarketEventEnvelopeRef> for MarketChannelTopic {}
+
+impl From<MarketChannel> for MarketChannelTopic {
+    fn from(mc: MarketChannel) -> Self { Self(mc.symbol, mc.r#type) }
+}
+
+impl From<&MarketChannel> for MarketChannelTopic {
+    fn from(mc: &MarketChannel) -> Self { Self(mc.symbol.clone(), mc.r#type) }
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, AsRefStr, juniper::GraphQLEnum)]
@@ -255,7 +296,7 @@ impl Trader {
         })
     }
 
-    pub fn market_event_recipient(&self) -> Recipient<MarketEventEnvelopeMsg> { self.actor.clone().recipient() }
+    pub fn market_event_recipient(&self) -> Recipient<MarketEventEnvelopeRef> { self.actor.clone().recipient() }
 
     pub async fn send<M: 'static>(&self, m: M) -> Result<<M as Message>::Result>
     where
@@ -320,11 +361,7 @@ mod test {
 
         fn channels(&self) -> HashSet<MarketChannel> {
             vec![MarketChannel::builder()
-                .symbol(Symbol::new(
-                    TEST_PAIR.to_string(),
-                    SecurityType::Crypto,
-                    Exchange::Binance,
-                ))
+                .symbol(Symbol::new(TEST_PAIR.into(), SecurityType::Crypto, Exchange::Binance))
                 .r#type(MarketChannelType::Orderbooks)
                 .build()]
             .into_iter()
@@ -345,7 +382,7 @@ mod test {
         init();
         System::new().block_on(async move {
             let order_book_event = MarketEventEnvelope::order_book_event(
-                Symbol::new(TEST_PAIR.to_string(), SecurityType::Crypto, Exchange::Binance),
+                Symbol::new(TEST_PAIR.into(), SecurityType::Crypto, Exchange::Binance),
                 chrono::Utc::now().timestamp(),
                 vec![(0.1, 0.1), (0.2, 0.2)],
                 vec![(0.1, 0.1), (0.2, 0.2)],

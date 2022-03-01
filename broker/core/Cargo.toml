@@ -63,8 +63,8 @@ governor = "0.4"
 
 # Derive
 derive_more = "0.99"
-strum = "0.23"
-strum_macros = "0.23"
+strum = "0.24"
+strum_macros = "0.24"
 
 # Cryptography
 hmac = { version = "0.12", optional = true }

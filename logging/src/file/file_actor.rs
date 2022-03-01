@@ -247,7 +247,7 @@ mod test {
         System::new().block_on(async move {
             let addr = SyncArbiter::start(1, move || actor(new_dir.clone().as_str()));
             let order_book_event = Arc::new(MarketEventEnvelope::order_book_event(
-                Symbol::new("BTC_USDT".to_string(), SecurityType::Crypto, Exchange::Binance),
+                Symbol::new("BTC_USDT".into(), SecurityType::Crypto, Exchange::Binance),
                 chrono::Utc::now().timestamp(),
                 vec![(0.1, 0.1), (0.2, 0.2)],
                 vec![(0.1, 0.1), (0.2, 0.2)],

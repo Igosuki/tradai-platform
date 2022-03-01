@@ -15,7 +15,7 @@ use actix::{Actor, Context, Handler};
 use broker_core::exchange::Exchange::Binance;
 use std::sync::Arc;
 
-use brokers::broker::{ActixMessageBroker, Broker, MarketEventEnvelopeMsg, Subject};
+use brokers::broker::{ActixMessageBroker, Broker, MarketEventEnvelopeRef, Subject};
 use brokers::credential::BasicCredentials;
 use brokers::exchange::Exchange;
 use brokers::settings::*;
@@ -28,10 +28,10 @@ pub enum ExchangeChannel {
     No,
 }
 
-impl Subject<MarketEventEnvelopeMsg> for ExchangeChannel {}
+impl Subject<MarketEventEnvelopeRef> for ExchangeChannel {}
 
-impl From<MarketEventEnvelopeMsg> for ExchangeChannel {
-    fn from(_: MarketEventEnvelopeMsg) -> Self { Self::No }
+impl From<MarketEventEnvelopeRef> for ExchangeChannel {
+    fn from(_: MarketEventEnvelopeRef) -> Self { Self::No }
 }
 
 struct LoggingActor;
@@ -40,10 +40,10 @@ impl Actor for LoggingActor {
     type Context = Context<Self>;
 }
 
-impl Handler<MarketEventEnvelopeMsg> for LoggingActor {
+impl Handler<MarketEventEnvelopeRef> for LoggingActor {
     type Result = Result<(), anyhow::Error>;
 
-    fn handle(&mut self, msg: MarketEventEnvelopeMsg, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: MarketEventEnvelopeRef, _ctx: &mut Self::Context) -> Self::Result {
         println!("Logging {msg:?}");
         Ok(())
     }
@@ -69,7 +69,7 @@ async fn main() {
         };
 
         // Initialize the broker and a simple logging actor
-        let mut broker = ActixMessageBroker::<ExchangeChannel, MarketEventEnvelopeMsg>::new();
+        let mut broker = ActixMessageBroker::<ExchangeChannel, MarketEventEnvelopeRef>::new();
         let actor = LoggingActor::create(|_| LoggingActor);
         broker.register(ExchangeChannel::No, actor.recipient());
         let broker = Arc::new(broker);

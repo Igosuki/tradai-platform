@@ -45,7 +45,7 @@ impl Strategy for KlineLoggerStrategy {
 
     fn channels(&self) -> HashSet<MarketChannel> {
         vec![MarketChannel::builder()
-            .symbol(Symbol::new(self.pair.to_string(), SecurityType::Crypto, self.exchange))
+            .symbol(Symbol::new(self.pair.clone(), SecurityType::Crypto, self.exchange))
             .r#type(MarketChannelType::Candles)
             .build()]
         .into_iter()

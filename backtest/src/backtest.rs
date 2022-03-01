@@ -12,7 +12,7 @@ use futures::StreamExt;
 use stats::kline::TimeUnit;
 use strategy::driver::{StratProviderRef, Strategy, StrategyInitContext};
 use strategy::prelude::{GenericDriver, GenericDriverOptions, PortfolioOptions};
-use strategy::MarketChannel;
+use strategy::{MarketChannel, MarketChannelTopic};
 use tokio::sync::mpsc::{Receiver, UnboundedSender};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
@@ -33,15 +33,24 @@ pub(crate) async fn init_brokerages(xchs: &[Exchange]) {
 
 async fn build_msg_broker(
     runners: &[Arc<RwLock<BacktestRunner>>],
-) -> ChannelMessageBroker<MarketChannel, MarketEventEnvelope> {
+) -> ChannelMessageBroker<MarketChannelTopic, MarketEventEnvelope> {
     let mut broker = ChannelMessageBroker::new();
     for runner in runners {
         let runner = runner.read().await;
         for channel in runner.channels().await {
-            broker.register(channel, runner.event_sink());
+            broker.register(channel.into(), runner.event_sink());
         }
     }
     broker
+}
+
+async fn get_channels(runners: &[Arc<RwLock<BacktestRunner>>]) -> Vec<MarketChannel> {
+    let mut channels = vec![];
+    for runner in runners {
+        let runner = runner.read().await;
+        channels.extend(runner.channels().await);
+    }
+    channels
 }
 
 /// The base directory of backtest results
@@ -105,7 +114,7 @@ impl Backtest {
     /// Writing the global report fails
     pub async fn run(&mut self) -> Result<GlobalReport> {
         let broker = build_msg_broker(&self.runners).await;
-
+        let channels = get_channels(&self.runners).await;
         // Start runners
         let (reports_tx, mut reports_rx) = tokio::sync::mpsc::unbounded_channel();
         let mut global_report = GlobalReport::new_with(
@@ -116,7 +125,7 @@ impl Backtest {
         let num_runners = self.spawn_runners(&global_report, reports_tx).await;
         // Read input datasets
         let before_read = Instant::now();
-        self.dataset.stream_with_broker(&broker, self.period).await?;
+        self.dataset.stream_with_broker(&channels, &broker, self.period).await?;
         self.stop_token.cancel();
         let elapsed = before_read.elapsed();
         info!(
@@ -255,15 +264,17 @@ pub async fn backtest_with_range<'a>(
 ) -> Result<BacktestReport> {
     let runner_ref = build_runner(provider, providers, starting_cash, fees_rate).await;
     let broker = build_msg_broker(&[runner_ref.clone()]).await;
+    let channels = get_channels(&[runner_ref.clone()]).await;
+
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async move {
             let (mut rx, stop_token) = start_bt(test_name, runner_ref).await;
-            let data_mapper = data_catalog.unwrap_or_else(|| default_data_catalog());
+            let catalog = data_catalog.unwrap_or_else(|| default_data_catalog());
             let date_range = dt_range.into();
             for c in broker.subjects() {
-                let dataset = data_mapper.get_reader(c);
-                dataset.stream_with_broker(&broker, date_range).await?;
+                let dataset = catalog.get_reader(c);
+                dataset.stream_with_broker(&channels, &broker, date_range).await?;
             }
             stop_token.cancel();
             rx.recv().await.ok_or(crate::error::Error::AnyhowError(anyhow!(
@@ -282,7 +293,8 @@ pub async fn load_market_events(
     let data_mapper = mapper.unwrap_or_else(|| default_data_catalog());
     let mut market_events = vec![];
     for c in channels {
-        let dataset = data_mapper.get_reader(&c);
+        let topic = c.clone().into();
+        let dataset = data_mapper.get_reader(&topic);
         market_events.extend(dataset.read_all_events(&[c], dt_range).await?);
     }
     market_events.sort_by(|me1, me2| me1.e.time().timestamp_millis().cmp(&me2.e.time().timestamp_millis()));
@@ -299,7 +311,8 @@ pub async fn load_market_events_df(
     let date_range = dt_range.into();
     let mut market_events = vec![];
     for c in channels {
-        let dataset = data_mapper.get_reader(&c);
+        let topic = c.clone().into();
+        let dataset = data_mapper.get_reader(&topic);
         market_events.extend(dataset.read_all_events_df(&[c], date_range).await?);
     }
     Ok(market_events)
@@ -342,13 +355,13 @@ mod test {
     use brokers::exchange::Exchange;
     use brokers::pair::register_pair_default;
     use brokers::prelude::MarketEventEnvelope;
-    use brokers::types::MarketEvent;
+    use brokers::types::{MarketEvent, SecurityType, Symbol};
     use chrono::{DateTime, NaiveDate, Utc};
     use std::collections::HashSet;
     use std::sync::Arc;
     use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
     use strategy::models::io::SerializedModel;
-    use strategy::MarketChannel;
+    use strategy::{MarketChannel, MarketChannelTopic, MarketChannelType};
     use util::time::DateRange;
 
     fn init() {
@@ -366,14 +379,16 @@ mod test {
         DateRange::by_day(dt, dt)
     }
 
+    fn default_symbol() -> Symbol { Symbol::new("BTC_USDT".into(), SecurityType::Crypto, Exchange::Binance) }
+
     #[actix_rt::test]
     async fn load_order_books() {
         init();
         let events = load_market_events(
-            vec![MarketChannel::Orderbooks {
-                xch: Exchange::Binance,
-                pair: "BTC_USDT".into(),
-            }],
+            vec![MarketChannel::builder()
+                .symbol(default_symbol())
+                .r#type(MarketChannelType::Orderbooks)
+                .build()],
             default_orderbooks_range(),
             Some(default_test_data_catalog()),
         )
@@ -392,10 +407,10 @@ mod test {
     async fn load_trades() {
         init();
         let events = load_market_events(
-            vec![MarketChannel::Trades {
-                xch: Exchange::Binance,
-                pair: "BTC_USDT".into(),
-            }],
+            vec![MarketChannel::builder()
+                .symbol(default_symbol())
+                .r#type(MarketChannelType::Trades)
+                .build()],
             default_trades_range(),
             Some(default_test_data_catalog()),
         )
@@ -414,10 +429,10 @@ mod test {
     async fn load_candles() {
         init();
         let events = load_market_events(
-            vec![MarketChannel::Candles {
-                xch: Exchange::Binance,
-                pair: "BTC_USDT".into(),
-            }],
+            vec![MarketChannel::builder()
+                .symbol(default_symbol())
+                .r#type(MarketChannelType::Candles)
+                .build()],
             default_trades_range(),
             Some(default_test_data_catalog()),
         )
@@ -436,10 +451,10 @@ mod test {
     async fn load_order_books_df() {
         init();
         let events = load_market_events_df(
-            vec![MarketChannel::Orderbooks {
-                xch: Exchange::Binance,
-                pair: "BTC_USDT".into(),
-            }],
+            vec![MarketChannel::builder()
+                .symbol(default_symbol())
+                .r#type(MarketChannelType::Orderbooks)
+                .build()],
             default_orderbooks_range(),
             Some(default_test_data_catalog()),
         )
@@ -454,10 +469,10 @@ mod test {
     async fn load_trades_df() {
         init();
         let events = load_market_events_df(
-            vec![MarketChannel::Trades {
-                xch: Exchange::Binance,
-                pair: "BTC_USDT".into(),
-            }],
+            vec![MarketChannel::builder()
+                .symbol(default_symbol())
+                .r#type(MarketChannelType::Trades)
+                .build()],
             default_trades_range(),
             Some(default_test_data_catalog()),
         )
@@ -474,10 +489,10 @@ mod test {
     async fn load_candles_df() {
         init();
         let events = load_market_events_df(
-            vec![MarketChannel::Candles {
-                xch: Exchange::Binance,
-                pair: "BTC_USDT".into(),
-            }],
+            vec![MarketChannel::builder()
+                .symbol(default_symbol())
+                .r#type(MarketChannelType::Candles)
+                .build()],
             default_trades_range(),
             Some(default_test_data_catalog()),
         )
@@ -489,7 +504,7 @@ mod test {
         assert_eq!(rb.num_rows(), 8);
     }
 
-    struct TestStrategy(Vec<MarketChannel>, usize);
+    struct TestStrategy(Vec<MarketChannel>, Vec<MarketChannelTopic>, usize);
 
     #[async_trait]
     impl Strategy for TestStrategy {
@@ -502,8 +517,8 @@ mod test {
             e: &MarketEventEnvelope,
             _ctx: &DefaultStrategyContext,
         ) -> strategy::error::Result<Option<TradeSignals>> {
-            if self.0.contains(&MarketChannel::from(e)) {
-                self.1 += 1;
+            if self.1.contains(&e.into()) {
+                self.2 += 1;
             }
             Ok(None)
         }
@@ -532,7 +547,13 @@ mod test {
             let backtest_fn = |channels: Vec<MarketChannel>, range: DateRange| {
                 backtest_with_range(
                     "backtest_range",
-                    Arc::new(move |_| Box::new(TestStrategy(channels.clone(), 0))),
+                    Arc::new(move |_| {
+                        Box::new(TestStrategy(
+                            channels.clone(),
+                            channels.iter().map(Into::into).collect(),
+                            0,
+                        ))
+                    }),
                     range,
                     &[Exchange::Binance],
                     100.0,
@@ -541,10 +562,10 @@ mod test {
                 )
             };
             let report = backtest_fn(
-                vec![MarketChannel::Candles {
-                    xch: Exchange::Binance,
-                    pair: "BTC_USDT".into(),
-                }],
+                vec![MarketChannel::builder()
+                    .symbol(default_symbol())
+                    .r#type(MarketChannelType::Candles)
+                    .build()],
                 default_trades_range(),
             )
             .await
@@ -553,10 +574,10 @@ mod test {
             assert_eq!(candles.len(), 8);
 
             let report = backtest_fn(
-                vec![MarketChannel::Trades {
-                    xch: Exchange::Binance,
-                    pair: "BTC_USDT".into(),
-                }],
+                vec![MarketChannel::builder()
+                    .symbol(default_symbol())
+                    .r#type(MarketChannelType::Trades)
+                    .build()],
                 default_trades_range(),
             )
             .await
@@ -567,10 +588,10 @@ mod test {
             assert_eq!(ticks.len(), 100);
 
             let report = backtest_fn(
-                vec![MarketChannel::Orderbooks {
-                    xch: Exchange::Binance,
-                    pair: "BTC_USDT".into(),
-                }],
+                vec![MarketChannel::builder()
+                    .symbol(default_symbol())
+                    .r#type(MarketChannelType::Orderbooks)
+                    .build()],
                 default_orderbooks_range(),
             )
             .await
