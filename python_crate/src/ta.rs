@@ -8,6 +8,7 @@ use stats::indicators::ppo::PercentPriceOscillator;
 use stats::*;
 use stats::{Close, Next};
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Copy, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub(crate) enum TechnicalIndicator {
