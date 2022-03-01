@@ -77,7 +77,7 @@ use uuid::Uuid;
 use actor::StrategyActor;
 use brokers::broker::{MarketEventEnvelopeRef, Subject};
 use brokers::prelude::*;
-use brokers::types::Symbol;
+use brokers::types::{OrderbookConf, Symbol};
 use db::DbOptions;
 use error::*;
 use ext::ResultExt;
@@ -128,6 +128,8 @@ pub struct MarketChannel {
     /// Only send final candles
     #[builder(default)]
     pub only_final: Option<bool>,
+    #[builder(default)]
+    pub orderbook: Option<OrderbookConf>,
 }
 
 impl MarketChannel {
@@ -138,7 +140,7 @@ impl MarketChannel {
     pub fn name(&self) -> &'static str {
         match self.r#type {
             MarketChannelType::Trades => "trades",
-            MarketChannelType::Orderbooks => "order_books",
+            MarketChannelType::Orderbooks { .. } => "order_books",
             MarketChannelType::OpenInterest => "interests",
             MarketChannelType::Candles => "candles",
             MarketChannelType::Quotes => "quotes",
@@ -156,7 +158,7 @@ pub enum MarketChannelType {
     Candles,
     /// Open interest for futures see [MarketEvent::OpenInterest]
     OpenInterest,
-    /// Order book quotes see [MarketEvent::Quote]
+    /// Layer 1 order book quotes see [MarketEvent::Quote]
     Quotes,
 }
 

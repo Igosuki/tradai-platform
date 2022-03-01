@@ -103,7 +103,7 @@ impl BittrexStreamingApi {
         let data: Vec<String> = serde_json::from_value(a.clone())?;
         let binary = data
             .first()
-            .ok_or(Error::ExchangeError(format!("{}", HubClientError::MissingData)))?;
+            .ok_or_else(|| Error::ExchangeError(format!("{}", HubClientError::MissingData)))?;
         Self::deflate::<T>(binary)
     }
 

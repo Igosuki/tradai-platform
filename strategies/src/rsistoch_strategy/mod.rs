@@ -212,101 +212,94 @@ impl StochRsiStrategy {
             self.macd_instance = Some(self.macd.init(&final_candle).unwrap());
             self.rsi_instance = Some(self.rsi.init(&final_candle).unwrap());
             self.stoch_instance = Some(self.stoch.init(&final_candle).unwrap());
-        } else {
-            match (
-                self.macd_instance.as_mut(),
-                self.rsi_instance.as_mut(),
-                self.stoch_instance.as_mut(),
-            ) {
-                (Some(macd), Some(rsi), Some(stoch)) => {
-                    let macd_r = macd.next(&final_candle);
-                    self.last_macd_signal = Some(macd_r.signal(0));
-                    let rsi_r = rsi.next(&final_candle);
-                    let stoch_r = stoch.next(&final_candle);
-                    let rsi_value = rsi_r.value(0);
-                    let stoch_value = stoch_r.value(0);
-                    if rsi_value > 1. - 0.35 && stoch_value > 1. - 0.35 {
-                        self.main_signal = Some(Action::BUY_ALL);
-                    } else if rsi_value < 0.35 && stoch_value < 0.35 {
-                        self.main_signal = Some(Action::SELL_ALL);
-                    }
-                    self.value = Some(SotchRsiValue {
-                        rsi: rsi_value,
-                        stoch: stoch_value,
-                        macd: macd_r.value(0),
-                    });
-                    let signal = match portfolio.open_position(self.exchange, self.pair.clone()) {
-                        Some(pos) => {
-                            // TODO: move this logic to a single place in the code which can be reused
-                            let maybe_stop = self.stopper.should_stop(pos.unreal_profit_loss);
-                            if let Some(logger) = &self.logger {
-                                if let Some(stop) = maybe_stop {
-                                    logger.log(TimedData::new(le.ts, StratEvent::Stop { stop })).await;
-                                }
-                            }
-                            // Possibly close a short position
-                            if pos.is_short()
-                                && (maybe_stop.is_some() || !matches!(self.main_signal, Some(Action::Sell(_))))
-                            {
-                                Some(self.make_signal(
-                                    le.trace_id,
-                                    le.ts,
-                                    OperationKind::Close,
-                                    PositionKind::Short,
-                                    final_candle.close,
-                                    None,
-                                ))
-                            }
-                            // Possibly close a long position
-                            else if pos.is_long()
-                                && (maybe_stop.is_some() || !matches!(self.main_signal, Some(Action::Buy(_))))
-                            {
-                                Some(self.make_signal(
-                                    le.trace_id,
-                                    le.ts,
-                                    OperationKind::Close,
-                                    PositionKind::Long,
-                                    final_candle.close,
-                                    None,
-                                ))
-                            } else {
-                                None
-                            }
-                        }
-                        None if matches!(self.main_signal, Some(Action::Sell(_))) => {
-                            // Possibly open a short position
-                            let qty = Some(portfolio.value() / final_candle.close);
-                            Some(self.make_signal(
-                                le.trace_id,
-                                le.ts,
-                                OperationKind::Open,
-                                PositionKind::Short,
-                                final_candle.close,
-                                qty,
-                            ))
-                        }
-                        None if matches!(self.main_signal, Some(Action::Buy(_))) => {
-                            // Possibly open a long position
-                            let qty = Some(portfolio.value() / final_candle.close);
-                            Some(self.make_signal(
-                                le.trace_id,
-                                le.ts,
-                                OperationKind::Open,
-                                PositionKind::Long,
-                                final_candle.close,
-                                qty,
-                            ))
-                        }
-                        _ => None,
-                    };
-                    return Ok(signal.map(|s| {
-                        let mut signals = TradeSignals::new();
-                        signals.push(s);
-                        signals
-                    }));
-                }
-                _ => {}
+        } else if let (Some(macd), Some(rsi), Some(stoch)) = (
+            self.macd_instance.as_mut(),
+            self.rsi_instance.as_mut(),
+            self.stoch_instance.as_mut(),
+        ) {
+            let macd_r = macd.next(&final_candle);
+            self.last_macd_signal = Some(macd_r.signal(0));
+            let rsi_r = rsi.next(&final_candle);
+            let stoch_r = stoch.next(&final_candle);
+            let rsi_value = rsi_r.value(0);
+            let stoch_value = stoch_r.value(0);
+            if rsi_value > 1. - 0.35 && stoch_value > 1. - 0.35 {
+                self.main_signal = Some(Action::BUY_ALL);
+            } else if rsi_value < 0.35 && stoch_value < 0.35 {
+                self.main_signal = Some(Action::SELL_ALL);
             }
+            self.value = Some(SotchRsiValue {
+                rsi: rsi_value,
+                stoch: stoch_value,
+                macd: macd_r.value(0),
+            });
+            let signal = match portfolio.open_position(self.exchange, self.pair.clone()) {
+                Some(pos) => {
+                    // TODO: move this logic to a single place in the code which can be reused
+                    let maybe_stop = self.stopper.should_stop(pos.unreal_profit_loss);
+                    if let Some(logger) = &self.logger {
+                        if let Some(stop) = maybe_stop {
+                            logger.log(TimedData::new(le.ts, StratEvent::Stop { stop })).await;
+                        }
+                    }
+                    // Possibly close a short position
+                    if pos.is_short() && (maybe_stop.is_some() || !matches!(self.main_signal, Some(Action::Sell(_)))) {
+                        Some(self.make_signal(
+                            le.trace_id,
+                            le.ts,
+                            OperationKind::Close,
+                            PositionKind::Short,
+                            final_candle.close,
+                            None,
+                        ))
+                    }
+                    // Possibly close a long position
+                    else if pos.is_long()
+                        && (maybe_stop.is_some() || !matches!(self.main_signal, Some(Action::Buy(_))))
+                    {
+                        Some(self.make_signal(
+                            le.trace_id,
+                            le.ts,
+                            OperationKind::Close,
+                            PositionKind::Long,
+                            final_candle.close,
+                            None,
+                        ))
+                    } else {
+                        None
+                    }
+                }
+                None if matches!(self.main_signal, Some(Action::Sell(_))) => {
+                    // Possibly open a short position
+                    let qty = Some(portfolio.value() / final_candle.close);
+                    Some(self.make_signal(
+                        le.trace_id,
+                        le.ts,
+                        OperationKind::Open,
+                        PositionKind::Short,
+                        final_candle.close,
+                        qty,
+                    ))
+                }
+                None if matches!(self.main_signal, Some(Action::Buy(_))) => {
+                    // Possibly open a long position
+                    let qty = Some(portfolio.value() / final_candle.close);
+                    Some(self.make_signal(
+                        le.trace_id,
+                        le.ts,
+                        OperationKind::Open,
+                        PositionKind::Long,
+                        final_candle.close,
+                        qty,
+                    ))
+                }
+                _ => None,
+            };
+            return Ok(signal.map(|s| {
+                let mut signals = TradeSignals::new();
+                signals.push(s);
+                signals
+            }));
         }
         Ok(None)
     }
@@ -323,7 +316,7 @@ impl Strategy for StochRsiStrategy {
         let e = &le.e;
         match e {
             MarketEvent::CandleTick(c) if c.is_final => {
-                return self.eval_candle(&le, c, ctx).await;
+                return self.eval_candle(le, c, ctx).await;
             }
             _ => Ok(None),
         }
@@ -348,7 +341,7 @@ impl Strategy for StochRsiStrategy {
                     ),
                 ]
             })
-            .unwrap_or_else(|| vec![])
+            .unwrap_or_else(Vec::new)
     }
 
     fn channels(&self) -> HashSet<MarketChannel> {
@@ -364,8 +357,8 @@ impl Strategy for StochRsiStrategy {
 #[cfg(test)]
 mod test {
     use crate::rsistoch_strategy::{Options, StochRsiStrategy};
+    use backtest::default_data_catalog;
     use backtest::report::draw_lines;
-    use backtest::{data_cache_dir, DataFormat, DatasetCatalog, DatasetReader, MarketEventDatasetType};
     use brokers::exchange::Exchange;
     use chrono::{DateTime, Duration, NaiveDate, Utc};
     use plotly::common::{Marker, Mode, Position};
@@ -373,7 +366,6 @@ mod test {
     use plotly::{Layout, NamedColor, Scatter};
     use serde_json::Value;
     use stats::kline::{Resolution, TimeUnit};
-    use std::collections::HashMap;
     use std::sync::Arc;
     use strategy::driver::StratProviderRef;
     use strategy::prelude::StratEvent;
@@ -392,13 +384,14 @@ mod test {
                 .expect("Default Tokio runtime could not be created.")
         })
         .block_on(async {
-            let provider: StratProviderRef = Arc::new(|_ctx| {
+            let candle_resolution_unit = 1;
+            let provider: StratProviderRef = Arc::new(move |_ctx| {
                 Box::new(
                     StochRsiStrategy::try_new(
                         &Options {
                             exchange: Exchange::Binance,
                             pair: "BTC_USDT".into(),
-                            resolution: Resolution::new(TimeUnit::Minute, 15),
+                            resolution: Resolution::new(TimeUnit::Minute, candle_resolution_unit),
                             stop_loss: Some(-0.01),
                             trailing_stop_start: Some(0.01),
                             trailing_stop_loss: Some(0.002),
@@ -409,17 +402,6 @@ mod test {
                     .unwrap(),
                 )
             });
-            let candle_resolution_unit = 15;
-            let mut datasets = HashMap::new();
-            datasets.insert("trades".to_string(), DatasetReader {
-                input_format: DataFormat::Parquet,
-                ds_type: MarketEventDatasetType::Trades,
-                base_dir: data_cache_dir(),
-                input_sample_rate: Duration::seconds(1),
-                candle_resolution_period: TimeUnit::Minute,
-                candle_resolution_unit,
-            });
-            let catalog = DatasetCatalog { datasets };
             let report = backtest::backtest_with_range(
                 "rsistoch_btc",
                 provider,
@@ -430,7 +412,7 @@ mod test {
                 &[Exchange::Binance],
                 10000.0,
                 0.001,
-                Some(catalog),
+                Some(default_data_catalog()),
             )
             .await
             .unwrap();
@@ -534,11 +516,11 @@ mod test {
             // PLOT MODELS
             let signal_plot_offset = 3;
             let models = report.models().unwrap();
-            for (model_key, offset) in vec![("rsi", signal_plot_offset), ("stoch", signal_plot_offset), ("macd", 2)] {
+            for (model_key, offset) in &[("rsi", signal_plot_offset), ("stoch", signal_plot_offset), ("macd", 2)] {
                 let mut models_time = vec![];
                 let mut models_values = vec![];
                 for timed_value in models.iter() {
-                    if let Some(Some(v)) = timed_value.value.get(model_key) {
+                    if let Some(Some(v)) = timed_value.value.get(*model_key) {
                         models_time.push(timed_value.ts);
                         models_values.push(Value::as_f64(v).unwrap());
                     }

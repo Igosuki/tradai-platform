@@ -30,7 +30,7 @@ pub fn repo_dir() -> String {
 /// The base directory of test data
 #[must_use]
 pub fn test_data_dir() -> PathBuf {
-    Path::new(&std::env::var("COINDATA_TEST_DIR").unwrap_or("test_data".to_string())).to_path_buf()
+    Path::new(&std::env::var("COINDATA_TEST_DIR").unwrap_or_else(|_| "test_data".to_string())).to_path_buf()
 }
 
 /// The base directory of test results

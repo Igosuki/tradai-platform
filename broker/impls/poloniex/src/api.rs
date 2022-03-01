@@ -109,7 +109,7 @@ impl PoloniexApi {
         self.block_or_continue();
         let buf = self.client.get(url).send().await?;
         if method == "returnChartData" {
-            return Ok(array_to_map(buf.json().await?)?);
+            return array_to_map(buf.json().await?);
         }
         Ok(buf.json().await?)
     }
@@ -140,7 +140,7 @@ impl PoloniexApi {
             .build()?;
         let buf = self.client.execute(req).await?;
         if method == "returnChartData" {
-            return Ok(array_to_map(buf.json().await?)?);
+            return array_to_map(buf.json().await?);
         } else {
             Ok(buf.json().await?)
         }
