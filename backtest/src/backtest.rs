@@ -20,7 +20,7 @@ use util::compress::Compression;
 use util::time::DateRange;
 
 use crate::config::BacktestConfig;
-use crate::dataset::{data_catalog, default_data_catalog, DatasetCatalog, DatasetReader};
+use crate::dataset::{DatasetCatalog, DatasetReader};
 use crate::error::*;
 use crate::report::{BacktestReport, GlobalReport, ReportConfig};
 use crate::runner::BacktestRunner;
@@ -97,7 +97,7 @@ impl Backtest {
             period: conf.period.as_range(),
             output_dir: output_path,
             dataset: DatasetReader {
-                catalog: data_catalog(conf.coindata_cache_dir()),
+                catalog: DatasetCatalog::default_basedir(conf.coindata_cache_dir()),
             },
             report_conf: conf.report.clone(),
         })
@@ -264,7 +264,7 @@ pub async fn backtest_with_range<'a>(
     local
         .run_until(async move {
             let (mut rx, stop_token) = start_bt(test_name, runner_ref).await;
-            let catalog = data_catalog.unwrap_or_else(default_data_catalog);
+            let catalog = data_catalog.unwrap_or_else(DatasetCatalog::default_prod);
             let dataset = DatasetReader { catalog };
             dataset.stream_with_broker(&channels, &broker, dt_range).await?;
             stop_token.cancel();
@@ -281,7 +281,7 @@ pub async fn load_market_events(
     dt_range: DateRange,
     mapper: Option<DatasetCatalog>,
 ) -> Result<Vec<MarketEventEnvelope>> {
-    let catalog = mapper.unwrap_or_else(default_data_catalog);
+    let catalog = mapper.unwrap_or_else(DatasetCatalog::default_prod);
     let mut market_events = vec![];
     let reader = DatasetReader { catalog };
     for c in channels {
@@ -297,7 +297,7 @@ pub async fn load_market_events_df(
     dt_range: DateRange,
     mapper: Option<DatasetCatalog>,
 ) -> Result<Vec<RecordBatch>> {
-    let catalog = mapper.unwrap_or_else(default_data_catalog);
+    let catalog = mapper.unwrap_or_else(DatasetCatalog::default_prod);
     let mut market_events = vec![];
     let reader = DatasetReader { catalog };
     for c in channels {
@@ -338,8 +338,7 @@ pub async fn backtest_with_events<'a>(
 
 #[cfg(test)]
 mod test {
-    use crate::dataset::default_test_data_catalog;
-    use crate::{backtest_with_range, load_market_events, load_market_events_df};
+    use crate::{backtest_with_range, load_market_events, load_market_events_df, DatasetCatalog};
     use brokers::exchange::Exchange;
     use brokers::pair::register_pair_default;
     use brokers::prelude::MarketEventEnvelope;
@@ -378,7 +377,7 @@ mod test {
                 .r#type(MarketChannelType::Orderbooks)
                 .build()],
             default_orderbooks_range(),
-            Some(default_test_data_catalog()),
+            Some(DatasetCatalog::default_test()),
         )
         .await
         .unwrap();
@@ -400,7 +399,7 @@ mod test {
                 .r#type(MarketChannelType::Trades)
                 .build()],
             default_trades_range(),
-            Some(default_test_data_catalog()),
+            Some(DatasetCatalog::default_test()),
         )
         .await
         .unwrap();
@@ -422,7 +421,7 @@ mod test {
                 .r#type(MarketChannelType::Candles)
                 .build()],
             default_trades_range(),
-            Some(default_test_data_catalog()),
+            Some(DatasetCatalog::default_test()),
         )
         .await
         .unwrap();
@@ -444,7 +443,7 @@ mod test {
                 .r#type(MarketChannelType::Orderbooks)
                 .build()],
             default_orderbooks_range(),
-            Some(default_test_data_catalog()),
+            Some(DatasetCatalog::default_test()),
         )
         .await
         .unwrap();
@@ -462,7 +461,7 @@ mod test {
                 .r#type(MarketChannelType::Trades)
                 .build()],
             default_trades_range(),
-            Some(default_test_data_catalog()),
+            Some(DatasetCatalog::default_test()),
         )
         .await
         .unwrap();
@@ -482,7 +481,7 @@ mod test {
                 .r#type(MarketChannelType::Candles)
                 .build()],
             default_trades_range(),
-            Some(default_test_data_catalog()),
+            Some(DatasetCatalog::default_test()),
         )
         .await
         .unwrap();
@@ -546,7 +545,7 @@ mod test {
                     &[Exchange::Binance],
                     100.0,
                     Exchange::default_fees(),
-                    Some(default_test_data_catalog()),
+                    Some(DatasetCatalog::default_test()),
                 )
             };
             let report = backtest_fn(

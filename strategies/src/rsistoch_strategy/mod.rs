@@ -357,8 +357,8 @@ impl Strategy for StochRsiStrategy {
 #[cfg(test)]
 mod test {
     use crate::rsistoch_strategy::{Options, StochRsiStrategy};
-    use backtest::default_data_catalog;
     use backtest::report::draw_lines;
+    use backtest::DatasetCatalog;
     use brokers::exchange::Exchange;
     use chrono::{DateTime, Duration, NaiveDate, Utc};
     use plotly::common::{Marker, Mode, Position};
@@ -412,7 +412,7 @@ mod test {
                 &[Exchange::Binance],
                 10000.0,
                 0.001,
-                Some(default_data_catalog()),
+                Some(DatasetCatalog::default_prod()),
             )
             .await
             .unwrap();
