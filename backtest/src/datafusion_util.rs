@@ -1,4 +1,5 @@
-use datafusion::arrow::array::{DictionaryArray, Int64Array, ListArray as GenericListArray, StructArray, Utf8Array};
+use datafusion::arrow::array::{DictionaryArray, DictionaryKey, Int64Array, ListArray as GenericListArray, StructArray,
+                               Utf8Array};
 use datafusion::datasource::file_format::avro::AvroFormat;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
@@ -11,6 +12,7 @@ use datafusion::prelude::{col, lit};
 use datafusion::record_batch::RecordBatch;
 //use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::arrow::datatypes::Schema;
+use datafusion::arrow::scalar::Utf8Scalar;
 use datafusion::dataframe::DataFrame;
 use datafusion::physical_plan::coalesce_batches::concat_batches;
 use ext::ResultExt;
@@ -81,6 +83,14 @@ pub fn partition_filter_clause<
     iter.into_iter()
         .map(|s| col(s.0.as_ref()).eq(lit(s.1)))
         .reduce(|lhs, rhs| lhs.and(rhs))
+}
+
+pub fn string_partition<'a, K: DictionaryKey>(col: &'a DictionaryArray<K>, i: usize) -> Option<String> {
+    col.value(i as usize)
+        .as_any()
+        .downcast_ref::<Utf8Scalar<i32>>()
+        .and_then(Utf8Scalar::value)
+        .map(String::from)
 }
 
 #[cfg(all(feature = "remote_execution", not(feature = "standalone_execution")))]

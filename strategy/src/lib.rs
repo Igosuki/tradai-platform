@@ -187,11 +187,11 @@ impl From<&MarketEventEnvelope> for MarketChannelTopic {
     fn from(e: &MarketEventEnvelope) -> Self { MarketChannelTopic(e.symbol.clone(), (&e.e).into()) }
 }
 
-impl Subject<MarketEventEnvelope> for MarketChannelTopic {}
-
 impl From<MarketEventEnvelopeRef> for MarketChannelTopic {
-    fn from(e: MarketEventEnvelopeRef) -> Self { MarketChannelTopic(e.symbol.clone(), (&e.e).into()) }
+    fn from(e: MarketEventEnvelopeRef) -> Self { (e.as_ref()).into() }
 }
+
+impl Subject<MarketEventEnvelope> for MarketChannelTopic {}
 
 impl Subject<MarketEventEnvelopeRef> for MarketChannelTopic {}
 
