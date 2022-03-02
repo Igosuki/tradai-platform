@@ -60,7 +60,6 @@ mod runner;
 
 pub use crate::{backtest::*,
                 config::*,
-                dataset::{data_cache_dir, default_data_catalog, DataFormat, DatasetCatalog, DatasetReader,
-                          MarketEventDatasetType},
+                dataset::{DataFormat, DatasetCatalog, DatasetReader, MarketEventDatasetType},
                 error::*};
 pub use datafusion::record_batch::RecordBatch;

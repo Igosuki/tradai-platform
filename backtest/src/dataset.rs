@@ -20,14 +20,8 @@ use crate::error::*;
 
 // TODO: There should be some other way to load table definitions, maybe a json file or a data catalog format
 
-/// The base directory of historical cache data, uses the env var COINDATA_CACHE_DIR
-#[must_use]
-pub fn data_cache_dir() -> PathBuf {
-    Path::new(&std::env::var("COINDATA_CACHE_DIR").unwrap_or_else(|_| "".to_string())).join("data")
-}
-
-pub fn data24_cache_dir() -> PathBuf {
-    Path::new(&std::env::var("COINDATA_CACHE_DIR").unwrap_or_else(|_| "".to_string())).join("data24")
+pub fn coindata_data_cache_dir() -> PathBuf {
+    Path::new(&std::env::var("COINDATA_CACHE_DIR").unwrap_or_else(|_| "".to_string())).to_path_buf()
 }
 
 #[derive(Clone)]
@@ -45,82 +39,45 @@ pub struct DatasetCatalog {
 
 impl DatasetCatalog {
     pub fn get(&self, t: MarketEventDatasetType) -> Option<&TableDef> { self.catalog.get(&t) }
-}
 
-pub fn data_catalog(base_cache_dir: PathBuf) -> DatasetCatalog {
-    let mut datasets = HashMap::new();
-    datasets.insert(MarketEventDatasetType::OrderbooksByMinute, TableDef {
-        name: "1mn_order_books",
-        format: DataFormat::Avro,
-        base_dir: base_cache_dir.join("data"),
-    });
-    datasets.insert(MarketEventDatasetType::OrderbooksBySecond, TableDef {
-        name: "1s_order_books",
-        format: DataFormat::Avro,
-        base_dir: base_cache_dir.join("data"),
-    });
-    datasets.insert(MarketEventDatasetType::OrderbooksRaw, TableDef {
-        name: "order_books",
-        format: DataFormat::Avro,
-        base_dir: base_cache_dir.join("data24"),
-    });
-    datasets.insert(MarketEventDatasetType::Trades, TableDef {
-        name: "trades",
-        format: DataFormat::Parquet,
-        base_dir: base_cache_dir.join("data"),
-    });
-    DatasetCatalog { catalog: datasets }
-}
+    pub fn default_basedir(base_dir: PathBuf) -> Self {
+        Self::default_formats(base_dir.join("data"), base_dir.join("data24"))
+    }
 
-pub fn default_data_catalog() -> DatasetCatalog {
-    let mut datasets = HashMap::new();
-    datasets.insert(MarketEventDatasetType::OrderbooksByMinute, TableDef {
-        name: "1mn_order_books",
-        format: DataFormat::Avro,
-        base_dir: data_cache_dir(),
-    });
-    datasets.insert(MarketEventDatasetType::OrderbooksBySecond, TableDef {
-        name: "1s_order_books",
-        format: DataFormat::Avro,
-        base_dir: data_cache_dir(),
-    });
-    datasets.insert(MarketEventDatasetType::OrderbooksRaw, TableDef {
-        name: "order_books",
-        format: DataFormat::Avro,
-        base_dir: data24_cache_dir(),
-    });
-    datasets.insert(MarketEventDatasetType::Trades, TableDef {
-        name: "trades",
-        format: DataFormat::Parquet,
-        base_dir: data_cache_dir(),
-    });
-    DatasetCatalog { catalog: datasets }
-}
+    pub fn default_prod() -> Self {
+        Self::default_formats(
+            coindata_data_cache_dir().join("data"),
+            coindata_data_cache_dir().join("data24"),
+        )
+    }
 
-#[cfg(test)]
-pub fn default_test_data_catalog() -> DatasetCatalog {
-    let mut datasets = HashMap::new();
-    datasets.insert(MarketEventDatasetType::OrderbooksByMinute, TableDef {
-        name: "1mn_order_books",
-        format: DataFormat::Avro,
-        base_dir: util::test::test_data_dir(),
-    });
-    datasets.insert(MarketEventDatasetType::OrderbooksBySecond, TableDef {
-        name: "1s_order_books",
-        format: DataFormat::Avro,
-        base_dir: util::test::test_data_dir(),
-    });
-    datasets.insert(MarketEventDatasetType::OrderbooksRaw, TableDef {
-        name: "order_books",
-        format: DataFormat::Avro,
-        base_dir: util::test::test_data_dir(),
-    });
-    datasets.insert(MarketEventDatasetType::Trades, TableDef {
-        name: "trades",
-        format: DataFormat::Parquet,
-        base_dir: util::test::test_data_dir(),
-    });
-    DatasetCatalog { catalog: datasets }
+    #[cfg(test)]
+    pub fn default_test() -> Self { Self::default_formats(coindata_data_cache_dir(), util::test::test_data_dir()) }
+
+    pub fn default_formats(base_data_dir: PathBuf, base_data24_dir: PathBuf) -> DatasetCatalog {
+        let mut datasets = HashMap::new();
+        datasets.insert(MarketEventDatasetType::OrderbooksByMinute, TableDef {
+            name: "1mn_order_books",
+            format: DataFormat::Avro,
+            base_dir: base_data_dir.clone(),
+        });
+        datasets.insert(MarketEventDatasetType::OrderbooksBySecond, TableDef {
+            name: "1s_order_books",
+            format: DataFormat::Avro,
+            base_dir: base_data_dir.clone(),
+        });
+        datasets.insert(MarketEventDatasetType::OrderbooksRaw, TableDef {
+            name: "order_books",
+            format: DataFormat::Avro,
+            base_dir: base_data24_dir,
+        });
+        datasets.insert(MarketEventDatasetType::Trades, TableDef {
+            name: "trades",
+            format: DataFormat::Parquet,
+            base_dir: base_data_dir,
+        });
+        DatasetCatalog { catalog: datasets }
+    }
 }
 
 pub type PartitionSet = HashSet<(PathBuf, Vec<(&'static str, String)>)>;
