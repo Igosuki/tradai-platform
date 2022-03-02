@@ -138,8 +138,8 @@ pub fn write_as_seq<P: AsRef<Path>, T: Serialize>(out_file: P, data: &[T]) -> Re
 }
 
 pub struct StreamSerializerWriter<T> {
-    out_file: PathBuf,
-    compression: Compression,
+    pub out_file: PathBuf,
+    pub compression: Compression,
     sink: UnboundedSender<T>,
     stream: RwLock<UnboundedReceiverStream<T>>,
     finish_token: CancellationToken,
