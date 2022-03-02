@@ -7,6 +7,8 @@ pub enum CompressionType {
     Gz,
     Z,
     Deflate,
+    #[cfg(feature = "snappy")]
+    Snappy,
     None,
 }
 
@@ -42,6 +44,8 @@ impl Compression {
                 Box::new(flate2::write::DeflateEncoder::new(w, flate2::Compression::new(level)))
             }
             CompressionType::None => Box::new(w),
+            #[cfg(feature = "snappy")]
+            CompressionType::Snappy => Box::new(snap::write::FrameEncoder::new(w)),
         }
     }
 
@@ -51,6 +55,8 @@ impl Compression {
             CompressionType::Z => Box::new(flate2::read::ZlibDecoder::new(r)),
             CompressionType::Deflate => Box::new(flate2::read::DeflateDecoder::new(r)),
             CompressionType::None => Box::new(r),
+            #[cfg(feature = "snappy")]
+            CompressionType::Snappy => Box::new(snap::read::FrameDecoder::new(r)),
         }
     }
 
@@ -61,6 +67,8 @@ impl Compression {
             CompressionType::Z => "z",
             CompressionType::Deflate => "df",
             CompressionType::None => "",
+            #[cfg(feature = "snappy")]
+            CompressionType::Snappy => "snappy",
         };
         let current_ext = current_path
             .extension()
