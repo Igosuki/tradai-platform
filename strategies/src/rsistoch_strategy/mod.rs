@@ -44,6 +44,7 @@ pub struct Options {
     stop_loss: Option<f64>,
     trailing_stop_start: Option<f64>,
     order_conf: OrderConf,
+    security_type: SecurityType,
 }
 
 impl Default for Options {
@@ -68,6 +69,7 @@ impl Default for Options {
             stop_loss: None,
             trailing_stop_start: None,
             order_conf: Default::default(),
+            security_type: SecurityType::Crypto,
         }
     }
 }
@@ -126,6 +128,7 @@ pub struct StochRsiStrategy {
     logger: Option<StratEventLoggerRef>,
     order_conf: OrderConf,
     value: Option<SotchRsiValue>,
+    security_type: SecurityType,
 }
 
 impl StochRsiStrategy {
@@ -156,6 +159,7 @@ impl StochRsiStrategy {
             order_conf: n.order_conf.clone(),
             value: None,
             last_macd_signal: None,
+            security_type: n.security_type,
         };
 
         Ok(strat)
@@ -345,7 +349,7 @@ impl Strategy for StochRsiStrategy {
 
     fn channels(&self) -> HashSet<MarketChannel> {
         vec![MarketChannel::builder()
-            .symbol(Symbol::new(self.pair.clone(), SecurityType::Crypto, self.exchange))
+            .symbol(Symbol::new(self.pair.clone(), self.security_type, self.exchange))
             .r#type(MarketChannelType::Candles)
             .build()]
         .into_iter()
@@ -359,6 +363,7 @@ mod test {
     use backtest::report::draw_lines;
     use backtest::DatasetCatalog;
     use brokers::exchange::Exchange;
+    use brokers::types::SecurityType;
     use chrono::{DateTime, Duration, NaiveDate, Utc};
     use plotly::common::{Marker, Mode, Position};
     use plotly::layout::{Axis, LayoutGrid, RangeSlider, Shape, ShapeType};
@@ -395,6 +400,7 @@ mod test {
                             stop_loss: Some(-0.01),
                             trailing_stop_start: Some(0.01),
                             trailing_stop_loss: Some(0.002),
+                            security_type: SecurityType::Future,
                             ..Options::default()
                         },
                         None,

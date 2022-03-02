@@ -34,7 +34,7 @@ pub enum SecurityType {
     #[strum(serialize = "forex")]
     Forex,
     /// Future Security Type
-    #[strum(serialize = "future")]
+    #[strum(serialize = "futures", serialize = "future")]
     Future,
     /// Contract For a Difference Security Type.
     #[strum(serialize = "cfd")]

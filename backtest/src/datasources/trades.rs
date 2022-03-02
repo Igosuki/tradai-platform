@@ -1,11 +1,12 @@
-use crate::datafusion_util::{get_col_as, multitables_as_df, multitables_as_stream, print_struct_schema, StringArray,
-                             TimestampMillisecondArray, UInt16DictionaryArray};
+use crate::datafusion_util::{get_col_as, multitables_as_df, multitables_as_stream, print_struct_schema,
+                             string_partition, StringArray, TimestampMillisecondArray, UInt16DictionaryArray};
 use crate::datasources::event_ms_where_clause;
 use brokers::pair::symbol_to_pair;
 use brokers::prelude::*;
 use brokers::types::{Candle, SecurityType, Symbol};
 use chrono::{DateTime, Utc};
 use datafusion::arrow::array::*;
+use datafusion::arrow::scalar::{Scalar, Utf8Scalar};
 use datafusion::record_batch::RecordBatch;
 use futures::{Stream, StreamExt};
 use stats::kline::Resolution;
@@ -62,7 +63,7 @@ pub fn trades_stream<P: 'static + AsRef<Path> + Debug>(
     lower_dt: Option<DateTime<Utc>>,
     upper_dt: Option<DateTime<Utc>>,
 ) -> impl Stream<Item = MarketEventEnvelope> + 'static {
-    multitables_as_stream(table_paths, format, Some("trades".to_string()), format!("select xch, to_timestamp_millis(event_ms) as event_ts, pr, asset, price, qty, quote_qty, is_buyer_maker from {table} {where} order by event_ms asc", table = "trades", where = event_ms_where_clause("event_ms", upper_dt, lower_dt))).map(events_from_trades)
+    multitables_as_stream(table_paths, format, Some("trades".to_string()), format!("select xch, to_timestamp_millis(event_ms) as event_ts, sym, ast, price, qty, quote_qty, is_buyer_maker from {table} {where} order by event_ms asc", table = "trades", where = event_ms_where_clause("event_ms", upper_dt, lower_dt))).map(events_from_trades)
         .flatten()
 }
 
@@ -82,10 +83,9 @@ fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEve
         let qty_col = get_col_as::<Float64Array>(&sa, "qty");
         let is_buyer_maker_col = get_col_as::<BooleanArray>(&sa, "is_buyer_maker");
         let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ts");
-        let pair_col = get_col_as::<UInt16DictionaryArray>(&sa, "pr");
-        let pair_values = pair_col.values().as_any().downcast_ref::<StringArray>().unwrap();
+        let sym_col = get_col_as::<UInt16DictionaryArray>(&sa, "sym");
         let xch_col = get_col_as::<UInt16DictionaryArray>(&sa, "xch");
-        let xch_values = xch_col.values().as_any().downcast_ref::<StringArray>().unwrap();
+        let ast_col = get_col_as::<UInt16DictionaryArray>(&sa, "ast");
 
         for i in 0..sa.len() {
             let price = price_col.value(i);
@@ -93,17 +93,18 @@ fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEve
             let is_buyer_maker = is_buyer_maker_col.value(i);
             let ts = event_ms_col.value(i);
 
-            let p = pair_col.keys().value(i);
-            let pair = pair_values.value(p as usize);
+            let sym_str = string_partition(sym_col, i).unwrap();
 
-            let k = xch_col.keys().value(i);
-            let xch = xch_values.value(k as usize);
-            let xchg = Exchange::from_str(xch).unwrap_or_else(|_| panic!("wrong xchg {}", xch));
+            let xch_str = string_partition(xch_col, i).unwrap();
+            let xchg = Exchange::from_str(&xch_str).unwrap_or_else(|_| panic!("wrong xchg {}", xch_str));
+
+            let ast_str = string_partition(ast_col, i).unwrap();
+            let ast = SecurityType::from_str(&ast_str).unwrap_or_else(|_| panic!("wrong security type {}", ast_str));
 
             yield MarketEventEnvelope::trade_event(
                 Symbol::new(
-                    symbol_to_pair(&xchg, &pair.into()).unwrap(),
-                    SecurityType::Crypto,
+                    symbol_to_pair(&xchg, &sym_str.into()).unwrap(),
+                    ast,
                     xchg,
                 ),
                 ts,
@@ -123,7 +124,7 @@ pub async fn trades_df<P: 'static + AsRef<Path> + Debug>(
     lower_dt: Option<DateTime<Utc>>,
     upper_dt: Option<DateTime<Utc>>,
 ) -> crate::error::Result<RecordBatch> {
-    let batch = multitables_as_df(table_paths, format, Some("trades".to_string()), format!("select xch, to_timestamp_millis(event_ms) as event_ts, pr, asset, price, qty, quote_qty, is_buyer_maker from {table} {where} order by event_ms asc", table = "trades", where = event_ms_where_clause("event_ms", upper_dt, lower_dt))).await?;
+    let batch = multitables_as_df(table_paths, format, Some("trades".to_string()), format!("select xch, to_timestamp_millis(event_ms) as event_ts, sym, ast, price, qty, quote_qty, is_buyer_maker from {table} {where} order by event_ms asc", table = "trades", where = event_ms_where_clause("event_ms", upper_dt, lower_dt))).await?;
     if tracing::enabled!(Level::TRACE) {
         trace!("trades = {:?}", datafusion::arrow_print::write(&[batch.clone()]));
     }

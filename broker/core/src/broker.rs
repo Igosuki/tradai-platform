@@ -15,7 +15,7 @@ pub type MarketEventEnvelopeRef = Arc<MarketEventEnvelope>;
 
 pub type MarketEventBroker<C> = ActixMessageBroker<C, MarketEventEnvelopeRef>;
 
-pub trait Subject<M>: 'static + Eq + Hash + Sync + Send + From<M> {}
+pub trait Subject<M>: 'static + Eq + Hash + Sync + Send + Debug + From<M> {}
 
 //TODO: just split the broadcast method between a SyncBroker and AsyncBroker
 /// Broker for Recipients R of Messages M received over Subject S

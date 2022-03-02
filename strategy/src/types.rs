@@ -20,6 +20,7 @@ pub struct TradeEvent {
     pub pair: String,
     pub price: f64,
     pub strat_value: f64,
+    #[serde(rename = "traded_at")]
     pub at: DateTime<Utc>,
     pub borrowed: Option<f64>,
     pub interest: Option<f64>,

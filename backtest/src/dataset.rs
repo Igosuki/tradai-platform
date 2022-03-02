@@ -9,7 +9,7 @@ use futures::{Stream, StreamExt};
 
 use crate::datasources::orderbook::{flat_orderbooks_stream, raw_orderbooks_df, raw_orderbooks_stream,
                                     sampled_orderbooks_df, sampled_orderbooks_stream};
-use brokers::broker::{Broker, ChannelMessageBroker};
+use brokers::broker::{AsyncBroker, Broker, ChannelMessageBroker};
 use brokers::prelude::{Exchange, Pair};
 use brokers::types::{MarketEventEnvelope, SecurityType};
 use strategy::{MarketChannel, MarketChannelTopic, MarketChannelType};
@@ -82,6 +82,7 @@ impl DatasetCatalog {
 
 pub type PartitionSet = HashSet<(PathBuf, Vec<(&'static str, String)>)>;
 
+#[derive(Debug)]
 pub struct Dataset {
     pub channel: MarketChannel,
     pub r#type: MarketEventDatasetType,
@@ -238,7 +239,7 @@ impl DatasetReader {
             let stream = self
                 .read_channels_to_stream(channels.iter(), dt, period.upper_bound_in_range())
                 .await;
-            stream.for_each(|event| Broker::broadcast(broker, event)).await;
+            stream.for_each(|event| AsyncBroker::broadcast(broker, event)).await;
         }
         Ok(())
     }
@@ -270,7 +271,7 @@ impl DatasetReader {
     }
 }
 
-#[derive(Deserialize, Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Copy, Clone, Hash, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum MarketEventDatasetType {
     /// Downsampled orderbooks, by minute
@@ -317,7 +318,7 @@ impl MarketEventDatasetType {
                 SecurityType::Option => "opt",
                 SecurityType::Commodity => "comm",
                 SecurityType::Forex => "frx",
-                SecurityType::Future => "future",
+                SecurityType::Future => "futures",
                 SecurityType::Cfd => "cfd",
                 SecurityType::Crypto => "spot",
                 SecurityType::FutureOption => "fut_opt",
@@ -351,8 +352,11 @@ impl MarketEventDatasetType {
             MarketEventDatasetType::Trades => (base_dir, vec![
                 ("chan", "trades".to_string()),
                 ("xch", xch.to_string()),
-                ("st", asset_str.to_string()),
-                ("pr", pair.to_string().replace('_', "")),
+                ("ast", asset_str.to_string()),
+                ("sym", match xch {
+                    Exchange::Binance => pair.to_string().replace('_', ""),
+                    _ => pair.to_string(),
+                }),
                 ("dt", dt_par),
             ]),
         }
@@ -369,7 +373,7 @@ impl MarketEventDatasetType {
     }
 }
 
-#[derive(Deserialize, Clone, EnumString, AsRefStr)]
+#[derive(Debug, Deserialize, Clone, EnumString, AsRefStr)]
 #[serde(rename_all = "snake_case")]
 pub enum DataFormat {
     #[strum(serialize = "avro")]

@@ -14,6 +14,7 @@ release_max_level_debug = ["util/release_max_level_debug", "tracing/release_max_
 release_max_level_trace = ["util/release_max_level_trace", "tracing/release_max_level_trace"]
 #remote_execution = ["ballista"]
 #standalone_execution = ["ballista", "ballista/standalone"]
+parquet_report = ["polars"]
 
 [dependencies]
 # trader
@@ -68,3 +69,5 @@ datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "ar
 
 # reporting
 plotly = { version = "0.7" }
+
+polars = { version = "0.19", optional = true, default-features = false, features = ["docs", "zip_with", "temporal", "performant", "dtype-full", "plain_fmt", "object", "lazy", "strings", "serde", "parquet", "json"]}
