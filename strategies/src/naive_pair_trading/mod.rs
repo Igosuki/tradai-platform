@@ -198,7 +198,7 @@ impl NaiveTradingStrategy {
                 let maybe_stop = self.stopper.should_stop(ret);
                 if let Some(logger) = &self.logger {
                     if let Some(stop) = maybe_stop {
-                        logger.log(TimedData::new(lr.time, StratEvent::Stop { stop })).await;
+                        logger.log(TimedData::new(lr.time, StratEvent::Stop(stop))).await;
                     }
                 }
                 let max_open_time_reached =

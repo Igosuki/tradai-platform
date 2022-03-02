@@ -150,9 +150,7 @@ impl MeanRevertingStrategy {
                 let maybe_stop = self.stopper.should_stop(pos.unreal_profit_loss);
                 if let Some(logger) = &self.logger {
                     if let Some(stop) = maybe_stop {
-                        logger
-                            .log(TimedData::new(lr.event_time, StratEvent::Stop { stop }))
-                            .await;
+                        logger.log(TimedData::new(lr.event_time, StratEvent::Stop(stop))).await;
                     }
                 }
                 // Possibly close a short position

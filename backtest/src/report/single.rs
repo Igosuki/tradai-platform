@@ -167,17 +167,22 @@ impl BacktestReport {
     /// Get a strat event sink to forward to
     pub(crate) fn strat_event_sink(&self) -> UnboundedSender<TimedData<StratEvent>> { self.events_ss.sink() }
 
-    /// Get report snapshots
+    /// Read portfolio snapshot events
     pub fn snapshots(&self) -> Result<Vec<TimedData<PortfolioSnapshot>>> { self.snapshots_ss.read_all().err_into() }
 
+    /// Read candle events
     pub fn candles(&self) -> Result<Vec<TimedData<Candle>>> { self.candles_ss.read_all().err_into() }
 
+    /// Read strategy events
     pub fn strat_events(&self) -> Result<Vec<TimedData<StratEvent>>> { self.events_ss.read_all().err_into() }
 
+    /// Read market events
     pub fn market_events(&self) -> Result<Vec<TimedData<MarketStat>>> { self.market_stats_ss.read_all().err_into() }
 
+    /// Read models events
     pub fn models(&self) -> Result<Vec<TimedModelValue>> { self.model_ss.read_all().err_into() }
 
+    /// Read miscellaneous stats
     pub fn misc_stats(&self) -> &BacktestReportMiscStats { &self.misc_stats }
 
     /// Start writing received data to files in a streaming manner

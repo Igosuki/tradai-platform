@@ -26,15 +26,21 @@ pub struct TradeEvent {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+pub struct PositionSummary {
+    #[serde(flatten)]
+    pub op: OperationEvent,
+    #[serde(flatten)]
+    pub trade: TradeEvent,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
 #[serde(tag = "event")]
 pub enum StratEvent {
-    Stop { stop: StopEvent },
-    Operation(OperationEvent),
-    Trade(TradeEvent),
+    Stop(StopEvent),
     OpenPosition(Position),
     ClosePosition(Position),
-    PositionSummary { op: OperationEvent, trade: TradeEvent },
+    PositionSummary(PositionSummary),
 }
 
 impl StratEvent {
@@ -44,7 +50,7 @@ impl StratEvent {
 }
 
 impl From<StopEvent> for StratEvent {
-    fn from(stop: StopEvent) -> Self { Self::Stop { stop } }
+    fn from(stop: StopEvent) -> Self { Self::Stop(stop) }
 }
 
 impl TryFrom<Position> for StratEvent {
@@ -59,6 +65,10 @@ impl TryFrom<Position> for StratEvent {
             Err(Self::Error::InvalidPosition)
         }
     }
+}
+
+impl From<PositionSummary> for StratEvent {
+    fn from(e: PositionSummary) -> Self { Self::PositionSummary(e) }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, juniper::GraphQLEnum)]

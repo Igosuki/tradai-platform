@@ -17,7 +17,7 @@ use strategy::driver::StrategyDriver;
 use strategy::event::{close_events, open_events};
 use strategy::prelude::StrategyDriverSettings;
 use strategy::query::{DataQuery, DataResult};
-use strategy::types::{OperationEvent, StratEvent, TradeEvent};
+use strategy::types::{OperationEvent, PositionSummary, StratEvent, TradeEvent};
 use strategy::MarketChannel;
 use trading::engine::TradingEngine;
 use util::compress::Compression;
@@ -194,5 +194,5 @@ fn simplify_pos_events(event: TimedData<StratEvent>) -> Vec<TimedData<StratEvent
 }
 
 fn op_and_trade_to_strat((op, trade): (OperationEvent, TradeEvent)) -> Vec<TimedData<StratEvent>> {
-    vec![TimedData::new(op.at, StratEvent::PositionSummary { op, trade })]
+    vec![TimedData::new(op.at, PositionSummary { op, trade }.into())]
 }

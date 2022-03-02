@@ -11,7 +11,6 @@ use stats::Source;
 use std::collections::HashSet;
 use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::*;
-use strategy::prelude::StratEvent;
 use strategy::{MarketChannel, MarketChannelType, StratEventLoggerRef};
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};
@@ -239,7 +238,7 @@ impl StochRsiStrategy {
                     let maybe_stop = self.stopper.should_stop(pos.unreal_profit_loss);
                     if let Some(logger) = &self.logger {
                         if let Some(stop) = maybe_stop {
-                            logger.log(TimedData::new(le.ts, StratEvent::Stop { stop })).await;
+                            logger.log(TimedData::new(le.ts, stop.into())).await;
                         }
                     }
                     // Possibly close a short position
@@ -369,6 +368,7 @@ mod test {
     use std::sync::Arc;
     use strategy::driver::StratProviderRef;
     use strategy::prelude::StratEvent;
+    use strategy::types::PositionSummary;
     use trading::position::{OperationKind, PositionKind};
     use util::time::DateRange;
 
@@ -433,7 +433,7 @@ mod test {
             let mut short_exits_price = vec![];
             for strat_event in report.strat_events().unwrap() {
                 match strat_event.value {
-                    StratEvent::PositionSummary { op, trade } => match (op.op, op.pos) {
+                    StratEvent::PositionSummary(PositionSummary { op, trade }) => match (op.op, op.pos) {
                         (OperationKind::Open, PositionKind::Long) => {
                             long_entries_price.push(trade.price);
                             long_entries_time.push(op.at);
