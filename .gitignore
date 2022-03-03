@@ -47,3 +47,4 @@ __pycache__
 flamegraph.svg
 perf.data
 perf.data.old
+*.mm_profdata
