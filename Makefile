@@ -42,7 +42,7 @@ current_dir := $(notdir $(patsubst %/,%,$(dir $(mkfile_path))))
 ### CI
 
 .PHONY: install-cargo-tools
-install-cargo-tools: @$(CARGO_BIN) install cargo-flamegraph cargo-llvm-lines cargo-bloat cargo-edit
+install-cargo-tools: @$(CARGO_BIN) install flamegraph cargo-llvm-lines cargo-bloat cargo-edit cargo-deps cargo-bump cargo-clean-recursive cargo-criterion cargo-expand cargo-outdated cargo-profiler cargo-tarpaulin cargo-udeps
 
 .PHONY: install-hooks
 install-hooks: $(HOOKS)
@@ -94,8 +94,8 @@ maxopenfilesmac:
 maxopenfileslinux:
 	ulimit -Sn 350000
 
-.PHONY: test_all
-test_all: ## Tests all features
+.PHONY: test-all
+test-all: ## Tests all features
 	@$(CARGO_BIN) test --all-features
 
 .PHONY: test
@@ -103,15 +103,15 @@ test: ## Tests all features and targets, skipping coinnect
 	RUST_LOG=info BITCOINS_REPO=$(current_dir)/.. $(CARGO_BIN) test --all-targets -- --skip coinnect_tests --skip coinbase_tests
 
 .PHONY: test-strats
-test_strats: ## Tests strategies
+test-strats: ## Tests strategies
 	RUST_LOG=info BITCOINS_REPO=$(current_dir)/.. $(CARGO_BIN) test --package strategies
 
 .PHONY: coverage
 coverage: ## Tests all features
 	@$(CARGO_BIN) tarpaulin -v --avoid-cfg-tarpaulin -o Html --skip-clean --ignore-tests
 
-.PHONY: test_watcher ## Starts funzzy, test watcher, to run the tests on every change
-test_watcher:
+.PHONY: test-watcher ## Starts funzzy, test watcher, to run the tests on every change
+test-watcher:
 	@$(FUNZZY_BIN)
 
 .PHONY: bench
@@ -119,6 +119,22 @@ bench:
 	@$(CARGO_BIN) bench
 
 ### PROFILING
+
+.PHONY: rustc-self-profile
+rustc-self-profile:
+	RUSTC_BOOTSTRAP=1 cargo rustc -- -Zself-profile -Z self-profile-events=default,args
+
+.PHONY: summarize-prof-data
+summarize-prof-data:
+	summarize summarize $(prof_data) | head -10
+
+.PHONY: summarize-diff-prof-data
+summarize-diff-prof-data:
+	summarize diff $(prof_data) | head -10
+
+.PHONY: chrome-prof-data-convert
+chrome-prof-data-convert:
+	crox --minimum-duration 500000 $(prof_data)
 
 .PHONY: profile
 profile:
@@ -214,6 +230,7 @@ build-python-lib-local:
 
 dev-python-lib:
 	maturin develop -m python_dylib/Cargo.toml --extras pytest,pytest-cov[all] --rustc-extra-args="-Clink-arg=-Wl,--allow-multiple-definition"
+	echo "Build finished, check ./target/wheels"
 
 mx_cargo_home=/root/.cargo
 release-python-lib-docker:
@@ -221,6 +238,7 @@ release-python-lib-docker:
 	-e BUILD_GIT_SHA="$(GIT_SHA)" -v "$(PWD)/build/cargo-git":$(mx_cargo_home)/git:rw -v "$(PWD)/build/cargo-registry":$(mx_cargo_home)/registry \
 	-v "$(PWD)/build/cargo-target":/io/target_release -v "$(PWD)":/io -v "$(PWD)/config_release.toml":/io/.cargo/config.toml maturin_builder \
 	build --release --no-sdist -i $(python_target) -m python_dylib/Cargo.toml
+	echo "Build finished, check ./target/wheels"
 
 maturin-builder-image:
 	docker build -f python_dylib/Dockerfile -t maturin_builder python_dylib
@@ -263,6 +281,11 @@ check-deps:
 .PHONY: check-unused-deps
 check-unused-deps:
 	cargo +nightly udeps
+
+.PHONY: check-dep-graph
+check-deps-graph:
+	cargo deps --filter $(cargo metadata --format-version 1 | jq '.workspace_members[]' -r | cut -d ' ' -f 1 | tr '\n' ' ') | dot -Tsvg > depgraph.svg
+	echo "Wrote dependency graph to depgraph.svg"
 
 ### Database Management
 

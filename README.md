@@ -211,6 +211,10 @@ e.g.: ``` cargo profiler cachegrind --bin ./target/debug/rsmat -n 10 --sort dr``
 
 ```RUST_LOG=debug operf ./target/debug/trader -c $config```
 
+#### Going further
+
+Use a system profiling app, i.e. : https://perfetto.dev/
+
 #### Code coverage
 
 - ```rustup component add llvm-tools-preview```
