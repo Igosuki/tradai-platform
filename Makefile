@@ -42,7 +42,9 @@ current_dir := $(notdir $(patsubst %/,%,$(dir $(mkfile_path))))
 ### CI
 
 .PHONY: install-cargo-tools
-install-cargo-tools: @$(CARGO_BIN) install flamegraph cargo-llvm-lines cargo-bloat cargo-edit cargo-deps cargo-bump cargo-clean-recursive cargo-criterion cargo-expand cargo-outdated cargo-profiler cargo-tarpaulin cargo-udeps
+install-cargo-tools:
+	@$(CARGO_BIN) install flamegraph cargo-llvm-lines cargo-bloat cargo-edit cargo-deps cargo-bump cargo-clean-recursive cargo-criterion cargo-expand cargo-profiler cargo-tarpaulin cargo-udeps
+	@$(CARGO_BIN) install --git https://github.com/Igosuki/cargo-outdated
 
 .PHONY: install-hooks
 install-hooks: $(HOOKS)
