@@ -53,11 +53,11 @@ libc = "0.2"
 dyn-clone = "1.0"
 ordered-float = "2.2"
 regex = "1"
-fancy-regex = "0.7"
+fancy-regex = "0.8"
 string_cache = "0.8"
 url = "2.2"
 uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng", "serde"] }
-typed-builder = "0.9"
+typed-builder = "0.10"
 # rate limiting
 governor = "0.4"
 

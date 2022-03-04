@@ -29,7 +29,7 @@ trading = { path = "../trading", features = ["test_util"] }
 # async
 futures = "0.3"
 tokio = { version = "1", features = ["full"] }
-tokio-util = "0.6"
+tokio-util = "0.7"
 pyo3-asyncio = { version = "0.15", features = ["attributes", "tokio-runtime"] }
 async-trait = "0.1"
 async-stream = "0.3"
@@ -40,7 +40,7 @@ actix = "0.13"
 actix-rt = "2.6"
 
 # config
-config = { version = "0.11", features = ["yaml", "toml", "json"], default-features = false }
+config = { version = "0.12", features = ["yaml", "toml", "json"], default-features = false }
 
 # logging / monitoring / metrics
 tracing = { version = "0.1", features = ["log"] }
@@ -53,7 +53,7 @@ serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 parse_duration = "2.1"
 env_logger = { version = "0.9" }
-typed-builder = "0.9"
+typed-builder = "0.10"
 itertools = "0.10"
 hdrhistogram = "7.4"
 dashmap = "5"
