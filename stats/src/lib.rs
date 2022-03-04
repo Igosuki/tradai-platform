@@ -26,7 +26,7 @@ extern crate float_cmp;
 #[macro_use]
 extern crate prettytable;
 #[macro_use]
-extern crate serde_derive;
+extern crate serde;
 #[cfg(test)]
 extern crate test;
 #[macro_use]

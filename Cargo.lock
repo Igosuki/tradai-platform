@@ -6014,7 +6014,6 @@ dependencies = [
  "rand 0.8.5",
  "ringbuffer",
  "serde",
- "serde_derive",
  "smallvec",
  "strum 0.24.0",
  "strum_macros 0.24.0",
