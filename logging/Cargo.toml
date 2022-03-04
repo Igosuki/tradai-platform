@@ -25,7 +25,7 @@ actix = { version = "0.13" }
 chrono = "0.4"
 lazy_static = "1.4"
 rand = "0.8"
-uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng",] }
+uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng"] }
 
 # Error
 thiserror = "1.0"

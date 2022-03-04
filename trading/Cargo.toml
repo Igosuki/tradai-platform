@@ -32,7 +32,7 @@ serde_json = "1.0"
 itertools = "0.10"
 strum = "0.24"
 strum_macros = "0.24"
-uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng",] }
+uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng"] }
 derive_more = "0.99"
 anyhow = "1.0"
 lazy_static = "1.4"
