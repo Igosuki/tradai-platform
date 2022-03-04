@@ -5424,6 +5424,7 @@ checksum = "620f4129485ff1a7128d184bc687470c21c7951b64779ebc9cfdad3dcd920290"
 dependencies = [
  "libc",
  "librocksdb-sys",
+ "serde",
 ]
 
 [[package]]

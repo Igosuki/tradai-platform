@@ -266,18 +266,14 @@ mod test {
             collect_stat: true,
             target_partitions: 8,
         };
-        ctx.register_listing_table(
-            "order_books",
-            &format!("file://{}", partition.to_str().unwrap()),
-            listing_options,
-            None,
-        )
-        .await?;
+        ctx.register_listing_table("order_books", &partition.to_str().unwrap(), listing_options, None)
+            .await?;
 
         let df2 = ctx
             .clone()
             .sql("select xch, pr, to_timestamp_millis(event_ms) as event_ts, asks, bids from order_books where dt='20211129' and xch='Binance' and chan='1mn_order_books' order by event_ts asc LIMIT 100")
             .await?;
+
         df2.collect().await?;
         Ok(())
     }

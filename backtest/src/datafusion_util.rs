@@ -255,7 +255,7 @@ pub async fn table_as_df(
     let mut ctx = crate::datafusion_util::new_context();
     let listing_options = listing_options(format, partitions.clone());
 
-    ctx.register_listing_table("listing_table", &format!("file://{}", base_path), listing_options, None)
+    ctx.register_listing_table("listing_table", &base_path, listing_options, None)
         .await
         .map_err(|err| {
             error!(
