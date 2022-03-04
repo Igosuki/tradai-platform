@@ -107,9 +107,7 @@ where
         let subject: S = msg.clone().into();
         if let Some(recipients) = self.registry.get_vec(&subject) {
             for recipient in recipients {
-                if recipient.do_send(msg.clone()).is_err() {
-                    BROADCAST_FAILURE_COUNTER.inc();
-                }
+                recipient.do_send(msg.clone());
             }
         } else {
             trace!("{:?}", msg);

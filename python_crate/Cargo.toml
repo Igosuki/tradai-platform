@@ -53,7 +53,7 @@ inline-python = { version = "0.8" }
 pythonize = "0.15"
 
 # async
-actix = "0.12"
+actix = "0.13"
 tokio = { version = "1", features = ["full", "time"] }
 async-trait = "0.1"
 
