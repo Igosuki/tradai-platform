@@ -6,7 +6,6 @@ use stats::kline::Resolution;
 use strategy::types::{PositionSummary, StratEvent};
 use trading::position::{OperationKind, PositionKind};
 
-#[allow(dead_code)]
 pub fn edit_report(report: &mut BacktestReport, resolution: Resolution) {
     use plotly::common::{Marker, Mode, Position};
     use plotly::layout::{Axis, LayoutGrid, RangeSlider, Shape, ShapeType};
