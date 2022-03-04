@@ -22,7 +22,7 @@ criterion = { version = "0.3", features = ["async_tokio"] }
 ext = { path = "../../ext" }
 
 # Actix
-actix = "0.12"
+actix = "0.13"
 actix-codec = "0.5"
 actix-http = { version = "3.0.0-rc", features = ["ws"] }
 actix_derive = "0.6.0"

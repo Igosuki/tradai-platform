@@ -15,7 +15,7 @@ broker_core = { path = "../../core" }
 binance-rs-async = { version = "1.1.4", features = ["margin_api"] }
 
 # actix
-actix = "0.12"
+actix = "0.13"
 actix-http = { version = "3.0.0-rc", features = ["ws"] }
 awc = { version = "3.0.0-beta", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
 # async

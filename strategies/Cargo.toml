@@ -23,7 +23,7 @@ db = { path = "../db" }
 account = { path = "../portfolio" }
 
 # actix
-actix = "0.12"
+actix = "0.13"
 actix-rt = "2.6"
 
 # std

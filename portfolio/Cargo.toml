@@ -20,7 +20,7 @@ db = { path = "../db" }
 ext = { path = "../ext" }
 
 # actix
-actix = "0.12"
+actix = "0.13"
 actix_derive = "0.6"
 
 # metrics
