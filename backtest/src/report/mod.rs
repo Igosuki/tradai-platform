@@ -4,12 +4,14 @@ use plotly::{Candlestick, Plot, Scatter};
 
 pub use global::GlobalReport;
 pub use logger::StreamWriterLogger;
+pub use registry::register_report_fn;
 pub use single::BacktestReport;
 use util::compress::Compression;
 use util::time::TimedData;
 
 mod global;
 mod logger;
+mod registry;
 mod single;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
