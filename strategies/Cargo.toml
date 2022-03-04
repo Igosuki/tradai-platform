@@ -8,10 +8,11 @@ name = "strategies"
 path = "src/lib.rs"
 
 [features]
-backtests = []
+backtests = ["backtest", "plotly"]
 
 [dependencies]
 
+backtest = { path = "../backtest", optional = true }
 strategy = { path = "../strategy" }
 trading = { path = "../trading" }
 stats = { path = "../stats" }
@@ -54,8 +55,9 @@ tracing = "0.1"
 # codec
 snap = "1.0"
 
+plotly = { version = "0.7.0", optional = true }
+
 [dev-dependencies]
 strategy_test_util = { path = "../strategy_test_util", features = ["trading_test_util"] }
-backtest = { path = "../backtest" }
 env_logger = "0.9"
-plotly = "0.7.0"
+
