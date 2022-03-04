@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::fs::File;
-use std::io::{BufReader, BufWriter};
+use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
 use crate::compress::Compression;
@@ -137,7 +138,7 @@ pub fn write_as_seq<P: AsRef<Path>, T: Serialize>(out_file: P, data: &[T]) -> Re
     Ok(())
 }
 
-pub struct StreamSerializerWriter<T> {
+pub struct StreamSerializerWriter<T, S> {
     pub out_file: PathBuf,
     pub compression: Compression,
     sink: UnboundedSender<T>,
@@ -145,14 +146,15 @@ pub struct StreamSerializerWriter<T> {
     finish_token: CancellationToken,
     finish_resp_tx: Sender<bool>,
     finish_resp_rx: RwLock<Receiver<bool>>,
+    _phantom_data: PhantomData<S>,
 }
 
-impl<T: 'static + DeserializeOwned + Serialize + Debug + Send> StreamSerializerWriter<T> {
-    pub fn new<P: AsRef<Path>>(out_file: P) -> StreamSerializerWriter<T> {
+impl<T: 'static + DeserializeOwned + Serialize + Debug + Send, S: JsonSerde + Send> StreamSerializerWriter<T, S> {
+    pub fn new<P: AsRef<Path>>(out_file: P) -> StreamSerializerWriter<T, S> {
         Self::new_with_compression(out_file, Compression::default())
     }
 
-    pub fn new_with_compression<P: AsRef<Path>>(out_file: P, compression: Compression) -> StreamSerializerWriter<T> {
+    pub fn new_with_compression<P: AsRef<Path>>(out_file: P, compression: Compression) -> StreamSerializerWriter<T, S> {
         let (sink, rcv) = tokio::sync::mpsc::unbounded_channel();
         let (finish_resp_tx, finish_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
         let stream = UnboundedReceiverStream::new(rcv);
@@ -164,6 +166,7 @@ impl<T: 'static + DeserializeOwned + Serialize + Debug + Send> StreamSerializerW
             finish_token: CancellationToken::new(),
             finish_resp_tx,
             finish_resp_rx: RwLock::new(finish_resp_rx),
+            _phantom_data: Default::default(),
         }
     }
 
@@ -191,25 +194,8 @@ impl<T: 'static + DeserializeOwned + Serialize + Debug + Send> StreamSerializerW
         let out_file = self.compression.wrap_ext(&self.out_file);
         let logs_f = BufWriter::new(std::fs::File::create(out_file).unwrap());
         let mut writer = self.compression.wrap_writer(logs_f);
-        let mut serializer = serde_json::Serializer::new(&mut writer);
-        let mut seq = serializer.serialize_seq(None).unwrap();
         let mut lock = self.stream.write().await;
-        'stream: loop {
-            select! {
-                biased;
-                next = lock.next() => {
-                    if let Some(value) = next {
-                        tokio::task::block_in_place(|| {
-                            seq.serialize_element(&value).unwrap();
-                        });
-                    } else {
-                        break 'stream;
-                    }
-                }
-                _ = self.finish_token.cancelled() => break 'stream
-            }
-        }
-        SerializeSeq::end(seq).unwrap();
+        S::serialize_stream(&mut writer, &mut lock, self.finish_token.clone()).await;
         drop(writer);
         self.finish_resp_tx.send(true).await.unwrap();
     }
@@ -224,6 +210,14 @@ impl<T: 'static + DeserializeOwned + Serialize + Debug + Send> StreamSerializerW
             }
         }
     }
+
+    pub fn reader(&self) -> Box<dyn BufRead> {
+        let file_path = self.out_file.as_path();
+        let file = self.compression.wrap_ext(file_path);
+        let read = BufReader::new(File::open(file).unwrap());
+        let reader = self.compression.wrap_reader(read);
+        reader
+    }
 }
 
 fn read_json_file<P: AsRef<Path>, T: DeserializeOwned>(
@@ -236,6 +230,73 @@ fn read_json_file<P: AsRef<Path>, T: DeserializeOwned>(
     serde_json::from_reader(&mut reader)
 }
 
+#[async_trait]
+pub trait JsonSerde: Send {
+    async fn serialize_stream<T: Serialize + Send, W: Write + Send>(
+        mut writer: W,
+        stream: &mut UnboundedReceiverStream<T>,
+        token: CancellationToken,
+    );
+}
+
+pub struct SeqJsonSerde;
+
+#[async_trait]
+impl JsonSerde for SeqJsonSerde {
+    async fn serialize_stream<T: Serialize + Send, W: Write + Send>(
+        writer: W,
+        stream: &mut UnboundedReceiverStream<T>,
+        token: CancellationToken,
+    ) {
+        let mut serializer = serde_json::Serializer::new(writer);
+        let mut seq = serializer.serialize_seq(None).unwrap();
+        'stream: loop {
+            select! {
+                biased;
+                next = stream.next() => {
+                    if let Some(value) = next {
+                        tokio::task::block_in_place(|| {
+                            seq.serialize_element(&value).unwrap();
+                        });
+                    } else {
+                        break 'stream;
+                    }
+                }
+                _ = token.cancelled() => break 'stream
+            }
+        }
+        SerializeSeq::end(seq).unwrap();
+    }
+}
+
+pub struct NdJsonSerde;
+
+#[async_trait]
+impl JsonSerde for NdJsonSerde {
+    async fn serialize_stream<T: Serialize + Send, W: Write + Send>(
+        mut writer: W,
+        stream: &mut UnboundedReceiverStream<T>,
+        token: CancellationToken,
+    ) {
+        'stream: loop {
+            select! {
+                biased;
+                next = stream.next() => {
+                    if let Some(value) = next {
+                        tokio::task::block_in_place(|| {
+                            serde_json::to_writer(&mut writer, &value).unwrap();
+                            writer.write_all(&[b'\n']).unwrap();
+                        });
+                    } else {
+                        break 'stream;
+                    }
+                }
+                _ = token.cancelled() => break 'stream
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::env::temp_dir;
@@ -245,7 +306,7 @@ mod test {
     use futures::StreamExt;
     use serde::Serialize;
 
-    use crate::ser::StreamSerializerWriter;
+    use crate::ser::{SeqJsonSerde, StreamSerializerWriter};
 
     #[derive(PartialEq, Debug, Serialize, Deserialize)]
     struct TestData {
@@ -256,7 +317,7 @@ mod test {
     async fn stream_should_write_valid_json() {
         let file = temp_dir().join("file.json");
 
-        let serializer = Arc::new(StreamSerializerWriter::<TestData>::new(file.clone()));
+        let serializer = Arc::new(StreamSerializerWriter::<TestData, SeqJsonSerde>::new(file.clone()));
         let ser_ref = serializer.clone();
         tokio::spawn(async move { ser_ref.start().await });
         let count: usize = 10_000;

@@ -35,7 +35,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync", "fs", "net", "io-util", "tokio-util", "signal", "time"] }
 tokio-util = "0.7"
 futures = "0.3"
-
+async-trait = "0.1"
 # Tracing / Logging
 pretty_env_logger = "0.4"
 opentelemetry = { version = "^0.17", default-features = false, features = ["trace"] }

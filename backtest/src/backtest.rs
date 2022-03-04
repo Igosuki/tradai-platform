@@ -223,7 +223,7 @@ async fn build_runner(
     let logger2 = logger.clone();
     let driver =
         Box::new(GenericDriver::try_new(channels, db, &generic_options, strat, engine, Some(logger2)).unwrap());
-    let runner_ref = BacktestRunner::spawn_with_driver(None, logger, driver, None).await;
+    let runner_ref = BacktestRunner::spawn_with_driver(None, logger, driver).await;
 
     runner_ref
 }
