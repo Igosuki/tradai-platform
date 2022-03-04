@@ -25,6 +25,8 @@ extern crate serde;
 extern crate tokio;
 #[macro_use]
 extern crate tracing;
+#[macro_use]
+extern crate async_trait;
 
 pub mod compress;
 pub mod log;

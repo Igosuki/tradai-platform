@@ -1,4 +1,3 @@
-use crate::rsistoch_strategy::report::edit_report;
 use brokers::prelude::*;
 use brokers::types::{Candle, SecurityType, Symbol};
 use chrono::{DateTime, Utc};
@@ -13,7 +12,9 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::*;
-use strategy::{MarketChannel, MarketChannelType, StratEventLoggerRef};
+use strategy::plugin::{provide_options, StrategyPlugin, StrategyPluginContext};
+use strategy::settings::{StrategyOptions, StrategySettingsReplicator};
+use strategy::{MarketChannel, MarketChannelType, StratEventLoggerRef, StrategyKey};
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};
 use trading::stop::TrailingStopper;
@@ -23,6 +24,15 @@ use uuid::Uuid;
 
 #[cfg(any(test, feature = "backtests"))]
 mod report;
+
+pub fn provide_strat(_name: &str, ctx: StrategyPluginContext, conf: serde_json::Value) -> Result<Box<dyn Strategy>> {
+    let options: Options = serde_json::from_value(conf)?;
+    Ok(Box::new(StochRsiStrategy::try_new(&options, ctx.logger)?))
+}
+
+inventory::submit! {
+    StrategyPlugin::new("stoch_rsi", provide_options::<Options>, provide_strat)
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Options {
@@ -104,6 +114,28 @@ impl Options {
     fn trailing_stop_start(&self) -> f64 { self.trailing_stop_start.unwrap_or(0.03) }
 }
 
+impl StrategySettingsReplicator for Options {
+    fn replicate_for_pairs(&self, pairs: HashSet<Pair>) -> Vec<Value> {
+        pairs
+            .into_iter()
+            .map(|pair| {
+                let mut new = self.clone();
+                new.pair = pair;
+                serde_json::to_value(new).unwrap()
+            })
+            .collect()
+    }
+}
+
+impl StrategyOptions for Options {
+    fn key(&self) -> StrategyKey {
+        StrategyKey(
+            "rsistoch".to_string(),
+            format!("rob_rsi_stoch_macd_{}_{}", self.exchange, self.pair),
+        )
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 struct SotchRsiValue {
     rsi: f64,
@@ -167,14 +199,17 @@ impl StochRsiStrategy {
             security_type: n.security_type,
         };
         // TODO: temporary hack, use a report fn registry to allow for custom reports
-        #[cfg(feature = "backtest")]
-        backtest::report::register_report_fn(
-            strat.key(),
-            Arc::new(|&mut report| {
-                edit_report(&mut report, n.resolution);
-            }),
-        );
-
+        #[cfg(feature = "backtests")]
+        {
+            let resolution = n.resolution.clone();
+            backtest::report::register_report_fn(
+                strat.key(),
+                Arc::new(move |report| {
+                    report::edit_report(report, resolution);
+                }),
+            );
+        }
+        eprintln!("reported = {:?}", true);
         Ok(strat)
     }
 
@@ -372,7 +407,6 @@ impl Strategy for StochRsiStrategy {
 
 #[cfg(test)]
 mod test {
-    use crate::rsistoch_strategy::report::edit_report;
     use crate::rsistoch_strategy::{Options, StochRsiStrategy};
     use backtest::DatasetCatalog;
     use brokers::exchange::Exchange;
@@ -419,7 +453,7 @@ mod test {
                 provider,
                 DateRange::by_day(
                     DateTime::from_utc(NaiveDate::from_ymd(2022, 2, 16).and_hms(0, 0, 0), Utc),
-                    DateTime::from_utc(NaiveDate::from_ymd(2022, 2, 28).and_hms(0, 0, 0), Utc),
+                    DateTime::from_utc(NaiveDate::from_ymd(2022, 2, 17).and_hms(0, 0, 0), Utc),
                 ),
                 &[Exchange::Binance],
                 10000.0,
@@ -429,6 +463,9 @@ mod test {
             .await
             .unwrap();
             report.write_html();
+            for table in &["snapshots", "models", "candles", "events"] {
+                report.events_as_df(table).unwrap();
+            }
         });
     }
 }
