@@ -19,7 +19,7 @@ use trading::types::OrderConf;
 use util::time::TimedData;
 use uuid::Uuid;
 
-#[cfg(feature = "backtests")]
+#[cfg(any(test, feature = "backtests"))]
 mod report;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
