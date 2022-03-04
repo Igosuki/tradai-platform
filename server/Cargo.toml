@@ -84,9 +84,9 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["float_roundtrip"] }
 
 # CLI
-config = { version = "0.11", features = ["yaml", "toml", "json"], default-features = false }
+config = { version = "0.12", features = ["yaml", "toml", "json"], default-features = false }
 clap = "3.0"
-dialoguer = { version = "0.9", optional = true }
+dialoguer = { version = "0.10", optional = true }
 structopt = "0.3"
 
 # Crypto
@@ -107,7 +107,7 @@ gperftools = { version = "0.2", optional = true, features = ["heap"] }
 checkers = { version = "0.6", optional = true, features = ["zeroed", "backtrace", "checkers-macros", "fxhash", "macros", "realloc"] }
 
 # Queues
-nats = "0.17"
+nats = "0.18"
 
 [dev-dependencies]
 tempdir = "0.3"

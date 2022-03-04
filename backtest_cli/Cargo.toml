@@ -30,11 +30,11 @@ actix = "0.13"
 
 # std
 anyhow = "1.0"
-typed-builder = "0.9"
+typed-builder = "0.10"
 
 # cli
 structopt = { version = "0.3" }
-config = "0.11"
+config = "0.12"
 
 # logging / monitoring / metrics
 tracing = { version = "0.1", features = ["log"] }

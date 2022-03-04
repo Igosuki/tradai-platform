@@ -33,17 +33,17 @@ serde_json = "1.0"
 # async
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync", "fs", "net", "io-util", "tokio-util", "signal", "time"] }
-tokio-util = "0.6"
+tokio-util = "0.7"
 futures = "0.3"
 
 # Tracing / Logging
 pretty_env_logger = "0.4"
-opentelemetry = { version = "^0.16", default-features = false, features = ["trace"] }
-opentelemetry-jaeger = "0.15"
+opentelemetry = { version = "^0.17", default-features = false, features = ["trace"] }
+opentelemetry-jaeger = "0.16"
 tracing = { version = "0.1", features = ["log"] }
 tracing-flame = "0.2"
 tracing-log = { version = "0.1", features = ["env_logger"] }
-tracing-opentelemetry = "0.16"
+tracing-opentelemetry = "0.17"
 tracing-subscriber = { version = "0.3", features = ["tracing-log", "env-filter", "parking_lot"] }
 console-subscriber = { git = "https://github.com/tokio-rs/console", optional = true, features = ["parking_lot"] }
 #tracing-timing = "0.5"
