@@ -10,9 +10,9 @@ rustflags = [
     "-Cforce-frame-pointers=y"
 ]
 [env]
-#BZIP2_LIB_DIR="/usr/lib/x86_64-linux-gnu/"
-#ZSTD_LIB_DIR="/usr/lib/x86_64-linux-gnu/"
-#ROCKSDB_LIB_DIR="/usr/local/lib/"
+BZIP2_LIB_DIR="/usr/lib/x86_64-linux-gnu/"
+ZSTD_LIB_DIR="/usr/lib/x86_64-linux-gnu/"
+ROCKSDB_LIB_DIR="/usr/local/lib/"
 [build]
 ## debug
 rustflags = ["--cfg", "tokio_unstable", "-g", "-Cforce-frame-pointers=y"]

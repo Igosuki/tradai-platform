@@ -26,6 +26,8 @@ pub struct RocksDbOptions {
     /// Further compress the last compaction level (which holds most of the data)
     #[serde(default = "default_compress_last_level_option")]
     compress_last_level: bool,
+    /// Set compression levels directly
+    compression_levels: Vec<DBCompressionType>,
     /// See [`rocksdb::dboptions::Options`]
     max_log_file_size: Option<usize>,
     /// See [`rocksdb::dboptions::Options`]
@@ -95,6 +97,9 @@ impl RocksDbStorage {
                 DBCompressionType::Snappy,
                 DBCompressionType::Lz4,
             ]);
+        }
+        if !rocksdb_options.compression_levels.is_empty() {
+            options.set_compression_per_level(&rocksdb_options.compression_levels);
         }
         if let Some(max_log_file_size) = rocksdb_options.max_log_file_size {
             options.set_max_log_file_size(max_log_file_size);

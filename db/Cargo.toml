@@ -48,7 +48,7 @@ bytecheck = { version = "0.6", optional = true }
 # databases
 lmdb-rkv = { version = "0.14", optional = true }
 rkv = { version = "0.17", optional = true }
-rocksdb = { version = "0.18", features = ["multi-threaded-cf", "lz4", "zstd"] }
+rocksdb = { version = "0.18", features = ["serde1", "multi-threaded-cf", "lz4", "zstd"] }
 # Flatdata is write once read many and fast memory mapping a structured file
 #flatdata = "0.5"
 
