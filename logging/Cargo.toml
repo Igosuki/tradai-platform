@@ -19,7 +19,7 @@ flame = ["dep:flame", "flamer"]
 brokers = { path = "../broker" }
 
 # Actix
-actix = { version = "0.12" }
+actix = { version = "0.13" }
 
 # Std
 chrono = "0.4"

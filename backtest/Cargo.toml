@@ -14,7 +14,7 @@ release_max_level_debug = ["util/release_max_level_debug", "tracing/release_max_
 release_max_level_trace = ["util/release_max_level_trace", "tracing/release_max_level_trace"]
 #remote_execution = ["ballista"]
 #standalone_execution = ["ballista", "ballista/standalone"]
-parquet_report = ["polars"]
+#parquet_report = ["polars"]
 
 [dependencies]
 # trader
@@ -63,11 +63,11 @@ strum = "0.24"
 strum_macros = "0.24"
 
 # datafusion
-datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_i", features = ["avro", "avro-schema", "crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_dict_key_fix", features = ["avro", "avro-schema", "crypto_expressions", "regex_expressions", "unicode_expressions"] }
 #datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "fix_dict_key_size", features = ["avro", "crypto_expressions", "regex_expressions", "unicode_expressions"]}
 #ballista = { version = "0.6.0", optional = true }
 
 # reporting
 plotly = { version = "0.7" }
 
-polars = { version = "0.19", optional = true, default-features = false, features = ["docs", "zip_with", "temporal", "performant", "dtype-full", "plain_fmt", "object", "lazy", "strings", "serde", "parquet", "json"]}
+#polars = { version = "0.19", optional = true, default-features = false, features = ["docs", "zip_with", "temporal", "performant", "dtype-full", "plain_fmt", "object", "lazy", "strings", "serde", "parquet", "json"]}
