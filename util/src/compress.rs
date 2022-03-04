@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug, Copy, Serialize, Deserialize)]
@@ -49,14 +49,14 @@ impl Compression {
         }
     }
 
-    pub fn wrap_reader<R: 'static + Read + Send>(&self, r: R) -> Box<dyn Read + Send> {
+    pub fn wrap_reader<R: 'static + BufRead + Send>(&self, r: R) -> Box<dyn BufRead + Send> {
         match self.algorithm {
-            CompressionType::Gz => Box::new(flate2::read::GzDecoder::new(r)),
-            CompressionType::Z => Box::new(flate2::read::ZlibDecoder::new(r)),
-            CompressionType::Deflate => Box::new(flate2::read::DeflateDecoder::new(r)),
+            CompressionType::Gz => Box::new(BufReader::new(flate2::bufread::GzDecoder::new(r))),
+            CompressionType::Z => Box::new(BufReader::new(flate2::bufread::ZlibDecoder::new(r))),
+            CompressionType::Deflate => Box::new(BufReader::new(flate2::bufread::DeflateDecoder::new(r))),
             CompressionType::None => Box::new(r),
             #[cfg(feature = "snappy")]
-            CompressionType::Snappy => Box::new(snap::read::FrameDecoder::new(r)),
+            CompressionType::Snappy => Box::new(BufReader::new(snap::read::FrameDecoder::new(r))),
         }
     }
 

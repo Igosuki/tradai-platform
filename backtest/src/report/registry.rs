@@ -9,7 +9,7 @@ static DEFAULT_REPORT_REGISTRY: OnceCell<ReportFnRegistry> = OnceCell::new();
 
 /// Default registry (global static).
 pub fn default_report_registry() -> &'static ReportFnRegistry {
-    DEFAULT_REPORT_REGISTRY.get_or_init(ReportFnRegistry::default)
+    DEFAULT_REPORT_REGISTRY.get_or_init(ReportFnRegistry::new)
 }
 
 /// A struct for registering report functions that will be executed after a backtest is ran for a strategy
@@ -61,7 +61,7 @@ mod test {
         registry.register(
             "foo".to_string(),
             Arc::new(move |report: &mut BacktestReport| {
-                tx.send(report.key.clone());
+                tx.send(report.key.clone()).unwrap();
             }),
         );
         let report_fns = registry.get_report_fns("foo".to_string()).unwrap();

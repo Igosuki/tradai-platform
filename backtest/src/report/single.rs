@@ -18,7 +18,7 @@ use strategy::query::PortfolioSnapshot;
 use strategy::types::StratEvent;
 use trading::types::MarketStat;
 use util::compress::Compression;
-use util::ser::{write_as_seq, StreamSerializerWriter};
+use util::ser::{write_as_seq, NdJsonSerde, StreamSerializerWriter};
 
 use crate::error::Result;
 
@@ -71,15 +71,15 @@ pub struct BacktestReport {
     pub(crate) key: String,
     pub(crate) failures: u32,
     #[serde(skip)]
-    pub(crate) model_ss: Arc<StreamSerializerWriter<TimedModelValue>>,
+    pub(crate) model_ss: Arc<StreamSerializerWriter<TimedModelValue, NdJsonSerde>>,
     #[serde(skip)]
-    pub(crate) snapshots_ss: Arc<StreamSerializerWriter<TimedData<PortfolioSnapshot>>>,
+    pub(crate) snapshots_ss: Arc<StreamSerializerWriter<TimedData<PortfolioSnapshot>, NdJsonSerde>>,
     #[serde(skip)]
-    pub(crate) market_stats_ss: Arc<StreamSerializerWriter<TimedData<MarketStat>>>,
+    pub(crate) market_stats_ss: Arc<StreamSerializerWriter<TimedData<MarketStat>, NdJsonSerde>>,
     #[serde(skip)]
-    pub(crate) events_ss: Arc<StreamSerializerWriter<TimedData<StratEvent>>>,
+    pub(crate) events_ss: Arc<StreamSerializerWriter<TimedData<StratEvent>, NdJsonSerde>>,
     #[serde(skip)]
-    pub(crate) candles_ss: Arc<StreamSerializerWriter<TimedData<Candle>>>,
+    pub(crate) candles_ss: Arc<StreamSerializerWriter<TimedData<Candle>, NdJsonSerde>>,
     pub(crate) execution_hist: HashMap<String, f64>,
     pub(crate) last_ptf_snapshot: Option<TimedData<PortfolioSnapshot>>,
     pub(crate) misc_stats: BacktestReportMiscStats,
@@ -184,6 +184,34 @@ impl BacktestReport {
 
     /// Read miscellaneous stats
     pub fn misc_stats(&self) -> &BacktestReportMiscStats { &self.misc_stats }
+
+    pub fn events_as_df(&self, table: &str) -> Result<()> {
+        use arrow2::io::ndjson::read;
+        use arrow2::io::ndjson::read::FallibleStreamingIterator;
+        let batch_size = 2048;
+        let get_reader = || match table {
+            "snapshots" => self.snapshots_ss.reader(),
+            "models" => self.model_ss.reader(),
+            "candles" => self.candles_ss.reader(),
+            "events" => self.events_ss.reader(),
+            _ => unimplemented!(),
+        };
+        let mut reader = get_reader();
+        let data_type = read::infer(&mut reader, None)?;
+
+        let mut reader = read::FileReader::new(get_reader(), vec!["".to_string(); batch_size], None);
+
+        let mut arrays = vec![];
+        // `next` is IO-bounded
+        while let Some(rows) = reader.next()? {
+            // `deserialize` is CPU-bounded
+            let array = read::deserialize(rows, data_type.clone())?;
+            arrays.push(array);
+        }
+        eprintln!("arrays = {:?}", arrays);
+        eprintln!("data_type = {:?}", data_type);
+        Ok(())
+    }
 
     /// Start writing received data to files in a streaming manner
     pub async fn start(&self) -> Result<()> {

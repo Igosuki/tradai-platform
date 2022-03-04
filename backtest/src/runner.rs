@@ -33,7 +33,6 @@ pub(crate) struct BacktestRunner {
     events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
     events_stream: Receiver<MarketEventEnvelope>,
     events_sink: Sender<MarketEventEnvelope>,
-    report_name: Option<String>,
 }
 
 impl BacktestRunner {
@@ -41,7 +40,6 @@ impl BacktestRunner {
         strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
         strategy_events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
         sink_size: Option<usize>,
-        report_name: Option<String>,
     ) -> Self {
         let (events_sink, events_stream) =
             channel::<MarketEventEnvelope>(sink_size.unwrap_or(DEFAULT_RUNNER_SINK_SIZE));
@@ -50,7 +48,6 @@ impl BacktestRunner {
             events_logger: strategy_events_logger,
             events_stream,
             events_sink,
-            report_name,
         }
     }
 
@@ -62,7 +59,6 @@ impl BacktestRunner {
     ) -> Arc<RwLock<Self>> {
         let logger = Self::strat_event_logger(sink_size);
         let logger2 = logger.clone();
-        let report_name = settings.report_name.clone();
         let strategy_driver = task::spawn_blocking(move || {
             debug!("plugin_registry() = {:?}", plugin_registry());
             let plugin = plugin_registry().get(settings.strat.strat_type.as_str()).unwrap();
@@ -70,7 +66,7 @@ impl BacktestRunner {
         })
         .await
         .unwrap();
-        let runner = Self::new(Arc::new(Mutex::new(strategy_driver)), logger2, sink_size, report_name);
+        let runner = Self::new(Arc::new(Mutex::new(strategy_driver)), logger2, sink_size);
         Arc::new(RwLock::new(runner))
     }
 
@@ -78,9 +74,8 @@ impl BacktestRunner {
         sink_size: Option<usize>,
         events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
         driver: Box<dyn StrategyDriver>,
-        report_name: Option<String>,
     ) -> Arc<RwLock<Self>> {
-        let runner = Self::new(Arc::new(Mutex::new(driver)), events_logger, sink_size, report_name);
+        let runner = Self::new(Arc::new(Mutex::new(driver)), events_logger, sink_size);
         Arc::new(RwLock::new(runner))
     }
 

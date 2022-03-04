@@ -1,0 +1,46 @@
+#strats: []
+strats:
+  - driver:
+      type: generic
+      portfolio:
+        initial_quote_cash: 100.0
+        fees_rate: 0.001
+    strat:
+      type: 'stoch_rsi'
+      pair: 'BTC_USDT'
+      exchange: 'binance'
+      resolution:
+        time_unit: 'minute'
+        units: 1
+      stop_loss: -0.01
+      trailing_stop_start: 0.01
+      trailing_stop_loss: 0.002
+      security_type: 'future'
+      source: 'close'
+      order_conf:
+        order_mode: limit
+        dry_mode: true
+        asset_type: spot
+
+fees: 0.001
+
+period:
+  type: interval
+  from: 2022-02-16
+  to: 2022-02-20
+
+db_path: /media/ramdisk/strat_backtest_dbs
+
+db_conf:
+  type: in_memory
+
+use_generic: false
+
+output_dir: ./target/backtests_results
+
+report:
+  parallelism: 2
+  compression:
+    algorithm: gz
+    level: 5
+

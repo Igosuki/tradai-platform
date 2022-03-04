@@ -802,6 +802,7 @@ dependencies = [
  "actix",
  "actix-rt",
  "anyhow",
+ "arrow2",
  "async-stream",
  "async-trait",
  "brokers",
@@ -7184,6 +7185,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-stream",
+ "async-trait",
  "byte-unit",
  "chrono",
  "console-subscriber",
