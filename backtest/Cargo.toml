@@ -36,7 +36,7 @@ async-stream = "0.3"
 tokio-stream = { version = "0.1", features = ["sync", "fs", "net", "io-util", "tokio-util", "signal", "time"] }
 
 # actors
-actix = "0.12"
+actix = "0.13"
 actix-rt = "2.6"
 
 # config

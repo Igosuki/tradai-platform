@@ -26,7 +26,7 @@ util = { path = "../util" }
 
 
 # actors
-actix = "0.12"
+actix = "0.13"
 
 # std
 anyhow = "1.0"

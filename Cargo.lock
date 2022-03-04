@@ -6,7 +6,7 @@ version = 3
 name = "account"
 version = "0.1.0"
 dependencies = [
- "actix",
+ "actix 0.13.0",
  "actix_derive",
  "anyhow",
  "async-trait",
@@ -51,6 +51,30 @@ dependencies = [
  "smallvec",
  "tokio",
  "tokio-util 0.6.9",
+]
+
+[[package]]
+name = "actix"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f728064aca1c318585bf4bb04ffcfac9e75e508ab4e8b1bd9ba5dfe04e2cbed5"
+dependencies = [
+ "actix-rt",
+ "actix_derive",
+ "bitflags",
+ "bytes",
+ "crossbeam-channel",
+ "futures-core",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+ "log",
+ "once_cell",
+ "parking_lot 0.12.0",
+ "pin-project-lite",
+ "smallvec",
+ "tokio",
+ "tokio-util 0.7.0",
 ]
 
 [[package]]
@@ -409,7 +433,7 @@ dependencies = [
 [[package]]
 name = "arrow2"
 version = "0.9.1"
-source = "git+https://github.com/jorgecarleitao/arrow2.git?rev=dded624dc6a6347d7e937efee7779a44a51c4edb#dded624dc6a6347d7e937efee7779a44a51c4edb"
+source = "git+https://github.com/jorgecarleitao/arrow2.git?rev=a87c758a80facbfbcde4768ad42cdf4c5c2cc5a8#a87c758a80facbfbcde4768ad42cdf4c5c2cc5a8"
 dependencies = [
  "ahash",
  "arrow-format",
@@ -420,6 +444,7 @@ dependencies = [
  "chrono",
  "crc",
  "csv",
+ "csv-core",
  "either",
  "fallible-streaming-iterator",
  "futures",
@@ -792,7 +817,7 @@ dependencies = [
 name = "backtest"
 version = "0.1.0"
 dependencies = [
- "actix",
+ "actix 0.13.0",
  "actix-rt",
  "anyhow",
  "async-stream",
@@ -834,7 +859,7 @@ dependencies = [
 name = "backtest_cli"
 version = "0.1.0"
 dependencies = [
- "actix",
+ "actix 0.13.0",
  "anyhow",
  "backtest",
  "config",
@@ -1070,7 +1095,7 @@ dependencies = [
 name = "broker_binance"
 version = "0.1.0"
 dependencies = [
- "actix",
+ "actix 0.13.0",
  "actix-http",
  "async-stream",
  "async-trait",
@@ -1096,7 +1121,7 @@ dependencies = [
 name = "broker_bitstamp"
 version = "0.1.0"
 dependencies = [
- "actix",
+ "actix 0.13.0",
  "actix-http",
  "anyhow",
  "async-trait",
@@ -1163,7 +1188,7 @@ dependencies = [
 name = "broker_core"
 version = "0.1.0"
 dependencies = [
- "actix",
+ "actix 0.13.0",
  "actix-codec",
  "actix-http",
  "actix_derive",
@@ -1266,7 +1291,7 @@ dependencies = [
 name = "brokers"
 version = "0.1.0"
 dependencies = [
- "actix",
+ "actix 0.12.0",
  "anyhow",
  "binance-rs-async",
  "broker_binance",
@@ -1337,12 +1362,6 @@ dependencies = [
  "regex-automata",
  "serde 1.0.136",
 ]
-
-[[package]]
-name = "build_const"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4ae4235e6dac0694637c763029ecea1a2ec9e4e06ec2729bd21ba4d9c863eb7"
 
 [[package]]
 name = "bumpalo"
@@ -1739,12 +1758,18 @@ dependencies = [
 
 [[package]]
 name = "crc"
-version = "1.8.1"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d663548de7f5cca343f1e0a48d14dcfb0e9eb4e079ec58883b7251539fa10aeb"
+checksum = "49fc9a695bca7f35f5f4c15cddc84415f66a74ea78eef08e90c5024f2b540e23"
 dependencies = [
- "build_const",
+ "crc-catalog",
 ]
+
+[[package]]
+name = "crc-catalog"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ccaeedb56da03b09f598226e25e80088cb4cd25f316e6e4df7d695f0feeb1403"
 
 [[package]]
 name = "crc32fast"
@@ -3653,7 +3678,7 @@ dependencies = [
 name = "metrics"
 version = "0.1.0"
 dependencies = [
- "actix",
+ "actix 0.13.0",
  "actix-http",
  "awc",
  "lazy_static 1.4.0",
@@ -3763,7 +3788,7 @@ checksum = "717e29a243b81f8130e31e24e04fb151b04a44b5a7d05370935f7d937e9de06d"
 name = "models"
 version = "0.1.0"
 dependencies = [
- "actix",
+ "actix 0.12.0",
  "anyhow",
  "avro-rs",
  "brokers",
@@ -5987,7 +6012,7 @@ version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd0dd6308a6e7db9e347b4de26f75d3bbd223b8335a0133a9b57b840b2515715"
 dependencies = [
- "actix",
+ "actix 0.12.0",
  "actix-codec",
  "actix-http",
  "actix-web",
@@ -6157,7 +6182,7 @@ name = "strategies"
 version = "0.1.0"
 dependencies = [
  "account",
- "actix",
+ "actix 0.13.0",
  "actix-rt",
  "async-trait",
  "backtest",
@@ -6194,7 +6219,7 @@ name = "strategy"
 version = "0.1.0"
 dependencies = [
  "account",
- "actix",
+ "actix 0.13.0",
  "actix-http",
  "actix_derive",
  "anyhow",
@@ -6982,7 +7007,7 @@ dependencies = [
 name = "tradai_python"
 version = "0.1.0"
 dependencies = [
- "actix",
+ "actix 0.13.0",
  "anyhow",
  "arrow2",
  "async-trait",
@@ -7017,7 +7042,7 @@ name = "trader"
 version = "0.1.0"
 dependencies = [
  "account",
- "actix",
+ "actix 0.13.0",
  "actix-codec",
  "actix-cors",
  "actix-rt",
@@ -7079,7 +7104,7 @@ dependencies = [
 name = "trading"
 version = "0.1.0"
 dependencies = [
- "actix",
+ "actix 0.13.0",
  "actix_derive",
  "anyhow",
  "async-trait",
@@ -7776,3 +7801,8 @@ dependencies = [
  "cc",
  "libc",
 ]
+
+[[patch.unused]]
+name = "datafusion"
+version = "7.0.0"
+source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_dict_key_fix#1cca6388a34c3d39aa80408a792aab69bf9a42da"

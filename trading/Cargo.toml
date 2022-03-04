@@ -22,7 +22,7 @@ brokers = { path = "../broker" }
 db = { path = "../db" }
 util = { path = "../util" }
 # actix
-actix = "0.12"
+actix = "0.13"
 actix_derive = "0.6"
 # std
 chrono = { version = "0.4", features = ["serde"] }
