@@ -77,7 +77,6 @@ fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEve
 
     stream! {
         print_struct_schema(&sa, "trades");
-
         let price_col = get_col_as::<Float64Array>(&sa, "price");
         let qty_col = get_col_as::<Float64Array>(&sa, "qty");
         let is_buyer_maker_col = get_col_as::<BooleanArray>(&sa, "is_buyer_maker");
