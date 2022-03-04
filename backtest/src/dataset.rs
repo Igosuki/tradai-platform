@@ -9,7 +9,7 @@ use futures::{Stream, StreamExt};
 
 use crate::datasources::orderbook::{flat_orderbooks_stream, raw_orderbooks_df, raw_orderbooks_stream,
                                     sampled_orderbooks_df, sampled_orderbooks_stream};
-use brokers::broker::{AsyncBroker, Broker, ChannelMessageBroker};
+use brokers::broker::{AsyncBroker, ChannelMessageBroker};
 use brokers::prelude::{Exchange, Pair};
 use brokers::types::{MarketEventEnvelope, SecurityType};
 use strategy::{MarketChannel, MarketChannelTopic, MarketChannelType};

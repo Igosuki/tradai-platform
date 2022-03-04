@@ -102,7 +102,7 @@ impl NatsConsumer {
                 let v: T = serde_json::from_slice(msg.data.as_slice())?;
                 let av = Arc::new(v);
                 for recipient in arc.as_ref() {
-                    recipient.do_send(av.clone()).unwrap();
+                    recipient.do_send(av.clone());
                 }
                 Ok(())
             });

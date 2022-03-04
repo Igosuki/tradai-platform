@@ -120,9 +120,7 @@ pub async fn poll_pingables(recipients: Vec<Recipient<Ping>>) -> std::io::Result
     loop {
         interval.tick().await;
         for recipient in &recipients {
-            recipient
-                .do_send(brokers::bot::Ping)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            recipient.do_send(brokers::bot::Ping)
         }
     }
 }
