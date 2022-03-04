@@ -13,7 +13,7 @@ broker_core = { path = "../../core" }
 
 # actix
 actix = "0.13"
-actix-http = { version = "3.0.0-rc", features = ["ws"] }
+actix-http = { version = "3.0.0", features = ["ws"] }
 awc = { version = "3.0.0-beta", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
 
 # async

@@ -24,7 +24,7 @@ ext = { path = "../../ext" }
 # Actix
 actix = "0.13"
 actix-codec = "0.5"
-actix-http = { version = "3.0.0-rc", features = ["ws"] }
+actix-http = { version = "3.0.0", features = ["ws"] }
 actix_derive = "0.6.0"
 awc = { version = "3.0.0-beta", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
 
