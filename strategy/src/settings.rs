@@ -93,7 +93,12 @@ impl StrategyCopySettings {
             StrategyCopySettings::MarketReplica {
                 pairs,
                 exchanges,
-                base: StrategyDriverSettings { strat, driver },
+                base:
+                    StrategyDriverSettings {
+                        strat,
+                        driver,
+                        report_name,
+                    },
             } => {
                 let plugin = plugin_registry()
                     .get(strat.strat_type.as_str())
@@ -107,6 +112,7 @@ impl StrategyCopySettings {
                         conf.replicate_for_pairs(pairs)
                             .into_iter()
                             .map(|replica| StrategyDriverSettings {
+                                report_name: report_name.clone(),
                                 driver: driver.clone(),
                                 strat: Box::new(StrategySettings {
                                     options: replica,
@@ -137,6 +143,7 @@ pub enum StrategyDriverOptions {
 pub struct StrategyDriverSettings {
     pub strat: Box<StrategySettings>,
     pub driver: StrategyDriverOptions,
+    pub report_name: Option<String>,
 }
 
 pub fn from_driver_settings<S: AsRef<Path>>(

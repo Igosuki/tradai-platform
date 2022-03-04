@@ -1,3 +1,4 @@
+use crate::rsistoch_strategy::report::edit_report;
 use brokers::prelude::*;
 use brokers::types::{Candle, SecurityType, Symbol};
 use chrono::{DateTime, Utc};
@@ -9,6 +10,7 @@ use stats::yata_prelude::{IndicatorConfig, IndicatorInstance};
 use stats::Action;
 use stats::Source;
 use std::collections::HashSet;
+use std::sync::Arc;
 use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::*;
 use strategy::{MarketChannel, MarketChannelType, StratEventLoggerRef};
@@ -164,6 +166,14 @@ impl StochRsiStrategy {
             last_macd_signal: None,
             security_type: n.security_type,
         };
+        // TODO: temporary hack, use a report fn registry to allow for custom reports
+        #[cfg(feature = "backtest")]
+        backtest::report::register_report_fn(
+            strat.key(),
+            Arc::new(|&mut report| {
+                edit_report(&mut report, n.resolution);
+            }),
+        );
 
         Ok(strat)
     }
@@ -419,7 +429,6 @@ mod test {
             .await
             .unwrap();
             report.write_html();
-            edit_report(&mut report, resolution);
         });
     }
 }

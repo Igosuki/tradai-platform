@@ -38,7 +38,7 @@ impl GlobalReport {
         tokio_stream::iter(self.reports.as_slice().iter())
             .map(move |report| async move {
                 report.finish().await?;
-                let report = report.clone();
+                let mut report = report.clone();
                 tokio::task::spawn_blocking(move || report.write_html()).await.unwrap();
                 crate::error::Result::Ok(())
             })
