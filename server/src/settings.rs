@@ -148,21 +148,15 @@ impl Settings {
     ///
     /// if the configuration files cannot be read, merged and parsed
     pub fn new(config_file_name: String) -> Result<Self, ConfigError> {
-        let mut s = Config::new();
-
-        s.merge(File::with_name(&config_file_name)).unwrap();
-
-        // Add in a local configuration file
-        // This file shouldn't be checked in to git
-        s.merge(File::with_name("config/local.yaml").required(false))?;
-
-        s.merge(Environment::with_prefix("TRADER"))?;
-
-        // You may also programmatically change settings
-        s.set("__config_file", config_file_name)?;
+        let s = Config::builder()
+            .add_source(File::with_name(&config_file_name))
+            .add_source(File::with_name("config/local.yaml").required(false))
+            .add_source(Environment::with_prefix("TRADER"))
+            .set_override("__config_file", config_file_name)?
+            .build()?;
 
         // You can deserialize (and thus freeze) the entire configuration as
-        s.try_into()
+        s.try_deserialize().map_err(Into::into)
     }
 
     pub fn sanitize(&self) {
