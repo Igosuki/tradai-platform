@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, WrapFuture};
+use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture, ResponseFuture, WrapFuture};
 use actix_derive::{Message, MessageResponse};
 use backoff::{ExponentialBackoff, ExponentialBackoffBuilder};
 use futures::FutureExt;
@@ -418,20 +418,17 @@ impl Actor for OrderManager {
 }
 
 impl Handler<AccountEventEnveloppe> for OrderManager {
-    type Result = ResponseActFuture<Self, anyhow::Result<()>>;
+    type Result = ResponseFuture<anyhow::Result<()>>;
 
     fn handle(&mut self, msg: AccountEventEnveloppe, _ctx: &mut Self::Context) -> Self::Result {
         let mut zis = self.clone();
-        Box::pin(
-            async move {
-                match msg.event {
-                    AccountEvent::OrderUpdate(update) => zis.update_order(update).await.map_err(|e| anyhow!(e)),
-                    // Ignore anything besides order updates
-                    _ => Ok(()),
-                }
+        Box::pin(async move {
+            match msg.event {
+                AccountEvent::OrderUpdate(update) => zis.update_order(update).await.map_err(|e| anyhow!(e)),
+                // Ignore anything besides order updates
+                _ => Ok(()),
             }
-            .into_actor(self),
-        )
+        })
     }
 }
 
@@ -484,27 +481,24 @@ impl Handler<PassOrder> for OrderManager {
 }
 
 impl Handler<OrderId> for OrderManager {
-    type Result = ResponseActFuture<Self, (Result<OrderDetail>, Result<Transaction>)>;
+    type Result = ResponseFuture<(Result<OrderDetail>, Result<Transaction>)>;
 
     fn handle(&mut self, order: OrderId, _ctx: &mut Self::Context) -> Self::Result {
         let zis = self.clone();
-        Box::pin(
-            async move {
-                let order_id = order.0.clone();
-                (
-                    zis.get_order_from_storage(&order_id),
-                    zis.get_order(order_id.clone())
-                        .await
-                        .ok_or_else(|| Error::OrderNotFound(order_id.clone()))
-                        .map(move |status| Transaction {
-                            id: order_id,
-                            status,
-                            ts: None,
-                        }),
-                )
-            }
-            .into_actor(self),
-        )
+        Box::pin(async move {
+            let order_id = order.0.clone();
+            (
+                zis.get_order_from_storage(&order_id),
+                zis.get_order(order_id.clone())
+                    .await
+                    .ok_or_else(|| Error::OrderNotFound(order_id.clone()))
+                    .map(move |status| Transaction {
+                        id: order_id,
+                        status,
+                        ts: None,
+                    }),
+            )
+        })
     }
 }
 

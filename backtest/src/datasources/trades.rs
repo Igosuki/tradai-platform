@@ -1,12 +1,11 @@
 use crate::datafusion_util::{get_col_as, multitables_as_df, multitables_as_stream, print_struct_schema,
-                             string_partition, StringArray, TimestampMillisecondArray, UInt16DictionaryArray};
+                             string_partition, TimestampMillisecondArray, UInt16DictionaryArray};
 use crate::datasources::event_ms_where_clause;
 use brokers::pair::symbol_to_pair;
 use brokers::prelude::*;
 use brokers::types::{Candle, SecurityType, Symbol};
 use chrono::{DateTime, Utc};
 use datafusion::arrow::array::*;
-use datafusion::arrow::scalar::{Scalar, Utf8Scalar};
 use datafusion::record_batch::RecordBatch;
 use futures::{Stream, StreamExt};
 use stats::kline::Resolution;

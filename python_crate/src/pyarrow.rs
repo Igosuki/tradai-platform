@@ -12,7 +12,7 @@ use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::error::ArrowError;
 use arrow::ffi;
-use arrow::ffi::Ffi_ArrowSchema;
+use arrow::ffi::ArrowSchema;
 use pyo3::exceptions::PyOSError;
 
 /// an error that bridges ArrowError with a Python error
@@ -57,8 +57,8 @@ pub trait PyArrowConvert: Sized {
 
 impl PyArrowConvert for DataType {
     fn from_pyarrow(value: &PyAny) -> PyResult<Self> {
-        let c_schema = Ffi_ArrowSchema::empty();
-        let c_schema_ptr = &c_schema as *const Ffi_ArrowSchema;
+        let c_schema = ArrowSchema::empty();
+        let c_schema_ptr = &c_schema as *const ArrowSchema;
 
         value.call_method1("_export_to_c", (c_schema_ptr as Py_uintptr_t,))?;
 
@@ -68,7 +68,7 @@ impl PyArrowConvert for DataType {
     }
 
     fn to_pyarrow(&self, py: Python) -> PyResult<PyObject> {
-        let schema_ptr = Box::new(ffi::Ffi_ArrowSchema::empty());
+        let schema_ptr = Box::new(ffi::ArrowSchema::empty());
         let schema_ptr = Box::into_raw(schema_ptr);
 
         unsafe {
@@ -89,8 +89,8 @@ impl PyArrowConvert for DataType {
 
 impl PyArrowConvert for Field {
     fn from_pyarrow(value: &PyAny) -> PyResult<Self> {
-        let c_schema = Ffi_ArrowSchema::empty();
-        let c_schema_ptr = &c_schema as *const Ffi_ArrowSchema;
+        let c_schema = ArrowSchema::empty();
+        let c_schema_ptr = &c_schema as *const ArrowSchema;
 
         value.call_method1("_export_to_c", (c_schema_ptr as Py_uintptr_t,))?;
 
@@ -100,7 +100,7 @@ impl PyArrowConvert for Field {
     }
 
     fn to_pyarrow(&self, py: Python) -> PyResult<PyObject> {
-        let schema_ptr = Box::new(ffi::Ffi_ArrowSchema::empty());
+        let schema_ptr = Box::new(ffi::ArrowSchema::empty());
         let schema_ptr = Box::into_raw(schema_ptr);
 
         unsafe {
@@ -121,8 +121,8 @@ impl PyArrowConvert for Field {
 
 impl PyArrowConvert for Schema {
     fn from_pyarrow(value: &PyAny) -> PyResult<Self> {
-        let c_schema = Ffi_ArrowSchema::empty();
-        let c_schema_ptr = &c_schema as *const Ffi_ArrowSchema;
+        let c_schema = ArrowSchema::empty();
+        let c_schema_ptr = &c_schema as *const ArrowSchema;
 
         value.call_method1("_export_to_c", (c_schema_ptr as Py_uintptr_t,))?;
 
@@ -139,8 +139,8 @@ impl PyArrowConvert for Schema {
 
     fn to_pyarrow(&self, py: Python) -> PyResult<PyObject> {
         let _dtype = DataType::Struct(self.fields.clone());
-        let c_schema = Ffi_ArrowSchema::empty();
-        let c_schema_ptr = &c_schema as *const Ffi_ArrowSchema;
+        let c_schema = ArrowSchema::empty();
+        let c_schema_ptr = &c_schema as *const ArrowSchema;
 
         // unsafe {
         //     ffi::export_field_to_c(&Field::new("f", dtype, false), c_schema);
@@ -156,11 +156,11 @@ impl PyArrowConvert for Schema {
 impl PyArrowConvert for Arc<dyn Array> {
     fn from_pyarrow(value: &PyAny) -> PyResult<Self> {
         // prepare a pointer to receive the Array struct
-        let array = Box::new(ffi::Ffi_ArrowArray::empty());
-        let schema = Box::new(ffi::Ffi_ArrowSchema::empty());
+        let array = Box::new(ffi::ArrowArray::empty());
+        let schema = Box::new(ffi::ArrowSchema::empty());
 
-        let array_ptr = &*array as *const ffi::Ffi_ArrowArray;
-        let schema_ptr = &*schema as *const ffi::Ffi_ArrowSchema;
+        let array_ptr = &*array as *const ffi::ArrowArray;
+        let schema_ptr = &*schema as *const ffi::ArrowSchema;
 
         // make the conversion through PyArrow's private API
         // this changes the pointer's memory and is thus unsafe.
@@ -168,14 +168,14 @@ impl PyArrowConvert for Arc<dyn Array> {
         value.call_method1("_export_to_c", (array_ptr as Py_uintptr_t, schema_ptr as Py_uintptr_t))?;
 
         let field = unsafe { ffi::import_field_from_c(schema.as_ref()).map_err(PyO3ArrowError::from)? };
-        let array = unsafe { ffi::import_array_from_c(array, &field).map_err(PyO3ArrowError::from)? };
+        let array = unsafe { ffi::import_array_from_c(array, field.data_type).map_err(PyO3ArrowError::from)? };
 
         Ok(array.into())
     }
 
     fn to_pyarrow(&self, py: Python) -> PyResult<PyObject> {
-        let array_ptr = Box::new(ffi::Ffi_ArrowArray::empty());
-        let schema_ptr = Box::new(ffi::Ffi_ArrowSchema::empty());
+        let array_ptr = Box::new(ffi::ArrowArray::empty());
+        let schema_ptr = Box::new(ffi::ArrowSchema::empty());
 
         let array_ptr = Box::into_raw(array_ptr);
         let schema_ptr = Box::into_raw(schema_ptr);
