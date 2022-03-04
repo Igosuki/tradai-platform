@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 # Actix
-actix-http = { version = "3.0.0-rc", features = ["ws"] }
+actix-http = { version = "3.0.0", features = ["ws"] }
 actix-http-test = "3.0.0-beta"
 actix-codec = "0.5"
 
