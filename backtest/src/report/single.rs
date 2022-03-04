@@ -213,9 +213,18 @@ impl BacktestReport {
         Ok(())
     }
 
-    pub fn write_html(&self) {
+    pub fn write_html(&mut self) {
         self.write_html_report();
         self.write_html_tradeview();
+        self.write_custom_reports();
+    }
+
+    pub fn write_custom_reports(&mut self) {
+        if let Some(reports) = super::registry::get_report_fns(self.key.clone()) {
+            for report in reports {
+                report(self)
+            }
+        }
     }
 
     pub fn write_plot(&self, plot: Plot, file_name: &str) -> String {
