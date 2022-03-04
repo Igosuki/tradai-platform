@@ -67,15 +67,13 @@ impl BacktestConfig {
     ///
     /// if the config file does not exist
     pub fn new(config_file_name: String) -> Result<Self> {
-        let mut s = Config::new();
-
-        s.merge(File::with_name(&config_file_name)).unwrap();
-
-        // You may also programmatically change settings
-        s.set("__config_file", config_file_name)?;
+        let s = Config::builder()
+            .add_source(File::with_name(&config_file_name))
+            .set_override("__config_file", config_file_name)?
+            .build()?;
 
         // You can deserialize (and thus freeze) the entire configuration as
-        s.try_into().map_err(Into::into)
+        s.try_deserialize().map_err(Into::into)
     }
 
     pub fn output_dir(&self) -> PathBuf {
