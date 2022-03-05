@@ -231,21 +231,39 @@ impl From<PyMarginSideEffect> for MarginSideEffect {
 }
 
 #[pyclass(name = "AssetType")]
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Copy, Clone, Serialize, Deserialize, EnumString, AsRefStr)]
 pub enum PyAssetType {
+    #[strum(serialize = "spot")]
     Spot,
+    #[strum(serialize = "margin")]
     Margin,
+    #[strum(serialize = "margin_funding")]
     MarginFunding,
+    #[strum(serialize = "isolated_margin")]
     IsolatedMargin,
+    #[strum(serialize = "index")]
     Index,
+    #[strum(serialize = "binary")]
     Binary,
+    #[strum(serialize = "perpetual_contract")]
     PerpetualContract,
+    #[strum(serialize = "perpetual_swap")]
     PerpetualSwap,
+    #[strum(serialize = "futures")]
     Futures,
+    #[strum(serialize = "upside_profit_contract")]
     UpsideProfitContract,
+    #[strum(serialize = "downside_profit_contract")]
     DownsideProfitContract,
+    #[strum(serialize = "coin_margined_futures")]
     CoinMarginedFutures,
+    #[strum(serialize = "usdt_margined_futures")]
     UsdtMarginedFutures,
+}
+
+#[pymethods]
+impl PyAssetType {
+    fn __getstate__(&self) -> PyResult<String> { Ok(self.as_ref().to_string()) }
 }
 
 impl From<PyAssetType> for AssetType {

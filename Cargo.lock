@@ -6881,6 +6881,8 @@ dependencies = [
  "stats",
  "strategy",
  "strategy_test_util",
+ "strum 0.24.0",
+ "strum_macros 0.24.0",
  "thiserror",
  "tokio",
  "tracing",

@@ -38,6 +38,8 @@ inventory = "0.2"
 thiserror = "1.0"
 anyhow = "1.0"
 uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng"] }
+strum = "0.24"
+strum_macros = "0.24"
 
 # log / trace
 tracing = "0.1"

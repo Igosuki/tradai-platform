@@ -5,10 +5,12 @@ use std::time::{Duration, Instant};
 
 use brokers::broker::{Broker, ChannelMessageBroker};
 use brokers::exchange::Exchange;
+use brokers::plugin::gather_plugins;
 use brokers::types::MarketEventEnvelope;
 use brokers::Brokerages;
 use db::{get_or_create, DbOptions};
 use futures::StreamExt;
+use itertools::Itertools;
 use strategy::driver::{StratProviderRef, Strategy, StrategyInitContext};
 use strategy::prelude::{GenericDriver, GenericDriverOptions, PortfolioOptions};
 use strategy::{MarketChannel, MarketChannelTopic};
@@ -190,13 +192,13 @@ impl Backtest {
 
 async fn build_runner(
     provider: StratProviderRef,
-    providers: &[Exchange],
-    starting_cash: f64,
-    fees_rate: f64,
+    starting_cash: Option<f64>,
+    fees_rate: Option<f64>,
 ) -> Arc<RwLock<BacktestRunner>> {
     let path = util::test::test_dir();
-
-    let engine = Arc::new(mock_engine(path.path(), providers));
+    let brokerages = gather_plugins();
+    let providers = brokerages.keys().copied().collect_vec();
+    let engine = Arc::new(mock_engine(path.path(), &providers));
     let options = DbOptions::new(path);
     let db = get_or_create(&options, "", vec![]);
     let strat = provider(StrategyInitContext {
@@ -205,8 +207,8 @@ async fn build_runner(
     });
     let generic_options = GenericDriverOptions {
         portfolio: PortfolioOptions {
-            fees_rate,
-            initial_quote_cash: starting_cash,
+            fees_rate: fees_rate.unwrap_or(0.001),
+            initial_quote_cash: starting_cash.unwrap_or(100.0),
         },
         start_trading: None,
         dry_mode: None,
@@ -251,12 +253,11 @@ pub async fn backtest_with_range<'a>(
     test_name: &'a str,
     provider: StratProviderRef,
     dt_range: DateRange,
-    providers: &'a [Exchange],
-    starting_cash: f64,
-    fees_rate: f64,
+    starting_cash: Option<f64>,
+    fees_rate: Option<f64>,
     data_catalog: Option<DatasetCatalog>,
 ) -> Result<BacktestReport> {
-    let runner_ref = build_runner(provider, providers, starting_cash, fees_rate).await;
+    let runner_ref = build_runner(provider, starting_cash, fees_rate).await;
     let broker = build_msg_broker(&[runner_ref.clone()]).await;
     let channels = get_channels(&[runner_ref.clone()]).await;
 
@@ -311,11 +312,10 @@ pub async fn backtest_with_events<'a>(
     test_name: &'a str,
     provider: StratProviderRef,
     events: Vec<MarketEventEnvelope>,
-    providers: &'a [Exchange],
-    starting_cash: f64,
-    fees_rate: f64,
+    starting_cash: Option<f64>,
+    fees_rate: Option<f64>,
 ) -> Result<BacktestReport> {
-    let runner_ref = build_runner(provider, providers, starting_cash, fees_rate).await;
+    let runner_ref = build_runner(provider, starting_cash, fees_rate).await;
     let sink = async {
         let runner = runner_ref.read().await;
         runner.event_sink()
@@ -542,9 +542,8 @@ mod test {
                         ))
                     }),
                     range,
-                    &[Exchange::Binance],
-                    100.0,
-                    Exchange::default_fees(),
+                    Some(100.0),
+                    Some(Exchange::default_fees()),
                     Some(DatasetCatalog::default_test()),
                 )
             };
