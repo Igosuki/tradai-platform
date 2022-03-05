@@ -39,3 +39,4 @@ pub use error::*;
 
 #[cfg(test)]
 mod test_util;
+mod wallet;

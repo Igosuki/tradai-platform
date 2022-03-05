@@ -43,7 +43,7 @@ pub fn raw_orderbooks_stream<P: 'static + AsRef<Path> + Debug>(
     let sql_query = format!(
         "select to_timestamp_millis(event_ms) as event_ms, asks, bids from
    (select asks, bids, event_ms, ROW_NUMBER() OVER (PARTITION BY sample_time order by event_ms) as row_num
-    FROM (select asks, bids, event_ms / {sample_rate} as sample_time, event_ms from {table})) where row_num = 1;",
+    FROM (select asks, bids, event_ms / {sample_rate} as sample_time, event_ms from {table}) as raw_books) as sampled_books where row_num = 1;",
         sample_rate = sample_rate.num_milliseconds(),
         table = ORDER_BOOK_TABLE_NAME
     );
@@ -63,7 +63,7 @@ pub async fn raw_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
     let sql_query = format!(
         "select to_timestamp_millis(event_ms) as event_ms, asks, bids from
    (select asks, bids, event_ms, ROW_NUMBER() OVER (PARTITION BY sample_time order by event_ms) as row_num
-    FROM (select asks, bids, event_ms / {sample_rate} as sample_time, event_ms from {table} {where})) where row_num = 1;",
+    FROM (select asks, bids, event_ms / {sample_rate} as sample_time, event_ms from {table} {where}) as raw_books) as raw_books where row_num = 1;",
         sample_rate = sample_rate.num_milliseconds(),
         table = ORDER_BOOK_TABLE_NAME, where = event_ms_where_clause("event_ms", upper_dt, lower_dt)
     );

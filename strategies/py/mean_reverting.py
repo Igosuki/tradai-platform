@@ -1,19 +1,24 @@
 import asyncio
 import logging
 import json
+import pprint
+import sys
 from datetime import datetime, date
 
-import tradai
+import jsonpickle
 from tradai import Strategy, signal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
-    OrderType,  ta, windowed_ta, model, mstrategy, util, uuid
+    OrderType, ta, windowed_ta, model, mstrategy, util, uuid, LoggingStdout
+import pyarrow as pa
 
 FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'
 logging.basicConfig(format=FORMAT)
 logging.getLogger().setLevel(logging.INFO)
+sys.stdout = LoggingStdout()
+sys.displayhook = pprint.pprint
 
 class MeanReverting(Strategy):
     def __new__(cls, conf, ctx):
-        print(json.dumps(conf))
+        print(jsonpickle.encode(conf))
         dis = super().__new__(cls, conf)
         dis.conf = {
             'pair': 'BURGER_USDT',
@@ -93,7 +98,7 @@ class MeanReverting(Strategy):
         return self.ppo_model.export() + self.threshold_model.export()
 
     def channels(self):
-        return ((Channel("orderbooks", self.conf['xch'], self.conf['pair']),))
+        return (Channel("orderbooks", self.conf['xch'], self.conf['pair'], time_unit='minute', units=1, tick_rate_millis=60000),)
 
 def print_and_zero(log):
     print(log)
@@ -124,6 +129,13 @@ MEAN_REVERTING_DRAW_ENTRIES = [(
 
 PRINT_DRAW_ENTRIES = [("print", lambda x: [("zero", print_and_zero(x))])]
 
+async def backtest_run(*args, **kwargs):
+    return await backtest.backtest_with_range(*args, **kwargs)
+
+async def market_events_df(*args, **kwargs):
+    return await backtest.market_events_df(*args, **kwargs)
+
+
 if __name__ == '__main__':
     conf = {
         'pair': 'BTC_USDT',
@@ -145,12 +157,17 @@ if __name__ == '__main__':
             'execution_instruction': None
         }
     }
-    positions = asyncio.run(util.run_in_loop(backtest.it_backtest, "mr_py_test", lambda ctx: MeanReverting(
-        conf, ctx), date(2021, 8, 1), date(2021, 8, 9), MEAN_REVERTING_DRAW_ENTRIES))
+    #asyncio.run(market_events_df((Channel("orderbooks", 'binance', 'BTC_USDT', time_unit='minute', units=1, tick_rate_millis=60000),), datetime(2022, 1, 1), datetime(2022, 1, 2)))
+    report: backtest.BacktestReport = asyncio.run(backtest_run("mr_py_test", lambda ctx: MeanReverting(
+        conf, ctx), datetime(2021, 10, 18), datetime(2021, 11, 30)))
+    report.write_html()
+    for table in ["snapshots", "models", "events"]:
+        for array in report.events_df(table):
+            flattened = array.flatten()
+            fields = [field.name for field in array.type]
+            table = pa.Table.from_arrays(flattened, names=fields)
+            print(table.to_pandas().head())
 
-    print('took %d positions' % len(positions))
+#mstrategy(MeanReverting)
 
-
-mstrategy(MeanReverting)
-
-Strat = MeanReverting
+#Strat = MeanReverting

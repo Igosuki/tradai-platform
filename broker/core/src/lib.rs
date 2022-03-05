@@ -74,6 +74,7 @@ pub mod credential;
 pub mod currency;
 pub mod error;
 pub mod exchange;
+pub mod fees;
 pub mod json_util;
 pub mod manager;
 pub mod margin_interest_rates;

@@ -30,6 +30,8 @@ extern crate log;
 extern crate pyo3;
 #[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate strum_macros;
 
 use pyo3::prelude::*;
 

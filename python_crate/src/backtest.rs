@@ -52,6 +52,18 @@ impl PyBacktestReport {
         info!("{:?}", self);
     }
 
+    fn events_df(&self, event_type: &str) -> PyResult<Vec<PyObject>> {
+        let events = self
+            .inner
+            .events_df(event_type)
+            .map_err(crate::error::Error::BacktestExecutionError)?;
+        Python::with_gil(|py| {
+            let arrays: PyResult<Vec<PyObject>> =
+                events.into_iter().map(|a| PyArrowConvert::to_pyarrow(&a, py)).collect();
+            arrays
+        })
+    }
+
     fn draw_tradeview(&self) -> String { self.inner.draw_tradeview() }
 
     fn draw_report(&self) -> String { self.inner.draw_report() }
@@ -59,6 +71,8 @@ impl PyBacktestReport {
     fn json_tradeview(&self) -> String { self.inner.json_tradeview() }
 
     fn json_report(&self) -> String { self.inner.json_report() }
+
+    fn write_html(&mut self) { self.inner.write_html(); }
 }
 
 impl From<PyBacktestReport> for BacktestReport {
@@ -108,6 +122,7 @@ fn actix_multi_rt() -> SystemRunner {
 /// The profider_fn must return a [`PyStrategy`] (or strategy.Strategy in python)
 /// draw_entries must be a tuple of name for a figure, and a fn(log) -> (line_name, float).
 /// See [`wrap_draw_entry_fn`] for details
+/// deprecated
 #[pyfunction(name = "it_backtest", module = "backtest")]
 #[pyo3(text_signature = "(test_name, provider_fn, from, to, /)")]
 fn it_backtest_wrapper<'p>(
@@ -161,13 +176,15 @@ fn it_backtest_wrapper<'p>(
 /// draw_entries must be a tuple of name for a figure, and a fn(log) -> (line_name, float).
 /// See [`wrap_draw_entry_fn`] for details
 #[pyfunction(name = "backtest_with_range", module = "backtest")]
-#[pyo3(text_signature = "(test_name, provider_fn, from, to, /)")]
+#[pyo3(text_signature = "(test_name, provider_fn, from, to, starting_cash=None, fees_rate=None, /)")]
 fn range_backtest_wrapper<'p>(
     py: Python<'p>,
     test_name: &'p PyAny,
     provider_fn: &'p PyAny,
     from: NaiveDateTime,
     to: NaiveDateTime,
+    starting_cash: Option<f64>,
+    fees_rate: Option<f64>,
 ) -> PyResult<&'p PyAny> {
     let name: String = test_name.extract()?;
     if !provider_fn.is_callable() {
@@ -179,7 +196,7 @@ fn range_backtest_wrapper<'p>(
         let (tx, mut rx) = tokio::sync::mpsc::channel::<BacktestReport>(1);
         thread::spawn(move || {
             actix_multi_rt().block_on(async move {
-                let report = backtest_with_range(&name, provider, btr, &[Exchange::Binance], 100.0, 0.001, None).await;
+                let report = backtest_with_range(&name, provider, btr, starting_cash, fees_rate, None).await;
                 tx.send(report.unwrap()).await.unwrap();
             });
         });
@@ -190,7 +207,7 @@ fn range_backtest_wrapper<'p>(
     })
 }
 
-/// Lods market events over a provided range and channels
+/// Loads market events over a provided range and channels
 #[pyfunction(name = "market_events", module = "backtest")]
 #[pyo3(text_signature = "(channels, from, to, /)")]
 fn load_events<'p>(py: Python<'p>, channels: &'p PyAny, from: NaiveDateTime, to: NaiveDateTime) -> PyResult<&'p PyAny> {
@@ -242,12 +259,14 @@ fn load_events_df<'p>(
 /// The profider_fn must return a [`PyStrategy`] (or strategy.Strategy in python)
 /// see [`load_events`] on how to load market events
 #[pyfunction(name = "backtest_with_events", module = "backtest")]
-#[pyo3(text_signature = "(test_name, provider_fn, market_events, /)")]
+#[pyo3(text_signature = "(test_name, provider_fn, market_events, starting_cash=None, fees_rate=None, /)")]
 fn event_backtest_wrapper<'p>(
     py: Python<'p>,
     test_name: &'p PyAny,
     provider_fn: &'p PyAny,
     market_events: &'p PyAny,
+    starting_cash: Option<f64>,
+    fees_rate: Option<f64>,
 ) -> PyResult<&'p PyAny> {
     let name: String = test_name.extract()?;
     let events: PyMarketEvents = market_events.extract()?;
@@ -259,8 +278,7 @@ fn event_backtest_wrapper<'p>(
         let (tx, mut rx) = tokio::sync::mpsc::channel::<BacktestReport>(1);
         thread::spawn(move || {
             actix_multi_rt().block_on(async move {
-                let report =
-                    backtest_with_events(&name, provider, events.inner, &[Exchange::Binance], 100.0, 0.001).await;
+                let report = backtest_with_events(&name, provider, events.inner, starting_cash, fees_rate).await;
                 tx.send(report.unwrap()).await.unwrap();
             });
         });
@@ -276,6 +294,8 @@ pub(crate) fn backtest(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(it_backtest_wrapper, m)?)?;
     m.add_function(wrap_pyfunction!(range_backtest_wrapper, m)?)?;
     m.add_function(wrap_pyfunction!(event_backtest_wrapper, m)?)?;
+    m.add_function(wrap_pyfunction!(load_events, m)?)?;
+    m.add_function(wrap_pyfunction!(load_events_df, m)?)?;
     m.add_class::<PyPosition>()?;
     m.add_class::<PyBacktestReport>()?;
     Ok(())

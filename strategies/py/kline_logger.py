@@ -61,7 +61,7 @@ def print_and_zero(log):
     return 0.0
 
 async def backtest_run(*args, **kwargs):
-    return await backtest.single_backtest(*args, **kwargs)
+    return await backtest.backtest_with_range(*args, **kwargs)
 
 KLINE_LOGGER_DRAW_ENTRIES = [(
     "Prices and EMA",
