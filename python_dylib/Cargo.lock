@@ -639,6 +639,7 @@ dependencies = [
  "actix",
  "actix-rt",
  "anyhow",
+ "arrow2",
  "async-stream",
  "async-trait",
  "brokers",
@@ -4801,6 +4802,8 @@ dependencies = [
  "stats",
  "strategy",
  "strategy_test_util",
+ "strum 0.24.0",
+ "strum_macros 0.24.0",
  "thiserror",
  "tokio",
  "tracing",
@@ -4973,6 +4976,7 @@ name = "util"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "byte-unit",
  "chrono",
  "flate2",

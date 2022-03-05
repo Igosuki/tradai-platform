@@ -146,23 +146,28 @@ impl BacktestRunner {
                         }
                     }
 
-                    // #[allow(clippy::needless_borrow)]
-                    // report.push_market_stat(TimedData::new(market_event.e.time(), (&market_event.e).into()));
+
+                    if let MarketEvent::Orderbook(_) = &market_event.e {
+                        #[allow(clippy::needless_borrow)]
+                        report.push_market_stat(TimedData::new(market_event.e.time(), (&market_event.e).into()));
+                    }
                     if let MarketEvent::CandleTick(candle) = &market_event.e {
                         if candle.is_final {
                             report.push_candle(TimedData::new(market_event.e.time(), candle.clone()));
-                            match driver.query(DataQuery::Models).await {
-                                Ok(DataResult::Models(models)) => report
-                                    .push_model(TimedData::new(market_event.e.time(), models.into_iter().collect())),
-                                _ => {
-                                    report.failures += 1;
-                                }
+                        }
+                    }
+                    if matches!(market_event.e, MarketEvent::Orderbook(_) | MarketEvent::CandleTick(_)) {
+                        match driver.query(DataQuery::Models).await {
+                            Ok(DataResult::Models(models)) => report
+                                .push_model(TimedData::new(market_event.e.time(), models.into_iter().collect())),
+                            _ => {
+                                report.failures += 1;
                             }
-                            match driver.query(DataQuery::Indicators).await {
-                                Ok(DataResult::Indicators(i)) => report.push_snapshot(TimedData::new(market_event.e.time(), i)),
-                                _ => {
-                                    report.failures += 1;
-                                }
+                        }
+                        match driver.query(DataQuery::Indicators).await {
+                            Ok(DataResult::Indicators(i)) => report.push_snapshot(TimedData::new(market_event.e.time(), i)),
+                            _ => {
+                                report.failures += 1;
                             }
                         }
                     }

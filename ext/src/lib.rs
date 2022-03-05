@@ -8,8 +8,6 @@ Extensions to the standard library that are commonly used are gathered in this c
 use std::any::Any;
 use std::sync::Arc;
 
-use itertools::Itertools;
-
 pub trait MapInto<T> {
     /// Map the contained `T` into a different type.
     ///
@@ -41,14 +39,6 @@ where
 {
     #[inline]
     fn map_into(self) -> Option<T> { self.map(Into::into) }
-}
-
-impl<S, T> MapInto<Vec<T>> for Vec<S>
-where
-    S: Into<T>,
-{
-    #[inline]
-    fn map_into(self) -> Vec<T> { self.into_iter().map_into().collect() }
 }
 
 pub trait ResultExt<T, E> {

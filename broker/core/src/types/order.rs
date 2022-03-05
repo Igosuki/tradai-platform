@@ -77,6 +77,15 @@ pub enum OrderType {
     LimitMaker,
 }
 
+impl OrderType {
+    pub fn is_maker(&self) -> bool {
+        matches!(
+            self,
+            Self::Limit | Self::StopLossLimit | Self::TakeProfitLimit | Self::LimitMaker
+        )
+    }
+}
+
 impl Default for OrderType {
     fn default() -> Self { Self::Limit }
 }

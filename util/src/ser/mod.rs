@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
@@ -200,16 +200,7 @@ impl<T: 'static + DeserializeOwned + Serialize + Debug + Send, S: JsonSerde + Se
         self.finish_resp_tx.send(true).await.unwrap();
     }
 
-    pub fn read_all(&self) -> Result<Vec<T>, serde_json::Error> {
-        let file_path = self.out_file.as_path();
-        match read_json_file::<_, Vec<T>>(file_path, self.compression) {
-            Ok(r) => Ok(r),
-            Err(e) => {
-                warn!("Failed to read {:?} {}", file_path, e);
-                Err(e)
-            }
-        }
-    }
+    pub fn read_all(&self) -> Result<Vec<T>, serde_json::Error> { S::deserialize(self.reader()) }
 
     pub fn reader(&self) -> Box<dyn BufRead> {
         let file_path = self.out_file.as_path();
@@ -220,16 +211,6 @@ impl<T: 'static + DeserializeOwned + Serialize + Debug + Send, S: JsonSerde + Se
     }
 }
 
-fn read_json_file<P: AsRef<Path>, T: DeserializeOwned>(
-    base_path: P,
-    compression: Compression,
-) -> Result<T, serde_json::Error> {
-    let file = compression.wrap_ext(base_path);
-    let read = BufReader::new(File::open(file).unwrap());
-    let mut reader = compression.wrap_reader(read);
-    serde_json::from_reader(&mut reader)
-}
-
 #[async_trait]
 pub trait JsonSerde: Send {
     async fn serialize_stream<T: Serialize + Send, W: Write + Send>(
@@ -237,6 +218,8 @@ pub trait JsonSerde: Send {
         stream: &mut UnboundedReceiverStream<T>,
         token: CancellationToken,
     );
+
+    fn deserialize<R: Read, T: DeserializeOwned>(read: R) -> Result<Vec<T>, serde_json::Error>;
 }
 
 pub struct SeqJsonSerde;
@@ -267,6 +250,10 @@ impl JsonSerde for SeqJsonSerde {
         }
         SerializeSeq::end(seq).unwrap();
     }
+
+    fn deserialize<R: Read, T: DeserializeOwned>(read: R) -> Result<Vec<T>, serde_json::Error> {
+        serde_json::from_reader(read)
+    }
 }
 
 pub struct NdJsonSerde;
@@ -294,6 +281,10 @@ impl JsonSerde for NdJsonSerde {
                 _ = token.cancelled() => break 'stream
             }
         }
+    }
+
+    fn deserialize<R: Read, T: DeserializeOwned>(read: R) -> Result<Vec<T>, serde_json::Error> {
+        serde_json::Deserializer::from_reader(read).into_iter::<T>().collect()
     }
 }
 

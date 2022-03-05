@@ -24,6 +24,7 @@ pub mod adapters;
 #[cfg(not(feature = "test_util"))]
 mod adapters;
 mod api;
+mod fees;
 mod generic_api;
 mod streaming_api;
 

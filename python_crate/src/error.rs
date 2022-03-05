@@ -6,8 +6,10 @@ use strategy::error::Error as StrategyError;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Strategy error {0:?}")]
+    #[error("strategy error {0:?}")]
     ExecutionError(#[from] StrategyError),
+    #[error("backtest error {0:?}")]
+    BacktestExecutionError(#[from] backtest::Error),
     #[error("{0}")]
     Common(String),
 }

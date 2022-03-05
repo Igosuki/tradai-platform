@@ -1,3 +1,4 @@
+use arrow2::array::ArrayRef;
 use float_cmp::approx_eq;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
@@ -185,7 +186,7 @@ impl BacktestReport {
     /// Read miscellaneous stats
     pub fn misc_stats(&self) -> &BacktestReportMiscStats { &self.misc_stats }
 
-    pub fn events_as_df(&self, table: &str) -> Result<()> {
+    pub fn events_df(&self, table: &str) -> Result<Vec<ArrayRef>> {
         use arrow2::io::ndjson::read;
         use arrow2::io::ndjson::read::FallibleStreamingIterator;
         let batch_size = 2048;
@@ -206,11 +207,10 @@ impl BacktestReport {
         while let Some(rows) = reader.next()? {
             // `deserialize` is CPU-bounded
             let array = read::deserialize(rows, data_type.clone())?;
+            //let sa = array.as_any().downcast_ref::<StructArray>();
             arrays.push(array);
         }
-        eprintln!("arrays = {:?}", arrays);
-        eprintln!("data_type = {:?}", data_type);
-        Ok(())
+        Ok(arrays)
     }
 
     /// Start writing received data to files in a streaming manner

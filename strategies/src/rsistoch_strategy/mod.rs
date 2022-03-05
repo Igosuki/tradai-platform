@@ -455,16 +455,15 @@ mod test {
                     DateTime::from_utc(NaiveDate::from_ymd(2022, 2, 16).and_hms(0, 0, 0), Utc),
                     DateTime::from_utc(NaiveDate::from_ymd(2022, 2, 17).and_hms(0, 0, 0), Utc),
                 ),
-                &[Exchange::Binance],
-                10000.0,
-                0.001,
+                Some(10000.0),
+                Some(0.0004),
                 Some(DatasetCatalog::default_prod()),
             )
             .await
             .unwrap();
             report.write_html();
             for table in &["snapshots", "models", "candles", "events"] {
-                report.events_as_df(table).unwrap();
+                report.events_df(table).unwrap();
             }
         });
     }

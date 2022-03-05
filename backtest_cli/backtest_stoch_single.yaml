@@ -27,7 +27,7 @@ fees: 0.001
 period:
   type: interval
   from: 2022-02-16
-  to: 2022-02-20
+  to: 2022-02-28
 
 db_path: /media/ramdisk/strat_backtest_dbs
 
