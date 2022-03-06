@@ -64,7 +64,7 @@ pub trait Strategy: Sync + Send {
     async fn eval(&mut self, e: &MarketEventEnvelope, ctx: &DefaultStrategyContext) -> Result<Option<TradeSignals>>;
 
     /// Warmup
-    fn warmup(&mut self, e: Vec<MarketEventEnvelope>) { todo!() }
+    fn warmup(&mut self, _e: Vec<MarketEventEnvelope>) { todo!() }
 
     /// Exports a serialized view of the model
     fn model(&self) -> SerializedModel;
