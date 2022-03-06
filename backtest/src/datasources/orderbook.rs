@@ -13,9 +13,10 @@ use futures::StreamExt;
 use tokio_stream::Stream;
 use tracing::Level;
 
-use crate::datafusion_util::{get_col_as, multitables_as_df, multitables_as_stream, print_struct_schema, Float64Type,
-                             Int64Type, ListArray, StringArray, TimestampMillisecondArray, UInt16DictionaryArray};
-use crate::datasources::event_ms_where_clause;
+use crate::datafusion_util::{get_col_as, multitables_as_df, multitables_as_stream, print_struct_schema,
+                             string_partition, Float64Type, Int64Type, ListArray, StringArray,
+                             TimestampMillisecondArray, UInt16DictionaryArray};
+use crate::datasources::{event_ms_where_clause, in_clause, join_where_clause};
 
 const ORDER_BOOK_TABLE_NAME: &str = "order_books";
 
@@ -65,7 +66,7 @@ pub async fn raw_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
    (select asks, bids, event_ms, ROW_NUMBER() OVER (PARTITION BY sample_time order by event_ms) as row_num
     FROM (select asks, bids, event_ms / {sample_rate} as sample_time, event_ms from {table} {where}) as raw_books) as raw_books where row_num = 1;",
         sample_rate = sample_rate.num_milliseconds(),
-        table = ORDER_BOOK_TABLE_NAME, where = event_ms_where_clause("event_ms", upper_dt, lower_dt)
+        table = ORDER_BOOK_TABLE_NAME, where = join_where_clause(event_ms_where_clause("event_ms", upper_dt, lower_dt))
     );
     let batch = multitables_as_df(table_paths, format, Some(ORDER_BOOK_TABLE_NAME.to_string()), sql_query).await?;
     if tracing::enabled!(Level::TRACE) {
@@ -83,14 +84,19 @@ pub fn sampled_orderbooks_stream<P: 'static + AsRef<Path> + Debug>(
     format: String,
     lower_dt: Option<DateTime<Utc>>,
     upper_dt: Option<DateTime<Utc>>,
+    pairs: Vec<String>,
 ) -> impl Stream<Item = MarketEventEnvelope> + 'static {
+    let pairs_clause = in_clause("pr", pairs);
+    let mut vec1 = event_ms_where_clause("event_ms", upper_dt, lower_dt);
+    vec1.push(pairs_clause);
+    let where_clause = join_where_clause(&vec1);
     multitables_as_stream(
         table_paths,
         format,
         Some("order_books".to_string()),
         format!(
-            "select xch, to_timestamp_millis(event_ms) as event_ts, pr, asks, bids from {table} {where} order by event_ms asc",
-            table = "order_books", where = event_ms_where_clause("event_ms", upper_dt, lower_dt)
+            "select xch, to_timestamp_millis(event_ms) as event_ts, pr, asks, asksq, bids, bidsq from {table} {where} order by event_ms asc",
+            table = "order_books", where = where_clause
         ),
     )
     .map(events_from_orderbooks)
@@ -103,23 +109,22 @@ pub async fn sampled_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
     format: String,
     lower_dt: Option<DateTime<Utc>>,
     upper_dt: Option<DateTime<Utc>>,
+    pairs: Vec<String>,
 ) -> crate::error::Result<RecordBatch> {
+    let pairs_clause = in_clause("pr", pairs);
+    let mut vec1 = event_ms_where_clause("event_ms", upper_dt, lower_dt);
+    vec1.push(pairs_clause);
+    let where_clause = join_where_clause(&vec1);
     let batch = multitables_as_df(
         table_paths,
         format,
         Some("order_books".to_string()),
         format!(
             "select xch, to_timestamp_millis(event_ms) as event_ts, pr, asks, bids from {table} {where} order by event_ms asc",
-            table = "order_books", where = event_ms_where_clause("event_ms", upper_dt, lower_dt)
+            table = "order_books", where = where_clause
         ),
     )
     .await?;
-    if tracing::enabled!(Level::TRACE) {
-        trace!(
-            "sampled_orderbooks = {:?}",
-            datafusion::arrow_print::write(&[batch.clone()])
-        );
-    }
     Ok(batch)
 }
 
@@ -159,51 +164,42 @@ fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = Marke
         print_struct_schema(&sa, "orderbook");
 
         let asks_col = get_col_as::<ListArray>(&sa, "asks");
+        let asksq_col = get_col_as::<ListArray>(&sa, "asksq");
         let bids_col = get_col_as::<ListArray>(&sa, "bids");
+        let bidsq_col = get_col_as::<ListArray>(&sa, "bidsq");
         let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ts");
         let pair_col = get_col_as::<StringArray>(&sa, "pr");
         let xch_col = get_col_as::<UInt16DictionaryArray>(&sa, "xch");
-        let xch_values = xch_col.values().as_any().downcast_ref::<StringArray>().unwrap();
 
         for i in 0..sa.len() {
-            let mut bids = vec![];
-            for bid in bids_col
-                .value(i)
-                .as_any()
-                .downcast_ref::<ListArray>()
-                .unwrap()
-                .iter()
-                .flatten()
-            {
-                let vals = bid
+            let bidsp = bids_col
                     .as_any()
                     .downcast_ref::<PrimitiveArray<Float64Type>>()
                     .unwrap()
                     .values();
-                bids.push((vals[0], vals[1]));
-            }
-            let mut asks = vec![];
-            for ask in asks_col
-                .value(i)
-                .as_any()
-                .downcast_ref::<ListArray>()
-                .unwrap()
-                .iter()
-                .flatten()
-            {
-                let vals = ask
+            let bidsq = bidsq_col
                     .as_any()
                     .downcast_ref::<PrimitiveArray<Float64Type>>()
                     .unwrap()
                     .values();
-                asks.push((vals[0], vals[1]));
-            }
+            let bids: Vec<(f64, f64)> = bidsp.iter().copied().zip(bidsq.iter().copied()).collect();
+            let asksp = asks_col
+                    .as_any()
+                    .downcast_ref::<PrimitiveArray<Float64Type>>()
+                    .unwrap()
+                    .values();
+            let asksq = asksq_col
+                    .as_any()
+                    .downcast_ref::<PrimitiveArray<Float64Type>>()
+                    .unwrap()
+                    .values();
+            let asks: Vec<(f64, f64)> = asksp.iter().copied().zip(asksq.iter().copied()).collect();
+
             let ts = event_ms_col.value(i);
             let pair = pair_col.value(i);
 
-            let k = xch_col.keys().value(i);
-            let xch = xch_values.value(k as usize);
-            let xchg = Exchange::from_str(xch).unwrap_or_else(|_| panic!("wrong xchg {}", xch));
+            let xch_str = string_partition(xch_col, i).unwrap();
+            let xchg = Exchange::from_str(&xch_str).unwrap_or_else(|_| panic!("wrong xchg {}", xch_str));
 
             yield MarketEventEnvelope::order_book_event(
                 Symbol::new(pair.into(), SecurityType::Crypto, xchg),

@@ -59,7 +59,7 @@ impl DatasetCatalog {
         let mut datasets = HashMap::new();
         datasets.insert(MarketEventDatasetType::OrderbooksByMinute, TableDef {
             name: "1mn_order_books",
-            format: DataFormat::Avro,
+            format: DataFormat::Parquet,
             base_dir: base_data_dir.clone(),
         });
         datasets.insert(MarketEventDatasetType::OrderbooksBySecond, TableDef {
@@ -155,7 +155,13 @@ impl DatasetReader {
                 let partitions = ds.partitions.clone();
                 let inner: Pin<Box<dyn Stream<Item = MarketEventEnvelope>>> = match ds.r#type {
                     MarketEventDatasetType::OrderbooksByMinute | MarketEventDatasetType::OrderbooksBySecond => {
-                        Box::pin(sampled_orderbooks_stream(partitions, input_format, lower_dt, upper_dt))
+                        Box::pin(sampled_orderbooks_stream(
+                            partitions,
+                            input_format,
+                            lower_dt,
+                            upper_dt,
+                            vec![ds.channel.symbol.value.to_string()],
+                        ))
                     }
                     MarketEventDatasetType::OrderbooksRaw => Box::pin(raw_orderbooks_stream(
                         partitions,
@@ -199,9 +205,13 @@ impl DatasetReader {
             let input_format = ds.r#type.default_format().to_string();
             let partitions = ds.partitions.clone();
             let fut: BoxFuture<Result<RecordBatch>> = match ds.r#type {
-                MarketEventDatasetType::OrderbooksByMinute | MarketEventDatasetType::OrderbooksBySecond => {
-                    Box::pin(sampled_orderbooks_df(partitions, input_format, lower_dt, upper_dt))
-                }
+                MarketEventDatasetType::OrderbooksByMinute | MarketEventDatasetType::OrderbooksBySecond => Box::pin(
+                    sampled_orderbooks_df(partitions, input_format, lower_dt, upper_dt, vec![ds
+                        .channel
+                        .symbol
+                        .value
+                        .to_string()]),
+                ),
 
                 MarketEventDatasetType::OrderbooksRaw => Box::pin(raw_orderbooks_df(
                     partitions,

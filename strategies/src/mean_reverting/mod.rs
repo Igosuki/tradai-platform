@@ -260,6 +260,7 @@ impl Strategy for MeanRevertingStrategy {
         vec![MarketChannel::builder()
             .symbol(Symbol::new(self.pair.clone(), SecurityType::Crypto, self.exchange))
             .r#type(MarketChannelType::Orderbooks)
+            .tick_rate(Some(chrono::Duration::milliseconds(60000)))
             .build()]
         .into_iter()
         .collect()
