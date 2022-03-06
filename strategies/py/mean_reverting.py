@@ -7,7 +7,7 @@ from datetime import datetime, date
 
 import jsonpickle
 from tradai import Strategy, signal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
-    OrderType, ta, windowed_ta, model, mstrategy, util, uuid, LoggingStdout
+    OrderType, ta, windowed_ta, model, mstrategy, uuid, LoggingStdout
 import pyarrow as pa
 
 FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'
@@ -168,6 +168,6 @@ if __name__ == '__main__':
             table = pa.Table.from_arrays(flattened, names=fields)
             print(table.to_pandas().head())
 
-#mstrategy(MeanReverting)
+mstrategy(MeanReverting)
 
-#Strat = MeanReverting
+Strat = MeanReverting

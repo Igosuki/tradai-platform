@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::time::Instant;
 
 use chrono::{Date, DateTime, Duration, Timelike, Utc};
 use datafusion::record_batch::RecordBatch;
@@ -236,10 +237,18 @@ impl DatasetReader {
         period: DateRange,
     ) -> Result<()> {
         for dt in period {
+            let now = Instant::now();
             let stream = self
                 .read_channels_to_stream(channels.iter(), dt, period.upper_bound_in_range())
                 .await;
             stream.for_each(|event| AsyncBroker::broadcast(broker, event)).await;
+            let elapsed = now.elapsed();
+            info!(
+                "Processed dt={} in {}.{}s",
+                dt,
+                elapsed.as_secs(),
+                elapsed.subsec_millis()
+            );
         }
         Ok(())
     }
