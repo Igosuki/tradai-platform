@@ -58,6 +58,6 @@ pyo3 = { git = "https://github.com/aviramha/pyo3.git", rev = "db53229bc7a737d030
 pythonize = { git = "https://github.com/Igosuki/pythonize", rev = "d5309ca6491cdfb9e356d38b244e20b29a206bbc", version = "^0.15" }
 datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_dict_key_fix" }
 #datafusion = { path = "/home/geps/dev/oss/arrow-datafusion/datafusion" }
-arrow2 = { git = "https://github.com/jorgecarleitao/arrow2.git", rev = "a87c758a80facbfbcde4768ad42cdf4c5c2cc5a8" }
+arrow2 = { git = "https://github.com/jorgecarleitao/arrow2.git", rev = "81bfaddb92f432ae25bff4e9fdf200159ecebafe" }
 inventory = { git = "https://github.com/Igosuki/inventory.git" }
 #avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "update_deps" }
