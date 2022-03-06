@@ -1,6 +1,6 @@
 use crate::datafusion_util::{get_col_as, multitables_as_df, multitables_as_stream, print_struct_schema,
                              string_partition, TimestampMillisecondArray, UInt16DictionaryArray};
-use crate::datasources::event_ms_where_clause;
+use crate::datasources::{event_ms_where_clause, join_where_clause};
 use brokers::pair::symbol_to_pair;
 use brokers::prelude::*;
 use brokers::types::{Candle, SecurityType, Symbol};
@@ -62,7 +62,7 @@ pub fn trades_stream<P: 'static + AsRef<Path> + Debug>(
     lower_dt: Option<DateTime<Utc>>,
     upper_dt: Option<DateTime<Utc>>,
 ) -> impl Stream<Item = MarketEventEnvelope> + 'static {
-    multitables_as_stream(table_paths, format, Some("trades".to_string()), format!("select xch, to_timestamp_millis(event_ms) as event_ts, sym, ast, price, qty, quote_qty, is_buyer_maker from {table} {where} order by event_ms asc", table = "trades", where = event_ms_where_clause("event_ms", upper_dt, lower_dt))).map(events_from_trades)
+    multitables_as_stream(table_paths, format, Some("trades".to_string()), format!("select xch, to_timestamp_millis(event_ms) as event_ts, sym, ast, price, qty, quote_qty, is_buyer_maker from {table} {where} order by event_ms asc", table = "trades", where = join_where_clause(event_ms_where_clause("event_ms", upper_dt, lower_dt)))).map(events_from_trades)
         .flatten()
 }
 
@@ -122,7 +122,7 @@ pub async fn trades_df<P: 'static + AsRef<Path> + Debug>(
     lower_dt: Option<DateTime<Utc>>,
     upper_dt: Option<DateTime<Utc>>,
 ) -> crate::error::Result<RecordBatch> {
-    let batch = multitables_as_df(table_paths, format, Some("trades".to_string()), format!("select xch, to_timestamp_millis(event_ms) as event_ts, sym, ast, price, qty, quote_qty, is_buyer_maker from {table} {where} order by event_ms asc", table = "trades", where = event_ms_where_clause("event_ms", upper_dt, lower_dt))).await?;
+    let batch = multitables_as_df(table_paths, format, Some("trades".to_string()), format!("select xch, to_timestamp_millis(event_ms) as event_ts, sym, ast, price, qty, quote_qty, is_buyer_maker from {table} {where} order by event_ms asc", table = "trades", where = join_where_clause(event_ms_where_clause("event_ms", upper_dt, lower_dt)))).await?;
     if tracing::enabled!(Level::TRACE) {
         trace!("trades = {:?}", datafusion::arrow_print::write(&[batch.clone()]));
     }
@@ -157,7 +157,7 @@ pub async fn candles_df<P: 'static + AsRef<Path> + Debug>(
         JOIN trades t2 ON t2.event_ms = max_time
     "#,
         resolution = resolution_millis,
-        where = event_ms_where_clause("event_ms", upper_dt, lower_dt)
+        where = join_where_clause(event_ms_where_clause("event_ms", upper_dt, lower_dt))
     );
     let batch = multitables_as_df(table_paths, format, Some("trades".to_string()), sql_query.to_string()).await?;
     if tracing::enabled!(Level::TRACE) {
