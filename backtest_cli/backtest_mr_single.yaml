@@ -57,11 +57,6 @@ period:
   from: 2021-10-18
   to: 2022-01-10
 
-input_format: avro
-input_dataset: orderbooks_by_minute
-#input_dataset: orderbooks_raw
-input_sample_rate: 1min
-
 db_path: /media/ramdisk/strat_backtest_dbs
 
 db_conf:
