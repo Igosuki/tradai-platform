@@ -221,7 +221,8 @@ impl Position {
         let price = match event.e {
             MarketEvent::Trade(ref t) => t.price,
             MarketEvent::Orderbook(ref o) => o.vwap().unwrap_or(0.0),
-            MarketEvent::CandleTick(ref ct) => ct.close,
+            MarketEvent::TradeCandle(ref ct) => ct.close,
+            MarketEvent::BookCandle(ref bc) => bc.mid.close,
         };
         self.meta.last_update_trace_id = event.trace_id;
         self.meta.last_update = event.e.time();

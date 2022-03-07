@@ -29,7 +29,8 @@ impl Subject for MarketEventEnvelope {
         format!("live_event.{}.{}", self.symbol.xch, match &self.e {
             MarketEvent::Trade(lt) => format!("{}.trades", lt.pair),
             MarketEvent::Orderbook(ob) => format!("{}.obs", ob.pair),
-            MarketEvent::CandleTick(ct) => format!("{}.cts", ct.pair),
+            MarketEvent::TradeCandle(ct) => format!("{}.cts", ct.pair),
+            MarketEvent::BookCandle(bc) => format!("{}.bcs", bc.pair),
         })
     }
 
@@ -44,6 +45,7 @@ impl Subject for MarketEventEnvelope {
             MarketChannelType::Candles => format!("live_event.{}.{}.candles", xch, pair),
             MarketChannelType::OpenInterest => format!("live_event.{}.{}.oi", xch, pair),
             MarketChannelType::Quotes => format!("live_event.{}.{}.quotes", xch, pair),
+            MarketChannelType::QuotesCandles => format!("live_event.{}.{}.bcandles", xch, pair),
         }
     }
 }

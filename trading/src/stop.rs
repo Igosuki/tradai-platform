@@ -66,7 +66,7 @@ impl TrailingStopper<f64> {
     /// Returns `Some(StopEvent)` if the stop conditions are matched, `None` otherwise
     pub fn should_stop(&mut self, ret: f64) -> Option<StopEvent> {
         if ret < self.stop_loss {
-            eprintln!("stop loss triggered : ret < stop_loss ( {} < {} )", ret, self.stop_loss);
+            info!("stop loss triggered : ret < stop_loss ( {} < {} )", ret, self.stop_loss);
             return Some(StopEvent::Loss);
         }
 
@@ -77,7 +77,7 @@ impl TrailingStopper<f64> {
                 *last_top = ret;
             }
             if ret < *last_top - self.trailing_stop_loss {
-                eprintln!(
+                info!(
                     "trailing_stop triggered : ret < last stop - trailing_stop_loss ( {} < {} - {} )",
                     ret, *last_top, self.trailing_stop_loss
                 );
