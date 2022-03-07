@@ -231,7 +231,7 @@ impl BinanceStreamingApi {
             }
             WebsocketEventUntag::WebsocketEvent(WebsocketEvent::Kline(ke)) => {
                 let pair = self.get_pair(ke.symbol.as_str())?;
-                Some(MarketEvent::CandleTick(Candle {
+                Some(MarketEvent::TradeCandle(Candle {
                     event_time: Utc.timestamp_millis(ke.event_time as i64),
                     pair,
                     start_time: Utc.timestamp_millis(ke.kline.start_time),

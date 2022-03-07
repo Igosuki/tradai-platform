@@ -144,6 +144,7 @@ impl MarketChannel {
             MarketChannelType::OpenInterest => "interests",
             MarketChannelType::Candles => "candles",
             MarketChannelType::Quotes => "quotes",
+            MarketChannelType::QuotesCandles => "book_candles",
         }
     }
 }
@@ -160,6 +161,8 @@ pub enum MarketChannelType {
     OpenInterest,
     /// Layer 1 order book quotes see [MarketEvent::Quote]
     Quotes,
+    /// Kline for layer 1 order book [MarketEvent::BookCandle]
+    QuotesCandles,
 }
 
 impl From<&MarketEvent> for MarketChannelType {
@@ -167,7 +170,8 @@ impl From<&MarketEvent> for MarketChannelType {
         match e {
             MarketEvent::Trade(_) => Self::Trades,
             MarketEvent::Orderbook(_) => Self::Orderbooks,
-            MarketEvent::CandleTick(_) => Self::Candles,
+            MarketEvent::TradeCandle(_) => Self::Candles,
+            MarketEvent::BookCandle(_) => Self::QuotesCandles,
         }
     }
 }
