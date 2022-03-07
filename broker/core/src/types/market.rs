@@ -192,7 +192,8 @@ pub struct Trade {
 pub enum MarketEvent {
     Trade(Trade),
     Orderbook(Orderbook),
-    CandleTick(Candle),
+    TradeCandle(Candle),
+    BookCandle(BookCandle),
 }
 
 impl MarketEvent {
@@ -200,7 +201,8 @@ impl MarketEvent {
         match self {
             MarketEvent::Trade(_) => "trades",
             MarketEvent::Orderbook(_) => "order_book",
-            MarketEvent::CandleTick(_) => "candle_ticks",
+            MarketEvent::TradeCandle(_) => "trade_candles",
+            MarketEvent::BookCandle(_) => "book_candles",
         }
     }
 
@@ -209,15 +211,21 @@ impl MarketEvent {
         match self {
             Self::Trade(ref e) => e.pair.clone(),
             Self::Orderbook(ref e) => e.pair.clone(),
-            Self::CandleTick(ref e) => e.pair.clone(),
+            Self::TradeCandle(ref e) => e.pair.clone(),
+            Self::BookCandle(ref e) => e.pair.clone(),
         }
     }
 
     pub fn time(&self) -> DateTime<Utc> {
         match self {
-            MarketEvent::Trade(t) => Utc.timestamp_millis(t.event_ms),
+            MarketEvent::Trade(t) => {
+                let t = Utc.timestamp_millis(t.event_ms);
+                info!("{:?}", t);
+                t
+            }
             MarketEvent::Orderbook(ob) => Utc.timestamp_millis(ob.timestamp),
-            MarketEvent::CandleTick(c) => c.event_time,
+            MarketEvent::TradeCandle(c) => c.event_time,
+            MarketEvent::BookCandle(c) => c.event_time,
         }
     }
 
@@ -227,7 +235,8 @@ impl MarketEvent {
             MarketEvent::Trade(t) => t.price,
             MarketEvent::Orderbook(o) => o.vwap().unwrap_or(0.0),
             // TODO: vwap should be made available in candles
-            MarketEvent::CandleTick(ct) => (ct.high + ct.low) / 2.0,
+            MarketEvent::TradeCandle(ct) => (ct.high + ct.low) / 2.0,
+            MarketEvent::BookCandle(bc) => bc.mid.close,
         }
     }
 
@@ -235,7 +244,8 @@ impl MarketEvent {
         match self {
             MarketEvent::Trade(t) => t.price,
             MarketEvent::Orderbook(o) => o.top_bid().map_or(0.0, |b| b.0),
-            MarketEvent::CandleTick(ct) => ct.high,
+            MarketEvent::TradeCandle(ct) => ct.high,
+            MarketEvent::BookCandle(bc) => bc.ask.high,
         }
     }
 
@@ -243,7 +253,8 @@ impl MarketEvent {
         match self {
             MarketEvent::Trade(t) => t.price,
             MarketEvent::Orderbook(o) => o.top_ask().map_or(0.0, |b| b.0),
-            MarketEvent::CandleTick(ct) => ct.low,
+            MarketEvent::TradeCandle(ct) => ct.low,
+            MarketEvent::BookCandle(bc) => bc.ask.low,
         }
     }
 
@@ -251,7 +262,8 @@ impl MarketEvent {
         match self {
             MarketEvent::Trade(t) => t.price,
             MarketEvent::Orderbook(o) => o.top_bid().map_or(0.0, |b| b.0),
-            MarketEvent::CandleTick(ct) => ct.close,
+            MarketEvent::TradeCandle(ct) => ct.close,
+            MarketEvent::BookCandle(bc) => bc.ask.close,
         }
     }
 
@@ -259,7 +271,8 @@ impl MarketEvent {
         match self {
             MarketEvent::Trade(t) => t.price,
             MarketEvent::Orderbook(o) => o.top_ask().map_or(0.0, |b| b.0),
-            MarketEvent::CandleTick(ct) => ct.open,
+            MarketEvent::TradeCandle(ct) => ct.open,
+            MarketEvent::BookCandle(bc) => bc.ask.open,
         }
     }
 
@@ -267,7 +280,8 @@ impl MarketEvent {
         match self {
             MarketEvent::Trade(t) => t.amount,
             MarketEvent::Orderbook(o) => o.vol(),
-            MarketEvent::CandleTick(ct) => ct.quote_volume,
+            MarketEvent::TradeCandle(ct) => ct.quote_volume,
+            MarketEvent::BookCandle(bc) => bc.ask.quote_volume,
         }
     }
 
@@ -275,7 +289,8 @@ impl MarketEvent {
         match self {
             MarketEvent::Trade(t) => t.price,
             MarketEvent::Orderbook(o) => o.top_ask().or_else(|| o.top_bid()).unwrap_or((0.0, 0.0)).0,
-            MarketEvent::CandleTick(t) => t.close,
+            MarketEvent::TradeCandle(t) => t.close,
+            MarketEvent::BookCandle(bc) => bc.ask.close,
         }
     }
 }
@@ -568,4 +583,25 @@ pub struct Candle {
     pub trade_count: u64,
     /// If the candle is closed
     pub is_final: bool,
+}
+
+/// Normalised OHLCV data from an [Interval] with the associated [DateTime] UTC timestamp;
+#[derive(Debug, Deserialize, Serialize, PartialOrd, PartialEq, Clone)]
+pub struct BookCandle {
+    pub bid: Candle,
+    pub ask: Candle,
+    pub mid: Candle,
+    pub is_final: bool,
+    /// Market pair
+    pub pair: Pair,
+    /// The time this candle was generated at
+    pub event_time: DateTime<Utc>,
+}
+
+pub struct BookTick {
+    pub ask: f64,
+    pub askq: f64,
+    pub bid: f64,
+    pub bidq: f64,
+    pub mid: f64,
 }

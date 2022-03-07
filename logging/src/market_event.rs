@@ -32,7 +32,8 @@ impl Partitioner<MarketEventEnvelope> for MarketEventPartitioner {
         match &data.e {
             MarketEvent::Orderbook(ob) => Some((ob.timestamp, "order_books", ob.pair.clone())),
             MarketEvent::Trade(t) => Some((t.event_ms, "trades", t.pair.clone())),
-            MarketEvent::CandleTick(ct) => Some((ct.event_time.timestamp_millis(), "candles", ct.pair.clone())),
+            MarketEvent::TradeCandle(ct) => Some((ct.event_time.timestamp_millis(), "candles", ct.pair.clone())),
+            MarketEvent::BookCandle(bc) => Some((bc.event_time.timestamp_millis(), "bcandles", bc.pair.clone())),
         }
         .map(|(ts, channel, pair)| {
             let ts = Utc.timestamp_millis(ts);
@@ -56,7 +57,8 @@ impl ToAvroSchema for MarketEventEnvelope {
         match &self.e {
             MarketEvent::Trade(_) => Some(&*avro_gen::models::LIVETRADE_SCHEMA),
             MarketEvent::Orderbook(_) => Some(&*avro_gen::models::ORDERBOOK_SCHEMA),
-            MarketEvent::CandleTick(_) => Some(&*avro_gen::models::CANDLE_SCHEMA),
+            MarketEvent::TradeCandle(_) => Some(&*avro_gen::models::CANDLE_SCHEMA),
+            MarketEvent::BookCandle(_) => None,
         }
     }
 }
@@ -98,7 +100,7 @@ impl Handler<Arc<MarketEventEnvelope>> for AvroFileActor<MarketEventEnvelope> {
                 self.append_log(&mut writer, orderbook)
             }
 
-            MarketEvent::CandleTick(ct) => {
+            MarketEvent::TradeCandle(ct) => {
                 self.metrics
                     .event_lag(now.timestamp_millis() - ct.event_time.timestamp_millis());
                 let candle = AvroCandle {
@@ -116,6 +118,7 @@ impl Handler<Arc<MarketEventEnvelope>> for AvroFileActor<MarketEventEnvelope> {
                 };
                 self.append_log(&mut writer, candle)
             }
+            MarketEvent::BookCandle(_) => Ok(0),
         };
         if let Err(e) = appended.and_then(|_| writer.flush().map_err(|_e| Error::Writer)) {
             self.metrics.flush_failure();
