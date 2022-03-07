@@ -6,7 +6,7 @@ extern crate futures;
 use backtest::{Backtest, BacktestConfig};
 use futures::FutureExt;
 use structopt::StructOpt;
-#[allow(unused_imports)]
+#[cfg(feature = "python")]
 use tradai_python::script_strat;
 
 #[derive(StructOpt, Debug)]
