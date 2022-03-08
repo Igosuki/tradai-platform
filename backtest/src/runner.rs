@@ -1,3 +1,4 @@
+use chrono::{TimeZone, Utc};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -15,6 +16,7 @@ use brokers::prelude::{MarketEvent, MarketEventEnvelope};
 use db::DbOptions;
 use strategy::driver::StrategyDriver;
 use strategy::event::{close_events, open_events};
+use strategy::models::Sampler;
 use strategy::prelude::StrategyDriverSettings;
 use strategy::query::{DataQuery, DataResult};
 use strategy::types::{OperationEvent, PositionSummary, StratEvent, TradeEvent};
@@ -25,6 +27,7 @@ use util::time::{set_current_time, TimedData};
 use util::trace::{display_hist_percentiles, microtime_histogram, microtime_percentiles};
 
 use crate::report::{BacktestReport, StreamWriterLogger};
+use brokers::types::{BookCandle, Candle};
 
 const DEFAULT_RUNNER_SINK_SIZE: usize = 1000;
 
@@ -33,6 +36,7 @@ pub(crate) struct BacktestRunner {
     events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
     events_stream: Receiver<MarketEventEnvelope>,
     events_sink: Sender<MarketEventEnvelope>,
+    sampler: Sampler,
 }
 
 impl BacktestRunner {
@@ -40,6 +44,7 @@ impl BacktestRunner {
         strategy: Arc<Mutex<Box<dyn StrategyDriver>>>,
         strategy_events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
         sink_size: Option<usize>,
+        report_sample_freq: Option<chrono::Duration>,
     ) -> Self {
         let (events_sink, events_stream) =
             channel::<MarketEventEnvelope>(sink_size.unwrap_or(DEFAULT_RUNNER_SINK_SIZE));
@@ -48,11 +53,16 @@ impl BacktestRunner {
             events_logger: strategy_events_logger,
             events_stream,
             events_sink,
+            sampler: Sampler::new(
+                report_sample_freq.unwrap_or(chrono::Duration::seconds(1)),
+                Utc.timestamp_millis(0),
+            ),
         }
     }
 
     pub(crate) async fn spawn_with_conf(
         sink_size: Option<usize>,
+        report_sample_freq: Option<chrono::Duration>,
         db_conf: DbOptions<PathBuf>,
         engine: Arc<TradingEngine>,
         settings: StrategyDriverSettings,
@@ -66,16 +76,27 @@ impl BacktestRunner {
         })
         .await
         .unwrap();
-        let runner = Self::new(Arc::new(Mutex::new(strategy_driver)), logger2, sink_size);
+        let runner = Self::new(
+            Arc::new(Mutex::new(strategy_driver)),
+            logger2,
+            sink_size,
+            report_sample_freq,
+        );
         Arc::new(RwLock::new(runner))
     }
 
     pub(crate) async fn spawn_with_driver(
         sink_size: Option<usize>,
+        report_sample_freq: Option<chrono::Duration>,
         events_logger: Arc<StreamWriterLogger<TimedData<StratEvent>>>,
         driver: Box<dyn StrategyDriver>,
     ) -> Arc<RwLock<Self>> {
-        let runner = Self::new(Arc::new(Mutex::new(driver)), events_logger, sink_size);
+        let runner = Self::new(
+            Arc::new(Mutex::new(driver)),
+            events_logger,
+            sink_size,
+            report_sample_freq,
+        );
         Arc::new(RwLock::new(runner))
     }
 
@@ -147,16 +168,20 @@ impl BacktestRunner {
                     }
 
 
-                    if let MarketEvent::Orderbook(_) = &market_event.e {
-                        #[allow(clippy::needless_borrow)]
-                        report.push_market_stat(TimedData::new(market_event.e.time(), (&market_event.e).into()));
-                    }
-                    if let MarketEvent::CandleTick(candle) = &market_event.e {
+                    if let MarketEvent::TradeCandle(candle) = &market_event.e {
                         if candle.is_final {
                             report.push_candle(TimedData::new(market_event.e.time(), candle.clone()));
                         }
                     }
-                    if matches!(market_event.e, MarketEvent::Orderbook(_) | MarketEvent::CandleTick(_)) {
+                    // todo: not clear what to do with this
+                    if let MarketEvent::BookCandle(BookCandle { ask, .. }) = &market_event.e {
+                        #[allow(clippy::needless_borrow)]
+                        if ask.is_final {
+                            report.push_candle(TimedData::new(market_event.e.time(), ask.clone()));
+                            report.push_market_stat(TimedData::new(market_event.e.time(), (&market_event.e).into()));
+                        }
+                    }
+                    if matches!(&market_event.e, MarketEvent::TradeCandle(Candle { is_final: true, .. }) | MarketEvent::BookCandle(BookCandle { is_final: true, .. })) {
                         match driver.query(DataQuery::Models).await {
                             Ok(DataResult::Models(models)) => report
                                 .push_model(TimedData::new(market_event.e.time(), models.into_iter().collect())),
@@ -164,6 +189,8 @@ impl BacktestRunner {
                                 report.failures += 1;
                             }
                         }
+                    }
+                    if self.sampler.sample(market_event.e.time()) {
                         match driver.query(DataQuery::Indicators).await {
                             Ok(DataResult::Indicators(i)) => report.push_snapshot(TimedData::new(market_event.e.time(), i)),
                             _ => {

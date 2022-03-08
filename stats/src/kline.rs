@@ -47,6 +47,7 @@ impl Add<Candle> for Candle {
             quote_volume: self.quote_volume + other.quote_volume,
             trade_count: self.trade_count + other.trade_count,
             end_time: other.end_time,
+            event_time: other.event_time,
             ..self
         }
     }

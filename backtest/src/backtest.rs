@@ -88,7 +88,16 @@ impl Backtest {
         let mock_engine = Arc::new(mock_engine(db_conf.path.clone(), &[Exchange::Binance]));
         let stop_token = CancellationToken::new();
         let runners: Vec<_> = tokio_stream::iter(all_strategy_settings)
-            .map(|s| BacktestRunner::spawn_with_conf(conf.runner_queue_size, db_conf.clone(), mock_engine.clone(), s))
+            .map(|s| {
+                BacktestRunner::spawn_with_conf(
+                    conf.runner_queue_size,
+                    conf.report_sample_rate
+                        .map(|d| chrono::Duration::milliseconds(d.as_millis() as i64)),
+                    db_conf.clone(),
+                    mock_engine.clone(),
+                    s,
+                )
+            })
             .buffer_unordered(10)
             .collect()
             .await;
@@ -191,6 +200,7 @@ impl Backtest {
 }
 
 async fn build_runner(
+    report_sample_freq: Option<chrono::Duration>,
     provider: StratProviderRef,
     starting_cash: Option<f64>,
     fees_rate: Option<f64>,
@@ -225,7 +235,7 @@ async fn build_runner(
     let logger2 = logger.clone();
     let driver =
         Box::new(GenericDriver::try_new(channels, db, &generic_options, strat, engine, Some(logger2)).unwrap());
-    let runner_ref = BacktestRunner::spawn_with_driver(None, logger, driver).await;
+    let runner_ref = BacktestRunner::spawn_with_driver(None, report_sample_freq, logger, driver).await;
 
     runner_ref
 }
@@ -257,7 +267,7 @@ pub async fn backtest_with_range<'a>(
     fees_rate: Option<f64>,
     data_catalog: Option<DatasetCatalog>,
 ) -> Result<BacktestReport> {
-    let runner_ref = build_runner(provider, starting_cash, fees_rate).await;
+    let runner_ref = build_runner(None, provider, starting_cash, fees_rate).await;
     let broker = build_msg_broker(&[runner_ref.clone()]).await;
     let channels = get_channels(&[runner_ref.clone()]).await;
 
@@ -315,7 +325,7 @@ pub async fn backtest_with_events<'a>(
     starting_cash: Option<f64>,
     fees_rate: Option<f64>,
 ) -> Result<BacktestReport> {
-    let runner_ref = build_runner(provider, starting_cash, fees_rate).await;
+    let runner_ref = build_runner(None, provider, starting_cash, fees_rate).await;
     let sink = async {
         let runner = runner_ref.read().await;
         runner.event_sink()
@@ -426,7 +436,7 @@ mod test {
         .await
         .unwrap();
         assert_eq!(events.len(), 8);
-        let all_events_are_channel_type = events.iter().find(|e| !matches!(e.e, MarketEvent::CandleTick(_)));
+        let all_events_are_channel_type = events.iter().find(|e| !matches!(e.e, MarketEvent::TradeCandle(_)));
         assert!(
             all_events_are_channel_type.is_none(),
             "{:?}",

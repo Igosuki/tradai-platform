@@ -1,6 +1,8 @@
-use backtest::report::{draw_lines, BacktestReport};
+use backtest::report::{draw_lines, BacktestReport, TimeWrap};
 use chrono::Duration;
+use plotly::common::{Side, Title};
 use plotly::layout::ShapeLine;
+use plotly::Bar;
 use serde_json::Value;
 use stats::kline::Resolution;
 use strategy::types::{PositionSummary, StratEvent};
@@ -13,8 +15,26 @@ pub fn edit_report(report: &mut BacktestReport, resolution: Resolution) {
 
     let mut plot = report.tradeview_plot();
     let mut layout = Layout::new()
-        .grid(LayoutGrid::new().columns(1).rows(5))
-        .x_axis(Axis::new().range_slider(RangeSlider::new().visible(false)));
+        .grid(
+            LayoutGrid::new()
+                .columns(1)
+                .rows(6)
+                .sub_plots(vec!["volume".to_string()]),
+        )
+        .x_axis(Axis::new().range_slider(RangeSlider::new().visible(false)))
+        .y_axis2(
+            Axis::new()
+                .title(Title::new("volume"))
+                .overlaying("y")
+                .side(Side::Right),
+        );
+    // VOLUME SUBPLOT
+    let skipped_data = report.candles().unwrap();
+    let time: Vec<TimeWrap> = skipped_data.iter().map(|x| TimeWrap(x.ts)).collect();
+    let volume: Vec<f64> = skipped_data.iter().map(|td| td.value.quote_volume).collect();
+    let trace = Bar::new(time, volume).name("volume").y_axis("y2").x_axis("x");
+    plot.add_trace(trace);
+
     // PLOT TRADES
     let mut long_entries_time = vec![];
     let mut long_entries_price = vec![];
@@ -109,7 +129,7 @@ pub fn edit_report(report: &mut BacktestReport, resolution: Resolution) {
     // PLOT MODELS
     let signal_plot_offset = 3;
     let models = report.models().unwrap();
-    for (model_key, offset) in &[("rsi", signal_plot_offset), ("stoch", signal_plot_offset), ("macd", 2)] {
+    for (model_key, offset) in &[("rsi", signal_plot_offset), ("stoch", signal_plot_offset), ("macd", 4)] {
         let mut models_time = vec![];
         let mut models_values = vec![];
         for timed_value in models.iter() {
@@ -120,7 +140,7 @@ pub fn edit_report(report: &mut BacktestReport, resolution: Resolution) {
         }
         let trace = Scatter::new(models_time, models_values)
             .name(model_key)
-            .x_axis(&format!("x{}", offset))
+            .x_axis("x")
             .y_axis(&format!("y{}", offset));
         plot.add_trace(trace);
     }
@@ -146,7 +166,7 @@ pub fn edit_report(report: &mut BacktestReport, resolution: Resolution) {
                             .y0(0_i32)
                             .y1(1_i32)
                             .fill_color(NamedColor::Lime)
-                            .x_ref(&x_id)
+                            .x_ref("x")
                             .y_ref(&y_id)
                             .opacity(0.6)
                             .line(ShapeLine::new().width(1.0)),
@@ -162,7 +182,7 @@ pub fn edit_report(report: &mut BacktestReport, resolution: Resolution) {
                             .y0(0_i32)
                             .y1(1_i32)
                             .fill_color(NamedColor::Red)
-                            .x_ref(&x_id)
+                            .x_ref("x")
                             .y_ref(&y_id)
                             .opacity(0.6)
                             .line(ShapeLine::new().width(1.0)),
@@ -175,7 +195,7 @@ pub fn edit_report(report: &mut BacktestReport, resolution: Resolution) {
     }
 
     if let Ok(snapshots) = report.snapshots() {
-        draw_lines(&mut plot, 4, snapshots.as_slice(), vec![
+        draw_lines(&mut plot, 5, snapshots.as_slice(), vec![
             ("pnl", vec![|i| i.pnl]),
             ("return", vec![|i| i.current_return]),
         ]);

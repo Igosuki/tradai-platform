@@ -166,6 +166,7 @@ pub struct StochRsiStrategy {
     order_conf: OrderConf,
     value: Option<SotchRsiValue>,
     security_type: SecurityType,
+    resolution: Resolution,
 }
 
 impl StochRsiStrategy {
@@ -197,6 +198,7 @@ impl StochRsiStrategy {
             value: None,
             last_macd_signal: None,
             security_type: n.security_type,
+            resolution: n.resolution,
         };
         // TODO: temporary hack, use a report fn registry to allow for custom reports
         #[cfg(feature = "backtests")]
@@ -366,7 +368,7 @@ impl Strategy for StochRsiStrategy {
         self.main_signal = None;
         let e = &le.e;
         match e {
-            MarketEvent::CandleTick(c) if c.is_final => {
+            MarketEvent::TradeCandle(c) if c.is_final => {
                 return self.eval_candle(le, c, ctx).await;
             }
             _ => Ok(None),
@@ -399,6 +401,7 @@ impl Strategy for StochRsiStrategy {
         vec![MarketChannel::builder()
             .symbol(Symbol::new(self.pair.clone(), self.security_type, self.exchange))
             .r#type(MarketChannelType::Candles)
+            .resolution(Some(self.resolution))
             .build()]
         .into_iter()
         .collect()

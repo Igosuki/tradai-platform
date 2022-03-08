@@ -218,11 +218,7 @@ impl MarketEvent {
 
     pub fn time(&self) -> DateTime<Utc> {
         match self {
-            MarketEvent::Trade(t) => {
-                let t = Utc.timestamp_millis(t.event_ms);
-                info!("{:?}", t);
-                t
-            }
+            MarketEvent::Trade(t) => Utc.timestamp_millis(t.event_ms),
             MarketEvent::Orderbook(ob) => Utc.timestamp_millis(ob.timestamp),
             MarketEvent::TradeCandle(c) => c.event_time,
             MarketEvent::BookCandle(c) => c.event_time,
