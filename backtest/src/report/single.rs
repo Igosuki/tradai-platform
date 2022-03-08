@@ -186,6 +186,7 @@ impl BacktestReport {
     /// Read miscellaneous stats
     pub fn misc_stats(&self) -> &BacktestReportMiscStats { &self.misc_stats }
 
+    /// Get report events as a dataframe
     pub fn events_df(&self, table: &str) -> Result<Vec<ArrayRef>> {
         use arrow2::io::ndjson::read;
         use arrow2::io::ndjson::read::FallibleStreamingIterator;

@@ -29,10 +29,11 @@ pub fn candles_stream<P: 'static + AsRef<Path> + Debug>(
     trades_stream(table_paths, format, lower_dt, upper_dt).scan(
         stats::kline::Kline::new(resolution, 2_usize.pow(16)),
         |kl, msg: MarketEventEnvelope| {
-            let candles = Next::<(f64, f64, DateTime<Utc>)>::next(kl, (msg.e.price(), msg.e.vol(), msg.e.time()));
+            let event_time = msg.e.time();
+            let candles = Next::<(f64, f64, DateTime<Utc>)>::next(kl, (msg.e.price(), msg.e.vol(), event_time));
             let candle = candles.first().unwrap();
             let mut msg = msg;
-            msg.e = MarketEvent::CandleTick(Candle {
+            msg.e = MarketEvent::TradeCandle(Candle {
                 event_time: candle.event_time,
                 pair: msg.symbol.value.clone(),
                 start_time: candle.start_time,
@@ -90,7 +91,6 @@ fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEve
             let qty = qty_col.value(i);
             let is_buyer_maker = is_buyer_maker_col.value(i);
             let ts = event_ms_col.value(i);
-
             let sym_str = string_partition(sym_col, i).unwrap();
 
             let xch_str = string_partition(xch_col, i).unwrap();

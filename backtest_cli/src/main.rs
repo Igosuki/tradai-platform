@@ -7,6 +7,7 @@ use backtest::{Backtest, BacktestConfig};
 use futures::FutureExt;
 use structopt::StructOpt;
 #[cfg(feature = "python")]
+#[allow(unused_imports)]
 use tradai_python::script_strat;
 
 #[derive(StructOpt, Debug)]
