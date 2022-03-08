@@ -3,7 +3,7 @@ strats:
   - driver:
       type: generic
       portfolio:
-        initial_quote_cash: 100.0
+        initial_quote_cash: 1000.0
         fees_rate: 0.001
     strat:
       type: 'stoch_rsi'
@@ -11,8 +11,8 @@ strats:
       exchange: 'binance'
       resolution:
         time_unit: 'minute'
-        units: 1
-      stop_loss: -0.01
+        units: 15
+      stop_loss: -0.06
       trailing_stop_start: 0.01
       trailing_stop_loss: 0.002
       security_type: 'future'
@@ -22,12 +22,12 @@ strats:
         dry_mode: true
         asset_type: spot
 
-fees: 0.001
+fees: 0.0004
 
 period:
   type: interval
-  from: 2022-02-16
-  to: 2022-02-28
+  from: 2022-02-16T00:00:00
+  to: 2022-02-25T00:00:00
 
 db_path: /media/ramdisk/strat_backtest_dbs
 
@@ -44,3 +44,4 @@ report:
     algorithm: gz
     level: 5
 
+report_sample_rate: 1min

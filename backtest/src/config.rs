@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use ::config::{Config, File};
 use brokers::exchange::Exchange;
-use chrono::{Duration, NaiveDate, TimeZone, Utc};
+use chrono::{Duration, NaiveDateTime, TimeZone, Utc};
 use parse_duration::parse;
 use typed_builder::TypedBuilder;
 
@@ -23,8 +23,13 @@ use crate::report::ReportConfig;
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
 pub enum Period {
-    Since { since: String },
-    Interval { from: NaiveDate, to: Option<NaiveDate> },
+    Since {
+        since: String,
+    },
+    Interval {
+        from: NaiveDateTime,
+        to: Option<NaiveDateTime>,
+    },
 }
 
 impl Period {
@@ -36,9 +41,8 @@ impl Period {
                 DateRange::by_day(now.sub(duration).date().and_hms(0, 0, 0), now.date().and_hms(0, 0, 0))
             }
             Period::Interval { from, to } => DateRange::by_day(
-                Utc.from_utc_date(from).and_hms(0, 0, 0),
-                Utc.from_utc_date(&to.unwrap_or_else(|| Utc::now().naive_utc().date()))
-                    .and_hms(0, 0, 0),
+                Utc.from_utc_datetime(from),
+                to.map(|t| Utc.from_utc_datetime(&t)).unwrap_or_else(|| Utc::now()),
             ),
         }
     }
@@ -60,6 +64,8 @@ pub struct BacktestConfig {
     pub db_conf: Option<DbEngineOptions>,
     pub report: ReportConfig,
     pub runner_queue_size: Option<usize>,
+    #[serde(deserialize_with = "util::ser::string_duration_opt")]
+    pub report_sample_rate: Option<std::time::Duration>,
 }
 
 impl BacktestConfig {
