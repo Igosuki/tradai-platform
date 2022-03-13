@@ -346,30 +346,25 @@ impl MarketEventDatasetType {
             })
             .unwrap_or("");
         match self {
-            MarketEventDatasetType::OrderbooksByMinute => (base_dir, vec![
-                ("chan", "1mn_order_books".to_string()),
+            MarketEventDatasetType::OrderbooksByMinute => (base_dir.join("chan=1mn_order_books"), vec![
                 ("xch", xch.to_string()),
                 ("dt", dt_par),
             ]),
-            MarketEventDatasetType::OrderbooksBySecond => (base_dir, vec![
-                ("chan", "1s_order_books".to_string()),
+            MarketEventDatasetType::OrderbooksBySecond => (base_dir.join("chan=1s_order_books"), vec![
                 ("xch", xch.to_string()),
                 ("dt", dt_par),
             ]),
-            MarketEventDatasetType::OrderbooksRaw => (base_dir, vec![
-                ("chan", "raw_order_books".to_string()),
+            MarketEventDatasetType::OrderbooksRaw => (base_dir.join("chan=raw_order_books"), vec![
                 ("xch", xch.to_string()),
                 ("pr", pair.to_string()),
                 ("dt", dt_par),
             ]),
-            MarketEventDatasetType::OrderbooksFlat => (base_dir, vec![
-                ("chan", "flat_order_books".to_string()),
+            MarketEventDatasetType::OrderbooksFlat => (base_dir.join("chan=flat_order_books"), vec![
                 ("xch", xch.to_string()),
                 ("pr", pair.to_string()),
                 ("dt", dt_par),
             ]),
-            MarketEventDatasetType::Trades => (base_dir, vec![
-                ("chan", "trades".to_string()),
+            MarketEventDatasetType::Trades => (base_dir.join("chan=trades"), vec![
                 ("xch", xch.to_string()),
                 ("ast", asset_str.to_string()),
                 ("sym", match xch {
