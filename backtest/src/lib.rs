@@ -27,6 +27,7 @@ with the same configuration as the backtest.
 #![feature(path_try_exists)]
 #![feature(exact_size_is_empty)]
 #![feature(associated_type_defaults)]
+#![feature(buf_read_has_data_left)]
 // TODO: https://github.com/rust-lang/rust/issues/47384
 #![allow(clippy::single_component_path_imports)]
 

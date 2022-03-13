@@ -20,7 +20,7 @@ static = ["db/rocksdb-vendor"]
 
 [dependencies]
 
-arrow = { package = "arrow2", version = "0.9", optional = true }
+arrow = { package = "arrow2", version = "0.10", optional = true }
 
 strategy = { path = "../strategy", features = ["python"] }
 trading = { path = "../trading" }

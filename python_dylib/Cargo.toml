@@ -22,8 +22,12 @@ pyo3-log = { version = "0.5"}
 log = "0.4"
 
 [patch.crates-io]
+#pyo3 = { git = "https://github.com/PyO3/pyo3", rev = "8a989eeb6aeb862c0c518d994ef6e5f967f0dc46", version = "^0.15" }
 pyo3 = { git = "https://github.com/aviramha/pyo3.git", rev = "db53229bc7a737d0300ff2c5fbc7ea80040ec263", version = "^0.15" }
 pythonize = { git = "https://github.com/Igosuki/pythonize", rev = "d5309ca6491cdfb9e356d38b244e20b29a206bbc", version = "^0.15" }
-datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_dict_key_fix" }
-arrow2 = { git = "https://github.com/jorgecarleitao/arrow2.git", rev = "81bfaddb92f432ae25bff4e9fdf200159ecebafe" }
+datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_intg_20220313" }
+#datafusion = { path = "/home/geps/dev/oss/arrow-datafusion/datafusion" }
+arrow2 = { git = "https://github.com/jorgecarleitao/arrow2.git", rev = "v0.10.0" }
+parquet2 = { git = "https://github.com/jorgecarleitao/parquet2.git", rev = "v0.10.1" }
 inventory = { git = "https://github.com/Igosuki/inventory.git" }
+#avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "update_deps" }
