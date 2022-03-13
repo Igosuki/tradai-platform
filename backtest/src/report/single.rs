@@ -2,6 +2,7 @@ use arrow2::array::ArrayRef;
 use float_cmp::approx_eq;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
+use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -199,7 +200,12 @@ impl BacktestReport {
             _ => unimplemented!(),
         };
         let mut reader = get_reader();
-        let data_type = read::infer(&mut reader, None)?;
+        match reader.has_data_left() {
+            Ok(false) => return Ok(vec![]),
+            Err(e) => return Err(e.into()),
+            _ => {}
+        }
+        let data_type = read::infer(&mut reader, Some(10))?;
 
         let mut reader = read::FileReader::new(get_reader(), vec!["".to_string(); batch_size], None);
 
