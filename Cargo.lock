@@ -3577,6 +3577,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "logging"
+version = "0.1.0"
+dependencies = [
+ "actix",
+ "anyhow",
+ "avro-rs",
+ "brokers",
+ "chrono",
+ "crc32fast",
+ "derive_more",
+ "env_logger 0.9.0",
+ "flame",
+ "flamer",
+ "fs_extra",
+ "lazy_static 1.4.0",
+ "prometheus",
+ "rand 0.8.5",
+ "rsgen-avro",
+ "serde",
+ "serde_json",
+ "tempdir",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uuid 1.0.0-alpha.1",
+]
+
+[[package]]
 name = "lz4"
 version = "1.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3781,33 +3809,6 @@ name = "mock_instant"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "717e29a243b81f8130e31e24e04fb151b04a44b5a7d05370935f7d937e9de06d"
-
-[[package]]
-name = "models"
-version = "0.1.0"
-dependencies = [
- "actix",
- "anyhow",
- "avro-rs",
- "brokers",
- "chrono",
- "crc32fast",
- "derive_more",
- "env_logger 0.9.0",
- "flame",
- "flamer",
- "fs_extra",
- "lazy_static 1.4.0",
- "prometheus",
- "rand 0.8.5",
- "rsgen-avro",
- "serde",
- "serde_json",
- "tempdir",
- "thiserror",
- "tracing",
- "uuid 1.0.0-alpha.1",
-]
 
 [[package]]
 name = "multimap"
@@ -6924,9 +6925,9 @@ dependencies = [
  "juniper",
  "lazy_static 1.4.0",
  "libc",
+ "logging",
  "measure_time",
  "metrics",
- "models",
  "native-tls",
  "nats",
  "notify",
