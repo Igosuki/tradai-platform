@@ -213,7 +213,6 @@ fn avro_header(schema: &Schema, marker: &[u8]) -> Result<Vec<u8>, Error> {
 #[cfg(test)]
 mod test {
     use std::sync::Arc;
-    use std::thread;
 
     use actix::SyncArbiter;
     use actix::System;
@@ -231,9 +230,9 @@ mod test {
     fn actor(base_dir: &str) -> AvroFileActor<MarketEventEnvelope> {
         AvroFileActor::new(&FileActorOptions {
             max_file_size: 100_000,
-            max_file_time: Duration::seconds(1),
+            max_file_time: Duration::milliseconds(100),
             base_dir: String::from(base_dir),
-            partitioner: Rc::new(MarketEventPartitioner::new(Duration::seconds(10))),
+            partitioner: Rc::new(MarketEventPartitioner::new(Duration::seconds(200))),
         })
     }
 
@@ -248,20 +247,16 @@ mod test {
             let addr = SyncArbiter::start(1, move || actor(new_dir.clone().as_str()));
             let order_book_event = Arc::new(MarketEventEnvelope::order_book_event(
                 Symbol::new("BTC_USDT".into(), SecurityType::Crypto, Exchange::Binance),
-                chrono::Utc::now().timestamp(),
+                chrono::Utc::now().timestamp_millis(),
                 vec![(0.1, 0.1), (0.2, 0.2)],
                 vec![(0.1, 0.1), (0.2, 0.2)],
             ));
             println!("Sending...");
-            for _ in 0..100_000 {
+            for _ in 0..1000 {
                 addr.do_send(order_book_event.clone());
             }
-            thread::sleep(std::time::Duration::from_secs(2));
-            for _ in 0..100_000 {
-                addr.do_send(order_book_event.clone());
-            }
-            thread::sleep(std::time::Duration::from_secs(2));
-            for _ in 0..100_000 {
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            for _ in 0..1000 {
                 addr.do_send(order_book_event.clone());
             }
             System::current().stop();
