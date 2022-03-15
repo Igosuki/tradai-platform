@@ -219,6 +219,7 @@ impl IterativeModel for MeanRevertingModel {
 #[cfg(test)]
 mod test {
     use std::fs::File;
+    use std::io::{BufReader, BufWriter};
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -239,6 +240,7 @@ mod test {
     const PAIR: &str = "BTC_USDT";
 
     #[tokio::test]
+    #[cfg(feature = "backtests")]
     async fn test_lodable_model_round_trip() -> Result<()> {
         init();
         let events = input::load_csv_events(
@@ -266,9 +268,9 @@ mod test {
             .create(true)
             .write(true)
             .open(models_file_path.clone())?;
-        model.export(model_file, false).unwrap();
+        model.export(BufWriter::new(model_file), false).unwrap();
         let model_file = File::options().read(true).open(models_file_path).unwrap();
-        model.import(model_file, false).unwrap();
+        model.import(BufReader::new(model_file), false).unwrap();
         model.try_load().unwrap();
 
         let mut model_values_file_path = results_dir;

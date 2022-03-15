@@ -16,7 +16,6 @@ use datafusion::arrow::scalar::Utf8Scalar;
 use datafusion::dataframe::DataFrame;
 use datafusion::physical_plan::coalesce_batches::concat_batches;
 use ext::ResultExt;
-use futures::FutureExt;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
 use std::collections::HashSet;
@@ -187,7 +186,7 @@ pub async fn multitables_as_df<P: 'static + AsRef<Path> + Debug>(
 ) -> crate::error::Result<RecordBatch> {
     debug!("reading partitions {:?}", &table_paths);
     let records: Vec<RecordBatch> =
-        futures::future::join_all(table_paths.into_iter().map(move |(base_path, partitions)| {
+        futures::future::try_join_all(table_paths.into_iter().map(move |(base_path, partitions)| {
             tables_as_df(
                 base_path,
                 partitions,
@@ -195,9 +194,8 @@ pub async fn multitables_as_df<P: 'static + AsRef<Path> + Debug>(
                 table_name.clone(),
                 sql_query.clone(),
             )
-            .map(|r| r.unwrap())
         }))
-        .await;
+        .await?;
     if records.is_empty() {
         return Ok(RecordBatch::new_empty(Arc::new(Schema::empty())));
     }

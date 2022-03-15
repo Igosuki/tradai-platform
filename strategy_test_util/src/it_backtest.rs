@@ -80,8 +80,7 @@ where
     }
     let (events, count) = events.into_iter().tee();
     let num_records = count.count();
-    // align data
-    let mut strategy_logs: Vec<StrategyLog> = Vec::new();
+    let mut event_logs: Vec<StrategyLog> = Vec::new();
 
     let before_evals = Instant::now();
     for event in events {
@@ -123,7 +122,7 @@ where
                 .values()
                 .map(|v| ((v.exchange.to_string(), v.symbol.to_string()), v.quantity))
                 .collect();
-            strategy_logs.push(StrategyLog::new(
+            event_logs.push(StrategyLog::new(
                 event_time,
                 hashmap! { (event.symbol.xch.to_string(), event.symbol.value.to_string()) => ob.vwap().unwrap() },
                 models,
@@ -145,7 +144,7 @@ where
         elapsed / num_records as u128
     );
 
-    let data = Arc::new(strategy_logs);
+    let data = Arc::new(event_logs);
 
     write_models(&test_results_dir, data.as_ref());
     write_trade_events(
