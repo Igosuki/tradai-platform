@@ -327,7 +327,6 @@ mod test {
     use std::time::Duration;
 
     use actix::System;
-    use futures::StreamExt;
 
     use brokers::prelude::*;
     use brokers::types::SecurityType;
@@ -384,7 +383,7 @@ mod test {
     }
 
     #[test]
-    fn test_workflow() {
+    fn test_simple_actor_query() {
         init();
         System::new().block_on(async move {
             let order_book_event = MarketEventEnvelope::order_book_event(
@@ -412,9 +411,7 @@ mod test {
             assert_eq!(r, Some(DataResult::Success(true)));
             let r = addr.send(ModelReset::default()).await.unwrap();
             assert!(r.is_ok());
-            tokio_stream::iter(0..10)
-                .for_each(|_| tokio::time::sleep(Duration::from_millis(100)))
-                .await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
             System::current().stop();
             thread::sleep(std::time::Duration::from_secs(1));
         });

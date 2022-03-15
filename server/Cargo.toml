@@ -34,7 +34,7 @@ util = { path = "../util" }
 account = { path = "../portfolio" }
 strategy = { path = "../strategy" }
 strategies = { path = "../strategies" }
-brokers = { path = "../broker" }
+brokers = { path = "../broker", features = ["binance"] }
 db = { path = "../db" }
 metrics = { path = "../metrics" }
 ext = { path = "../ext" }

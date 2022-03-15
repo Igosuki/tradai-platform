@@ -1,4 +1,4 @@
-from strategy import *
+from tradai import *
 
 class Strat(Strategy):
     def __new__(cls, conf, ctx):

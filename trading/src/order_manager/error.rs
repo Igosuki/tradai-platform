@@ -12,6 +12,8 @@ pub enum Error {
     Db(#[from] db::Error),
     #[error("Coinnect {0}")]
     Coinnect(#[from] brokers::error::Error),
+    #[error("enum parse error : {0}")]
+    EnumParseError(#[from] strum::ParseError),
 }
 
 impl Error {
@@ -22,6 +24,7 @@ impl Error {
             Error::OrderNotFound(_) => "order_not_found",
             Error::OrderManagerMailboxError => "order_mailbox",
             Error::StagedOrderRequired => "staged_order_required",
+            Error::EnumParseError(_) => "enum_parse_error",
         }
     }
 }

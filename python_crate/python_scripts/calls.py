@@ -1,4 +1,4 @@
-from strategy import *
+from tradai import *
 from datetime import datetime
 
 class CallStrat(Strategy):

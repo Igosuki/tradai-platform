@@ -16,7 +16,7 @@ use util::time::DateRange;
 use crate::mean_reverting::options::Options;
 use crate::mean_reverting::MeanRevertingStrategy;
 
-static EXCHANGE: &str = "Binance";
+static EXCHANGE: &str = "binance";
 static PAIR: &str = "BTC_USDT";
 
 fn get_f64(model: &HashMap<String, Option<Value>>, key: &str) -> f64 {

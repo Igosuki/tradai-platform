@@ -100,9 +100,12 @@ impl LinearSpreadModel {
             };
             let should_eval_model = event_time.ge(&mt_obsolescence);
             if should_eval_model {
-                debug!(
+                trace!(
                     "model obsolete, eval time reached : {} > {} with model_time = {}, beta_val = {}",
-                    event_time, mt_obsolescence, model_time, lm.beta
+                    event_time,
+                    mt_obsolescence,
+                    model_time,
+                    lm.beta
                 );
             }
             should_eval_model

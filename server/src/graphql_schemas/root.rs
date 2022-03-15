@@ -15,6 +15,7 @@ use crate::graphql_schemas::unhandled_data_result;
 
 use super::context::Context;
 use super::types::*;
+use std::str::FromStr;
 
 pub(crate) struct QueryRoot;
 
@@ -186,7 +187,7 @@ impl MutationRoot {
 
     #[graphql(description = "Add an order (for testing)")]
     async fn add_order(context: &Context, input: AddOrderInput) -> FieldResult<OrderResult> {
-        let exchg: Exchange = input.exchg.clone().into();
+        let exchg: Exchange = Exchange::from_str(&input.exchg)?;
         let api = context.exchanges.get(&exchg).ok_or_else(|| {
             FieldError::new(
                 "Exchange type not found",

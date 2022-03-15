@@ -5,8 +5,8 @@ use trading::position::{OperationKind, PositionKind};
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("Coinnect {0}")]
-    Coinnect(#[from] brokers::error::Error),
+    #[error("broker {0}")]
+    Broker(#[from] brokers::error::Error),
     #[error("db {0}")]
     Db(#[from] db::Error),
     #[error("no position found for exchange and pair")]
@@ -34,7 +34,7 @@ pub enum Error {
 impl Error {
     pub fn short_name(&self) -> &'static str {
         match self {
-            Error::Coinnect(_) => "coinnect",
+            Error::Broker(_) => "broker",
             Error::Db(_) => "db",
             Error::Trading(_) => "trading",
             Error::NoPositionFound => "no_position_found",
