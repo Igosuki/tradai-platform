@@ -247,7 +247,7 @@ mod test {
             Utc.ymd(2021, 8, 1),
             Utc.ymd(2021, 8, 9),
             vec![PAIR],
-            "Binance",
+            "binance",
             "order_books",
         )
         .await;

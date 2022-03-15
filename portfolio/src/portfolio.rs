@@ -31,7 +31,11 @@ pub enum MarketLockRule {
 pub type PositionKey = (Exchange, Pair);
 
 fn pos_key_from_order(order: &OrderDetail) -> Result<PositionKey> {
-    Ok((Exchange::from_str(&order.exchange)?, order.symbol.clone().into()))
+    Ok((
+        Exchange::from_str(&order.exchange)
+            .map_err(|_| brokers::error::Error::InvalidExchange(order.exchange.to_string()))?,
+        order.symbol.clone().into(),
+    ))
 }
 
 fn pos_key_from_position(pos: &Position) -> PositionKey { (pos.exchange, pos.symbol.clone()) }

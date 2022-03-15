@@ -16,7 +16,7 @@ use util::time::DateRange;
 use crate::naive_pair_trading::options::Options;
 use crate::naive_pair_trading::{covar_model, NaiveTradingStrategy};
 
-static EXCHANGE: &str = "Binance";
+static EXCHANGE: &str = "binance";
 static LEFT_PAIR: &str = "ETH_USDT";
 static RIGHT_PAIR: &str = "BTC_USDT";
 
