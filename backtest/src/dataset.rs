@@ -106,9 +106,9 @@ impl DatasetReader {
             let ds_type = match channel.r#type {
                 MarketChannelType::Orderbooks => match channel.tick_rate {
                     Some(tr) => {
-                        if tr <= Duration::seconds(1) {
+                        if tr >= Duration::seconds(1) && tr < Duration::minutes(1) {
                             MarketEventDatasetType::OrderbooksBySecond
-                        } else if tr <= Duration::minutes(1) {
+                        } else if tr >= Duration::minutes(1) {
                             MarketEventDatasetType::OrderbooksByMinute
                         } else {
                             MarketEventDatasetType::OrderbooksRaw
@@ -354,7 +354,7 @@ impl MarketEventDatasetType {
                 ("xch", xch.to_string()),
                 ("dt", dt_par),
             ]),
-            MarketEventDatasetType::OrderbooksRaw => (base_dir.join("chan=raw_order_books"), vec![
+            MarketEventDatasetType::OrderbooksRaw => (base_dir.join("chan=order_books"), vec![
                 ("xch", xch.to_string()),
                 ("pr", pair.to_string()),
                 ("dt", dt_par),
@@ -367,10 +367,7 @@ impl MarketEventDatasetType {
             MarketEventDatasetType::Trades => (base_dir.join("chan=trades"), vec![
                 ("xch", xch.to_string()),
                 ("ast", asset_str.to_string()),
-                ("sym", match xch {
-                    Exchange::Binance => pair.to_string().replace('_', ""),
-                    _ => pair.to_string(),
-                }),
+                ("sym", pair.to_string()),
                 ("dt", dt_par),
             ]),
         }

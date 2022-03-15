@@ -168,9 +168,16 @@ impl BacktestRunner {
                     }
 
 
+                    if let MarketEvent::Trade(_) = &market_event.e {
+                        report.push_market_stat(TimedData::new(market_event.e.time(), (&market_event.e).into()));
+                    }
+                    if let MarketEvent::Orderbook(_) = &market_event.e {
+                        report.push_market_stat(TimedData::new(market_event.e.time(), (&market_event.e).into()));
+                    }
                     if let MarketEvent::TradeCandle(candle) = &market_event.e {
                         if candle.is_final {
                             report.push_candle(TimedData::new(market_event.e.time(), candle.clone()));
+                            report.push_market_stat(TimedData::new(market_event.e.time(), (&market_event.e).into()));
                         }
                     }
                     // todo: not clear what to do with this
@@ -181,7 +188,7 @@ impl BacktestRunner {
                             report.push_market_stat(TimedData::new(market_event.e.time(), (&market_event.e).into()));
                         }
                     }
-                    if matches!(&market_event.e, MarketEvent::TradeCandle(Candle { is_final: true, .. }) | MarketEvent::BookCandle(BookCandle { is_final: true, .. })) {
+                    if matches!(&market_event.e, MarketEvent::TradeCandle(Candle { is_final: true, .. }) | MarketEvent::BookCandle(BookCandle { is_final: true, .. }) | MarketEvent::Trade(_) | MarketEvent::Orderbook(_)) {
                         match driver.query(DataQuery::Models).await {
                             Ok(DataResult::Models(models)) => report
                                 .push_model(TimedData::new(market_event.e.time(), models.into_iter().collect())),

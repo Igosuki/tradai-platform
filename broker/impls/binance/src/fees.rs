@@ -10,6 +10,7 @@ struct BinanceFeeProvider {
 }
 
 impl BinanceFeeProvider {
+    #[allow(dead_code)]
     fn new(bnb_burn: bool, vip_level: i8) -> Self { Self { bnb_burn, vip_level } }
 }
 
