@@ -60,7 +60,7 @@ impl From<PyChannel> for MarketChannel {
             .symbol(Symbol::new(
                 sc.pair.into(),
                 SecurityType::Crypto,
-                Exchange::from(sc.exchange),
+                Exchange::from_str(&sc.exchange).unwrap(),
             ))
             .resolution(sc.time_unit.map(|time_unit| {
                 Resolution::new(TimeUnit::from_str(time_unit.as_str()).unwrap(), sc.units.unwrap_or(1))
