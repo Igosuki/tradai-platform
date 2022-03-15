@@ -484,9 +484,7 @@ impl PortfolioRepoImpl {
             PORTFOLIO_VARS,
             OPEN_POSITIONS_INDEX,
         ] {
-            let result = db.ensure_table(table);
-            info!("ensure_table {} = {:?}", table, result);
-            //result.unwrap();
+            db.ensure_table(table).unwrap();
         }
         Self { db }
     }
