@@ -21,7 +21,7 @@ use strategy::{MarketChannel, MarketChannelType, StratEventLoggerRef};
 use trading::book::BookPosition;
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};
-use trading::stop::Stopper;
+use trading::stop::FixedStopper;
 use trading::types::OrderConf;
 use util::time::TimedData;
 
@@ -60,7 +60,7 @@ pub struct MeanRevertingStrategy {
     metrics: Arc<MeanRevertingStrategyMetrics>,
     threshold_eval_freq: Option<i32>,
     last_threshold_time: DateTime<Utc>,
-    stopper: Stopper<f64>,
+    stopper: FixedStopper<f64>,
     sampler: Sampler,
     last_book_pos: Option<BookPosition>,
     logger: Option<StratEventLoggerRef>,
@@ -83,7 +83,7 @@ impl MeanRevertingStrategy {
             model,
             threshold_eval_freq: n.threshold_eval_freq,
             last_threshold_time: Utc.timestamp_millis(0),
-            stopper: Stopper::new(n.stop_gain, n.stop_loss),
+            stopper: FixedStopper::new(n.stop_gain, n.stop_loss),
             metrics: Arc::new(metrics),
             sampler: Sampler::new(n.sample_freq(), Utc.timestamp_millis(0)),
             last_book_pos: None,

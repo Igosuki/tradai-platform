@@ -23,7 +23,7 @@ use trading::book::BookPosition;
 use trading::engine::TradingEngine;
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};
-use trading::stop::Stopper;
+use trading::stop::FixedStopper;
 use trading::types::OrderConf;
 use util::time::{now, TimedData};
 
@@ -59,7 +59,7 @@ pub struct NaiveTradingStrategy {
     order_conf: OrderConf,
     #[allow(dead_code)]
     engine: Arc<TradingEngine>,
-    stopper: Stopper<f64>,
+    stopper: FixedStopper<f64>,
     logger: Option<StratEventLoggerRef>,
 }
 
@@ -88,7 +88,7 @@ impl NaiveTradingStrategy {
             res_threshold_short: n.threshold_short,
             max_pos_duration: n.max_pos_duration(),
             model,
-            stopper: Stopper::new(n.stop_gain, n.stop_loss),
+            stopper: FixedStopper::new(n.stop_gain, n.stop_loss),
             right_pair: n.right.clone(),
             left_pair: n.left.clone(),
             metrics: Arc::new(metrics),

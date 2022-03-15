@@ -1,24 +1,41 @@
 use crate::position::PositionKind;
 
+pub trait Stopper<T> {
+    fn should_stop(&self, next: T) -> Option<StopEvent>;
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum StopEvent {
     Gain,
     Loss,
-    Trailing,
+    TrailingStop,
 }
 
 #[derive(Debug)]
-pub struct Stopper<T> {
+pub struct FixedStopper<T> {
     stop_gain: T,
     stop_loss: T,
 }
 
-impl<T: std::cmp::PartialOrd + Copy> Stopper<T> {
+impl<T: std::cmp::PartialOrd + Copy> FixedStopper<T> {
     pub fn new(stop_gain: T, stop_loss: T) -> Self { Self { stop_gain, stop_loss } }
 
     /// Returns `Some(StopEvent)` if the stop conditions are matched, `None` otherwise
     pub fn should_stop(&self, ret: T) -> Option<StopEvent> {
+        if ret > self.stop_gain {
+            Some(StopEvent::Gain)
+        } else if ret < self.stop_loss {
+            Some(StopEvent::Loss)
+        } else {
+            None
+        }
+    }
+}
+
+impl<T: std::cmp::PartialOrd + Copy> Stopper<T> for FixedStopper<T> {
+    /// Returns `Some(StopEvent)` if the stop conditions are matched, `None` otherwise
+    fn should_stop(&self, ret: T) -> Option<StopEvent> {
         if ret > self.stop_gain {
             Some(StopEvent::Gain)
         } else if ret < self.stop_loss {
@@ -37,11 +54,12 @@ pub struct PositionStopper {
 impl PositionStopper {
     pub fn new(pos_price: f64, pos_kind: PositionKind) -> Self { Self { pos_price, pos_kind } }
 
-    pub fn should_stop(&self, new_stop_price: f64) -> bool {
-        match self.pos_kind {
+    pub fn should_stop(&self, new_stop_price: f64) -> Option<StopEvent> {
+        (match self.pos_kind {
             PositionKind::Short => new_stop_price > self.pos_price,
             PositionKind::Long => new_stop_price < self.pos_price,
-        }
+        })
+        .then(|| StopEvent::Loss)
     }
 }
 
@@ -81,7 +99,7 @@ impl TrailingStopper<f64> {
                     "trailing_stop triggered : ret < last stop - trailing_stop_loss ( {} < {} - {} )",
                     ret, *last_top, self.trailing_stop_loss
                 );
-                return Some(StopEvent::Trailing);
+                return Some(StopEvent::TrailingStop);
             }
         }
         None
