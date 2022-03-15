@@ -15,25 +15,37 @@ pub fn edit_report(report: &mut BacktestReport, resolution: Resolution) {
 
     let mut plot = report.tradeview_plot();
     let mut layout = Layout::new()
-        .grid(
-            LayoutGrid::new()
-                .columns(1)
-                .rows(6)
-                .sub_plots(vec!["volume".to_string()]),
-        )
+        .grid(LayoutGrid::new().columns(1).rows(6))
         .x_axis(Axis::new().range_slider(RangeSlider::new().visible(false)))
-        .y_axis2(
-            Axis::new()
-                .title(Title::new("volume"))
-                .overlaying("y")
-                .side(Side::Right),
-        );
+        .y_axis(Axis::new().title(Title::new("price")).side(Side::Left))
+        .y_axis2(Axis::new().title(Title::new("volume")).side(Side::Right));
     // VOLUME SUBPLOT
     let skipped_data = report.candles().unwrap();
-    let time: Vec<TimeWrap> = skipped_data.iter().map(|x| TimeWrap(x.ts)).collect();
-    let volume: Vec<f64> = skipped_data.iter().map(|td| td.value.quote_volume).collect();
-    let trace = Bar::new(time, volume).name("volume").y_axis("y2").x_axis("x");
-    plot.add_trace(trace);
+    let (mut green_time, mut green_volume, mut red_time, mut red_volume) = (vec![], vec![], vec![], vec![]);
+    for candle in skipped_data {
+        let time = TimeWrap(candle.ts);
+        if candle.value.open > candle.value.close {
+            red_time.push(time);
+            red_volume.push(candle.value.quote_volume);
+        } else {
+            green_time.push(time);
+            green_volume.push(candle.value.quote_volume);
+        }
+    }
+    plot.add_trace(
+        Bar::new(green_time, green_volume)
+            .name("volume")
+            .y_axis("y2")
+            .x_axis("x")
+            .marker(Marker::new().color(NamedColor::Green)),
+    );
+    plot.add_trace(
+        Bar::new(red_time, red_volume)
+            .name("volume")
+            .y_axis("y2")
+            .x_axis("x")
+            .marker(Marker::new().color(NamedColor::Red)),
+    );
 
     // PLOT TRADES
     let mut long_entries_time = vec![];
