@@ -322,18 +322,18 @@ mod test {
         let vec1 = kline.next((1.0, 2.0, candle1_time));
         let candle1 = vec1.first().unwrap();
         assert!(!candle1.is_final);
-        let candle3_time = candle1_time.add(Duration::milliseconds(200));
-        let vec2 = kline.next((3.5, 5.0, candle3_time));
+        let candle2_time = candle1_time.add(Duration::milliseconds(200));
+        let vec2 = kline.next((3.5, 5.0, candle2_time));
         let candle2 = vec2.first().unwrap();
         assert!(!candle2.is_final);
         let candle3_time = candle1_time.add(Duration::seconds(1)).add(Duration::milliseconds(1));
         let vec3 = kline.next((6.0, 8.0, candle3_time));
         let candle3 = vec3.first().unwrap();
-        assert!(!candle3.is_final);
+        assert!(candle3.is_final);
         let kline_candles: Vec<Candle> = kline.into_iter().copied().collect::<Vec<Candle>>();
         let expected = vec![
             Candle {
-                event_time: candle1_time,
+                event_time: candle2_time,
                 start_time: interval.truncate(candle1_time),
                 end_time: interval.truncate(candle1_time).add(Duration::seconds(1)),
                 open: 1.0,
