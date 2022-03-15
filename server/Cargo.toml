@@ -29,7 +29,7 @@ native-tls = ["actix-web/openssl", "awc/openssl"]
 
 [dependencies]
 # Self crates
-models = { path = "../logging" }
+logging = { path = "../logging" }
 util = { path = "../util" }
 account = { path = "../portfolio" }
 strategy = { path = "../strategy" }
