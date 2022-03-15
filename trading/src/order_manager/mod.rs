@@ -227,7 +227,7 @@ impl OrderManager {
     }
 
     /// Registers a transaction
-    #[tracing::instrument(skip(self), level = "info")]
+    #[tracing::instrument(skip(self), level = "debug")]
     pub(crate) async fn register(&mut self, order_id: String, tr: TransactionStatus) -> Result<()> {
         self.transactions_wal.append(order_id.as_str(), tr.clone())?;
         let should_write = {
