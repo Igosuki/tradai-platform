@@ -348,13 +348,16 @@ pub async fn backtest_with_events<'a>(
 
 #[cfg(test)]
 mod test {
+    use crate::report::BacktestReport;
     use crate::{backtest_with_range, load_market_events, load_market_events_df, DatasetCatalog};
     use brokers::exchange::Exchange;
     use brokers::pair::register_pair_default;
     use brokers::prelude::MarketEventEnvelope;
-    use brokers::types::{MarketEvent, SecurityType, Symbol};
-    use chrono::{DateTime, NaiveDate, Utc};
+    use brokers::types::{Candle, MarketEvent, SecurityType, Symbol};
+    use chrono::{DateTime, Duration, NaiveDate, Utc};
+    use stats::kline::{Resolution, TimeUnit};
     use std::collections::HashSet;
+    use std::ops::Add;
     use std::sync::Arc;
     use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
     use strategy::models::io::SerializedModel;
@@ -368,12 +371,12 @@ mod test {
 
     fn default_trades_range() -> DateRange {
         let dt = DateTime::from_utc(NaiveDate::from_ymd(2022, 1, 22).and_hms(0, 0, 0), Utc);
-        DateRange::by_day(dt, dt)
+        DateRange::by_day(dt, dt.add(Duration::days(1)))
     }
 
     fn default_orderbooks_range() -> DateRange {
-        let dt = DateTime::from_utc(NaiveDate::from_ymd(2021, 12, 13).and_hms(0, 0, 0), Utc);
-        DateRange::by_day(dt, dt)
+        let dt = DateTime::from_utc(NaiveDate::from_ymd(2022, 3, 14).and_hms(0, 0, 0), Utc);
+        DateRange::by_day(dt, dt.add(Duration::days(1)))
     }
 
     fn default_symbol() -> Symbol { Symbol::new("BTC_USDT".into(), SecurityType::Crypto, Exchange::Binance) }
@@ -429,13 +432,23 @@ mod test {
             vec![MarketChannel::builder()
                 .symbol(default_symbol())
                 .r#type(MarketChannelType::Candles)
+                .resolution(Some(Resolution::new(TimeUnit::MilliSecond, 200)))
                 .build()],
             default_trades_range(),
             Some(DatasetCatalog::default_test()),
         )
         .await
         .unwrap();
-        assert_eq!(events.len(), 8);
+        let final_candles_count = events
+            .iter()
+            .filter(|e| {
+                matches!(e, MarketEventEnvelope {
+                    e: MarketEvent::TradeCandle(Candle { is_final: true, .. }),
+                    ..
+                })
+            })
+            .count();
+        assert_eq!(final_candles_count, 8);
         let all_events_are_channel_type = events.iter().find(|e| !matches!(e.e, MarketEvent::TradeCandle(_)));
         assert!(
             all_events_are_channel_type.is_none(),
@@ -475,7 +488,7 @@ mod test {
         )
         .await
         .unwrap();
-        assert_eq!(events.len(), 1);
+        assert_eq!(events.len(), 2);
         let rb = events.first().unwrap();
         assert_eq!(rb.num_rows(), 100);
     }
@@ -531,8 +544,7 @@ mod test {
         }
     }
 
-    #[test]
-    fn backtest_range() {
+    fn backtest_range(channels: Vec<MarketChannel>, range: DateRange) -> crate::error::Result<BacktestReport> {
         init();
         actix::System::with_tokio_rt(move || {
             tokio::runtime::Builder::new_multi_thread()
@@ -557,45 +569,55 @@ mod test {
                     Some(DatasetCatalog::default_test()),
                 )
             };
-            let report = backtest_fn(
-                vec![MarketChannel::builder()
-                    .symbol(default_symbol())
-                    .r#type(MarketChannelType::Candles)
-                    .build()],
-                default_trades_range(),
-            )
-            .await
-            .unwrap();
-            let candles = report.candles_ss.read_all().unwrap();
-            assert_eq!(candles.len(), 8);
+            backtest_fn(channels, range).await
+        })
+    }
 
-            let report = backtest_fn(
-                vec![MarketChannel::builder()
-                    .symbol(default_symbol())
-                    .r#type(MarketChannelType::Trades)
-                    .build()],
-                default_trades_range(),
-            )
-            .await
-            .unwrap();
-            let candles = report.candles_ss.read_all().unwrap();
-            assert_eq!(candles.len(), 0);
-            let ticks = report.market_stats_ss.read_all().unwrap();
-            assert_eq!(ticks.len(), 100);
+    #[test]
+    fn backtest_range_candles() {
+        let report = backtest_range(
+            vec![MarketChannel::builder()
+                .symbol(default_symbol())
+                .r#type(MarketChannelType::Candles)
+                .resolution(Some(Resolution::new(TimeUnit::MilliSecond, 200)))
+                .build()],
+            default_trades_range(),
+        )
+        .unwrap();
+        let candles = report.candles_ss.read_all().unwrap();
+        assert_eq!(candles.len(), 8);
+    }
 
-            let report = backtest_fn(
-                vec![MarketChannel::builder()
-                    .symbol(default_symbol())
-                    .r#type(MarketChannelType::Orderbooks)
-                    .build()],
-                default_orderbooks_range(),
-            )
-            .await
-            .unwrap();
-            let candles = report.candles_ss.read_all().unwrap();
-            assert_eq!(candles.len(), 0);
-            let ticks = report.market_stats_ss.read_all().unwrap();
-            assert_eq!(ticks.len(), 100);
-        });
+    #[test]
+    fn backtest_range_trades() {
+        let report = backtest_range(
+            vec![MarketChannel::builder()
+                .symbol(default_symbol())
+                .r#type(MarketChannelType::Trades)
+                .build()],
+            default_trades_range(),
+        )
+        .unwrap();
+        let candles = report.candles_ss.read_all().unwrap();
+        assert_eq!(candles.len(), 0);
+        let ticks = report.market_stats_ss.read_all().unwrap();
+        assert_eq!(ticks.len(), 100);
+    }
+
+    #[test]
+    fn backtest_range_orderbooks() {
+        let report = backtest_range(
+            vec![MarketChannel::builder()
+                .symbol(default_symbol())
+                .r#type(MarketChannelType::Orderbooks)
+                .tick_rate(Some(Duration::milliseconds(200)))
+                .build()],
+            default_orderbooks_range(),
+        )
+        .unwrap();
+        let candles = report.candles_ss.read_all().unwrap();
+        assert_eq!(candles.len(), 0);
+        let ticks = report.market_stats_ss.read_all().unwrap();
+        assert_eq!(ticks.len(), 73);
     }
 }
