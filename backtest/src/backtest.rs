@@ -260,7 +260,7 @@ async fn start_bt(
 
 /// Backtest over a period of time, reading data from the required channels
 pub async fn backtest_with_range<'a>(
-    test_name: &'a str,
+    test_name: &str,
     provider: StratProviderRef,
     dt_range: DateRange,
     starting_cash: Option<f64>,
@@ -388,13 +388,14 @@ mod test {
             vec![MarketChannel::builder()
                 .symbol(default_symbol())
                 .r#type(MarketChannelType::Orderbooks)
+                .tick_rate(Some(Duration::milliseconds(200)))
                 .build()],
             default_orderbooks_range(),
             Some(DatasetCatalog::default_test()),
         )
         .await
         .unwrap();
-        assert_eq!(events.len(), 100);
+        assert_eq!(events.len(), 73);
         let all_events_are_channel_type = events.iter().find(|e| !matches!(e.e, MarketEvent::Orderbook(_)));
         assert!(
             all_events_are_channel_type.is_none(),
@@ -464,15 +465,16 @@ mod test {
             vec![MarketChannel::builder()
                 .symbol(default_symbol())
                 .r#type(MarketChannelType::Orderbooks)
+                .tick_rate(Some(Duration::milliseconds(200)))
                 .build()],
             default_orderbooks_range(),
             Some(DatasetCatalog::default_test()),
         )
         .await
         .unwrap();
-        assert_eq!(events.len(), 1);
+        assert_eq!(events.len(), 2);
         let rb = events.first().unwrap();
-        assert_eq!(rb.num_rows(), 100);
+        assert_eq!(rb.num_rows(), 73);
     }
 
     #[actix_rt::test]
@@ -544,7 +546,11 @@ mod test {
         }
     }
 
-    fn backtest_range(channels: Vec<MarketChannel>, range: DateRange) -> crate::error::Result<BacktestReport> {
+    fn backtest_range(
+        test_name: &str,
+        channels: Vec<MarketChannel>,
+        range: DateRange,
+    ) -> crate::error::Result<BacktestReport> {
         init();
         actix::System::with_tokio_rt(move || {
             tokio::runtime::Builder::new_multi_thread()
@@ -555,7 +561,7 @@ mod test {
         .block_on(async {
             let backtest_fn = |channels: Vec<MarketChannel>, range: DateRange| {
                 backtest_with_range(
-                    "backtest_range",
+                    test_name,
                     Arc::new(move |_| {
                         Box::new(TestStrategy(
                             channels.clone(),
@@ -576,6 +582,7 @@ mod test {
     #[test]
     fn backtest_range_candles() {
         let report = backtest_range(
+            "backtest_range_candles",
             vec![MarketChannel::builder()
                 .symbol(default_symbol())
                 .r#type(MarketChannelType::Candles)
@@ -591,6 +598,7 @@ mod test {
     #[test]
     fn backtest_range_trades() {
         let report = backtest_range(
+            "backtest_range_trades",
             vec![MarketChannel::builder()
                 .symbol(default_symbol())
                 .r#type(MarketChannelType::Trades)
@@ -607,6 +615,7 @@ mod test {
     #[test]
     fn backtest_range_orderbooks() {
         let report = backtest_range(
+            "backtest_range_orderbooks",
             vec![MarketChannel::builder()
                 .symbol(default_symbol())
                 .r#type(MarketChannelType::Orderbooks)
