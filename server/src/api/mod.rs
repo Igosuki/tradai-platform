@@ -36,11 +36,11 @@ pub struct Order {
 
 #[derive(Debug, Display)]
 pub enum ApiError {
-    #[display(fmt = "Exchange not found")]
+    #[display(fmt = "exchange not found")]
     ExchangeNotFound(Exchange),
-    #[display(fmt = "Coinnect error {}", _0)]
-    Coinnect(brokers::error::Error),
-    #[display(fmt = "Std Io Error {}", _0)]
+    #[display(fmt = "broker error {}", _0)]
+    Broker(brokers::error::Error),
+    #[display(fmt = "std Io Error {}", _0)]
     IoError(std::io::Error),
 }
 
@@ -48,7 +48,7 @@ impl ResponseError for ApiError {
     fn error_response(&self) -> HttpResponse<BoxBody> {
         match self {
             ExchangeNotFound(_e) => HttpResponse::NotFound().finish(),
-            ApiError::Coinnect(e) => HttpResponse::InternalServerError().body(e.to_string()),
+            ApiError::Broker(e) => HttpResponse::InternalServerError().body(e.to_string()),
             ApiError::IoError(e) => HttpResponse::InternalServerError().body(e.to_string()),
             //_ => HttpResponse::InternalServerError().finish(),
         }
@@ -99,8 +99,10 @@ pub async fn dump_profiler(q: web::Query<HashMap<String, String>>) -> Result<Htt
 }
 
 async fn exchange_conf(q: web::Query<HashMap<String, String>>) -> Result<HttpResponse, Error> {
-    let exchange = Exchange::from_str(q.get("exchange").expect("exchange parameter")).map_err(ApiError::Coinnect)?;
-    let confs = pair_confs(&exchange).map_err(ApiError::Coinnect)?;
+    let xch_str = q.get("exchange").expect("exchange parameter");
+    let exchange = Exchange::from_str(xch_str)
+        .map_err(|_| ApiError::Broker(brokers::error::Error::InvalidExchange(xch_str.to_string())))?;
+    let confs = pair_confs(&exchange).map_err(ApiError::Broker)?;
     Ok(HttpResponse::Ok().json(confs))
 }
 
@@ -141,6 +143,8 @@ mod tests {
 
     use crate::api::config_app;
     use crate::graphql_schemas::root::create_schema;
+    #[allow(unused_imports)]
+    use brokers::broker_binance::BinanceExchangeConnector;
 
     fn strats() -> HashMap<StrategyKey, Trader> { HashMap::new() }
 

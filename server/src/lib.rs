@@ -50,3 +50,6 @@ pub mod runner;
 pub mod server;
 pub mod settings;
 pub mod system;
+
+#[allow(unused_imports)]
+use brokers::broker_binance;
