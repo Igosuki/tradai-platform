@@ -36,7 +36,7 @@ pub type Int64Type = i64;
 
 pub fn get_col_as<'a, T: 'static>(sa: &'a StructArray, name: &str) -> &'a T {
     sa.column_by_name(name)
-        .unwrap()
+        .unwrap_or_else(|| panic!("missing column {}", name,))
         .as_any()
         .downcast_ref::<T>()
         .unwrap_or_else(|| {
@@ -196,6 +196,11 @@ pub async fn multitables_as_df<P: 'static + AsRef<Path> + Debug>(
             )
         }))
         .await?;
+    // Filter batches without columns aka empty tables
+    let records = records
+        .into_iter()
+        .filter(|rb| !rb.columns().is_empty())
+        .collect::<Vec<RecordBatch>>();
     if records.is_empty() {
         return Ok(RecordBatch::new_empty(Arc::new(Schema::empty())));
     }

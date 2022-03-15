@@ -42,14 +42,14 @@ pub fn raw_orderbooks_stream<P: 'static + AsRef<Path> + Debug>(
     format: String,
 ) -> impl Stream<Item = MarketEventEnvelope> + 'static {
     let sql_query = format!(
-        "select to_timestamp_millis(event_ms) as event_ms, asks, bids from
-   (select asks, bids, event_ms, ROW_NUMBER() OVER (PARTITION BY sample_time order by event_ms) as row_num
-    FROM (select asks, bids, event_ms / {sample_rate} as sample_time, event_ms from {table}) as raw_books) as sampled_books where row_num = 1;",
+        "select xch, pair, to_timestamp_millis(event_ms) as event_ms, asks, bids from
+   (select xch, pair, asks, bids, event_ms, ROW_NUMBER() OVER (PARTITION BY sample_time order by event_ms) as row_num
+    FROM (select xch, pair, asks, bids, event_ms / {sample_rate} as sample_time, event_ms from {table}) as raw_books) as sampled_books where row_num = 1;",
         sample_rate = sample_rate.num_milliseconds(),
         table = ORDER_BOOK_TABLE_NAME
     );
     multitables_as_stream(table_paths, format, Some(ORDER_BOOK_TABLE_NAME.to_string()), sql_query)
-        .map(events_from_orderbooks)
+        .map(events_from_raw_orderbooks)
         .flatten()
 }
 
@@ -62,9 +62,9 @@ pub async fn raw_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
     upper_dt: Option<DateTime<Utc>>,
 ) -> crate::error::Result<RecordBatch> {
     let sql_query = format!(
-        "select to_timestamp_millis(event_ms) as event_ms, asks, bids from
-   (select asks, bids, event_ms, ROW_NUMBER() OVER (PARTITION BY sample_time order by event_ms) as row_num
-    FROM (select asks, bids, event_ms / {sample_rate} as sample_time, event_ms from {table} {where}) as raw_books) as raw_books where row_num = 1;",
+        "select xch, pair, to_timestamp_millis(event_ms) as event_ms, asks, bids from
+   (select xch, pair, asks, bids, event_ms, ROW_NUMBER() OVER (PARTITION BY sample_time order by event_ms) as row_num
+    FROM (select xch, pair, asks, bids, event_ms / {sample_rate} as sample_time, event_ms from {table} {where}) as raw_books) as raw_books where row_num = 1;",
         sample_rate = sample_rate.num_milliseconds(),
         table = ORDER_BOOK_TABLE_NAME, where = join_where_clause(event_ms_where_clause("event_ms", upper_dt, lower_dt))
     );
@@ -231,6 +231,73 @@ fn events_from_csv_orderbooks(records: RecordBatch, _levels: usize) -> impl Stre
             let ts = event_ms_col.value(i);
             yield MarketEventEnvelope::order_book_event(
                 Symbol::new(pair_col.value(i).into(), SecurityType::Crypto, Exchange::from_str(xch_col.value(i)).unwrap()),
+                ts,
+                asks,
+                bids,
+            );
+        }
+    }
+}
+
+/// Expects a record batch with the following schema :
+/// asks : List(Tuple(f64))
+/// bids : List(Tuple(f64))
+/// `event_ts` : `TimestampMillisecond`
+/// pr : String
+/// xch : String
+fn events_from_raw_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = MarketEventEnvelope> + 'static {
+    let sa: StructArray = record_batch.into();
+    stream! {
+        print_struct_schema(&sa, "orderbook");
+
+        let asks_col = get_col_as::<ListArray>(&sa, "asks");
+        let bids_col = get_col_as::<ListArray>(&sa, "bids");
+        let event_ms_col = get_col_as::<TimestampMillisecondArray>(&sa, "event_ms");
+        let pair_col = get_col_as::<StringArray>(&sa, "pair");
+        let xch_col = get_col_as::<UInt16DictionaryArray>(&sa, "xch");
+
+        for i in 0..sa.len() {
+            let mut bids = vec![];
+            for bid in bids_col
+                .value(i)
+                .as_any()
+                .downcast_ref::<ListArray>()
+                .unwrap()
+                .iter()
+                .flatten()
+            {
+                let vals = bid
+                    .as_any()
+                    .downcast_ref::<PrimitiveArray<f64>>()
+                    .unwrap()
+                    .values();
+                bids.push((vals[0], vals[1]));
+            }
+            let mut asks = vec![];
+            for ask in asks_col
+                .value(i)
+                .as_any()
+                .downcast_ref::<ListArray>()
+                .unwrap()
+                .iter()
+                .flatten()
+            {
+                let vals = ask
+                    .as_any()
+                    .downcast_ref::<PrimitiveArray<f64>>()
+                    .unwrap()
+                    .values();
+                asks.push((vals[0], vals[1]));
+            }
+
+            let ts = event_ms_col.value(i);
+            let pair = pair_col.value(i);
+
+            let xch_str = string_partition(xch_col, i).unwrap();
+            let xchg = Exchange::from_str(&xch_str).unwrap_or_else(|_| panic!("wrong xchg {}", xch_str));
+
+            yield MarketEventEnvelope::order_book_event(
+                Symbol::new(pair.into(), SecurityType::Crypto, xchg),
                 ts,
                 asks,
                 bids,

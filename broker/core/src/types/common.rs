@@ -40,7 +40,7 @@ pub enum SecurityType {
     #[strum(serialize = "cfd")]
     Cfd,
     /// Cryptocurrency Security Type.
-    #[strum(serialize = "crypto")]
+    #[strum(serialize = "crypto", serialize = "spot")]
     Crypto,
     /// Futures Options Security Type.
     /// <remarks>

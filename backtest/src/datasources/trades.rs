@@ -1,7 +1,6 @@
 use crate::datafusion_util::{get_col_as, multitables_as_df, multitables_as_stream, print_struct_schema,
                              string_partition, TimestampMillisecondArray, UInt16DictionaryArray};
 use crate::datasources::{event_ms_where_clause, join_where_clause};
-use brokers::pair::symbol_to_pair;
 use brokers::prelude::*;
 use brokers::types::{Candle, SecurityType, Symbol};
 use chrono::{DateTime, Utc};
@@ -101,7 +100,7 @@ fn events_from_trades(record_batch: RecordBatch) -> impl Stream<Item = MarketEve
 
             yield MarketEventEnvelope::trade_event(
                 Symbol::new(
-                    symbol_to_pair(&xchg, &sym_str.into()).unwrap(),
+                    sym_str.into(),
                     ast,
                     xchg,
                 ),
