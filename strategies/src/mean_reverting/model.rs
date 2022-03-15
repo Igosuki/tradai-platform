@@ -216,7 +216,7 @@ impl IterativeModel for MeanRevertingModel {
     fn export_values(&self) -> Result<Self::ExportValue> { Ok(self.values().into_iter().collect()) }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "backtests"))]
 mod test {
     use std::fs::File;
     use std::io::{BufReader, BufWriter};
@@ -240,7 +240,6 @@ mod test {
     const PAIR: &str = "BTC_USDT";
 
     #[tokio::test]
-    #[cfg(feature = "backtests")]
     async fn test_lodable_model_round_trip() -> Result<()> {
         init();
         let events = input::load_csv_events(
