@@ -20,7 +20,7 @@ python  = ["tradai_python"]
 
 [dependencies]
 backtest = { path = "../backtest" }
-strategies = { path = "../strategies", features = ["backtests"] }
+strategies = { path = "../strategies" }
 tradai_python = { path = "../python_crate", optional = true }
 util = { path = "../util" }
 

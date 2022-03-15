@@ -72,7 +72,7 @@ where
                 range.0.date(),
                 range.1.date(),
                 vec![c.pair().as_ref()],
-                &c.exchange().capitalized(),
+                &c.exchange().to_string(),
                 c.name(),
             )
             .await,
