@@ -20,7 +20,10 @@ static EXCHANGE: &str = "Binance";
 static PAIR: &str = "BTC_USDT";
 
 fn get_f64(model: &HashMap<String, Option<Value>>, key: &str) -> f64 {
-    model.get(key).unwrap().as_ref().unwrap().as_f64().unwrap()
+    model
+        .get(key)
+        .and_then(|k| k.as_ref().and_then(|v| v.as_f64()))
+        .unwrap_or(f64::NAN)
 }
 
 lazy_static! {

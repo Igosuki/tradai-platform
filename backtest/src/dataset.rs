@@ -53,7 +53,7 @@ impl DatasetCatalog {
     }
 
     #[cfg(test)]
-    pub fn default_test() -> Self { Self::default_formats(coindata_data_cache_dir(), util::test::test_data_dir()) }
+    pub fn default_test() -> Self { Self::default_formats(util::test::test_data_dir(), util::test::test_data_dir()) }
 
     pub fn default_formats(base_data_dir: PathBuf, base_data24_dir: PathBuf) -> DatasetCatalog {
         let mut datasets = HashMap::new();
