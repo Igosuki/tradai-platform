@@ -13,7 +13,6 @@ members = [
     "metrics",
     "server",
     "strategy",
-    "python_crate",
     "strategies",
     "util",
     "backtest",
@@ -22,7 +21,8 @@ members = [
 ]
 
 exclude = [
-    "python_dylib"
+    "python_dylib",
+    "python_crate"
 ]
 
 [profile.test]

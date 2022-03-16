@@ -102,11 +102,15 @@ test-all: ## Tests all features
 
 .PHONY: test
 test: ## Tests all features and targets, skipping coinnect
-	RUST_LOG=info BITCOINS_REPO=$(current_dir)/.. $(CARGO_BIN) test --all-targets -- --skip coinnect_tests --skip coinbase_tests
+	RUST_LOG=info $(CARGO_BIN) test -- --skip strategies
 
 .PHONY: test-strats
 test-strats: ## Tests strategies
-	RUST_LOG=info BITCOINS_REPO=$(current_dir)/.. $(CARGO_BIN) test --package strategies
+	RUST_LOG=info $(CARGO_BIN) test --features=backtests --package strategies
+
+.PHONY: test-python
+test-python: ## Tests strategies
+	RUST_LOG=info $(CARGO_BIN) test --features=python --package python_crate
 
 .PHONY: coverage
 coverage: ## Tests all features
@@ -205,7 +209,7 @@ release-backtest:
 	make target=backtest
 
 release-local-backtest:
-	@$(CARGO_BIN) build --release --bin backtest --features=release_default
+	@$(CARGO_BIN) build --release --bin backtest --features=release_default,python
 
 release-local-backtest-debug:
 	make features=release_default target=backtest release_local_debug

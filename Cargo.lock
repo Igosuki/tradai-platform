@@ -1446,19 +1446,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1db59621ec70f09c5e9b597b220c7a2b43611f4710dc03ceb8748637775692c"
 
 [[package]]
-name = "canonical_json"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64f464b27d56e99fb36031754bb17fe97f1a69f66621628f002664cee6a4bcbf"
-dependencies = [
- "hex",
- "regex",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
 name = "cast"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6864,7 +6851,6 @@ dependencies = [
  "async-trait",
  "backtest",
  "brokers",
- "canonical_json",
  "chrono",
  "db",
  "ext",
@@ -6978,6 +6964,7 @@ dependencies = [
  "juniper",
  "lazy_static 1.4.0",
  "ordered-float 2.10.0",
+ "pretty_assertions",
  "prometheus",
  "quickcheck",
  "rand 0.8.5",

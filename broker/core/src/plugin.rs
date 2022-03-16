@@ -110,7 +110,7 @@ mod macros {
     macro_rules! exchange {
         ($f:expr, $t:ident) => {
             pub struct $t;
-            fn provide_connector() -> Box<dyn $crate::plugin::BrokerConnector> { Box::new($t {}) }
+            pub fn provide_connector() -> Box<dyn $crate::plugin::BrokerConnector> { Box::new($t {}) }
 
             $crate::inventory::submit! {
                 $crate::plugin::BrokerPlugin::new($f, provide_connector)

@@ -52,7 +52,7 @@ impl PyStrategy {
     fn channels(&self) -> PyResult<Vec<PyChannel>> { Err(PyNotImplementedError::new_err("channels")) }
 }
 
-#[pyclass(name = "StrategyWrapper", module = "strategy")]
+#[pyclass(name = "StrategyWrapper", module = "tradau")]
 pub(crate) struct PyStrategyWrapper {
     event_loop_hdl: PyObject,
     inner: PyObject,
