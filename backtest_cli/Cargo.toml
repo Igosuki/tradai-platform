@@ -19,11 +19,10 @@ console = ["util/console_tracing"]
 python  = ["tradai_python"]
 
 [dependencies]
-backtest = { path = "../backtest" }
+backtest = { path = "../backtest", features = ["mock_time"] }
 strategies = { path = "../strategies" }
 tradai_python = { path = "../python_crate", optional = true }
 util = { path = "../util" }
-
 
 # actors
 actix = "0.13"

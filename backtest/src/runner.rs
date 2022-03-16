@@ -23,7 +23,7 @@ use strategy::types::{OperationEvent, PositionSummary, StratEvent, TradeEvent};
 use strategy::MarketChannel;
 use trading::engine::TradingEngine;
 use util::compress::Compression;
-use util::time::{set_current_time, TimedData};
+use util::time::{set_mock_time, TimedData};
 use util::trace::{display_hist_percentiles, microtime_histogram, microtime_percentiles};
 
 use crate::report::{BacktestReport, StreamWriterLogger};
@@ -149,7 +149,7 @@ impl BacktestRunner {
                     }
                     let start = Instant::now();
                     let market_event = market_event.unwrap();
-                    set_current_time(market_event.e.time());
+                    set_mock_time(market_event.e.time());
                     driver.on_market_event(&market_event).await.unwrap();
                     // If there is an ongoing operation, resolve orders
                     let mut tries = 0;
