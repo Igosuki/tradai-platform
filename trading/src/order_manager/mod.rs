@@ -172,7 +172,11 @@ impl OrderManager {
             ..
         } = order
         {
-            TransactionStatus::New(request.into())
+            let fees = self
+                .xchg_manager
+                .get_fees_rate(request.xch, request.asset_type, Some(request.order_type))
+                .unwrap();
+            TransactionStatus::New(request.simulate_submission(fees))
         } else {
             // Here the order is truncated according to the exchange configuration
             let pair_conf = brokers::pair::pair_conf(&order.query.xch(), &order.query.pair())?;

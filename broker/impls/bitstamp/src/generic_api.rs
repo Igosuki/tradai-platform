@@ -32,7 +32,7 @@ impl Brokerage for BitstampApi {
     }
 
     async fn add_order(&self, order: AddOrderRequest) -> Result<OrderSubmission> {
-        let submission = order.clone().into();
+        let submission = order.simulate_submission(0.001);
         let result = match (order.order_type, order.side) {
             (OrderType::Limit, TradeType::Buy) => {
                 if order.price.is_none() {

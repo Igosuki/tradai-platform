@@ -18,11 +18,11 @@ members = [
     "backtest",
     "backtest_cli",
     "trading",
+    "python_crate"
 ]
 
 exclude = [
     "python_dylib",
-    "python_crate"
 ]
 
 [profile.test]

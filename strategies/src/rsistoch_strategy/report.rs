@@ -159,7 +159,7 @@ pub fn edit_report(report: &mut BacktestReport, resolution: Resolution) {
 
     {
         let rect_draw_offset = resolution.as_millis();
-        let x_id = format!("x{}", signal_plot_offset);
+        let _x_id = format!("x{}", signal_plot_offset);
         let y_id = format!("y{}", signal_plot_offset);
         let mut sell_signal_time = vec![];
         let mut sell_signal_values = vec![];

@@ -8,16 +8,20 @@ use crate::brokerages::Brokerages;
 use crate::credential::{BasicCredentials, Credentials};
 use crate::error::Result;
 use crate::exchange::Exchange;
+use crate::fees::FeeProvider;
 use crate::plugin::get_exchange_plugin;
 use crate::settings::BrokerSettings;
+use crate::types::{AssetType, OrderType};
 
 pub type BrokerageRegistry = DashMap<Exchange, Arc<dyn Brokerage>>;
+pub type FeesProviderRegistry = DashMap<Exchange, Arc<dyn FeeProvider>>;
 
 pub type BrokerageManagerRef = Arc<BrokerageManager>;
 
 #[derive(Default, Debug, Clone)]
 pub struct BrokerageManager {
     exchange_apis: BrokerageRegistry,
+    fees_providers: FeesProviderRegistry,
 }
 
 impl BrokerageManager {
@@ -25,7 +29,12 @@ impl BrokerageManager {
     pub fn new() -> Self { Self::default() }
 
     #[must_use]
-    pub fn new_with_reg(exchange_apis: DashMap<Exchange, Arc<dyn Brokerage>>) -> Self { Self { exchange_apis } }
+    pub fn new_with_reg(exchange_apis: DashMap<Exchange, Arc<dyn Brokerage>>) -> Self {
+        Self {
+            exchange_apis,
+            fees_providers: Default::default(),
+        }
+    }
 
     #[must_use]
     pub fn get_api(&self, xchg: Exchange) -> Option<Arc<dyn Brokerage>> {
@@ -104,5 +113,22 @@ impl BrokerageManager {
     ) -> Result<Arc<dyn Brokerage>> {
         let plugin = get_exchange_plugin(exchange)?;
         plugin.new_api(creds, use_test_servers).await
+    }
+
+    pub fn new_fee_provider(&self, exchange: Exchange, conf: serde_json::Value) -> Result<()> {
+        let plugin = get_exchange_plugin(exchange)?;
+        self.fees_providers.insert(exchange, plugin.new_fees_provider(conf)?);
+        Ok(())
+    }
+
+    pub fn get_fees_rate(
+        &self,
+        exchange: Exchange,
+        asset_type: Option<AssetType>,
+        order_type: Option<OrderType>,
+    ) -> Option<f64> {
+        self.fees_providers
+            .get(&exchange)
+            .map(|v| v.value().get_rate(asset_type, order_type).0)
     }
 }

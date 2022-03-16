@@ -12,6 +12,8 @@ extern crate async_trait;
 #[macro_use]
 extern crate anyhow;
 
+use broker_core::fees::FeeProvider;
+use serde_json::Value;
 use std::sync::Arc;
 
 use broker_core::prelude::*;
@@ -46,6 +48,8 @@ impl BrokerConnector for BittrexExchangeConnector {
     ) -> broker_core::error::Result<Box<BrokerageAccountDataStreamer>> {
         todo!()
     }
+
+    fn fees_provider(&self, _conf: Value) -> broker_core::error::Result<Arc<dyn FeeProvider>> { todo!() }
 }
 
 exchange!(Exchange::Bittrex, BittrexExchangeConnector);

@@ -167,8 +167,10 @@ pub fn create_ok_margin_order_mock(server: &MockServer, order: OrderDetail) -> M
 pub fn new_mock_manager<S: AsRef<Path>>(path: S) -> OrderManager {
     let api: Arc<dyn Brokerage> = Arc::new(MockBrokerage::default());
     let apis = BrokerageRegistry::new();
-    apis.insert(api.exchange(), api);
+    let xch = api.exchange();
+    apis.insert(xch, api);
     let manager = BrokerageManager::new_with_reg(apis);
+    manager.new_fee_provider(xch, serde_json::Value::Null).unwrap();
     let db = get_or_create(&DbOptions::new(path), "", vec![]);
     OrderManager::new(BrokerageManagerRef::new(manager), db)
 }

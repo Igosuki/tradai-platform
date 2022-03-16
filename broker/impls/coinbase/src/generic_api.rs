@@ -75,7 +75,7 @@ impl Brokerage for CoinbaseApi {
     }
 
     async fn add_order(&self, order: AddOrderRequest) -> Result<OrderSubmission> {
-        let submission = order.clone().into();
+        let submission = order.simulate_submission(0.001);
         let price = order.price;
         let quantity = order.quantity.unwrap();
         let pair = order.pair;

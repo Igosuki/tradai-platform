@@ -11,23 +11,23 @@ strats:
       exchange: 'binance'
       resolution:
         time_unit: 'minute'
-        units: 1
+        units: 15
       stop_loss: -0.06
-      trailing_stop_start: 0.01
-      trailing_stop_loss: 0.002
+      trailing_stop_start: 0.001
+      trailing_stop_loss: 0.0005
       security_type: 'future'
       source: 'close'
       order_conf:
         order_mode: limit
         dry_mode: true
-        asset_type: spot
+        asset_type: usdt_margined_futures
 
 fees: 0.0004
 
 period:
   type: interval
   from: 2022-02-16T00:00:00
-  to: 2022-02-16T03:00:00
+  to: 2022-02-22T00:00:00
 
 db_path: /media/ramdisk/strat_backtest_dbs
 
@@ -44,4 +44,4 @@ report:
     algorithm: gz
     level: 5
 
-report_sample_rate: 1min
+report_sample_rate: 1s

@@ -168,6 +168,8 @@ pub struct StochRsiStrategy {
     value: Option<SotchRsiValue>,
     security_type: SecurityType,
     resolution: Resolution,
+    rsi_low: f64,
+    stoch_low: f64,
 }
 
 impl StochRsiStrategy {
@@ -183,6 +185,8 @@ impl StochRsiStrategy {
             return Err(Error::BadConfiguration("bad config".to_string()));
         }
         let strat = Self {
+            rsi_low: n.rsi_low(),
+            stoch_low: n.stoch_low(),
             exchange: n.exchange,
             pair: n.pair.clone(),
             rsi,
@@ -212,7 +216,6 @@ impl StochRsiStrategy {
                 }),
             );
         }
-        eprintln!("reported = {:?}", true);
         Ok(strat)
     }
 
@@ -277,9 +280,9 @@ impl StochRsiStrategy {
             let stoch_r = stoch.next(&final_candle);
             let rsi_value = rsi_r.value(0);
             let stoch_value = stoch_r.value(0);
-            if rsi_value > 1. - 0.35 && stoch_value > 1. - 0.35 {
+            if rsi_value > 1. - self.rsi_low && stoch_value > 1. - self.stoch_low {
                 self.main_signal = Some(Action::BUY_ALL);
-            } else if rsi_value < 0.35 && stoch_value < 0.35 {
+            } else if rsi_value < self.rsi_low && stoch_value < self.stoch_low {
                 self.main_signal = Some(Action::SELL_ALL);
             }
             self.value = Some(SotchRsiValue {

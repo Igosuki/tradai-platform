@@ -111,7 +111,7 @@ impl Brokerage for BinanceApi {
                         .place_test_order(order_request)
                         .await
                         .map_err(from_binance_error)?;
-                    let submission = order.clone().into();
+                    let submission = order.simulate_submission(0.001);
                     Ok(submission)
                 } else {
                     let tr = account.place_order(order_request).await.map_err(from_binance_error)?;

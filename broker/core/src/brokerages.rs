@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use dashmap::DashMap;
+use serde_json::Value;
 
 use crate::api::Brokerage;
 use crate::bot::{BrokerageAccountDataStreamer, MarketDataStreamer};
@@ -31,6 +32,7 @@ impl Brokerages {
         for xch in echanges {
             let api = manager.build_public_exchange_api(xch, false).await.unwrap();
             exchange_apis.insert(*xch, api);
+            manager.new_fee_provider(*xch, Value::Null).unwrap();
         }
         exchange_apis
     }

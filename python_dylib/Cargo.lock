@@ -285,8 +285,8 @@ dependencies = [
 
 [[package]]
 name = "arrow2"
-version = "0.9.1"
-source = "git+https://github.com/jorgecarleitao/arrow2.git?rev=a87c758a80facbfbcde4768ad42cdf4c5c2cc5a8#a87c758a80facbfbcde4768ad42cdf4c5c2cc5a8"
+version = "0.10.0"
+source = "git+https://github.com/jorgecarleitao/arrow2.git?rev=v0.10.0#1431b964da4ff852481590dabbb07ced4c376378"
 dependencies = [
  "ahash",
  "arrow-format",
@@ -659,7 +659,6 @@ dependencies = [
  "once_cell",
  "parse_duration",
  "plotly",
- "pyo3-asyncio",
  "serde",
  "serde_json",
  "stats",
@@ -1379,7 +1378,7 @@ checksum = "3ee2393c4a91429dffb4bedf19f4d6abf27d8a732c8ce4980305d782e5426d57"
 [[package]]
 name = "datafusion"
 version = "7.0.0"
-source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_dict_key_fix#06aebcc4fbb53e4ebcc066ee004d6d0640de12c4"
+source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_intg_20220313#dc521f99d1899c51b55040cf7c6e4054c894a0a5"
 dependencies = [
  "ahash",
  "arrow2",
@@ -1412,7 +1411,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "7.0.0"
-source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_dict_key_fix#06aebcc4fbb53e4ebcc066ee004d6d0640de12c4"
+source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_intg_20220313#dc521f99d1899c51b55040cf7c6e4054c894a0a5"
 dependencies = [
  "arrow2",
  "ordered-float 2.10.0",
@@ -1423,7 +1422,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "7.0.0"
-source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_dict_key_fix#06aebcc4fbb53e4ebcc066ee004d6d0640de12c4"
+source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_intg_20220313#dc521f99d1899c51b55040cf7c6e4054c894a0a5"
 dependencies = [
  "ahash",
  "arrow2",
@@ -1434,7 +1433,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "7.0.0"
-source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_dict_key_fix#06aebcc4fbb53e4ebcc066ee004d6d0640de12c4"
+source = "git+https://github.com/Igosuki/arrow-datafusion?branch=arrow2_intg_20220313#dc521f99d1899c51b55040cf7c6e4054c894a0a5"
 dependencies = [
  "ahash",
  "arrow2",
@@ -4197,9 +4196,9 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "sqlparser"
-version = "0.14.0"
+version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8f192f29f4aa49e57bebd0aa05858e0a1f32dd270af36efe49edb82cbfffab6"
+checksum = "adbbea2526ad0d02ad9414a07c396078a5b944bbf9ca4fbab8f01bb4cb579081"
 dependencies = [
  "log",
 ]
@@ -5305,3 +5304,8 @@ dependencies = [
  "cc",
  "libc",
 ]
+
+[[patch.unused]]
+name = "parquet2"
+version = "0.10.1"
+source = "git+https://github.com/jorgecarleitao/parquet2.git?rev=v0.10.1#9bc4fe4138bd0975a8e6810ccc5305f33e0681c5"

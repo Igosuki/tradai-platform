@@ -16,7 +16,7 @@ class CallStrat(Strategy):
 
     def eval(self, event):
         return [signal(PositionKind.Short, OperationKind.Close, TradeKind.Buy, event.low(
-        ), 'BTC_USDT', 'Binance', True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None)]
+        ), 'BTC_USDT', 'binance', True, AssetType.Spot, OrderType.Limit, datetime.now(), uuid.uuid4(), None, None, None, None)]
 
     def models(self):
         return ()

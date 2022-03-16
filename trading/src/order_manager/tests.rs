@@ -32,12 +32,13 @@ fn test_keys() -> String { "../config/keys_real_test.json".to_string() }
 
 fn test_pair() -> String { "BTC_USDT".to_string() }
 
-brokers::inventory::submit! {
-    brokers::plugin::BrokerPlugin::new(Exchange::Binance, brokers::broker_binance::provide_connector)
-}
-
 #[actix::test]
 async fn test_binance_stage_order_invalid() {
+    // TODO: fix plugin system
+    brokers::inventory::submit! {
+        brokers::plugin::BrokerPlugin::new(Exchange::Binance, brokers::broker_binance::provide_connector)
+    }
+
     let test_dir = util::test::test_dir();
     let mut order_manager = it_order_manager(test_keys(), test_dir, Exchange::Binance).await;
     let registered = order_manager
