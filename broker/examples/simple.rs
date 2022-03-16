@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         BookTickers::AllBookTickers(tickers) => {
             for coin in tickers {
                 // please visit Binance API documentation to know how the data is returned
-                // or look at the coinnect documentation
+                // or look at the brokers documentation
                 let name = coin.symbol;
                 println!(
                     "Coin {} has price : ask={}, bid={}",

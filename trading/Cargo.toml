@@ -70,3 +70,4 @@ fake = { version = "2.4", features = ["chrono"] }
 quickcheck = "1.0"
 rand = "0.8"
 env_logger = "0.9"
+pretty_assertions = "1.2"

@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use ext::ToAny;
@@ -103,8 +103,7 @@ pub fn get_or_create<S: AsRef<Path>, S2: AsRef<Path>>(
     // TODO: this should obviously return a result
     match options.engine {
         DbEngineOptions::RocksDb(ref opt) => {
-            let mut pb: PathBuf = PathBuf::from(options.path.as_ref());
-            pb.push(path);
+            let pb = options.path.as_ref().join(path);
             Arc::new(RocksDbStorage::try_new(opt, pb, tables).unwrap())
         }
         DbEngineOptions::InMemory => Arc::new(MemoryKVStore::new()),
