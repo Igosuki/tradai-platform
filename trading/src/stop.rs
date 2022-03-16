@@ -84,7 +84,7 @@ impl TrailingStopper<f64> {
     /// Returns `Some(StopEvent)` if the stop conditions are matched, `None` otherwise
     pub fn should_stop(&mut self, ret: f64) -> Option<StopEvent> {
         if ret < self.stop_loss {
-            info!("stop loss triggered : ret < stop_loss ( {} < {} )", ret, self.stop_loss);
+            debug!("stop loss triggered : ret < stop_loss ( {} < {} )", ret, self.stop_loss);
             return Some(StopEvent::Loss);
         }
 
@@ -95,7 +95,7 @@ impl TrailingStopper<f64> {
                 *last_top = ret;
             }
             if ret < *last_top - self.trailing_stop_loss {
-                info!(
+                debug!(
                     "trailing_stop triggered : ret < last stop - trailing_stop_loss ( {} < {} - {} )",
                     ret, *last_top, self.trailing_stop_loss
                 );
@@ -106,4 +106,40 @@ impl TrailingStopper<f64> {
     }
 
     pub fn reset(&mut self) { self.last_top = None; }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::position::PositionKind;
+    use crate::stop::{FixedStopper, PositionStopper, StopEvent, TrailingStopper};
+
+    #[test]
+    fn test_fixed_stopper() {
+        let stopper = FixedStopper::new(0.1, -0.1);
+        assert_eq!(stopper.should_stop(0.2), Some(StopEvent::Gain));
+        assert_eq!(stopper.should_stop(-0.2), Some(StopEvent::Loss));
+        assert_eq!(stopper.should_stop(-0.01), None);
+        assert_eq!(stopper.should_stop(0.01), None);
+    }
+
+    #[test]
+    fn test_position_stopper() {
+        let stopper = PositionStopper::new(100.0, PositionKind::Short);
+        assert_eq!(stopper.should_stop(101.0), Some(StopEvent::Loss));
+        assert_eq!(stopper.should_stop(99.0), None);
+        let stopper = PositionStopper::new(100.0, PositionKind::Long);
+        assert_eq!(stopper.should_stop(99.0), Some(StopEvent::Loss));
+        assert_eq!(stopper.should_stop(101.0), None);
+    }
+
+    #[test]
+    fn test_trailing_stopper() {
+        let mut stopper = TrailingStopper::new(0.5, 0.01, -0.1);
+        // reaches trailing stop start and then trail stops
+        assert_eq!(stopper.should_stop(0.6), None);
+        assert_eq!(stopper.should_stop(0.58), Some(StopEvent::TrailingStop));
+        let mut stopper = TrailingStopper::new(0.5, 0.01, -0.1);
+        // reaches the stop loss
+        assert_eq!(stopper.should_stop(-0.2), Some(StopEvent::Loss));
+    }
 }
