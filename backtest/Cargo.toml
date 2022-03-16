@@ -8,7 +8,7 @@ name = "backtest"
 path = "src/lib.rs"
 
 [features]
-default = []
+default = ["mock_time"]
 mock_time = ["util/mock_time"]
 release_max_level_debug = ["util/release_max_level_debug", "tracing/release_max_level_debug"]
 release_max_level_trace = ["util/release_max_level_trace", "tracing/release_max_level_trace"]
