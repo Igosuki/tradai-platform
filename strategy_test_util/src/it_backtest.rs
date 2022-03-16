@@ -86,7 +86,7 @@ where
     for event in events {
         let now = Instant::now();
         let event_time = event.e.time();
-        util::time::set_current_time(event_time);
+        util::time::set_mock_time(event_time);
         driver.on_market_event(&event).await.unwrap();
         let mut tries = 0;
         loop {
