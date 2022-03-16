@@ -157,12 +157,11 @@ impl<T: 'static + DeserializeOwned + Serialize + Debug + Send, S: JsonSerde + Se
     pub fn new_with_compression<P: AsRef<Path>>(out_file: P, compression: Compression) -> StreamSerializerWriter<T, S> {
         let (sink, rcv) = tokio::sync::mpsc::unbounded_channel();
         let (finish_resp_tx, finish_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
-        let stream = UnboundedReceiverStream::new(rcv);
         Self {
             out_file: out_file.as_ref().to_path_buf(),
             compression,
             sink,
-            stream: RwLock::new(stream),
+            stream: RwLock::new(UnboundedReceiverStream::new(rcv)),
             finish_token: CancellationToken::new(),
             finish_resp_tx,
             finish_resp_rx: RwLock::new(finish_resp_rx),
@@ -245,7 +244,10 @@ impl JsonSerde for SeqJsonSerde {
                         break 'stream;
                     }
                 }
-                _ = token.cancelled() => break 'stream
+                _ = token.cancelled() => {
+                    eprintln!("token cancelled !");
+                    break 'stream
+                }
             }
         }
         SerializeSeq::end(seq).unwrap();
@@ -293,7 +295,9 @@ mod test {
     use std::env::temp_dir;
     use std::io::BufReader;
     use std::sync::Arc;
+    use std::time::Duration;
 
+    use crate::ser::{JsonSerde, NdJsonSerde};
     use futures::StreamExt;
     use serde::Serialize;
 
@@ -304,14 +308,13 @@ mod test {
         i: usize,
     }
 
-    #[tokio::test]
-    async fn stream_should_write_valid_json() {
+    async fn test_write_valid_json<T: JsonSerde>() {
         let file = temp_dir().join("file.json");
 
         let serializer = Arc::new(StreamSerializerWriter::<TestData, SeqJsonSerde>::new(file.clone()));
         let ser_ref = serializer.clone();
         tokio::spawn(async move { ser_ref.start().await });
-        let count: usize = 10_000;
+        let count: usize = 1000;
         let stream = stream! {
             for i in (0..count) {
                 yield TestData { i }
@@ -325,10 +328,20 @@ mod test {
             .forward(futures::sink::drain())
             .await
             .unwrap();
-        serializer.close().await;
+        // yield to the writing thread
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        let closed = tokio::time::timeout(Duration::from_millis(200), serializer.close()).await;
+        assert!(closed.is_ok());
         let file = std::fs::File::open(&file).unwrap();
-        let values: Vec<TestData> = serde_json::from_reader(BufReader::new(file)).unwrap();
+        let read = BufReader::new(file);
+        let values: Vec<TestData> = SeqJsonSerde::deserialize(read).unwrap();
         assert_eq!(values.len(), count);
         assert_eq!(values.last(), Some(&TestData { i: count - 1 }));
     }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn stream_should_write_valid_json() { test_write_valid_json::<SeqJsonSerde>().await; }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn stream_should_write_valid_ndjson() { test_write_valid_json::<NdJsonSerde>().await; }
 }
