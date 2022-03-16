@@ -32,7 +32,7 @@ impl Options {
 
     pub(crate) fn sample_freq(&self) -> Duration { Duration::from_std(parse(&self.sample_freq).unwrap()).unwrap() }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "backtests"))]
     pub(crate) fn new_test_default(pair: &str, exchange: Exchange) -> Self {
         Self {
             pair: pair.into(),
