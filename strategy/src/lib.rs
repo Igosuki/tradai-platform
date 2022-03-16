@@ -350,7 +350,7 @@ mod test {
 
     #[async_trait]
     impl StrategyDriver for LoggingStrat {
-        async fn init(&mut self) -> Result<()> { todo!() }
+        async fn init(&mut self) -> Result<()> { Ok(()) }
 
         async fn key(&self) -> String { "logging".to_string() }
 
