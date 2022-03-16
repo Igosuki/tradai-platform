@@ -99,7 +99,7 @@ impl Brokerage for BittrexApi {
     }
 
     async fn add_order(&self, order: AddOrderRequest) -> Result<OrderSubmission> {
-        let submission = order.clone().into();
+        let submission = order.simulate_submission(0.001);
         let symbol = utils::get_pair_string(&order.pair)?;
         let pair_name = symbol.as_ref();
 

@@ -13,9 +13,12 @@ extern crate serde;
 #[macro_use]
 extern crate actix;
 
+use crate::fees::BinanceFeeProvider;
 use broker_core::bot::DataStreamer;
 use broker_core::broker::MarketEventEnvelopeRef;
+use broker_core::fees::FeeProvider;
 use broker_core::prelude::*;
+use serde_json::Value;
 use std::sync::Arc;
 
 mod account_api;
@@ -64,6 +67,10 @@ impl BrokerConnector for BinanceExchangeConnector {
         _ctx: PrivateBotInitContext,
     ) -> broker_core::error::Result<Box<BrokerageAccountDataStreamer>> {
         todo!()
+    }
+
+    fn fees_provider(&self, _conf: Value) -> broker_core::error::Result<Arc<dyn FeeProvider>> {
+        Ok(Arc::new(BinanceFeeProvider::new(false, 0)))
     }
 }
 

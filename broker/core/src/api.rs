@@ -87,6 +87,7 @@ mod mock {
     #[derive(Debug)]
     pub struct MockBrokerage {
         flat_interest_rate: f64,
+        flat_fees: f64,
     }
 
     const DEFAULT_HOURLY_INTEREST_RATE: f64 = 0.02 / 24.0;
@@ -95,6 +96,7 @@ mod mock {
         fn default() -> Self {
             Self {
                 flat_interest_rate: DEFAULT_HOURLY_INTEREST_RATE,
+                flat_fees: 0.001,
             }
         }
     }
@@ -115,7 +117,7 @@ mod mock {
         async fn orderbook(&self, _pair: Pair) -> Result<Orderbook> { unimplemented!() }
 
         async fn add_order(&self, o: AddOrderRequest) -> Result<OrderSubmission> {
-            let submission = o.clone().into();
+            let submission = o.simulate_submission(self.flat_fees);
             let order = MockOrder {
                 order_type: o.order_type,
                 pair: o.pair.clone(),

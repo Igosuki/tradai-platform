@@ -288,34 +288,30 @@ impl AddOrderRequest {
         self.dry_run = true;
         self
     }
-}
 
-const DEFAULT_BORROW_RATE: f64 = 1.0;
-
-impl From<AddOrderRequest> for OrderSubmission {
-    fn from(aor: AddOrderRequest) -> Self {
-        let asset_type = aor.asset_type.unwrap_or(AssetType::Spot);
-        let qty = aor.quantity.unwrap_or(0.0);
-        let price = aor.price.unwrap_or(0.0);
-        let pair_string = aor.pair.to_string();
+    pub fn simulate_submission(&self, fees: f64) -> OrderSubmission {
+        let asset_type = self.asset_type.unwrap_or(AssetType::Spot);
+        let qty = self.quantity.unwrap_or(0.0);
+        let price = self.price.unwrap_or(0.0);
+        let pair_string = self.pair.to_string();
         let (base_asset, quote_asset) = pair_string.split_once('_').unwrap();
-        let (fee, fee_asset) = match aor.side {
-            TradeType::Sell => (price * qty * Exchange::default_fees(), quote_asset),
-            TradeType::Buy => (qty * Exchange::default_fees(), base_asset),
+        let (fee, fee_asset) = match self.side {
+            TradeType::Sell => (price * qty * fees, quote_asset),
+            TradeType::Buy => (qty * fees, base_asset),
         };
-        Self {
+        OrderSubmission {
             timestamp: util::get_unix_timestamp_ms(),
             id: Uuid::new_v4().to_string(),
-            pair: aor.pair.clone(),
-            client_id: aor.order_id,
+            pair: self.pair.clone(),
+            client_id: self.order_id.clone(),
             price,
             qty,
             executed_qty: qty,
             cummulative_quote_qty: qty * price,
             status: OrderStatus::Filled,
-            enforcement: aor.enforcement.unwrap_or(OrderEnforcement::FOK),
-            order_type: aor.order_type,
-            side: aor.side,
+            enforcement: self.enforcement.unwrap_or(OrderEnforcement::FOK),
+            order_type: self.order_type,
+            side: self.side,
             asset_type,
             trades: vec![OrderFill {
                 id: None,
@@ -325,18 +321,18 @@ impl From<AddOrderRequest> for OrderSubmission {
                 fee_asset: fee_asset.into(),
             }],
             // Borrow the full amount if we are in margin and doing margin_buy as a side effect
-            borrowed_amount: aor
+            borrowed_amount: self
                 .side_effect_type
                 .filter(|e| asset_type.is_margin() && *e == MarginSideEffect::MarginBuy)
-                .map(|_| match aor.side {
+                .map(|_| match self.side {
                     TradeType::Sell => qty,
                     TradeType::Buy => qty * price,
                 } * DEFAULT_BORROW_RATE),
-            borrow_asset: aor
+            borrow_asset: self
                 .side_effect_type
                 .filter(|e| asset_type.is_margin() && *e == MarginSideEffect::MarginBuy)
                 .map(|_| {
-                    let borrow_asset = match aor.side {
+                    let borrow_asset = match self.side {
                         TradeType::Sell => base_asset,
                         TradeType::Buy => quote_asset,
                     };
@@ -345,6 +341,12 @@ impl From<AddOrderRequest> for OrderSubmission {
         }
     }
 }
+
+impl From<AddOrderRequest> for OrderSubmission {
+    fn from(aor: AddOrderRequest) -> Self { aor.simulate_submission(0.001) }
+}
+
+const DEFAULT_BORROW_RATE: f64 = 1.0;
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, EnumString, AsRefStr)]
 #[serde(rename_all = "snake_case")]

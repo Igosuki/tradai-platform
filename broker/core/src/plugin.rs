@@ -8,6 +8,7 @@ use crate::bot::{BrokerageAccountDataStreamer, MarketDataStreamer};
 use crate::credential::Credentials;
 use crate::error::Result;
 use crate::exchange::Exchange;
+use crate::fees::FeeProvider;
 use crate::settings::BrokerSettings;
 use crate::types::{AccountType, MarketSymbol, PrivateStreamChannel, StreamChannel};
 
@@ -18,6 +19,8 @@ pub trait BrokerConnector: Send + Sync {
     async fn new_public_stream(&self, ctx: BrokerageBotInitContext) -> Result<Box<MarketDataStreamer>>;
 
     async fn new_private_stream(&self, ctx: PrivateBotInitContext) -> Result<Box<BrokerageAccountDataStreamer>>;
+
+    fn fees_provider(&self, conf: serde_json::Value) -> Result<Arc<dyn FeeProvider>>;
 }
 
 #[derive(typed_builder::TypedBuilder)]
@@ -78,6 +81,10 @@ impl BrokerPlugin {
         ctx: PrivateBotInitContext,
     ) -> Result<Box<BrokerageAccountDataStreamer>> {
         (self.connector)().new_private_stream(ctx).await
+    }
+
+    pub fn new_fees_provider(&self, conf: serde_json::Value) -> Result<Arc<dyn FeeProvider>> {
+        (self.connector)().fees_provider(conf)
     }
 }
 
