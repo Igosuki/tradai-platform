@@ -1,4 +1,4 @@
-//! ![Brokers](https://raw.githubusercontent.com/hugues31/coinnect/master/coinnect.png)
+//! ![Brokers](https://raw.githubusercontent.com/Igosuki/tradai-platform/master/tradai.png)
 //!
 //! The brokers library provides interfaces to be implemented to provide additional implementations
 //! of building block of the Tradai platform.

@@ -13,7 +13,7 @@ use brokers::prelude::*;
 use brokers::types::{MarginSideEffect, OrderSubmission, OrderUpdate};
 use util::test::test_dir;
 
-use super::types::{OrderDetail, OrderStatus, Rejection, StagedOrder, Transaction, TransactionStatus};
+use super::types::{OrderDetail, OrderStatus, Rejection, StagedOrder, TransactionStatus};
 
 #[actix::test]
 async fn test_append_rejected() {
@@ -31,6 +31,10 @@ async fn test_append_rejected() {
 fn test_keys() -> String { "../config/keys_real_test.json".to_string() }
 
 fn test_pair() -> String { "BTC_USDT".to_string() }
+
+brokers::inventory::submit! {
+    brokers::plugin::BrokerPlugin::new(Exchange::Binance, brokers::broker_binance::provide_connector)
+}
 
 #[actix::test]
 async fn test_binance_stage_order_invalid() {
@@ -85,23 +89,13 @@ async fn test_register_transactions() {
     // Get the transactions log
     let transactions = order_manager.transactions(None);
     assert!(transactions.is_ok(), "{:?}", transactions);
-    assert_eq!(
-        transactions.unwrap(),
-        statuses
-            .clone()
-            .into_iter()
-            .map(|status| {
-                Transaction {
-                    ts: None,
-                    status,
-                    id: order_id.clone(),
-                }
-            })
-            .collect::<Vec<Transaction>>()
+    itertools::assert_equal(
+        transactions.unwrap().into_iter().map(|tr| (tr.id, tr.status)),
+        statuses.clone().into_iter().map(|status| (order_id.clone(), status)),
     );
     // The last status for this id should be the last registered status
     let order = order_manager.get_order(order_id.clone()).await;
-    assert_eq!(
+    pretty_assertions::assert_eq!(
         &order.unwrap(),
         statuses.last().unwrap(),
         "latest order should the last in statuses"
@@ -120,14 +114,14 @@ async fn test_register_transactions() {
     assert!(reg.is_ok());
     let order = order_manager.get_order(order_id.clone()).await;
     // The order registry should remain unchanged
-    assert_eq!(
+    pretty_assertions::assert_eq!(
         &order.unwrap(),
         statuses.last().unwrap(),
         "latest order should the last in statuses after registering a new order"
     );
     let compacted = order_manager.transactions_wal.get_all_compacted();
     assert!(compacted.is_ok());
-    assert_eq!(
+    pretty_assertions::assert_eq!(
         compacted.unwrap().get(&order_id.clone()),
         statuses.last(),
         "Compacted record should be the highest inserted status"

@@ -36,7 +36,7 @@ pub async fn it_order_manager<S: AsRef<Path>, S2: AsRef<Path>>(
     let apis = BrokerageRegistry::new();
     apis.insert(api.exchange(), api);
     let manager = BrokerageManager::new_with_reg(apis);
-    let db = get_or_create(&DbOptions::new(dir), "order_manager", vec![]);
+    let db = get_or_create(&DbOptions::new(dir), "", vec![]);
     OrderManager::new(BrokerageManagerRef::new(manager), db)
 }
 

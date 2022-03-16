@@ -1,4 +1,4 @@
 - name: test
   run: "make test"
-  change: ["src/**"]
+  change: ["**/src/**"]
   run_on_init: true

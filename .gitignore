@@ -1,7 +1,7 @@
 # ide
 .idea
 *.iml
-
+.vscode
 # trash files
 .DS_Store
 

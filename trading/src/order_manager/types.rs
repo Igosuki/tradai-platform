@@ -655,10 +655,10 @@ mod test {
             symbol: "BTC".to_string(),
             ts: 0,
             rate: 0.002,
-            period: InterestRatePeriod::Daily,
+            period: InterestRatePeriod::Hourly,
         };
         let total_interest = order.total_interest(&interest_rate);
-        assert_eq!(format!("{:.6}", total_interest), "0.000022");
+        assert_eq!(format!("{:.5}", total_interest), "0.00002");
     }
 
     #[test]

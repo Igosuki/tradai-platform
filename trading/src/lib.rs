@@ -7,7 +7,7 @@ All tools that allow to safely trade should be confined to this crate.
 Handling orders, stopping/resuming trading, calculating interest rates, positions/signals etc.
 
  */
-
+#![feature(used_with_arg)]
 #![allow(
     unused_braces,
     clippy::module_name_repetitions,

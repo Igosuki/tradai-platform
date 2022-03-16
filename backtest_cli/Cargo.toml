@@ -12,7 +12,7 @@ name = "backtest_data_server"
 path = "src/data_server.rs"
 
 [features]
-default = ["release_max_level_trace", "python"]
+default = ["release_max_level_trace"]
 release_max_level_debug = ["backtest/release_max_level_debug"]
 release_max_level_trace = ["backtest/release_max_level_trace"]
 console = ["util/console_tracing"]
