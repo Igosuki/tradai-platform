@@ -73,7 +73,7 @@ pub fn now() -> DateTime<Utc> {
 pub fn now() -> DateTime<Utc> { Utc::now() }
 
 #[allow(clippy::cast_sign_loss)]
-pub fn set_current_time(t: DateTime<Utc>) {
+pub fn set_mock_time(t: DateTime<Utc>) {
     let d = std::time::Duration::from_millis(t.timestamp_millis() as u64);
     mock_instant::MockClock::set_time(d);
 }
