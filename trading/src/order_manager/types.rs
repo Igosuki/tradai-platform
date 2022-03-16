@@ -518,6 +518,7 @@ mod test {
         };
         let mut order = OrderDetail::from_query(request.clone());
         let transact_time = Utc::now();
+        util::time::set_mock_time(transact_time);
         let i = transact_time.timestamp_millis();
         let submission = OrderSubmission {
             status: CoinOrderStatus::Filled,
@@ -529,7 +530,7 @@ mod test {
         order.from_submission(submission);
         assert_eq!(order.status, OrderStatus::Filled);
         // Compare only millis as nanos is a random value
-        assert_eq!(
+        pretty_assertions::assert_eq!(
             order.closed_at.map(|d| d.timestamp_millis()),
             Some(transact_time.timestamp_millis()),
             "closed_at"
