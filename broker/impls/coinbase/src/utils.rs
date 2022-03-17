@@ -6,7 +6,6 @@ use sha2::Sha256;
 use broker_core::error::*;
 use broker_core::prelude::*;
 use broker_core::types::{Asset, MarketSymbol, Pair};
-use broker_core::util::get_unix_timestamp_ms;
 
 /// Return the name associated to the pair used by Gdax
 /// If the Pair is not supported, None is returned.

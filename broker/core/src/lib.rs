@@ -85,7 +85,7 @@ pub mod plugin;
 pub mod settings;
 pub mod streaming_api;
 pub mod types;
-pub mod util;
+pub mod url_util;
 
 pub use inventory;
 
@@ -108,4 +108,5 @@ pub mod prelude {
     pub use crate::types::{AccountEvent, AccountEventEnveloppe, AccountType, AddOrderRequest, Asset, AssetType,
                            MarketEvent, MarketEventEnvelope, OrderEnforcement, OrderQuery, OrderType, Orderbook, Pair,
                            TradeType};
+    pub use util::time::{get_unix_timestamp_ms, get_unix_timestamp_us};
 }

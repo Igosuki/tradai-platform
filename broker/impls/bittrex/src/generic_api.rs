@@ -7,7 +7,6 @@ use broker_core::error::*;
 use broker_core::pair::PairConf;
 use broker_core::prelude::*;
 use broker_core::types::*;
-use broker_core::util::get_unix_timestamp_ms;
 
 use super::api::BittrexApi;
 use super::utils;

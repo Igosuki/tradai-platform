@@ -29,6 +29,7 @@ native-tls = ["broker_core/native-tls"]
 build-binary = ["clap", "structopt", "release_max_level_debug", "anyhow"]
 release_max_level_debug = ["tracing/release_max_level_debug"]
 release_max_level_trace = ["tracing/release_max_level_trace"]
+mock_time = ["broker_core/mock_time"]
 
 # todo : get rid of this crap
 test_util = ["broker_binance/test_util"]

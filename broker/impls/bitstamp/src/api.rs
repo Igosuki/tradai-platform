@@ -15,7 +15,7 @@ use serde_json::Value;
 use broker_core::error::*;
 use broker_core::prelude::*;
 use broker_core::types::*;
-use broker_core::util::{get_unix_timestamp_ms, strip_empties};
+use broker_core::url_util::strip_empties;
 
 use super::models::{LiveOrderBook, PublicQuery, Ticker as BitstampTicker, Transaction};
 use super::utils;

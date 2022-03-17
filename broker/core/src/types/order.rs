@@ -4,12 +4,12 @@ use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::{Decimal, RoundingStrategy};
 use uuid::Uuid;
 
+use crate::error;
 use crate::error::Error;
 use crate::exchange::Exchange;
 use crate::pair::{step_precision, PairConf};
 use crate::types::margin::MarginSideEffect;
 use crate::types::{Asset, Pair};
-use crate::{error, util};
 
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct OrderFill {
@@ -300,7 +300,7 @@ impl AddOrderRequest {
             TradeType::Buy => (qty * fees, base_asset),
         };
         OrderSubmission {
-            timestamp: util::get_unix_timestamp_ms(),
+            timestamp: util::time::get_unix_timestamp_ms(),
             id: Uuid::new_v4().to_string(),
             pair: self.pair.clone(),
             client_id: self.order_id.clone(),
