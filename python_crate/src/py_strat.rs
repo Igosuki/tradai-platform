@@ -189,7 +189,7 @@ mod test {
         register_tradai_module(py).unwrap();
 
         context.run_with_gil(py, python! {
-            from strategy import Strategy, Channel
+            from tradai import Strategy, Channel
             class MyStrat(Strategy):
                 def __new__(cls, conf):
                     dis = super().__new__(cls, conf)
@@ -197,7 +197,7 @@ mod test {
                     return dis
 
                 def channels(self):
-                    return (Channel(), Channel(),)
+                    return (Channel("candles", "binance", "BTC_USDT"),)
 
             strat = MyStrat({})
 
@@ -212,7 +212,7 @@ mod test {
             channels.iter().last(),
             Some(
                 &MarketChannel::builder()
-                    .r#type(MarketChannelType::Orderbooks)
+                    .r#type(MarketChannelType::Candles)
                     .symbol(Symbol::new("BTC_USDT".into(), SecurityType::Crypto, Exchange::Binance))
                     .build()
             )
