@@ -1,4 +1,5 @@
 use crate::position::PositionKind;
+use util::time::now;
 
 pub trait Stopper<T> {
     fn should_stop(&self, next: T) -> Option<StopEvent>;
@@ -96,8 +97,11 @@ impl TrailingStopper<f64> {
             }
             if ret < *last_top - self.trailing_stop_loss {
                 debug!(
-                    "trailing_stop triggered : ret < last stop - trailing_stop_loss ( {} < {} - {} )",
-                    ret, *last_top, self.trailing_stop_loss
+                    "trailing_stop triggered at ({}) : ret < last stop - trailing_stop_loss ( {} < {} - {} )",
+                    now(),
+                    ret,
+                    *last_top,
+                    self.trailing_stop_loss
                 );
                 return Some(StopEvent::TrailingStop);
             }

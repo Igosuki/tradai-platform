@@ -176,7 +176,7 @@ impl BacktestRunner {
                     }
                     if let MarketEvent::TradeCandle(candle) = &market_event.e {
                         if candle.is_final {
-                            report.push_candle(TimedData::new(market_event.e.time(), candle.clone()));
+                            report.push_candle(TimedData::new(candle.start_time, candle.clone()));
                             report.push_market_stat(TimedData::new(market_event.e.time(), (&market_event.e).into()));
                         }
                     }
@@ -184,7 +184,7 @@ impl BacktestRunner {
                     if let MarketEvent::BookCandle(BookCandle { ask, .. }) = &market_event.e {
                         #[allow(clippy::needless_borrow)]
                         if ask.is_final {
-                            report.push_candle(TimedData::new(market_event.e.time(), ask.clone()));
+                            report.push_candle(TimedData::new(ask.start_time, ask.clone()));
                             report.push_market_stat(TimedData::new(market_event.e.time(), (&market_event.e).into()));
                         }
                     }

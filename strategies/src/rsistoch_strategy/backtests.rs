@@ -23,6 +23,7 @@ mod test {
         })
         .block_on(async {
             let resolution = Resolution::new(TimeUnit::Minute, 1);
+            //let tick_rate = Some(chrono::Duration::seconds(1));
             let provider: StratProviderRef = Arc::new(move |_ctx| {
                 Box::new(
                     StochRsiStrategy::try_new(
@@ -45,8 +46,8 @@ mod test {
                 "rsistoch_btc",
                 provider,
                 DateRange::by_day(
-                    DateTime::from_utc(NaiveDate::from_ymd(2022, 2, 16).and_hms(0, 0, 0), Utc),
-                    DateTime::from_utc(NaiveDate::from_ymd(2022, 2, 16).and_hms(3, 0, 0), Utc),
+                    DateTime::from_utc(NaiveDate::from_ymd(2022, 3, 2).and_hms(0, 0, 0), Utc),
+                    DateTime::from_utc(NaiveDate::from_ymd(2022, 3, 2).and_hms(0, 2, 0), Utc),
                 ),
                 Some(10000.0),
                 Some(0.0004),

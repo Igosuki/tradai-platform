@@ -28,6 +28,7 @@ exclude = [
 [profile.test]
 debug = true
 opt-level = 0
+incremental = false
 
 [profile.dev]
 opt-level = 1
