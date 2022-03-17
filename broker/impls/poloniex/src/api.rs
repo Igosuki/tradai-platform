@@ -16,7 +16,7 @@ use sha2::Sha512;
 use broker_core::error::*;
 use broker_core::json_util::array_to_map;
 use broker_core::prelude::*;
-use broker_core::util::*;
+use broker_core::url_util::*;
 
 const KEY_HEADER: &str = "Key";
 const SIGN_HEADER: &str = "Sign";

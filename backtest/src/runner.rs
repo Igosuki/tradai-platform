@@ -159,6 +159,7 @@ impl BacktestRunner {
                             break 'resolve;
                         }
                         if driver.is_locked().await {
+                            set_mock_time(market_event.e.time());
                             driver.resolve_orders().await;
                             tokio::time::sleep(Duration::from_millis(10)).await;
                             tries += 1;

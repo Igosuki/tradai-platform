@@ -90,3 +90,7 @@ impl<T> TimedData<T> {
 }
 
 pub type TimedVec<T> = Vec<TimedData<T>>;
+
+pub fn get_unix_timestamp_ms() -> i64 { now().timestamp_millis() }
+
+pub fn get_unix_timestamp_us() -> i64 { now().timestamp_nanos() }

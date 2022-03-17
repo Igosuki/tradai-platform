@@ -7,7 +7,6 @@ use broker_core::json_util::*;
 use broker_core::pair::PairConf;
 use broker_core::prelude::*;
 use broker_core::types::*;
-use broker_core::util::*;
 
 use super::api::PoloniexApi;
 use super::utils;

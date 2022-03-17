@@ -8,7 +8,7 @@ name = "strategies"
 path = "src/lib.rs"
 
 [features]
-backtests = ["backtest", "plotly"]
+backtests = ["backtest", "plotly", "brokers/mock_time"]
 
 [dependencies]
 

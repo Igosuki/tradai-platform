@@ -9,7 +9,6 @@ use broker_core::json_util::from_json_f64;
 use broker_core::pair::PairConf;
 use broker_core::prelude::*;
 use broker_core::types::*;
-use broker_core::util::get_unix_timestamp_ms;
 
 use super::api::CoinbaseApi;
 use super::utils;
