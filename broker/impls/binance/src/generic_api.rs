@@ -24,7 +24,6 @@ use broker_core::error::*;
 use broker_core::pair::{pair_string, symbol_to_pair, PairConf};
 use broker_core::prelude::*;
 use broker_core::types::*;
-use broker_core::util::get_unix_timestamp_ms;
 
 #[async_trait]
 impl Brokerage for BinanceApi {

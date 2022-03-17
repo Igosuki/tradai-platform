@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use actix::Message;
 use chrono::{DateTime, TimeZone, Utc};
 use ordered_float::OrderedFloat;
+use util::time::now;
 use uuid::Uuid;
 
 use crate::types::order::{Order, OrderEnforcement, OrderStatus, TradeType};
@@ -307,7 +308,7 @@ impl MarketEventEnvelope {
             symbol,
             e,
             trace_id: Uuid::new_v4(),
-            ts: Utc::now(),
+            ts: now(),
             sec_type: SecurityType::Crypto,
         }
     }

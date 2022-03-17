@@ -16,7 +16,7 @@ use sha2::Sha512;
 
 use broker_core::error::*;
 use broker_core::prelude::*;
-use broker_core::util::{get_unix_timestamp_ms, strip_empties, url_encode_hashmap};
+use broker_core::url_util::{strip_empties, url_encode_hashmap};
 
 const API_SIGN_HEADER: &str = "apisign";
 

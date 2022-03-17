@@ -13,9 +13,9 @@ strats:
         time_unit: 'minute'
         units: 15
       tick_rate: 1s
-      stop_loss: -0.06
+      stop_loss: -0.02
       trailing_stop_start: 0.01
-      trailing_stop_loss: 0.01
+      trailing_stop_loss: 0.02
       rsi_low: 0.30
       stoch_low: 0.30
       security_type: 'future'
