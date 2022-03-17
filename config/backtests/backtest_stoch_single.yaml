@@ -7,7 +7,7 @@ strats:
         fees_rate: 0.001
     strat:
       type: 'stoch_rsi'
-      pair: 'ETH_USDT'
+      pair: 'BTC_USDT'
       exchange: 'binance'
       resolution:
         time_unit: 'minute'
@@ -16,6 +16,8 @@ strats:
       stop_loss: -0.06
       trailing_stop_start: 0.01
       trailing_stop_loss: 0.01
+      rsi_low: 0.30
+      stoch_low: 0.30
       security_type: 'future'
       source: 'close'
       order_conf:
