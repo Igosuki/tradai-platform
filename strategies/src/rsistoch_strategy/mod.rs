@@ -71,6 +71,7 @@ pub struct Options {
         deserialize_with = "util::ser::string_duration_chrono_opt",
         serialize_with = "util::ser::encode_duration_str_opt"
     )]
+    #[serde(default)]
     tick_rate: Option<chrono::Duration>,
 }
 
