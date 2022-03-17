@@ -75,6 +75,19 @@ where
         .transpose()
 }
 
+pub fn string_duration_chrono_opt<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let val: Option<String> = Deserialize::deserialize(deserializer)?;
+    val.map(|v| {
+        parse_duration::parse(&v)
+            .map(|v| chrono::Duration::milliseconds(v.as_millis() as i64))
+            .map_err(D::Error::custom)
+    })
+    .transpose()
+}
+
 pub fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
 where
     Duration: Sized,
@@ -107,6 +120,17 @@ where
     S: Serializer,
 {
     s.serialize_str(&format!("{}ms", x.num_milliseconds()))
+}
+
+pub fn encode_duration_str_opt<S>(x: &Option<Duration>, s: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    if let Some(x) = x {
+        s.serialize_str(&format!("{}ms", x.num_milliseconds()))
+    } else {
+        s.serialize_none()
+    }
 }
 
 #[derive(Deserialize, Debug)]

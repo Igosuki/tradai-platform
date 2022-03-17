@@ -172,15 +172,20 @@ impl DatasetReader {
                         Box::pin(flat_orderbooks_stream(partitions, input_format, 5))
                     }
                     MarketEventDatasetType::Trades => match ds.channel.r#type {
-                        MarketChannelType::Trades => {
-                            Box::pin(trades_stream(partitions, input_format, lower_dt, upper_dt))
-                        }
+                        MarketChannelType::Trades => Box::pin(trades_stream(
+                            partitions,
+                            input_format,
+                            lower_dt,
+                            upper_dt,
+                            ds.channel.tick_rate,
+                        )),
                         MarketChannelType::Candles => Box::pin(candles_stream(
                             partitions,
                             input_format,
                             lower_dt,
                             upper_dt,
                             ds.channel.resolution,
+                            ds.channel.tick_rate,
                         )),
                         _ => unimplemented!(),
                     },
@@ -222,13 +227,20 @@ impl DatasetReader {
                 )),
                 //MarketEventDatasetType::OrderbooksFlat => Box::pin(flat_orderbooks_stream(partitions, input_format, 5)),
                 MarketEventDatasetType::Trades => match ds.channel.r#type {
-                    MarketChannelType::Trades => Box::pin(trades_df(partitions, input_format, lower_dt, upper_dt)),
+                    MarketChannelType::Trades => Box::pin(trades_df(
+                        partitions,
+                        input_format,
+                        lower_dt,
+                        upper_dt,
+                        ds.channel.tick_rate,
+                    )),
                     MarketChannelType::Candles => Box::pin(candles_df(
                         partitions,
                         input_format,
                         lower_dt,
                         upper_dt,
                         ds.channel.resolution,
+                        ds.channel.tick_rate,
                     )),
                     _ => unimplemented!(),
                 },
