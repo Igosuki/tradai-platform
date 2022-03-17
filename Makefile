@@ -209,13 +209,13 @@ release-backtest:
 	make target=backtest
 
 release-local-backtest:
-	@$(CARGO_BIN) build --release --bin backtest --features=release_default,python
+	@$(CARGO_BIN) build --release --bin backtest --features=release_default,python,strats_backtests
 
 release-local-backtest-debug:
-	make features=release_default target=backtest release_local_debug
+	make features=release_default target=backtest release_local_debug,python,strats_backtests
 
 release-local-backtest-ballista:
-	@$(CARGO_BIN) build --release --bin backtest --features=release_default,remote_execution
+	@$(CARGO_BIN) build --release --bin backtest --features=release_default,remote_execution,python,strats_backtests
 
 bin_tag=latest
 download-binary:

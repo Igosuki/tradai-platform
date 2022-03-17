@@ -6,6 +6,7 @@ edition = "2021"
 [[bin]]
 name = "backtest"
 path = "src/main.rs"
+required-features = ["python", "strats_backtests"]
 
 [[bin]]
 name = "backtest_data_server"
@@ -17,10 +18,11 @@ release_max_level_debug = ["backtest/release_max_level_debug"]
 release_max_level_trace = ["backtest/release_max_level_trace"]
 console = ["util/console_tracing"]
 python  = ["tradai_python"]
+strats_backtests = ["strategies/backtests"]
 
 [dependencies]
 backtest = { path = "../backtest", features = ["mock_time"] }
-strategies = { path = "../strategies", features = ["backtests"] }
+strategies = { path = "../strategies" }
 tradai_python = { path = "../python_crate", optional = true }
 util = { path = "../util" }
 
