@@ -260,16 +260,17 @@ impl Portfolio {
     ) {
         if tracing::enabled!(Level::DEBUG) {
             debug!(
+                at = %order.created_at,
                 pos_knd = %kind,
                 pair = %order.symbol,
-                fees = format!("{:.6}", order.quote_fees()).as_str(),
-                realized_quote_value = format!("{:.2}", order.realized_quote_value()).as_str(),
-                quote_value = format!("{:.2}", order.quote_value()).as_str(),
-                pos_qty = format!("{:.6}", qty).as_str(),
-                open_price = format!("{:.6}", order.price.unwrap_or(0.0)).as_str(),
-                value = format!("{:.6}", qty * order.price.unwrap_or(0.0)).as_str(),
-                value_strat_before = format!("{:.2}", value_strat_before).as_str(),
-                value_strat_after = format!("{:.2}", value_strat_after).as_str(),
+                fees = %format!("{:.6}", order.quote_fees()),
+                realized_quote_value = %format!("{:.2}", order.realized_quote_value()),
+                quote_value = %format!("{:.2}", order.quote_value()),
+                pos_qty = %format!("{:.6}", qty),
+                open_price = %format!("{:.6}", order.price.unwrap_or(0.0)),
+                value = %format!("{:.6}", qty * order.price.unwrap_or(0.0)),
+                value_strat_before = %format!("{:.2}", value_strat_before),
+                value_strat_after = %format!("{:.2}", value_strat_after),
             );
         }
     }
@@ -407,6 +408,7 @@ impl Portfolio {
         if self.open_positions.is_empty() {
             0.0
         } else {
+            //info!("self.open_positions = {:?}", self.open_positions);
             self.open_positions
                 .iter()
                 .map(|(_, pos)| pos.unreal_profit_loss)
