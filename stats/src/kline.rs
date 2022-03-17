@@ -318,7 +318,8 @@ mod test {
     fn test_basic_second_kline() {
         let interval = Resolution::new(Second, 1);
         let mut kline = Kline::new(interval, 2_usize.pow(14));
-        let candle1_time = Utc::now();
+        let base_time = interval.truncate(Utc::now());
+        let candle1_time = base_time;
         let vec1 = kline.next((1.0, 2.0, candle1_time));
         let candle1 = vec1.first().unwrap();
         assert!(!candle1.is_final);
