@@ -150,11 +150,94 @@ impl StrategyOptions for Options {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct SotchRsiValue {
+#[derive(Clone, Serialize, Deserialize)]
+struct StochRsiValue {
     rsi: f64,
     stoch: f64,
     macd: f64,
+}
+
+/// An indicator combining a stochastic oscillator, RSI and MACD to emit a signal
+#[derive(Clone)]
+struct StochRsiModel {
+    stoch: StochasticOscillator,
+    stoch_instance: Option<<StochasticOscillator as IndicatorConfig>::Instance>,
+    macd: MACD,
+    macd_instance: Option<<MACD as IndicatorConfig>::Instance>,
+    rsi: RSI,
+    rsi_instance: Option<<RSI as IndicatorConfig>::Instance>,
+    pub main_signal: Option<Action>,
+    pub macd_signal: Option<Action>,
+    pub value: Option<StochRsiValue>,
+    rsi_low: f64,
+    stoch_low: f64,
+}
+
+impl StochRsiModel {
+    fn try_new(
+        src: Source,
+        rsi_len: u32,
+        rsi_low: f64,
+        stoch_len: u32,
+        stoch_low: f64,
+        smooth_k: u32,
+        signal: u32,
+        macd_fast: u32,
+        macd_slow: u32,
+        macd_signal: u32,
+    ) -> Result<Self> {
+        let rsi = rsi(src, rsi_len, rsi_low);
+        let stoch = stoch(stoch_len, smooth_k, signal, stoch_low);
+        let macd = macd(src, macd_fast, macd_slow, macd_signal);
+        if !rsi.validate() || !stoch.validate() || !macd.validate() {
+            return Err(Error::BadConfiguration("bad config".to_string()));
+        }
+        Ok(Self {
+            rsi,
+            stoch,
+            stoch_instance: None,
+            macd,
+            rsi_instance: None,
+            main_signal: None,
+            macd_instance: None,
+            macd_signal: None,
+            value: None,
+            rsi_low,
+            stoch_low,
+        })
+    }
+
+    fn next(&mut self, candle: stats::kline::Candle) {
+        if self.macd_instance.is_none() || self.rsi_instance.is_none() || self.stoch_instance.is_none() {
+            self.macd_instance = Some(self.macd.init(&candle).unwrap());
+            self.rsi_instance = Some(self.rsi.init(&candle).unwrap());
+            self.stoch_instance = Some(self.stoch.init(&candle).unwrap());
+        }
+        if let (Some(macd), Some(rsi), Some(stoch)) = (
+            self.macd_instance.as_mut(),
+            self.rsi_instance.as_mut(),
+            self.stoch_instance.as_mut(),
+        ) {
+            let macd_r = macd.next(&candle);
+            self.macd_signal = Some(macd_r.signal(0));
+            let rsi_r = rsi.next(&candle);
+            let stoch_r = stoch.next(&candle);
+            let rsi_value = rsi_r.value(0);
+            let stoch_value = stoch_r.value(0);
+            if rsi_value > 1. - self.rsi_low && stoch_value > 1. - self.stoch_low {
+                self.main_signal = Some(Action::BUY_ALL);
+            } else if rsi_value < self.rsi_low && stoch_value < self.stoch_low {
+                self.main_signal = Some(Action::SELL_ALL);
+            } else {
+                self.main_signal = None;
+            }
+            self.value = Some(StochRsiValue {
+                rsi: rsi_value,
+                stoch: stoch_value,
+                macd: macd_r.value(0),
+            });
+        }
+    }
 }
 
 /// Created by Robert Nance on 5/28/16. Additional credit to vdubus.
@@ -166,24 +249,15 @@ struct SotchRsiValue {
 pub struct StochRsiStrategy {
     exchange: Exchange,
     pair: Pair,
-    stoch: StochasticOscillator,
-    stoch_instance: Option<<StochasticOscillator as IndicatorConfig>::Instance>,
-    macd: MACD,
-    macd_instance: Option<<MACD as IndicatorConfig>::Instance>,
-    rsi: RSI,
-    rsi_instance: Option<<RSI as IndicatorConfig>::Instance>,
-    main_signal: Option<Action>,
-    last_macd_signal: Option<Action>,
     //kline: Kline,
+    fast_model: StochRsiModel,
+    slow_model: StochRsiModel,
     stopper: TrailingStopper<f64>,
     logger: Option<StratEventLoggerRef>,
     order_conf: OrderConf,
-    value: Option<SotchRsiValue>,
     security_type: SecurityType,
     resolution: Resolution,
     tick_rate: Option<chrono::Duration>,
-    rsi_low: f64,
-    stoch_low: f64,
 }
 
 impl StochRsiStrategy {
@@ -192,30 +266,27 @@ impl StochRsiStrategy {
         if let Some(err) = n.validate() {
             return Err(err);
         }
-        let rsi = rsi(n.source, n.rsi_len(), n.rsi_low());
-        let stoch = stoch(n.stoch_len(), n.smooth_k(), 3, n.stoch_low());
-        let macd = macd(n.source, n.macd_fast(), n.macd_slow(), n.macd_signal());
-        if !rsi.validate() || !stoch.validate() || !macd.validate() {
-            return Err(Error::BadConfiguration("bad config".to_string()));
-        }
+        let model = StochRsiModel::try_new(
+            n.source,
+            n.rsi_len(),
+            n.rsi_low(),
+            n.stoch_len(),
+            n.stoch_low(),
+            n.smooth_k(),
+            3,
+            n.macd_fast(),
+            n.macd_slow(),
+            n.macd_signal(),
+        )?;
         let strat = Self {
-            rsi_low: n.rsi_low(),
-            stoch_low: n.stoch_low(),
             exchange: n.exchange,
             pair: n.pair.clone(),
-            rsi,
-            stoch,
-            stoch_instance: None,
-            macd,
-            rsi_instance: None,
-            main_signal: None,
-            macd_instance: None,
+            slow_model: model.clone(),
+            fast_model: model,
             //kline: Kline::new(n.resolution, 8),
             stopper: TrailingStopper::new(n.trailing_stop_start(), n.trailing_stop_loss(), n.stop_loss()),
             logger,
             order_conf: n.order_conf.clone(),
-            value: None,
-            last_macd_signal: None,
             security_type: n.security_type,
             resolution: n.resolution,
             tick_rate: n.tick_rate,
@@ -262,51 +333,16 @@ impl StochRsiStrategy {
         broker_candle: &Candle,
         ctx: &DefaultStrategyContext<'_>,
     ) -> Result<Option<TradeSignals>> {
-        let candle = stats::kline::Candle {
-            event_time: broker_candle.event_time,
-            start_time: broker_candle.start_time,
-            end_time: broker_candle.end_time,
-            open: broker_candle.open,
-            high: broker_candle.high,
-            low: broker_candle.low,
-            close: broker_candle.close,
-            volume: broker_candle.volume,
-            quote_volume: broker_candle.quote_volume,
-            trade_count: broker_candle.trade_count,
-            is_final: broker_candle.is_final,
-        };
+        let candle: stats::kline::Candle = convert_candle(broker_candle);
         if candle.is_final {
-            if self.macd_instance.is_none() || self.rsi_instance.is_none() || self.stoch_instance.is_none() {
-                self.macd_instance = Some(self.macd.init(&candle).unwrap());
-                self.rsi_instance = Some(self.rsi.init(&candle).unwrap());
-                self.stoch_instance = Some(self.stoch.init(&candle).unwrap());
-            } else if let (Some(macd), Some(rsi), Some(stoch)) = (
-                self.macd_instance.as_mut(),
-                self.rsi_instance.as_mut(),
-                self.stoch_instance.as_mut(),
-            ) {
-                let macd_r = macd.next(&candle);
-                self.last_macd_signal = Some(macd_r.signal(0));
-                let rsi_r = rsi.next(&candle);
-                let stoch_r = stoch.next(&candle);
-                let rsi_value = rsi_r.value(0);
-                let stoch_value = stoch_r.value(0);
-                if rsi_value > 1. - self.rsi_low && stoch_value > 1. - self.stoch_low {
-                    self.main_signal = Some(Action::BUY_ALL);
-                } else if rsi_value < self.rsi_low && stoch_value < self.stoch_low {
-                    self.main_signal = Some(Action::SELL_ALL);
-                }
-                self.value = Some(SotchRsiValue {
-                    rsi: rsi_value,
-                    stoch: stoch_value,
-                    macd: macd_r.value(0),
-                });
-            }
+            self.fast_model.next(candle);
         }
         let portfolio = ctx.portfolio;
         if !portfolio.has_any_open_position() {
             self.stopper.reset();
         }
+        let macd_value = self.fast_model.value.as_ref().map(|v| v.macd).unwrap_or(0.0);
+        let main_signal = self.fast_model.main_signal;
         let signal = match portfolio.open_position(self.exchange, self.pair.clone()) {
             Some(pos) => {
                 // TODO: move this logic to a single place in the code which can be reused
@@ -318,7 +354,7 @@ impl StochRsiStrategy {
                 }
                 // Possibly close a short position
                 if pos.is_short()
-                    && (maybe_stop.is_some() || (candle.is_final && !matches!(self.main_signal, Some(Action::Sell(_)))))
+                    && (maybe_stop.is_some() || (candle.is_final && !matches!(main_signal, Some(Action::Sell(_)))))
                 {
                     Some(self.make_signal(
                         le.trace_id,
@@ -331,7 +367,7 @@ impl StochRsiStrategy {
                 }
                 // Possibly close a long position
                 else if pos.is_long()
-                    && (maybe_stop.is_some() || (candle.is_final && !matches!(self.main_signal, Some(Action::Buy(_)))))
+                    && (maybe_stop.is_some() || (candle.is_final && !matches!(main_signal, Some(Action::Buy(_)))))
                 {
                     Some(self.make_signal(
                         le.trace_id,
@@ -345,7 +381,7 @@ impl StochRsiStrategy {
                     None
                 }
             }
-            None if matches!(self.main_signal, Some(Action::Sell(_))) => {
+            None if matches!(main_signal, Some(Action::Sell(_))) && macd_value < -200.0 => {
                 // Possibly open a short position
                 let qty = Some(portfolio.value() / candle.close);
                 Some(self.make_signal(
@@ -357,7 +393,7 @@ impl StochRsiStrategy {
                     qty,
                 ))
             }
-            None if matches!(self.main_signal, Some(Action::Buy(_))) => {
+            None if matches!(main_signal, Some(Action::Buy(_))) && macd_value > 200.0 => {
                 // Possibly open a long position
                 let qty = Some(portfolio.value() / candle.close);
                 Some(self.make_signal(
@@ -386,7 +422,7 @@ impl Strategy for StochRsiStrategy {
     fn init(&mut self) -> Result<()> { Ok(()) }
 
     async fn eval(&mut self, le: &MarketEventEnvelope, ctx: &DefaultStrategyContext) -> Result<Option<TradeSignals>> {
-        self.main_signal = None;
+        //self.main_signal = None;
         let e = &le.e;
         match e {
             MarketEvent::TradeCandle(c) => {
@@ -397,7 +433,8 @@ impl Strategy for StochRsiStrategy {
     }
 
     fn model(&self) -> Vec<(String, Option<Value>)> {
-        self.value
+        self.fast_model
+            .value
             .as_ref()
             .map(|v| {
                 vec![
@@ -406,11 +443,14 @@ impl Strategy for StochRsiStrategy {
                     ("macd".to_string(), serde_json::to_value(v.macd).ok()),
                     (
                         "main_signal".to_string(),
-                        self.main_signal.and_then(|s| serde_json::to_value(s.analog()).ok()),
+                        self.fast_model
+                            .main_signal
+                            .and_then(|s| serde_json::to_value(s.analog()).ok()),
                     ),
                     (
                         "macd_signal".to_string(),
-                        self.last_macd_signal
+                        self.fast_model
+                            .macd_signal
                             .and_then(|s| serde_json::to_value(s.analog()).ok()),
                     ),
                 ]
@@ -427,5 +467,21 @@ impl Strategy for StochRsiStrategy {
             .build()]
         .into_iter()
         .collect()
+    }
+}
+
+fn convert_candle(broker_candle: &Candle) -> stats::kline::Candle {
+    stats::kline::Candle {
+        event_time: broker_candle.event_time,
+        start_time: broker_candle.start_time,
+        end_time: broker_candle.end_time,
+        open: broker_candle.open,
+        high: broker_candle.high,
+        low: broker_candle.low,
+        close: broker_candle.close,
+        volume: broker_candle.volume,
+        quote_volume: broker_candle.quote_volume,
+        trade_count: broker_candle.trade_count,
+        is_final: broker_candle.is_final,
     }
 }
