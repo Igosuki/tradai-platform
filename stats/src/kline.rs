@@ -172,7 +172,7 @@ impl Resolution {
 
     pub fn as_secs(&self) -> i64 { self.as_millis() / 1000 }
 
-    pub fn as_millis(&self) -> i64 {
+    pub fn as_duration(&self) -> Duration {
         match self.time_unit {
             TimeUnit::Second => Duration::seconds(self.units as i64),
             TimeUnit::Minute => Duration::minutes(self.units as i64),
@@ -183,8 +183,9 @@ impl Resolution {
             TimeUnit::Year => Duration::days(self.units as i64).mul(365),
             TimeUnit::MilliSecond => Duration::milliseconds(self.units as i64),
         }
-        .num_milliseconds()
     }
+
+    pub fn as_millis(&self) -> i64 { self.as_duration().num_milliseconds() }
 
     pub fn add(&self, to: DateTime<Utc>) -> DateTime<Utc> {
         match self.time_unit {

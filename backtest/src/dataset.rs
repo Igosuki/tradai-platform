@@ -104,18 +104,20 @@ impl DatasetReader {
         let mut datasets = vec![];
         for channel in channels {
             let ds_type = match channel.r#type {
-                MarketChannelType::Orderbooks => match channel.tick_rate {
-                    Some(tr) => {
-                        if tr >= Duration::seconds(1) && tr < Duration::minutes(1) {
-                            MarketEventDatasetType::OrderbooksBySecond
-                        } else if tr >= Duration::minutes(1) {
-                            MarketEventDatasetType::OrderbooksByMinute
-                        } else {
-                            MarketEventDatasetType::OrderbooksRaw
+                MarketChannelType::Orderbooks => {
+                    match channel.tick_rate.or(channel.resolution.map(|r| r.as_duration())) {
+                        Some(tr) => {
+                            if tr >= Duration::seconds(1) && tr < Duration::minutes(1) {
+                                MarketEventDatasetType::OrderbooksBySecond
+                            } else if tr >= Duration::minutes(1) {
+                                MarketEventDatasetType::OrderbooksByMinute
+                            } else {
+                                MarketEventDatasetType::OrderbooksRaw
+                            }
                         }
+                        None => MarketEventDatasetType::OrderbooksRaw,
                     }
-                    None => MarketEventDatasetType::OrderbooksRaw,
-                },
+                }
                 MarketChannelType::Trades | MarketChannelType::Candles => MarketEventDatasetType::Trades,
                 _ => unimplemented!(),
             };

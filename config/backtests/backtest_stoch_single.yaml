@@ -12,7 +12,7 @@ strats:
       resolution:
         time_unit: 'minute'
         units: 15
-      tick_rate: 1s
+      tick_rate: 10s
       stop_loss: -0.02
       trailing_stop_start: 0.01
       trailing_stop_loss: 0.02
@@ -29,7 +29,7 @@ fees: 0.0004
 
 period:
   type: interval
-  from: 2022-03-02T00:00:00
+  from: 2022-02-04T00:00:00
   to: 2022-03-15T00:00:00
 
 db_path: /media/ramdisk/strat_backtest_dbs

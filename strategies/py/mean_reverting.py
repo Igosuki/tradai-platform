@@ -32,7 +32,7 @@ class MeanReverting(Strategy):
             'threshold_window_size': 1000,
             'stop_loss': 0.1,
             'stop_gain': 0.075,
-            'xch': 'Binance',
+            'xch': 'binance',
             'order_conf': {
                 'dry_mode': True,
                 'order_mode': 'limit',
@@ -98,7 +98,7 @@ class MeanReverting(Strategy):
         return self.ppo_model.export() + self.threshold_model.export()
 
     def channels(self):
-        return (Channel("orderbooks", self.conf['xch'], self.conf['pair'], time_unit='minute', units=1, tick_rate_millis=60000),)
+        return (Channel("orderbooks", self.conf['xch'], self.conf['pair'], time_unit='minute', units=1),)
 
 def print_and_zero(log):
     print(log)

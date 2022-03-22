@@ -38,7 +38,7 @@ extern crate strum_macros;
 
 pub use ta::indicators as ta_indicators;
 pub use ta::{Close, High, Low, Next, Open, Period, Reset, Volume};
-pub use yata::core::{Action, Method, Source, Window};
+pub use yata::core::{Action, IndicatorConfig, IndicatorInstance, Method, Source, Window};
 pub use yata::helpers::MA;
 pub use yata::indicators as yata_indicators;
 pub use yata::methods::*;
