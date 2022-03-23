@@ -103,19 +103,150 @@ macro_rules! yata_indicator {
 
 yata_indicator!(
     macd,
-    "Moving average convergence/divergence (MACD)",
+    "Moving average convergence/divergence (MACD), see rust api stats::yata_indicators::MACD",
     "(ma1=None, ma2=None, signal=None, source=None)",
     MACD
 );
 
 yata_indicator!(
     stocho,
-    "Stochastic Oscillator",
+    "Stochastic Oscillator, see rust api stats::yata_indicators::StochasticOscillator",
     "(period=None, ma=None, signal=None, zone=None)",
     StochasticOscillator
 );
 
-yata_indicator!(rsi, "Relative Strength Index", "(ma=None, zone=None, source=None)", RSI);
+yata_indicator!(
+    rsi,
+    "Relative Strength Index, see rust api stats::yata_indicators::RSI",
+    "(ma=None, zone=None, source=None)",
+    RSI
+);
+
+yata_indicator!(
+    aroon,
+    "Aroon, see rust api stats::yata_indicators::Aroon",
+    "(period=None, signal_zone=None, over_zone_period=None)",
+    Aroon
+);
+
+yata_indicator!(
+    adi,
+    "Average Directional Index, see rust api stats::yata_indicators::AverageDirectionalIndex",
+    "(method1=None, method2=None, period1=None, zone=None)",
+    AverageDirectionalIndex
+);
+
+yata_indicator!(
+    awsmo,
+    "Awesome Oscillator, see rust api stats::yata_indicators::AwesomeOscillator",
+    "(ma1=None, ma2=None, source=None, left=None, right=None, conseq_peaks=None)",
+    AwesomeOscillator
+);
+
+yata_indicator!(
+    bb,
+    "Bollinger Bands, see rust api stats::yata_indicators::BollingerBands",
+    "(avg_size=None, sigma=None, source=None)",
+    BollingerBands
+);
+
+yata_indicator!(
+    chkmf,
+    "Chaikin Money Flow, see rust api stats::yata_indicators::ChaikinMoneyFlow",
+    "(size=None)",
+    ChaikinMoneyFlow
+);
+
+yata_indicator!(
+    chkno,
+    "Chaikin Oscillator, see rust api stats::yata_indicators::ChaikinOscillator",
+    "(ma1=None, ma2=None, window=None)",
+    ChaikinOscillator
+);
+
+yata_indicator!(
+    ckstp,
+    "Chande Kroll Stop, see rust api stats::yata_indicators::ChandeKrollStop",
+    "(ma=None, x=None, q=None, source=None)",
+    ChandeKrollStop
+);
+
+yata_indicator!(
+    cmo,
+    "Chande Momentum Oscillator, see rust api stats::yata_indicators::ChandeMomentumOscillator",
+    "(period=None, zone=None, source=None)",
+    ChandeMomentumOscillator
+);
+
+yata_indicator!(
+    cci,
+    "Commodity Channel Index, see rust api stats::yata_indicators::CommodityChannelIndex",
+    "(period=None, zone=None, source=None)",
+    CommodityChannelIndex
+);
+
+yata_indicator!(
+    cppc,
+    "Coppock Curve, see rust api stats::yata_indicators::CoppockCurve",
+    "(ma1=None, s3_ma=None, period2=None, period3=None, s2_left=None, s2_right=None, source=None)",
+    CoppockCurve
+);
+
+yata_indicator!(
+    trdsi,
+    "Trend Strength Index, see rust api stats::yata_indicators::TrendStrengthIndex",
+    "(period=None, zone=None, reverse_offset=None, source=None)",
+    TrendStrengthIndex
+);
+
+yata_indicator!(
+    trix,
+    "Trix, see rust api stats::yata_indicators::Trix",
+    "(period1=None, signal=None, source=None)",
+    Trix
+);
+
+yata_indicator!(
+    trusi,
+    "True Strength Index, see rust api stats::yata_indicators::TrueStrengthIndex",
+    "(period1=None, period2=None, period3=None, zone=None, source=None)",
+    TrueStrengthIndex
+);
+
+yata_indicator!(
+    wdscci,
+    "Woodies Commodity Channel Index, see rust api stats::yata_indicators::WoodiesCCI",
+    "(period1=None, period2=None, s1_lag=None, source=None)",
+    WoodiesCCI
+);
+
+yata_indicator!(
+    fshtsfm,
+    "Fisher Transform, see rust api stats::yata_indicators::FisherTransform",
+    "(period1=None, zone=None, signal=None, source=None)",
+    FisherTransform
+);
+
+yata_indicator!(
+    pcs,
+    "Price Channel Strategy, see rust api stats::yata_indicators::PriceChannelStrategy",
+    "(period=None, sigma=None)",
+    PriceChannelStrategy
+);
+
+yata_indicator!(
+    rvi,
+    "Relative Vigor Index, see rust api stats::yata_indicators::RelativeVigorIndex",
+    "(period1=None, period2=None, signal=None, zone=None)",
+    RelativeVigorIndex
+);
+
+yata_indicator!(
+    smiergo,
+    "SMI Ergodic Indicator, see rust api stats::yata_indicators::SMIErgodicIndicator",
+    "(period1=None, period2=None, signal=None, zone=None, source=None)",
+    SMIErgodicIndicator
+);
 
 #[pymodule]
 pub(crate) fn ta(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -123,5 +254,22 @@ pub(crate) fn ta(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(macd, m)?)?;
     m.add_function(wrap_pyfunction!(stocho, m)?)?;
     m.add_function(wrap_pyfunction!(rsi, m)?)?;
+    m.add_function(wrap_pyfunction!(aroon, m)?)?;
+    m.add_function(wrap_pyfunction!(bb, m)?)?;
+    m.add_function(wrap_pyfunction!(chkmf, m)?)?;
+    m.add_function(wrap_pyfunction!(chkno, m)?)?;
+    m.add_function(wrap_pyfunction!(ckstp, m)?)?;
+    m.add_function(wrap_pyfunction!(cmo, m)?)?;
+    m.add_function(wrap_pyfunction!(cci, m)?)?;
+    m.add_function(wrap_pyfunction!(cppc, m)?)?;
+    m.add_function(wrap_pyfunction!(trdsi, m)?)?;
+    m.add_function(wrap_pyfunction!(trix, m)?)?;
+    m.add_function(wrap_pyfunction!(trusi, m)?)?;
+    m.add_function(wrap_pyfunction!(wdscci, m)?)?;
+    m.add_function(wrap_pyfunction!(fshtsfm, m)?)?;
+    m.add_function(wrap_pyfunction!(pcs, m)?)?;
+    m.add_function(wrap_pyfunction!(rvi, m)?)?;
+    m.add_function(wrap_pyfunction!(smiergo, m)?)?;
+
     Ok(())
 }
