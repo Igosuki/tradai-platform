@@ -4,8 +4,8 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::PyResult;
 use serde::{Deserialize, Serialize};
-use std::borrow::BorrowMut;
 
+use crate::candle::PyCandle;
 use stats::indicators::ppo::PercentPriceOscillator;
 use stats::kline::Candle;
 use stats::yata_prelude::dd::{IndicatorConfigDyn, IndicatorInstanceDyn};
@@ -130,7 +130,7 @@ yata_indicator!(
 );
 
 yata_indicator!(
-    adi,
+    adidx,
     "Average Directional Index, see rust api stats::yata_indicators::AverageDirectionalIndex",
     "(method1=None, method2=None, period1=None, zone=None)",
     AverageDirectionalIndex
@@ -179,7 +179,7 @@ yata_indicator!(
 );
 
 yata_indicator!(
-    cci,
+    ccidx,
     "Commodity Channel Index, see rust api stats::yata_indicators::CommodityChannelIndex",
     "(period=None, zone=None, source=None)",
     CommodityChannelIndex
@@ -248,8 +248,328 @@ yata_indicator!(
     SMIErgodicIndicator
 );
 
+macro_rules! yata_method {
+    ($name:ident, $doc:literal, $signature:literal, $method:ident) => {
+        yata_method!(
+            $name,
+            $doc,
+            $signature,
+            $method,
+            <stats::yata_methods::$method as stats::yata_prelude::Method>::Params,
+            <stats::yata_methods::$method as stats::yata_prelude::Method>::Input
+        );
+    };
+    ($name:ident, $doc:literal, $signature:literal, $method:ident, $valuety:ty) => {
+        #[pyclass]
+        pub(crate) struct $method {
+            inner: stats::yata_methods::$method,
+        }
+
+        #[pymethods]
+        impl $method {
+            fn next(
+                &mut self,
+                value: $valuety,
+            ) -> <stats::yata_methods::$method as stats::yata_prelude::Method>::Output {
+                self.inner.next(&value)
+            }
+        }
+
+        #[doc = $doc]
+        #[pyfunction(text_signature = $signature, kwds="**")]
+        pub(crate) fn $name(value: $valuety) -> PyResult<$method> {
+            Ok($method {
+                inner: stats::yata_methods::$method::new(&value)
+                    .map_err(|e| PyErr::new::<PyTypeError, _>(format!("bad yata method init {:?}", e)))?,
+            })
+        }
+    };
+    ($name:ident, $doc:literal, $signature:literal, $method:ident, $paramsty:ty, $valuety:ty) => {
+        #[pyclass]
+        pub(crate) struct $method {
+            inner: stats::yata_methods::$method,
+        }
+
+        #[pymethods]
+        impl $method {
+            fn next(
+                &mut self,
+                value: $valuety,
+            ) -> <stats::yata_methods::$method as stats::yata_prelude::Method>::Output {
+                self.inner.next(&value)
+            }
+        }
+
+        #[doc = $doc]
+        #[pyfunction(text_signature = $signature, kwds="**")]
+        pub(crate) fn $name(py: Python, params: $paramsty, value: $valuety) -> PyResult<$method> {
+            Ok($method {
+                inner: stats::yata_methods::$method::new(params, &value)
+                    .map_err(|e| PyErr::new::<PyTypeError, _>(format!("bad yata method init {:?}", e)))?,
+            })
+        }
+    };
+}
+
+yata_method!(
+    adim,
+    "Accumulation Distribution Index, see rust api stats::yata_methods::ADI",
+    "(length: u32, candle: OHLCV) -> ADI",
+    ADI,
+    u32,
+    crate::candle::PyCandle
+);
+
+// yata_method!(
+//     collapsetf,
+//     "Collapse Timeframe, see rust api stats::yata_methods::CollapseTimeframe",
+//     "(length: u32, candle: OHLCV) -> CollapseTimeframe",
+//     CollapseTimeframe<PyCandle>
+// );
+
+yata_method!(
+    cci,
+    "Commodity Channel Index, see rust api stats::yata_methods::CCI",
+    "(length: u32, value: f64) -> CCI",
+    CCI
+);
+
+yata_method!(
+    convma,
+    "Convolution Moving Average, see rust api stats::yata_methods::Conv",
+    "(length: [f64], value: f64) -> Conv",
+    Conv
+);
+
+// yata_method!(
+//     cross,
+//     "Cross, see rust api stats::yata_methods::Cross",
+//     "(params: _, value: (f64, f64)) -> Cross",
+//     Cross
+// );
+
+yata_method!(
+    deriv,
+    "Derivative, see rust api stats::yata_methods::Derivative",
+    "(length: u32, value: f64) -> Derivative",
+    Derivative
+);
+
+yata_method!(
+    ema,
+    "Exponantial Moving Average, see rust api stats::yata_methods::EMA",
+    "(length: u32, value: f64) -> EMA",
+    EMA
+);
+
+// yata_method!(
+//     heikin,
+//     "Heikin Ashi, see rust api stats::yata_methods::HeikinAshi",
+//     "(length: u32, value: f64) -> HeikinAshi",
+//     HeikinAshi,
+//     PyCandle
+// );
+
+yata_method!(
+    highlowdelta,
+    "Highest Lowest Delta, see rust api stats::yata_methods::HighestLowestDelta",
+    "(length: u32, value: f64) -> HighestLowestDelta",
+    HighestLowestDelta
+);
+
+yata_method!(
+    highidx,
+    "Highest Index, see rust api stats::yata_methods::HighestIndex",
+    "(length: u32, value: f64) -> HighestIndex",
+    HighestIndex
+);
+
+yata_method!(
+    lowidx,
+    "Lowest Index, see rust api stats::yata_methods::LowestIndex",
+    "(length: u32, value: f64) -> LowestIndex",
+    LowestIndex
+);
+
+yata_method!(
+    hma,
+    "Hull Moving Average, see rust api stats::yata_methods::HMA",
+    "(length: u32, value: f64) -> HMA",
+    HMA
+);
+
+yata_method!(
+    itgrl,
+    "Hull Moving Average, see rust api stats::yata_methods::Integral",
+    "(length: u32, value: f64) -> Integral",
+    Integral
+);
+
+yata_method!(
+    linreg,
+    "Linear Regression, see rust api stats::yata_methods::LinReg",
+    "(length: u32, value: f64) -> LinReg",
+    LinReg
+);
+
+yata_method!(
+    meanabsdev,
+    "Mean Abs Dev, see rust api stats::yata_methods::MeanAbsDev",
+    "(length: u32, value: f64) -> MeanAbsDev",
+    MeanAbsDev
+);
+
+yata_method!(
+    medianabsdev,
+    "Median Abs Dev, see rust api stats::yata_methods::MedianAbsDev",
+    "(length: u32, value: f64) -> MedianAbsDev",
+    MedianAbsDev
+);
+
+yata_method!(
+    momentum,
+    "Momentum, see rust api stats::yata_methods::Momentum",
+    "(length: u32, value: f64) -> Momentum",
+    Momentum
+);
+
+// yata_method!(
+//     past,
+//     "Past, see rust api stats::yata_methods::Past",
+//     "(length: u32, value: f64) -> Past",
+//     Past
+// );
+
+yata_method!(
+    ratechg,
+    "Rate of Change, see rust api stats::yata_methods::RateOfChange",
+    "(length: u32, value: f64) -> RateOfChange",
+    RateOfChange
+);
+
+// yata_method!(
+//     renko,
+//     "Renko, see rust api stats::yata_methods::Renko",
+//     "(length: u32, value: f64) -> Renko",
+//     Renko
+// );
+
+// yata_method!(
+//     reversalsignal,
+//     "Reversal, see rust api stats::yata_methods::ReversalSignal",
+//     "(period: usize, candle: OHLCV) -> ReversalSignal",
+//     ReversalSignal
+// );
+
+// yata_method!(
+//     uperreversalsignal,
+//     "Reversal, see rust api stats::yata_methods::UpperReversalSignal",
+//     "(period: usize, candle: OHLCV) -> UpperReversalSignal",
+//     UpperReversalSignal
+// );
+
+// yata_method!(
+//     lowerreversalsignal,
+//     "Reversal, see rust api stats::yata_methods::LowerReversalSignal",
+//     "(period: usize, candle: OHLCV) -> LowerReversalSignal",
+//     LowerReversalSignal
+// );
+
+yata_method!(
+    rma,
+    "Running Moving Average, see rust api stats::yata_methods::RMA",
+    "(length: u32, value: f64) -> RMA",
+    RMA
+);
+
+yata_method!(
+    sma,
+    "Simple Moving Average, see rust api stats::yata_methods::SMA",
+    "(length: u32, value: f64) -> SMA",
+    SMA
+);
+
+yata_method!(
+    smm,
+    "Simple Moving Median, see rust api stats::yata_methods::SMM",
+    "(length: u32, value: f64) -> SMM",
+    SMM
+);
+
+yata_method!(
+    stddev,
+    "Moving Standard Deviation, see rust api stats::yata_methods::StDev",
+    "(length: u32, value: f64) -> StDev",
+    StDev
+);
+
+yata_method!(
+    swma,
+    "Symmetrically Weighted Moving Average, see rust api stats::yata_methods::SWMA",
+    "(length: u32, value: f64) -> SWMA",
+    SWMA
+);
+
+yata_method!(
+    truerange,
+    "True Range, see rust api stats::yata_methods::TR",
+    "(params: null, value: Candle) -> TR",
+    TR,
+    PyCandle
+);
+
+yata_method!(
+    trima,
+    "Triangular Moving Average, see rust api stats::yata_methods::TRIMA",
+    "(length: u32, value: f64) -> TRIMA",
+    TRIMA
+);
+
+// yata_method!(
+//     tsi,
+//     "True Strength Index, see rust api stats::yata_methods::TSI",
+//     "(params: u32, value: f64) -> TSI",
+//     TSI
+// );
+
+yata_method!(
+    vidya,
+    "Variable Index Dynamic Average, see rust api stats::yata_methods::Vidya",
+    "(params: u32, value: f64) -> Vidya",
+    Vidya
+);
+
+yata_method!(
+    volatility,
+    "Volatility, see rust api stats::yata_methods::LinearVolatility",
+    "(params: u32, value: f64) -> LinearVolatility",
+    LinearVolatility
+);
+
+yata_method!(
+    vwma,
+    "Volume Weighted Moving Average, see rust api stats::yata_methods::VWMA",
+    "(params: u32, value: f64) -> VWMA",
+    VWMA
+);
+
+yata_method!(
+    wma,
+    "Weighted Moving Average, see rust api stats::yata_methods::WMA",
+    "(params: u32, value: f64) -> WMA",
+    WMA
+);
+
+yata_method!(
+    wsma,
+    "Wilder's Smoothing Average, see rust api stats::yata_methods::WSMA",
+    "(params: u32, value: f64) -> WSMA",
+    WSMA
+);
+
 #[pymodule]
 pub(crate) fn ta(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(adidx, m)?)?;
     m.add_function(wrap_pyfunction!(ppo, m)?)?;
     m.add_function(wrap_pyfunction!(macd, m)?)?;
     m.add_function(wrap_pyfunction!(stocho, m)?)?;
@@ -260,7 +580,7 @@ pub(crate) fn ta(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(chkno, m)?)?;
     m.add_function(wrap_pyfunction!(ckstp, m)?)?;
     m.add_function(wrap_pyfunction!(cmo, m)?)?;
-    m.add_function(wrap_pyfunction!(cci, m)?)?;
+    m.add_function(wrap_pyfunction!(ccidx, m)?)?;
     m.add_function(wrap_pyfunction!(cppc, m)?)?;
     m.add_function(wrap_pyfunction!(trdsi, m)?)?;
     m.add_function(wrap_pyfunction!(trix, m)?)?;
@@ -270,6 +590,8 @@ pub(crate) fn ta(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(pcs, m)?)?;
     m.add_function(wrap_pyfunction!(rvi, m)?)?;
     m.add_function(wrap_pyfunction!(smiergo, m)?)?;
+
+    m.add_function(wrap_pyfunction!(trima, m)?)?;
 
     Ok(())
 }
