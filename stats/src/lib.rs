@@ -41,7 +41,7 @@ pub use ta::{Close, High, Low, Next, Open, Period, Reset, Volume};
 pub use yata::core::{Action, IndicatorConfig, IndicatorInstance, Method, Source, Window};
 pub use yata::helpers::MA;
 pub use yata::indicators as yata_indicators;
-pub use yata::methods::*;
+pub use yata::methods as yata_methods;
 pub use yata::prelude as yata_prelude;
 
 pub mod dispersion;

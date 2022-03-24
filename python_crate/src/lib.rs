@@ -45,6 +45,7 @@ use crate::trading::*;
 mod asyncio;
 mod backtest;
 mod brokerage;
+mod candle;
 mod channel;
 mod db;
 mod error;
