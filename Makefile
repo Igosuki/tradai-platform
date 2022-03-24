@@ -1,3 +1,5 @@
+include infra.mk
+
 VENV := precommit_venv
 HOOKS := .git/hooks/pre-commit
 
@@ -9,7 +11,7 @@ $(VENV): .requirements-precommit.txt
 	pre-commit install --hook-type prepare-commit-msg
 
 .PHONY: env
-env: $(VENV)
+venv: $(VENV)
 
 .PHONY: clean-env
 clean-env:
@@ -27,6 +29,8 @@ PWD ?= `pwd`
 
 HOME ?= `echo $HOME`
 
+### CI
+
 $(HOOKS): $(VENV) .pre-commit-config.yaml
 	$(VENV)/bin/pre-commit install -f --install-hooks
 	@$(CARGO_BIN) fmt --help > /dev/null || rustup component add rustfmt
@@ -39,8 +43,6 @@ $(HOOKS): $(VENV) .pre-commit-config.yaml
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 current_dir := $(notdir $(patsubst %/,%,$(dir $(mkfile_path))))
 
-### CI
-
 .PHONY: install-cargo-tools
 install-cargo-tools:
 	@$(CARGO_BIN) install flamegraph cargo-llvm-lines cargo-bloat cargo-edit cargo-deps cargo-bump cargo-clean-recursive cargo-criterion cargo-expand cargo-profiler cargo-tarpaulin cargo-udeps cargo-nextest
@@ -52,9 +54,6 @@ install-hooks: $(HOOKS)
 .PHONY: clean-hooks
 clean-hooks:
 	rm -rf $(HOOKS)
-
-.PHONY: all
-all: release
 
 ### BUILD
 
@@ -249,27 +248,6 @@ release-python-lib-docker:
 maturin-builder-image:
 	docker build -f python_dylib/Dockerfile -t maturin_builder python_dylib
 
-### DOCKER
-
-docker-up:
-	docker-compose -f infra/dev/docker-compose.yaml up -d
-
-docker-down:
-	docker-compose -f infra/dev/docker-compose.yaml down
-
-docker-logs:
-	docker-compose -f infra/dev/docker-compose.yaml logs -f $(SERVICE)
-
-### Deploy
-
-deploy-trader:
-	./infra/prod/deploy_trader.sh
-
-deploy-feeder24:
-	./infra/prod/deploy_feeder24.sh
-
-deploy-tools:
-	./infra/prod/deploy_tools.sh
 
 ### Checks
 
