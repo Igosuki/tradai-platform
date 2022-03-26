@@ -119,6 +119,18 @@ coverage: ## Tests all features
 test-watcher:
 	@$(FUNZZY_BIN)
 
+.PHONY: nextest-watch ## Starts watching source files, run nextest when changes occur
+nextest-watch:
+	@$(CARGO_BIN) watch -x 'nextest run'
+
+.PHONY: check-watch ## Starts watching source files, running cargo check when changes occur
+check-watch:
+	@$(CARGO_BIN) watch -x check -s 'touch .trigger'
+
+.PHONY: trader-watch-restart ## Watch the trigger file and re-run the trader dev server if it changes
+check-watch:
+	@$(CARGO_BIN) watch --no-gitignore -w .trigger -x run
+
 .PHONY: bench
 bench:
 	@$(CARGO_BIN) bench

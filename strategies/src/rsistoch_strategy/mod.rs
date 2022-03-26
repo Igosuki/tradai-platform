@@ -251,6 +251,7 @@ pub struct StochRsiStrategy {
     pair: Pair,
     //kline: Kline,
     fast_model: StochRsiModel,
+    #[allow(dead_code)]
     slow_model: StochRsiModel,
     stopper: TrailingStopper<f64>,
     logger: Option<StratEventLoggerRef>,
