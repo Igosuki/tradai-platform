@@ -104,7 +104,9 @@ mod test {
     async fn should_create_a_fixed_nonce_when_requested() {
         assert_eq!(super::generate_nonce(Some("1".to_string())), "1");
     }
+
     #[tokio::test]
+    #[ignore]
     async fn should_create_a_nonce_bigger_than_2017() {
         assert!(super::generate_nonce(None).parse::<i64>().unwrap() > 1_483_228_800);
     }

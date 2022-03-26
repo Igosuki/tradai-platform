@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::candle::PyCandle;
 use stats::indicators::ppo::PercentPriceOscillator;
-use stats::kline::Candle;
 use stats::yata_prelude::dd::{IndicatorConfigDyn, IndicatorInstanceDyn};
 #[allow(unused_imports)]
 use stats::*;
@@ -67,13 +66,30 @@ pub(crate) fn ppo(short_window: u32, long_window: u32) -> PyIndicator {
 }
 
 #[pyclass]
+pub(crate) struct PyIndicatorResult {
+    pub(crate) signals: Vec<Option<f64>>,
+    pub(crate) values: Vec<f64>,
+    pub(crate) lengths: (u8, u8),
+}
+
+impl From<&IndicatorResult> for PyIndicatorResult {
+    fn from(ir: &IndicatorResult) -> Self {
+        PyIndicatorResult {
+            signals: ir.signals().iter().map(|a| a.ratio()).collect::<Vec<Option<f64>>>(),
+            values: ir.values().to_vec(),
+            lengths: (ir.values_length(), ir.signals_length()),
+        }
+    }
+}
+
+#[pyclass]
 pub(crate) struct PyYataIndicator {
-    config: Box<dyn IndicatorConfigDyn<Candle> + Send>,
-    instance: Option<Box<dyn IndicatorInstanceDyn<Candle> + Send>>,
+    config: Box<dyn IndicatorConfigDyn<PyCandle>>,
+    instance: Option<Box<dyn IndicatorInstanceDyn<PyCandle>>>,
 }
 
 impl PyYataIndicator {
-    fn try_new(config_dict: &PyDict, mut config: Box<dyn IndicatorConfigDyn<Candle> + Send>) -> PyResult<Self> {
+    fn try_new(config_dict: &PyDict, mut config: Box<dyn IndicatorConfigDyn<PyCandle>>) -> PyResult<Self> {
         for (k, v) in config_dict.iter() {
             let key: &str = k.extract()?;
             let value: String = v.extract()?;
@@ -88,6 +104,34 @@ impl PyYataIndicator {
 #[pymethods]
 impl PyYataIndicator {
     fn name(&self) -> String { self.config.name().to_string() }
+
+    // TODO: better return a dataframe
+    fn over(&self, candles: Vec<PyCandle>) -> PyResult<Vec<PyIndicatorResult>> {
+        let results = self
+            .config
+            .over(&candles)
+            .map_err(|e| PyErr::new::<PyTypeError, _>(format!("error going over values {:?}", e)))?;
+        Ok(results.iter().map(Into::into).collect::<Vec<PyIndicatorResult>>())
+    }
+
+    fn init(&mut self, candle: PyCandle) -> PyResult<()> {
+        let result: std::result::Result<Box<dyn IndicatorInstanceDyn<PyCandle>>, yata_prelude::Error> =
+            self.config.init(&candle);
+        self.instance =
+            Some(result.map_err(|e| PyErr::new::<PyTypeError, _>(format!("error initializing indicator {:?}", e)))?);
+        Ok(())
+    }
+
+    fn next(&mut self, candle: PyCandle) -> PyResult<PyIndicatorResult> {
+        if let Some(indicator) = &mut self.instance {
+            Ok((&indicator.next(&candle)).into())
+        } else {
+            Err(PyErr::new::<PyTypeError, _>(format!(
+                "indicator not initialized {:?}",
+                self.name()
+            )))
+        }
+    }
 }
 
 macro_rules! yata_indicator {
@@ -302,7 +346,7 @@ macro_rules! yata_method {
 
         #[doc = $doc]
         #[pyfunction(text_signature = $signature, kwds="**")]
-        pub(crate) fn $name(py: Python, params: $paramsty, value: $valuety) -> PyResult<$method> {
+        pub(crate) fn $name(_py: Python, params: $paramsty, value: $valuety) -> PyResult<$method> {
             Ok($method {
                 inner: stats::yata_methods::$method::new(params, &value)
                     .map_err(|e| PyErr::new::<PyTypeError, _>(format!("bad yata method init {:?}", e)))?,
