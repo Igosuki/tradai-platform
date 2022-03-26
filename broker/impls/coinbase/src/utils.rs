@@ -90,6 +90,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn should_create_a_nonce_bigger_than_2017() {
         assert!(super::generate_nonce(None).parse::<i64>().unwrap() > 1_483_228_800);
     }

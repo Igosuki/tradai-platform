@@ -7570,8 +7570,7 @@ dependencies = [
 [[package]]
 name = "yata"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "690b2aef7186661dae2495ebe4e82f7365cb95e759590be74c940e0e4d71772c"
+source = "git+https://github.com/Igosuki/yata.git?branch=add_send#7e2d6f1f41c4d52b6b09cd7b1f194fb2bc6f7c5e"
 dependencies = [
  "serde",
 ]
