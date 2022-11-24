@@ -35,7 +35,7 @@ impl BittrexStreamingApi {
     /// If currency symbols of channels cannot be found in the registry
     pub async fn new_bot(
         _creds: &dyn Credentials,
-        channels: HashMap<StreamChannel, HashSet<Pair>>,
+        channels: MarketChannels,
     ) -> Result<BotWrapper<HubClient, UnboundedReceiverStream<MarketEventEnvelopeRef>>> {
         // Live order book pairs
         let order_book_pairs: HashSet<Pair> = channels.get(&StreamChannel::DiffOrderbook).cloned().unwrap_or_default();

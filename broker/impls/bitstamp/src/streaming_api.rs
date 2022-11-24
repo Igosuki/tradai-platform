@@ -27,7 +27,7 @@ use super::models::*;
 #[derivative(Debug)]
 pub struct BitstampStreamingApi {
     sink: UnboundedSender<MarketEventEnvelopeRef>,
-    channels: HashMap<StreamChannel, HashSet<Pair>>,
+    channels: MarketChannels,
     #[derivative(Debug = "ignore")]
     metrics: Arc<ExchangeMetrics>,
 }
@@ -36,7 +36,7 @@ impl BitstampStreamingApi {
     #[allow(clippy::missing_panics_doc)]
     pub async fn new_bot(
         _creds: &dyn Credentials,
-        channels: HashMap<StreamChannel, HashSet<Pair>>,
+        channels: MarketChannels,
     ) -> Result<BotWrapper<DefaultWsActor, UnboundedReceiverStream<MarketEventEnvelopeRef>>> {
         let metrics = Arc::new(ExchangeMetrics::for_exchange(Exchange::Binance));
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();

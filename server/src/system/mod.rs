@@ -11,6 +11,7 @@ use std::time::Duration;
 use actix::{Actor, Addr, Recipient, SyncArbiter};
 use futures::future::select_all;
 use futures::TryFutureExt;
+use multimap::MultiMap;
 use tokio::sync::RwLock;
 use tracing::Instrument;
 
@@ -23,6 +24,7 @@ use crate::nats::{NatsConsumer, NatsProducer, Subject};
 use crate::server;
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
 use brokers::prelude::*;
+use brokers::types::MarketChannel;
 use logging::prelude::*;
 use metrics::prom::PrometheusPushActor;
 use portfolio::balance::BalanceReporter;
@@ -50,17 +52,20 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
 
     // Configure exchanges
     let exchanges = &settings_v.exchanges;
-    let exchanges_conf = Arc::new(exchanges.clone());
+    let market_brokers_conf = Arc::new(exchanges.clone());
     let manager = Arc::new(Brokerages::new_manager());
     manager
-        .build_exchange_apis(exchanges_conf.clone(), keys_path.clone())
+        .build_exchange_apis(market_brokers_conf.clone(), keys_path.clone())
         .await;
+
     // Temporarily load symbol cache from here
     // TODO: do this to a read-only memory mapped file somewhere else that is used as a cache
     Brokerages::load_pair_registries(manager.exchange_apis())
         .instrument(tracing::info_span!("loading pair registries"))
         .await?;
+
     // Message brokers
+    let mut market_channels: MultiMap<Exchange, MarketChannel> = MultiMap::new();
     let mut market_broker = ActixMessageBroker::<MarketChannelTopic, MarketEventEnvelopeRef>::new();
     let mut account_broker = ActixMessageBroker::<AccountChannel, AccountEventEnveloppe>::new();
     // Termination handles to fuse the server with
@@ -103,6 +108,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                     .await;
                 for trader in strategies {
                     for channel in &trader.channels {
+                        market_channels.insert(channel.exchange(), channel.clone());
                         market_broker.register(channel.into(), trader.market_event_recipient());
                     }
                     strat_recipients.push(trader.market_event_recipient());
@@ -150,7 +156,8 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 let mut all_recipients = vec![];
                 all_recipients.extend(strat_recipients.clone());
                 all_recipients.extend(broadcast_recipients.clone());
-                let mut bots = bots::exchange_bots(exchanges_conf.clone(), keys_path.clone()).await?;
+                let mut bots =
+                    bots::market_data_bots(market_brokers_conf.clone(), keys_path.clone(), market_channels).await?;
                 if !bots.is_empty() {
                     let market_broker_ref = market_broker_ref.clone();
                     let fut = async move {
@@ -169,11 +176,11 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 }
             }
             StreamSettings::AccountData => {
-                let mut bots = bots::spot_account_bots(exchanges_conf.clone(), keys_path.clone()).await?;
-                let margin_bots = bots::margin_account_bots(exchanges_conf.clone(), keys_path.clone()).await?;
+                let mut bots = bots::spot_account_bots(market_brokers_conf.clone(), keys_path.clone()).await?;
+                let margin_bots = bots::margin_account_bots(market_brokers_conf.clone(), keys_path.clone()).await?;
                 bots.extend(margin_bots);
                 let isolated_margin_bots =
-                    bots::isolated_margin_account_bots(exchanges_conf.clone(), keys_path.clone()).await?;
+                    bots::isolated_margin_account_bots(market_brokers_conf.clone(), keys_path.clone()).await?;
                 bots.extend(isolated_margin_bots);
                 if !bots.is_empty() {
                     let account_broker_ref = account_broker_ref.clone();

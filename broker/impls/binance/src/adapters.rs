@@ -23,14 +23,18 @@ pub struct Subscription {
     id: i32,
 }
 
-pub fn subscription(c: StreamChannel, currency_pairs: &[String], id: i32, depth: Option<u16>) -> Subscription {
-    let channel_str = match c {
-        StreamChannel::Trades => "trade".to_string(),
-        StreamChannel::Orders => "orders".to_string(),
-        StreamChannel::PlainOrderbook | StreamChannel::DetailedOrderbook => {
+pub fn subscription(c: &MarketChannel, currency_pairs: &[String], id: i32, depth: Option<u16>) -> Subscription {
+    let channel_str = match c.r#type {
+        MarketChannelType::Trades => "trade".to_string(),
+        MarketChannelType::QuotesCandles | MarketChannelType::Quotes => {
             format!("depth{}@100ms", depth.unwrap_or(10))
         }
-        StreamChannel::DiffOrderbook => "depth@100ms".to_string(),
+        MarketChannelType::Orderbooks => "depth@100ms".to_string(),
+        MarketChannelType::Candles => {
+            // TODO : user proper binance channel
+            "ticks"
+        }
+        _ => unimplemented!("oi does not exist on binance"),
     };
     Subscription {
         method: String::from("SUBSCRIBE"),

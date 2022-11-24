@@ -22,6 +22,7 @@ criterion = { workspace = true, features = ["async_tokio"] }
 [dependencies]
 ext = { path = "../../ext" }
 util = { path = "../../util" }
+stats = { path = "../../stats"}
 
 # Actix
 actix = { workspace = true }

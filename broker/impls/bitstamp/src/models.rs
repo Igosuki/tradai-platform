@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
 
-use broker_core::types::{MarketEvent, MarketSymbol, Orderbook, Pair, StreamChannel, Ticker as CoinnectTicker, Trade};
+use broker_core::types::{MarketEvent, MarketSymbol, Orderbook, Pair, Ticker as CoinnectTicker, Trade};
 
 use super::utils;
 

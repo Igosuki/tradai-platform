@@ -125,6 +125,15 @@ where
     Ok(Duration::seconds(val))
 }
 
+pub fn decode_duration_opt<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+where
+    Duration: Sized,
+    D: Deserializer<'de>,
+{
+    let val = Deserialize::deserialize(deserializer)?;
+    Ok(Some(Duration::seconds(val)))
+}
+
 pub fn decode_file_size<'de, D>(deserializer: D) -> Result<u128, D::Error>
 where
     D: Deserializer<'de>,
