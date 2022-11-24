@@ -1209,6 +1209,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.2",
+ "stats",
  "string_cache",
  "strum 0.24.0",
  "strum_macros 0.24.0",
@@ -6025,7 +6026,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "trading",
  "yata",
 ]
 
@@ -6929,6 +6929,7 @@ dependencies = [
  "logging",
  "measure_time",
  "metrics",
+ "multimap",
  "native-tls",
  "nats",
  "notify",
