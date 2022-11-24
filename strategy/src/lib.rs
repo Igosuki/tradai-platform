@@ -42,12 +42,8 @@ Specific APIs exist to facilitate persisting time based statistical models.
 #![feature(test)]
 #![feature(async_closure)]
 #![feature(type_alias_impl_trait)]
-#![feature(in_band_lifetimes)]
 #![feature(inherent_associated_types)]
 #![feature(fn_traits)]
-#![feature(generic_associated_types)]
-#![feature(const_fn_fn_ptr_basics)]
-#![feature(const_fn_trait_bound)]
 
 #[macro_use]
 extern crate anyhow;
