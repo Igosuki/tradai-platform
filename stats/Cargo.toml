@@ -15,8 +15,6 @@ release_max_level_debug = ["tracing/release_max_level_debug"]
 release_max_level_trace = ["tracing/release_max_level_trace"]
 
 [dependencies]
-trading = { path = "../trading" }
-
 anyhow = "1.0"
 itertools = "0.10"
 # Optional dependencies to be used later
