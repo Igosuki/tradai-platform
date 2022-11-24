@@ -193,8 +193,8 @@ impl PyArrowConvert for Arc<dyn Array> {
         )?;
 
         unsafe {
-            Box::from_raw(array_ptr);
-            Box::from_raw(schema_ptr);
+            let _ = Box::from_raw(array_ptr);
+            let _ = Box::from_raw(schema_ptr);
         };
 
         Ok(array.to_object(py))

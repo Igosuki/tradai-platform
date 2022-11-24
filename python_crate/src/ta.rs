@@ -65,6 +65,7 @@ pub(crate) fn ppo(short_window: u32, long_window: u32) -> PyIndicator {
     }
 }
 
+#[allow(dead_code)]
 #[pyclass]
 pub(crate) struct PyIndicatorResult {
     pub(crate) signals: Vec<Option<f64>>,

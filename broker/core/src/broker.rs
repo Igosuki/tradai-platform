@@ -97,7 +97,7 @@ where
 impl<'a, S, M> Broker<'a, S, M, Recipient<M>> for ActixMessageBroker<S, M>
 where
     S: Subject<M>,
-    M: Clone + actix::Message + Send + Debug,
+    M: Clone + actix::Message + Send + Debug + 'a,
     <M as actix::Message>::Result: Send,
 {
     type BroadcastResult = ();
