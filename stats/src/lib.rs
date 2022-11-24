@@ -11,7 +11,6 @@ Summary : statistical tools to summarize data series
 
 #![feature(test)]
 #![feature(type_alias_impl_trait)]
-#![feature(generic_associated_types)]
 #![allow(
     clippy::items_after_statements,
     clippy::unreadable_literal,
@@ -23,7 +22,6 @@ Summary : statistical tools to summarize data series
 #[cfg(test)]
 #[macro_use]
 extern crate float_cmp;
-#[macro_use]
 extern crate prettytable;
 #[macro_use]
 extern crate serde;

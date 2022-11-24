@@ -1,6 +1,8 @@
 use std::ops::{Add, Mul};
 
 use chrono::{DateTime, Duration, Utc};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 pub use indicator_model::IndicatorModel;
 pub use windowed_model::PersistentWindowedModel;
@@ -23,13 +25,13 @@ pub trait Model<T> {
     fn value(&self) -> Option<T>;
 }
 
-pub type Window<'a, T> = impl Iterator<Item = &'a T>;
-pub type TimedWindow<'a, T> = impl Iterator<Item = &'a TimedValue<T>>;
+pub type Window<'a, T: 'a + Serialize + DeserializeOwned> = impl Iterator<Item = &'a T>;
+pub type TimedWindow<'a, T: 'a> = impl Iterator<Item = &'a TimedValue<T>>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TimedValue<T>(i64, T);
 
-pub trait WindowedModel<R, M>: Model<M> {
+pub trait WindowedModel<R: Serialize + DeserializeOwned, M>: Model<M> {
     fn is_filled(&self) -> bool;
     fn window(&self) -> Window<'_, R>;
     fn timed_window(&self) -> TimedWindow<'_, R>;

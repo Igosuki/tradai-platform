@@ -13,7 +13,6 @@ Python equivalents can be found in `py/`
  */
 
 #![feature(used_with_arg)]
-#![feature(generic_associated_types)]
 #![allow(
     clippy::wildcard_imports,
     clippy::module_name_repetitions,
