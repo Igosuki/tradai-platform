@@ -73,7 +73,7 @@ use uuid::Uuid;
 use actor::StrategyActor;
 use brokers::broker::{MarketEventEnvelopeRef, Subject};
 use brokers::prelude::*;
-use brokers::types::{OrderbookConf, Symbol};
+use brokers::types::{MarketChannel, MarketChannelType, OrderbookConf, Symbol};
 use db::DbOptions;
 use error::*;
 use ext::ResultExt;
@@ -106,75 +106,6 @@ pub mod settings;
 #[cfg(test)]
 mod test_util;
 pub mod types;
-
-/// A market channel represents a unique stream of data that will be required to run a strategy
-/// Historical and Real-Time data will be provided from this on a best effort basis.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, typed_builder::TypedBuilder)]
-pub struct MarketChannel {
-    /// A unique identifier for the security requested by this market data channel
-    pub symbol: Symbol,
-    /// The type of the ticker
-    pub r#type: MarketChannelType,
-    /// The minimal tick rate for the data, in reality max(tick_rate, exchange_tick_rate) will be used
-    #[builder(default)]
-    pub tick_rate: Option<Duration>,
-    /// If set, the data will be aggregated in OHLCV candles
-    #[builder(default)]
-    pub resolution: Option<Resolution>,
-    /// Only send final candles
-    #[builder(default)]
-    pub only_final: Option<bool>,
-    #[builder(default)]
-    pub orderbook: Option<OrderbookConf>,
-}
-
-impl MarketChannel {
-    pub fn exchange(&self) -> Exchange { self.symbol.xch }
-
-    pub fn pair(&self) -> &Pair { &self.symbol.value }
-
-    pub fn name(&self) -> &'static str {
-        match self.r#type {
-            MarketChannelType::Trades => "trades",
-            MarketChannelType::Orderbooks { .. } => "order_books",
-            MarketChannelType::OpenInterest => "interests",
-            MarketChannelType::Candles => "candles",
-            MarketChannelType::Quotes => "quotes",
-            MarketChannelType::QuotesCandles => "book_candles",
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum MarketChannelType {
-    /// Raw Trades see [MarketEvent::Trade]
-    Trades,
-    /// Order book changes see [MarketEvent::Orderbook]
-    Orderbooks,
-    /// Kline events see [MarketEvent::CandleTick]
-    Candles,
-    /// Open interest for futures see [MarketEvent::OpenInterest]
-    OpenInterest,
-    /// Layer 1 order book quotes see [MarketEvent::Quote]
-    Quotes,
-    /// Kline for layer 1 order book [MarketEvent::BookCandle]
-    QuotesCandles,
-}
-
-impl From<&MarketEvent> for MarketChannelType {
-    fn from(e: &MarketEvent) -> Self {
-        match e {
-            MarketEvent::Trade(_) => Self::Trades,
-            MarketEvent::Orderbook(_) => Self::Orderbooks,
-            MarketEvent::TradeCandle(_) => Self::Candles,
-            MarketEvent::BookCandle(_) => Self::QuotesCandles,
-        }
-    }
-}
-
-impl From<MarketEvent> for MarketChannelType {
-    fn from(e: MarketEvent) -> Self { From::from(&e) }
-}
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct MarketChannelTopic(pub Symbol, pub MarketChannelType);

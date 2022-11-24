@@ -10,7 +10,7 @@ use crate::error::Result;
 use crate::exchange::Exchange;
 use crate::fees::FeeProvider;
 use crate::settings::BrokerSettings;
-use crate::types::{AccountType, MarketSymbol, PrivateStreamChannel, StreamChannel};
+use crate::types::{AccountType, MarketChannel, MarketChannels, MarketSymbol, PrivateStreamChannel};
 
 #[async_trait(?Send)]
 pub trait BrokerConnector: Send + Sync {
@@ -42,7 +42,7 @@ impl BrokerageInitContext {
 pub struct BrokerageBotInitContext {
     pub settings: BrokerSettings,
     pub creds: Box<dyn Credentials>,
-    pub channels: HashMap<StreamChannel, HashSet<MarketSymbol>>,
+    pub channels: MarketChannels,
 }
 
 #[derive(typed_builder::TypedBuilder)]
