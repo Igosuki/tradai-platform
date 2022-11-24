@@ -33,7 +33,7 @@ use super::adapters::*;
 #[derive(Clone)]
 pub struct BinanceStreamingApi {
     books: Arc<DashMap<Pair, LiveAggregatedOrderBook>>,
-    channels: HashMap<StreamChannel, HashSet<Pair>>,
+    channels: MarketChannels,
     sink: UnboundedSender<MarketEventEnvelopeRef>,
     api: Arc<BinanceApi>,
     metrics: Arc<ExchangeMetrics>,
@@ -44,7 +44,7 @@ impl BinanceStreamingApi {
     /// Create a new binance exchange bot, unavailable channels and currencies are ignored
     pub async fn try_new(
         creds: &dyn Credentials,
-        channels: HashMap<StreamChannel, HashSet<Pair>>,
+        channels: MarketChannels,
         use_test: bool,
         orderbook_depth: Option<u16>,
     ) -> Result<BotWrapper<DefaultWsActor, UnboundedReceiverStream<MarketEventEnvelopeRef>>> {
@@ -75,11 +75,7 @@ impl BinanceStreamingApi {
         Ok(BotWrapper::new(addr, UnboundedReceiverStream::new(rx)))
     }
 
-    fn streams_url(
-        orderbook_depth: Option<u16>,
-        channels: &HashMap<StreamChannel, HashSet<Pair>>,
-        endpoint: &str,
-    ) -> Result<Url> {
+    fn streams_url(orderbook_depth: Option<u16>, channels: &MarketChannels, endpoint: &str) -> Result<Url> {
         let mut url = Url::parse(endpoint)?;
         url.path_segments_mut()
             .map_err(|_| Error::ParseUrl(url::ParseError::RelativeUrlWithoutBase))?
@@ -92,7 +88,7 @@ impl BinanceStreamingApi {
                     .flat_map(|pair| pair_to_symbol(&Exchange::Binance, pair))
                     .map(|s| s.to_string())
                     .collect();
-                let sub = &subscription(*c, &pairs, 0, orderbook_depth);
+                let sub = &subscription(c, &pairs, 0, orderbook_depth);
                 sub.params.join("/")
             })
             .join("/");
@@ -104,7 +100,7 @@ impl BinanceStreamingApi {
     // TODO: this is generic
     #[allow(dead_code)]
     async fn refresh_order_books(&self) {
-        let order_book_pairs = self.channels.get(&StreamChannel::DiffOrderbook);
+        let order_book_pairs = self.channels.get(&MarketChannelType::Orderbooks);
         if order_book_pairs.is_none() {
             return;
         }

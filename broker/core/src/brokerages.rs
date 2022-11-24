@@ -14,10 +14,10 @@ use crate::credential::{BasicCredentials, Credentials};
 use crate::error::{Error, Result};
 use crate::exchange::Exchange;
 use crate::manager::{BrokerageManager, BrokerageRegistry};
-use crate::pair::{filter_pairs, refresh_pairs};
+use crate::pair::{pair_to_symbol, refresh_pairs};
 use crate::plugin::{get_exchange_plugin, BrokerageBotInitContext, PrivateBotInitContext};
-use crate::settings::{BrokerSettings, OrderbookSettings, OrderbookStyle, TradesSettings};
-use crate::types::{AccountType, MarketSymbol, Pair, PrivateStreamChannel, StreamChannel};
+use crate::settings::BrokerSettings;
+use crate::types::{AccountType, MarketChannel, PrivateStreamChannel};
 
 #[derive(Debug)]
 pub struct Brokerages;
@@ -48,31 +48,16 @@ impl Brokerages {
         exchange: Exchange,
         creds: Box<dyn Credentials>,
         s: BrokerSettings,
+        market_channels: &[MarketChannel],
     ) -> Result<Box<MarketDataStreamer>> {
-        let mut channels: HashMap<StreamChannel, HashSet<MarketSymbol>> = HashMap::new();
-        if let Some(OrderbookSettings { ref symbols, ref style }) = s.orderbook {
-            let pairs = filter_pairs(&exchange, symbols)?;
-            let order_book_pairs: HashSet<Pair> = pairs
-                .into_iter()
-                .filter(|p| crate::pair::pair_to_symbol(&exchange, &p.clone()).is_ok())
-                .collect();
-            // Live order book pairs
-            let channel = match style {
-                OrderbookStyle::Live => StreamChannel::PlainOrderbook,
-                OrderbookStyle::Detailed => StreamChannel::DetailedOrderbook,
-                OrderbookStyle::Diff => StreamChannel::DiffOrderbook,
-            };
-            channels.insert(channel, order_book_pairs);
-        }
-        if let Some(TradesSettings { ref symbols }) = s.trades {
-            // Live trade pairs
-            let pairs = filter_pairs(&exchange, symbols)?;
-            let trade_pairs: HashSet<MarketSymbol> = pairs
-                .into_iter()
-                .filter(|p| crate::pair::pair_to_symbol(&exchange, p).is_ok())
-                .collect();
-            channels.insert(StreamChannel::Trades, trade_pairs);
-        }
+        let mut channels = HashMap::new();
+        market_channels.iter().for_each(|mc| {
+            if let Ok(s) = pair_to_symbol(&exchange, &mc.symbol.value) {
+                let mut hs = HashSet::new();
+                hs.insert(s);
+                channels.insert(mc.clone(), hs);
+            }
+        });
         debug!("{:?}", channels);
         let plugin = get_exchange_plugin(exchange)?;
         let ctx = BrokerageBotInitContext::builder()
