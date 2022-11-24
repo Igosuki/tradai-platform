@@ -50,4 +50,3 @@ pub mod indicators;
 pub mod iter;
 pub mod kline;
 pub mod math;
-pub mod summary;

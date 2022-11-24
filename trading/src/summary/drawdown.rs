@@ -1,4 +1,4 @@
-use crate::indicators::drawdown::{AvgDrawdown, Drawdown, MaxDrawdown};
+use crate::indicators::drawdown_indicator::{AvgDrawdown, Drawdown, MaxDrawdown};
 use crate::summary::{PositionSummariser, TablePrinter};
 use prettytable::{Row, Table};
 use trading::position::Position;

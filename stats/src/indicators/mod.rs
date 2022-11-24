@@ -3,12 +3,10 @@ use yata::helpers::MA;
 use yata::indicators::{StochasticOscillator, MACD, RSI};
 
 pub mod cross;
-pub mod drawdown;
 pub mod ema;
 pub mod momentum;
 pub mod ppo;
 pub mod ppo_yata;
-pub mod ratio;
 pub mod thresholds;
 
 pub fn stoch(period: u32, smooth_k: u32, signal: u32, zone_low: f64) -> StochasticOscillator {
