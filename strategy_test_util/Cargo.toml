@@ -1,7 +1,8 @@
 [package]
 name = "strategy_test_util"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -17,29 +18,29 @@ db = { path = "../db" }
 trading = { path = "../trading" }
 
 #async
-tokio = { version = "1", features = ["full"] }
+tokio = { workspace = true }
 
 #std
-chrono = "0.4"
-maplit = "1.0"
-multimap = "0.8"
-itertools = "0.10"
+chrono = { workspace = true }
+maplit = { workspace = true }
+multimap = { workspace = true }
+itertools = { workspace = true }
 tempfile = "3.2"
-glob = "0.3"
+glob = { workspace = true }
 
 # data
 csv = "1.1"
 
 # plots
-hdrhistogram = "7"
-plotly = { version = "0.7" }
+hdrhistogram = { workspace = true }
+plotly = { workspace = true }
 
 # logging
-env_logger = "0.9"
-tracing = "0.1"
+env_logger = { workspace = true }
+tracing = { workspace = true }
 
 # derive
-serde = "1.0"
-serde_json = "1.0"
-typed-builder = "0.10"
+serde = { workspace = true }
+serde_json = { workspace = true }
+typed-builder = { workspace = true }
 

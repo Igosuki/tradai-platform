@@ -181,14 +181,20 @@ impl Storage for RocksDbStorage {
     fn _get_ranged(&self, table: &str, from: &[u8]) -> Result<Vec<Bytes>> {
         let mode = IteratorMode::From(from, Direction::Forward);
         let cf = self.cf(table)?;
-        Ok(self.inner.iterator_cf(&cf, mode).map(|(_k, v)| v).collect())
+        self.inner
+            .iterator_cf(&cf, mode)
+            .map(|r| r.err_into().map(|(_k, v)| v))
+            .collect()
     }
 
     fn _get_range(&self, table: &str, from: &[u8], to: &[u8]) -> Result<Vec<(String, Bytes)>> {
         let mode = IteratorMode::From(from, Direction::Forward);
         let cf = self.cf(table)?;
         let mut ret_vec = vec![];
-        for (k, v) in self.inner.iterator_cf(&cf, mode) {
+        for r in self.inner.iterator_cf(&cf, mode) {
+            let Ok((k, v)) = r else {
+                continue;
+            };
             if *to < *k {
                 break;
             }
@@ -200,7 +206,7 @@ impl Storage for RocksDbStorage {
     fn _get_all(&self, table: &str) -> Result<Vec<(Bytes, Bytes)>> {
         let mode = IteratorMode::Start;
         let cf = self.cf(table)?;
-        Ok(self.inner.iterator_cf(&cf, mode).collect())
+        self.inner.iterator_cf(&cf, mode).map(|r| r.err_into()).collect()
     }
 
     fn _delete(&self, table: &str, key: &[u8]) -> Result<()> {

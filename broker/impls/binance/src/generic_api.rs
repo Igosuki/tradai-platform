@@ -66,7 +66,7 @@ impl Brokerage for BinanceApi {
 
         let mut balances = AccountPosition::new();
 
-        balances.update_time = Utc.timestamp_millis(result.update_time);
+        balances.update_time = Utc.timestamp_millis_opt(result.update_time).unwrap();
 
         for balance in result.balances {
             balances.insert(balance.asset.clone().into(), from_binance_balance(balance));

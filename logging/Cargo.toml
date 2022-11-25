@@ -1,10 +1,9 @@
 [package]
 name = "logging"
-version = "0.1.0"
-authors = ["Guillaume Balaine <igosuki@gmail.com>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 build = "build.rs"
 
 [lib]
@@ -19,41 +18,41 @@ flame = ["dep:flame", "flamer"]
 brokers = { path = "../broker" }
 
 # Actix
-actix = { version = "0.13" }
+actix = { workspace = true }
 
 # Std
-chrono = "0.4"
-lazy_static = "1.4"
-rand = "0.8"
-uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng"] }
+chrono = { workspace = true }
+lazy_static = { workspace = true }
+rand = { workspace = true }
+uuid = { workspace = true, features = ["v4", "fast-rng"] }
 
 # Error
-thiserror = "1.0"
-anyhow = "1.0"
+thiserror = { workspace = true }
+anyhow = { workspace = true }
 
 # Codecs
 avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "update_deps" }
-serde_json = { version = "1.0" }
+serde_json = { workspace = true }
 
 # derive
-serde = "1.0"
-derive_more = "0.99"
+serde = { workspace = true }
+derive_more = { workspace = true }
 
 # Logging / Monitoring / Tracing
-prometheus = "0.13"
-tracing = "0.1"
+prometheus = { workspace = true }
+tracing = { workspace = true }
 
 # Profiling
-flame = { version = "0.2", optional = true }
-flamer = { version = "0.4", optional = true }
+flame = { workspace = true, optional = true }
+flamer = { workspace = true, optional = true }
 
 [dev-dependencies]
 fs_extra = "1.2"
-env_logger = "0.9"
-tempdir = "0.3"
-tokio = { version = "1.17", features = ["time"] }
+env_logger = { workspace = true }
+tempdir = { workspace = true }
+tokio = { workspace = true }
 [build-dependencies]
 crc32fast = "1.2"
 rsgen-avro = { git = "https://github.com/Igosuki/rsgen-avro.git", branch = "update_deps" }
-serde_json = { version = "1.0", features = ["float_roundtrip"] }
+serde_json = { workspace = true }
 

@@ -44,7 +44,7 @@ pub fn draw_lines<T>(plot: &mut Plot, trace_offset: usize, data: &[TimedData<T>]
 pub struct TimeWrap(pub DateTime<Utc>);
 
 impl Default for TimeWrap {
-    fn default() -> Self { TimeWrap(Utc.timestamp_millis(0)) }
+    fn default() -> Self { TimeWrap(Utc.timestamp_millis_opt(0)).unwrap() }
 }
 
 #[allow(clippy::needless_pass_by_value)]

@@ -1,7 +1,8 @@
 [package]
 name = "backtest_cli"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [[bin]]
 name = "backtest"
@@ -27,24 +28,24 @@ tradai_python = { path = "../python_crate", optional = true }
 util = { path = "../util" }
 
 # actors
-actix = "0.13"
+actix = { workspace = true }
 
 # std
-anyhow = "1.0"
-typed-builder = "0.10"
+anyhow = { workspace = true }
+typed-builder = { workspace = true }
 
 # cli
-structopt = { version = "0.3" }
-config = "0.12"
+structopt = { workspace = true }
+config = { workspace = true }
 
 # logging / monitoring / metrics
-tracing = { version = "0.1", features = ["log"] }
+tracing = { workspace = true }
 
 # async
-futures = "0.3"
-tokio = { version = "1", features = ["full"] }
+futures = { workspace = true }
+tokio = { workspace = true }
 
 # serde
-serde = { version = "1.0", features = ["derive"] }
+serde = { workspace = true }
 
 

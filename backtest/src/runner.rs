@@ -55,7 +55,7 @@ impl BacktestRunner {
             events_sink,
             sampler: Sampler::new(
                 report_sample_freq.unwrap_or(chrono::Duration::seconds(1)),
-                Utc.timestamp_millis(0),
+                Utc.timestamp_millis_opt(0).unwrap(),
             ),
         }
     }

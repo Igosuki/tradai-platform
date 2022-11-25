@@ -25,6 +25,119 @@ exclude = [
     "python_dylib",
 ]
 
+[workspace.package]
+version = "0.1.0"
+authors = ["Guillaume Balaine <igosuki@gmail.com>"]
+description = "The tradai platform"
+documentation = "https://tradai.io/docs"
+edition = "2021"
+
+[workspace.dependencies]
+# own crates
+binance-rs-async = { version = "1.1.4" }
+
+# actix
+actix-web = { version = "4.0.1", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
+actix-http = { version = "3.0.0", features = ["ws"] }
+actix-http-test = "3.0.0-beta"
+actix-cors = { version = "0.6.0", default-features = false }
+actix-codec = "0.5"
+actix = "0.13"
+actix-rt = "2.6"
+awc = { version = "3.0.0-beta", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
+actix_derive = "0.6"
+
+# http
+reqwest = "0.11"
+
+# errors
+anyhow = "1.0"
+thiserror = "1.0"
+
+# async
+futures = { version = "0.3", features = ["thread-pool"] }
+tokio = { version = "1", features = ["full", "time"] }
+tokio-stream = { version = "0.1" }
+tokio-util = "0.7"
+async-trait = "0.1"
+async-stream = "0.3"
+backoff = { version = "0.4", features = ["tokio"] }
+
+# std
+chrono = { version = "0.4", features = ["serde"] }
+itertools = "0.10"
+lazy_static = "1.4"
+rand = "0.8"
+uuid = { version = "1.2", features = ["v4", "fast-rng"] }
+url = "2.2"
+env_logger = "0.9"
+bytes = "1.0"
+once_cell = "1.9"
+maplit = "1.0"
+hdrhistogram = "7.4"
+byte-unit = "4.0"
+tempdir = "0.3"
+rust_decimal = "1"
+ordered-float = "3.4"
+typed-builder = "0.10"
+multimap = "0.8"
+bytestring = "1.2"
+smallvec = "1"
+libc = "0.2"
+log = "0.4"
+float-cmp = "0.9"
+dashmap = "5.4"
+bstr = "1.0"
+
+# cli
+structopt = "0.3"
+clap = "3.0"
+config = { version = "0.12", features = ["yaml", "toml", "json"], default-features = false }
+glob = "0.3"
+
+# serde
+derivative = { version = "2.2" }
+serde-aux = { version = "3.0" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
+erased-serde = { version = "0.3" }
+derive_more = "0.99"
+strum = "0.24"
+strum_macros = "0.24"
+
+# Monitoring / Logging / Tracing
+tracing = { version = "0.1", features = ["log"] }
+prometheus = "0.13"
+flame = "0.2"
+flamer = "0.4"
+measure_time = "0.8"
+
+# testing
+fake = "2.4"
+quickcheck = "1.0"
+pretty_assertions = "1"
+httpmock = "0.6"
+criterion = { version = "0.4", features = ["async_tokio"] }
+
+# plots
+plotly = "0.8"
+
+# plugin system
+inventory = "0.3"
+
+# codec / crypto
+snap = "1"
+hmac = "0.12"
+sha2 = "0.10"
+data-encoding = "2.2"
+libflate = "1.0"
+
+# python
+pyo3 = { version = "^0.17", features = ["serde", "auto-initialize", "extension-module"] }
+pyo3-log = { version = "0.7"}
+pyo3-asyncio = { version = "^0.17", features = ["tokio-runtime", "attributes"] }
+pythonize = "0.17"
+
 [profile.test]
 debug = true
 opt-level = 0
@@ -54,13 +167,7 @@ debug = true
 lto = false
 
 [patch.crates-io]
-#pyo3 = { git = "https://github.com/PyO3/pyo3", rev = "8a989eeb6aeb862c0c518d994ef6e5f967f0dc46", version = "^0.15" }
-pyo3 = { git = "https://github.com/aviramha/pyo3.git", rev = "db53229bc7a737d0300ff2c5fbc7ea80040ec263", version = "^0.15" }
-pythonize = { git = "https://github.com/Igosuki/pythonize", rev = "d5309ca6491cdfb9e356d38b244e20b29a206bbc", version = "^0.15" }
-datafusion = { git = "https://github.com/Igosuki/arrow-datafusion", branch = "arrow2_intg_20220313" }
 #datafusion = { path = "/home/geps/dev/oss/arrow-datafusion/datafusion" }
-arrow2 = { git = "https://github.com/jorgecarleitao/arrow2.git", rev = "v0.10.0" }
-parquet2 = { git = "https://github.com/jorgecarleitao/parquet2.git", rev = "v0.10.1" }
 inventory = { git = "https://github.com/Igosuki/inventory.git" }
 #avro-rs = { git = "https://github.com/Igosuki/avro-rs.git", branch = "update_deps" }
 yata = { git = "https://github.com/Igosuki/yata.git", branch = "add_send" }

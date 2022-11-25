@@ -1,8 +1,9 @@
 [package]
 name = "ext"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-itertools = "0.10"
+itertools = { workspace = true }
 

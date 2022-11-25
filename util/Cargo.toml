@@ -1,9 +1,8 @@
 [package]
 name = "util"
-version = "0.1.0"
-authors = ["Guillaume Balaine <igosuki@gmail.com>"]
-edition = "2021"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [features]
 mock_time = []
@@ -14,33 +13,34 @@ snappy = ["snap"]
 
 [dependencies]
 # std
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { workspace = true }
 parse_duration = "2.1"
-rust_decimal = "1"
-tempdir = "0.3"
-byte-unit = "4.0"
-hdrhistogram = "7.4"
+rust_decimal = { workspace = true }
+tempdir = { workspace = true }
+byte-unit = { workspace = true }
+hdrhistogram = { workspace = true }
 mock_instant = { version = "0.2.1" }
-maplit = "1.0"
-anyhow = "1.0"
+maplit = { workspace = true }
+anyhow = { workspace = true }
 flate2 = "1.0"
-snap = { version = "1.0", optional = true }
+snap = { workspace = true, optional = true }
 
 # serde
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # async
-tokio = { version = "1", features = ["full"] }
-tokio-stream = { version = "0.1", features = ["sync", "fs", "net", "io-util", "tokio-util", "signal", "time"] }
-tokio-util = "0.7"
-futures = "0.3"
-async-trait = "0.1"
+tokio = { workspace = true }
+tokio-stream = { workspace = true, features = ["sync", "fs", "net", "io-util", "tokio-util", "signal", "time"] }
+tokio-util = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+
 # Tracing / Logging
 pretty_env_logger = "0.4"
 opentelemetry = { version = "^0.17", default-features = false, features = ["trace"] }
 opentelemetry-jaeger = "0.16"
-tracing = { version = "0.1", features = ["log"] }
+tracing = { workspace = true }
 tracing-flame = "0.2"
 tracing-log = { version = "0.1", features = ["env_logger"] }
 tracing-opentelemetry = "0.17"
@@ -49,4 +49,4 @@ console-subscriber = { git = "https://github.com/tokio-rs/console", optional = t
 #tracing-timing = "0.5"
 
 [dev-dependencies]
-async-stream = "0.3"
+async-stream = { workspace = true }

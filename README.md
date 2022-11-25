@@ -242,4 +242,9 @@ ldb --db=mean_reverting_BTC_USDT/ --column_family=models dump
 
 This dumps the models table from the db.
 
+#### Contributing
+
+##### Install the necessary tools 
+
+pre commit tooling: `pip install Commitizen pre-commit`
 

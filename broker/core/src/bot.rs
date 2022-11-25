@@ -157,7 +157,7 @@ impl DefaultWsActor {
                 name: name.clone(),
                 metrics: WsStreamMetrics::for_name(default_registry(), &name),
                 stale_after,
-                last_msg_at: Utc.timestamp_millis(i64::MAX),
+                last_msg_at: Utc.timestamp_millis_opt(i64::MAX).unwrap(),
             }
         }))
     }

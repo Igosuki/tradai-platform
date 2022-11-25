@@ -64,7 +64,7 @@ impl<'a> TryFrom<&'a Orderbook> for BookPosition {
         if t.bids.is_empty() {
             return Err(BookError::MissingBids);
         }
-        let event_time = Utc.timestamp_millis(t.timestamp);
+        let event_time = Utc.timestamp_millis_opt(t.timestamp).unwrap();
         // TODO: trace_id should come from event envelope
         Ok(BookPosition::new(Uuid::new_v4(), event_time, &t.asks, &t.bids))
     }

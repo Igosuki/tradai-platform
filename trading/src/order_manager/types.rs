@@ -300,14 +300,14 @@ impl OrderDetail {
                 qty: trade.qty,
                 fee: trade.fee,
                 fee_asset: Some(trade.fee_asset.to_string()),
-                ts: Utc.timestamp_millis(submission.timestamp as i64),
+                ts: Utc.timestamp_millis_opt(submission.timestamp as i64).unwrap(),
             })
             .collect();
         self.fills = fills;
         self.update_weighted_price();
         self.updated_at = Utc::now();
         self.total_executed_qty = self.fills.iter().map(|f| f.qty).sum();
-        self.open_at = Some(Utc.timestamp_millis(submission.timestamp));
+        self.open_at = Some(Utc.timestamp_millis_opt(submission.timestamp)).unwrap();
         if self.status == OrderStatus::Filled {
             self.closed_at = Some(now());
         }
@@ -318,7 +318,7 @@ impl OrderDetail {
         if self.status == OrderStatus::Filled {
             return;
         }
-        let time = Utc.timestamp_millis(update.timestamp as i64);
+        let time = Utc.timestamp_millis_opt(update.timestamp as i64).unwrap();
         let fill = OrderFill {
             price: update.last_executed_price,
             qty: update.last_executed_qty,

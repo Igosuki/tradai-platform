@@ -75,9 +75,9 @@ impl PyCandle {
 impl Default for PyCandle {
     fn default() -> Self {
         Self {
-            event_time: Utc.timestamp_millis(0),
-            start_time: Utc.timestamp_millis(0),
-            end_time: Utc.timestamp_millis(0),
+            event_time: Utc.timestamp_millis_opt(0).unwrap(),
+            start_time: Utc.timestamp_millis_opt(0).unwrap(),
+            end_time: Utc.timestamp_millis_opt(0).unwrap(),
             open: 0.0,
             high: 0.0,
             low: 0.0,

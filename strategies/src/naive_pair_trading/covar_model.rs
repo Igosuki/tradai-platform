@@ -80,9 +80,9 @@ impl LinearSpreadModel {
         eval_freq: i32,
     ) -> Self {
         Self {
-            sampler: Sampler::new(sample_freq, Utc.timestamp_millis(0)),
+            sampler: Sampler::new(sample_freq, Utc.timestamp_millis_opt(0)).unwrap(),
             linear_model: PersistentWindowedModel::new(id, db, window_size, None, linear_model, None),
-            last_sample_time_at_eval: Utc.timestamp_millis(0),
+            last_sample_time_at_eval: Utc.timestamp_millis_opt(0).unwrap(),
             beta_eval_freq: eval_freq,
         }
     }
@@ -140,7 +140,8 @@ impl LinearSpreadModel {
         self.last_sample_time_at_eval = self
             .linear_model
             .last_model_time()
-            .unwrap_or_else(|| Utc.timestamp_millis(0));
+            .unwrap_or_else(|| Utc.timestamp_millis_opt(0))
+            .unwrap();
         trace!(loaded_model_time = %self.last_sample_time_at_eval, "model loaded");
         if self.linear_model.is_loaded() {
             Ok(())

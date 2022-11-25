@@ -70,7 +70,7 @@ impl SecurityType {
 pub struct Symbol {
     pub r#type: SecurityType,
     /// First date at which the security was traded
-    #[builder(default_code = "Utc.timestamp_millis(0)")]
+    #[builder(default_code = "Utc.timestamp_millis_opt(0)").unwrap()]
     pub date: DateTime<Utc>,
     pub value: Pair,
     pub xch: Exchange,
@@ -104,7 +104,7 @@ impl Symbol {
             .xch(exchange)
             .value(symbol)
             .r#type(SecurityType::Future)
-            .date(expiry.unwrap_or_else(|| Utc.timestamp_millis(0)))
+            .date(expiry.unwrap_or_else(|| Utc.timestamp_millis_opt(0))).unwrap()
             .build()
     }
 
