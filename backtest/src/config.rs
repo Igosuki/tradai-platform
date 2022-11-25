@@ -1,11 +1,11 @@
+use chrono::Duration;
 use std::collections::HashSet;
 use std::ops::Sub;
 use std::path::{Path, PathBuf};
 
 use ::config::{Config, File};
 use brokers::exchange::Exchange;
-use chrono::{Duration, NaiveDateTime, TimeZone, Utc};
-use parse_duration::parse;
+use chrono::{NaiveDateTime, TimeZone, Utc};
 use typed_builder::TypedBuilder;
 
 use db::{DbEngineOptions, DbOptions, RocksDbOptions};
@@ -18,13 +18,16 @@ use crate::backtest::init_brokerages;
 
 use crate::error::*;
 use crate::report::ReportConfig;
-
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
 pub enum Period {
     Since {
-        since: String,
+        #[serde(
+            deserialize_with = "util::ser::string_duration_chrono",
+            serialize_with = "util::ser::encode_duration_str"
+        )]
+        since: Duration,
     },
     Interval {
         from: NaiveDateTime,
@@ -36,9 +39,8 @@ impl Period {
     pub(crate) fn as_range(&self) -> DateRange {
         match self {
             Period::Since { since } => {
-                let duration = Duration::from_std(parse(since).unwrap()).unwrap();
                 let now = Utc::now();
-                DateRange::by_day(now.sub(duration).date().and_hms(0, 0, 0), now.date().and_hms(0, 0, 0))
+                DateRange::by_day(now.sub(*since).date().and_hms(0, 0, 0), now.date().and_hms(0, 0, 0))
             }
             Period::Interval { from, to } => DateRange::by_day(
                 Utc.from_utc_datetime(from),

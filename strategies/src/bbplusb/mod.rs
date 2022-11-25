@@ -37,7 +37,7 @@ pub struct BollingerPlusStrategyOptions {
     os: Option<f64>,
     os_close: Option<f64>,
     #[serde(
-        deserialize_with = "util::ser::decode_duration_str",
+        deserialize_with = "util::ser::string_duration_chrono",
         serialize_with = "util::ser::encode_duration_str"
     )]
     ticker_time_frame: Duration,
