@@ -1,8 +1,8 @@
 [package]
 name = "account"
-version = "0.1.0"
-authors = ["Guillaume Balaine <igosuki@gmail.com>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [lib]
 name = "portfolio"
@@ -20,28 +20,29 @@ db = { path = "../db" }
 ext = { path = "../ext" }
 
 # actix
-actix = "0.13"
-actix_derive = "0.6"
+actix = { workspace = true }
+actix_derive = { workspace = true }
 
 # metrics
-prometheus = "0.13"
-tracing = { version = "0.1", features = ["log"] }
+prometheus = { workspace = true }
+tracing = { workspace = true }
 
-# std
-thiserror = "1.0"
-serde = "1.0"
-anyhow = "1.0"
-chrono = "0.4"
-uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng", "serde"] }
-itertools = "0.10"
+#serde
+serde = { workspace = true }
+# error
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+#std
+chrono = { workspace = true }
+uuid = { workspace = true, features = ["v4", "fast-rng", "serde"] }
+itertools = { workspace = true }
 
 # async
-futures = "0.3"
-async-trait = "0.1"
-tokio = { version = "1", features = ["full"] }
+futures = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
 
 [dev-dependencies]
-env_logger = "0.9"
+env_logger = { workspace = true }
 test-log = "0.2"
-tokio = { version = "1", features = ["full"] }
-float-cmp = "0.9"
+float-cmp = { workspace = true }

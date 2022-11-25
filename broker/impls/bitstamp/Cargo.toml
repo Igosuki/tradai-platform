@@ -12,35 +12,35 @@ private_tests = []
 broker_core = { path = "../../core" }
 
 # actix
-actix = "0.13"
-actix-http = { version = "3.0.0", features = ["ws"] }
-awc = { version = "3.0.0-beta", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
+actix = { workspace = true }
+actix-http = { workspace = true }
+awc = { workspace = true }
 
 # async
-async-trait = "0.1"
-futures = "0.3"
-tokio = "1.16"
-tokio-stream = "0.1"
+async-trait = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
 
 # serde
-derivative = { version = "2.2" }
-serde-aux = { version = "3.0" }
-serde = "1.0"
-serde_json = { version = "1.0", features = ["float_roundtrip"] }
+derivative = { workspace = true }
+serde-aux = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # std
-anyhow = "1.0"
-bytes = "1.0"
-url = "2.2"
+anyhow = { workspace = true }
+bytes = { workspace = true }
+url = { workspace = true }
 
 # Monitoring / Logging / Tracing
-tracing = { version = "0.1", features = ["log"] }
+tracing = { workspace = true }
 
 # http
-reqwest = "0.11"
+reqwest = { workspace = true }
 
 # encrypt
-hmac = "0.12"
-sha2 = "0.10"
-data-encoding = "2.3"
-libflate = { version = "1.0" }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+data-encoding = { workspace = true }
+libflate = { workspace = true }

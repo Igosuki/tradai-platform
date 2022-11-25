@@ -132,8 +132,8 @@ pub fn from_binance_account_event(we: WebsocketEvent) -> AccountEvent {
             symbol: e.asset,
             delta: e.delta,
             server_time: Utc::now(),
-            event_time: Utc.timestamp_millis(e.event_time as i64),
-            clear_time: Utc.timestamp_millis(e.clear_time as i64),
+            event_time: Utc.timestamp_millis_opt(e.event_time as i64).unwrap(),
+            clear_time: Utc.timestamp_millis_opt(e.clear_time as i64).unwrap(),
         }),
         WebsocketEvent::AccountPositionUpdate(e) => AccountEvent::AccountPositionUpdate(AccountPosition {
             balances: e
@@ -146,7 +146,7 @@ pub fn from_binance_account_event(we: WebsocketEvent) -> AccountEvent {
                     })
                 })
                 .collect(),
-            update_time: Utc.timestamp_millis(e.last_update_time as i64),
+            update_time: Utc.timestamp_millis_opt(e.last_update_time as i64).unwrap(),
         }),
         _ => AccountEvent::Noop,
     }

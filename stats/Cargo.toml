@@ -1,8 +1,8 @@
 [package]
 name = "stats"
-version = "0.1.0"
-authors = ["Guillaume Balaine <igosuki@gmail.com>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [[bench]]
@@ -15,36 +15,36 @@ release_max_level_debug = ["tracing/release_max_level_debug"]
 release_max_level_trace = ["tracing/release_max_level_trace"]
 
 [dependencies]
-anyhow = "1.0"
-itertools = "0.10"
+anyhow = { workspace = true }
+itertools = { workspace = true }
 # Optional dependencies to be used later
 #streaming-stats = { version  = "0.2.3", optional = true }
 #average = { version  = "0.13", optional = true }
 #nalgebra = { version  = "0.30", optional = true }
-ndarray = { version  = "0.15", optional = true }
+ndarray = { version = "0.15", optional = true }
 #tensorflow = { version = "0.17", optional = true }
 
 # Math
 num-traits = "0.2"
-peroxide = "0.30"
-serde = { version = "1.0", features = ["derive"] }
-thiserror = "1.0"
-tracing = { version = "0.1", features = ["log"] }
+peroxide = "0.32"
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
 ta = { version = "0.5", features = ["serde"] }
 yata = { version = "0.6", features = ["period_type_u32", "serde"] }
-ordered-float = "2.8"
-ringbuffer = "0.8"
-smallvec = "1.8"
-strum = "0.24"
+ordered-float = { workspace = true }
+ringbuffer = "0.10"
+smallvec = { workspace = true }
+strum = { workspace = true }
 
 # std
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { workspace = true }
 prettytable-rs = "0.8"
-strum_macros = "0.24"
+strum_macros = { workspace = true }
 
 [dev-dependencies]
-float-cmp = "0.9"
-rand = "0.8"
-criterion = { version = "0.3", features = ["async_tokio"] }
-tokio = { version = "1", features = ["full"] }
-pretty_assertions = "1"
+float-cmp = { workspace = true }
+rand = { workspace = true }
+criterion = { workspace = true, features = ["async_tokio"] }
+tokio = { workspace = true }
+pretty_assertions = { workspace = true }

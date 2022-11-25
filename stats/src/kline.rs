@@ -80,9 +80,9 @@ impl Candle {
 impl Default for Candle {
     fn default() -> Self {
         Self {
-            event_time: Utc.timestamp_millis(0),
-            start_time: Utc.timestamp_millis(0),
-            end_time: Utc.timestamp_millis(0),
+            event_time: Utc.timestamp_millis_opt(0).unwrap(),
+            start_time: Utc.timestamp_millis_opt(0).unwrap(),
+            end_time: Utc.timestamp_millis_opt(0).unwrap(),
             open: 0.0,
             high: 0.0,
             low: 0.0,
@@ -150,7 +150,7 @@ impl Resolution {
     }
 
     pub fn truncate(&self, dt: DateTime<Utc>) -> DateTime<Utc> {
-        let date_part = dt.date();
+        let date_part = dt.date_naive();
         let units = self.units as i64;
         let maybe_duration = match self.time_unit {
             TimeUnit::MilliSecond => Some(Duration::milliseconds(units)),
@@ -164,9 +164,10 @@ impl Resolution {
         if let Some(duration) = maybe_duration {
             dt.duration_trunc(duration).unwrap()
         } else if self.time_unit == TimeUnit::Month {
-            Utc.ymd(date_part.year(), date_part.month0(), 0).and_hms(0, 0, 0)
+            Utc.with_ymd_and_hms(date_part.year(), date_part.month0(), 0, 0, 0, 0)
+                .unwrap()
         } else {
-            Utc.ymd(date_part.year(), 0, 0).and_hms(0, 0, 0)
+            Utc.with_ymd_and_hms(date_part.year(), 0, 0, 0, 0, 0).unwrap()
         }
     }
 

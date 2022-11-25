@@ -1,7 +1,8 @@
 [package]
 name = "trading"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [[bin]]
 name = "om_tool"
@@ -13,7 +14,7 @@ binary = ["clap", "structopt"]
 test_util = ["binance-rs-async", "httpmock", "rand", "env_logger", "fake", "quickcheck", "brokers/test_util"]
 release_max_level_debug = ["tracing/release_max_level_debug"]
 release_max_level_trace = ["tracing/release_max_level_trace"]
-release_default=["structopt","binary"]
+release_default = ["structopt", "binary"]
 
 [dependencies]
 # own
@@ -22,52 +23,52 @@ brokers = { path = "../broker" }
 db = { path = "../db" }
 util = { path = "../util" }
 # actix
-actix = "0.13"
-actix_derive = "0.6"
+actix = { workspace = true }
+actix_derive = { workspace = true }
 # std
-chrono = { version = "0.4", features = ["serde"] }
-thiserror = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-itertools = "0.10"
-strum = "0.24"
-strum_macros = "0.24"
-uuid = { version = "1.0.0-alpha", features = ["v4", "fast-rng"] }
-derive_more = "0.99"
-anyhow = "1.0"
-lazy_static = "1.4"
-prometheus = "0.13"
-typed-builder = "0.10"
-backoff = { version = "0.4", features = ["tokio"] }
-ordered-float = "2.10"
+chrono = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+itertools = { workspace = true }
+strum = { workspace = true }
+strum_macros = { workspace = true }
+uuid = { workspace = true }
+derive_more = { workspace = true }
+anyhow = { workspace = true }
+lazy_static = { workspace = true }
+prometheus = { workspace = true }
+typed-builder = { workspace = true }
+backoff = { workspace = true }
+ordered-float = { workspace = true }
 # async
-futures = { version = "0.3", features = ["async-await", "alloc"] }
-async-trait = "0.1"
-tokio = { version = "1", features = ["full"] }
+futures = { workspace = true, features = ["async-await", "alloc"] }
+async-trait = { workspace = true }
+tokio = { workspace = true }
 
 # bin
-clap = { version = "3.0", optional = true }
-structopt = { version = "0.3", optional = true }
+clap = { workspace = true, optional = true }
+structopt = { workspace = true, optional = true }
 
 # metrics & tracing
-tracing = { version = "0.1", features = ["log"] }
+tracing = { workspace = true }
 
 # graphql
 juniper = { git = "https://github.com/Igosuki/juniper", branch = "uuid_latest", version = "^0.16.0-dev", features = ["expose-test-schema"] }
 
-binance-rs-async = { version = "1.1.4", optional = true }
-httpmock = { version = "0.6", default-features = false, optional = true }
-rand = { version = "0.8", optional = true }
-env_logger = { version = "0.9", optional = true }
-fake = { version = "2.4", features = ["chrono"], optional = true }
-quickcheck = { version = "1.0", optional = true }
+binance-rs-async = { workspace = true, optional = true }
+httpmock = { workspace = true, default-features = false, optional = true }
+rand = { workspace = true, optional = true }
+env_logger = { workspace = true, optional = true }
+fake = { workspace = true, features = ["chrono"], optional = true }
+quickcheck = { workspace = true, optional = true }
 
 [dev-dependencies]
 broker_test_util = { path = "../broker_test_util" }
-binance-rs-async = { version = "1.1.4" }
-httpmock = { version = "0.6", default-features = false }
-fake = { version = "2.4", features = ["chrono"] }
-quickcheck = "1.0"
-rand = "0.8"
-env_logger = "0.9"
-pretty_assertions = "1.2"
+binance-rs-async = { workspace = true }
+httpmock = { workspace = true, default-features = false }
+fake = { workspace = true, features = ["chrono"] }
+quickcheck = { workspace = true }
+rand = { workspace = true }
+env_logger = { workspace = true }
+pretty_assertions = { workspace = true }

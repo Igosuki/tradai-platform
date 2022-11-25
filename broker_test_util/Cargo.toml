@@ -1,27 +1,28 @@
 [package]
 name = "broker_test_util"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 # Actix
-actix-http = { version = "3.0.0", features = ["ws"] }
-actix-http-test = "3.0.0-beta"
-actix-codec = "0.5"
+actix-http = { workspace = true }
+actix-http-test = { workspace = true }
+actix-codec = { workspace = true }
 
 # Local
 brokers = { path = "../broker", features = ["test_util"] }
-binance-rs-async = { version = "1.1.4" }
+binance-rs-async = { workspace = true }
 
 # Mock
-httpmock = { version = "0.6", default-features = false }
+httpmock = { workspace = true, default-features = false }
 
 # Std
-rand = "0.8"
-bytestring = "1.0"
-chrono = "0.4"
+rand = { workspace = true }
+bytestring = { workspace = true }
+chrono = { workspace = true }
 
 # Async
-futures = "0.3"
+futures = { workspace = true }

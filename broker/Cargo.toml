@@ -1,7 +1,8 @@
 [package]
 name = "brokers"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [[bin]]
 name = "broker"
@@ -60,17 +61,23 @@ broker_coinbase = { path = "./impls/coinbase", optional = true }
 broker_kraken = { path = "./impls/kraken", optional = true }
 broker_poloniex = { path = "./impls/poloniex", optional = true }
 
-# CLI
-clap = { version = "3.0", optional = true }
-structopt = { version = "0.3", optional = true }
-tracing = { version = "0.1", features = ["log"] }
-anyhow = { version = "1.0", optional = true }
-# std
-dashmap = "5.1"
-dyn-clone = "1.0"
-futures = "0.3"
+# binance
+binance-rs-async = { workspace = true, optional = true }
 
-tokio = "1.16"
-actix = { version = "0.13", optional = true }
-binance-rs-async = { version = "1.1.4", optional = true }
-env_logger = { version = "0.9", optional = true }
+# actix
+actix = { workspace = true, optional = true }
+
+# CLI
+clap = { workspace = true, optional = true }
+structopt = { workspace = true, optional = true }
+tracing = { workspace = true }
+anyhow = { workspace = true, optional = true }
+
+# std
+dashmap = { workspace = true }
+dyn-clone = "1.0"
+env_logger = { workspace = true, optional = true }
+
+# async
+futures = { workspace = true }
+tokio = { workspace = true }

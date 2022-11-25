@@ -36,7 +36,7 @@ impl Partitioner<MarketEventEnvelope> for MarketEventPartitioner {
             MarketEvent::BookCandle(bc) => Some((bc.event_time.timestamp_millis(), "bcandles", bc.pair.clone())),
         }
         .map(|(ts, channel, pair)| {
-            let ts = Utc.timestamp_millis(ts);
+            let ts = Utc.timestamp_millis_opt(ts).unwrap();
             let dt_par = ts.format("%Y%m%d");
             let path = PathBuf::new()
                 .join(&exchange)
