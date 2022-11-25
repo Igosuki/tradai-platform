@@ -2,7 +2,6 @@ use std::collections::HashSet;
 
 use chrono::Duration;
 use itertools::Itertools;
-use parse_duration::parse;
 
 use brokers::prelude::*;
 use strategy::settings::{StrategyOptions, StrategySettingsReplicator};
@@ -15,7 +14,11 @@ pub struct Options {
     pub right: Pair,
     pub exchange: Exchange,
     pub beta_eval_freq: i32,
-    pub beta_sample_freq: String,
+    #[serde(
+        deserialize_with = "util::ser::string_duration_chrono",
+        serialize_with = "util::ser::encode_duration_str"
+    )]
+    pub beta_sample_freq: Duration,
     pub window_size: i32,
     pub threshold_long: f64,
     pub threshold_short: f64,
@@ -23,27 +26,20 @@ pub struct Options {
     pub stop_gain: f64,
     pub initial_cap: f64,
     pub order_conf: OrderConf,
-    pub max_pos_duration: Option<String>,
+    #[serde(
+        deserialize_with = "util::ser::string_duration_chrono_opt",
+        serialize_with = "util::ser::encode_duration_str_opt"
+    )]
+    pub max_pos_duration: Option<Duration>,
 }
 
 impl Options {
-    pub(super) fn beta_sample_freq(&self) -> Duration {
-        Duration::from_std(parse(&self.beta_sample_freq).unwrap()).unwrap_or_else(|_| Duration::minutes(1))
-    }
-
-    pub(super) fn max_pos_duration(&self) -> Duration {
-        self.max_pos_duration
-            .as_ref()
-            .and_then(|s| Duration::from_std(parse(s).unwrap()).ok())
-            .unwrap_or_else(|| Duration::days(3))
-    }
-
     pub fn new_test_default(exchange: Exchange, left_pair: Pair, right_pair: Pair) -> Self {
         Self {
             left: left_pair,
             right: right_pair,
             beta_eval_freq: 1000,
-            beta_sample_freq: "1min".to_string(),
+            beta_sample_freq: Duration::minutes(1),
             window_size: 2000,
             exchange,
             threshold_long: -0.03,
@@ -55,6 +51,8 @@ impl Options {
             max_pos_duration: None,
         }
     }
+
+    pub(super) fn max_pos_duration(&self) -> Duration { self.max_pos_duration.unwrap_or_else(|| Duration::days(3)) }
 }
 
 impl StrategySettingsReplicator for Options {

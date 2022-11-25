@@ -1,15 +1,15 @@
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time;
 
 use actix::{Actor, ActorContext, ActorFutureExt, AsyncContext, Context, Handler, ResponseActFuture, Running,
             WrapFuture};
 use backoff::ExponentialBackoff;
-use chrono::Duration;
+use time::Duration;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use brokers::types::MarketEventEnvelope;
-use util::ser::decode_duration_str;
 
 use crate::driver::StrategyDriver;
 use crate::query::{DataQuery, ModelReset, Mutation, StateFieldMutation};
@@ -17,17 +17,17 @@ use crate::{MarketChannel, StrategyLifecycleCmd, StrategyStatus};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct StrategyActorOptions {
-    #[serde(deserialize_with = "decode_duration_str")]
+    #[serde(deserialize_with = "util::ser::string_duration")]
     conn_backoff_max: Duration,
-    #[serde(deserialize_with = "decode_duration_str")]
+    #[serde(deserialize_with = "util::ser::string_duration")]
     order_resolution_interval: Duration,
 }
 
 impl Default for StrategyActorOptions {
     fn default() -> Self {
         Self {
-            conn_backoff_max: Duration::seconds(5),
-            order_resolution_interval: Duration::seconds(1),
+            conn_backoff_max: Duration::from_secs(5),
+            order_resolution_interval: Duration::from_secs(1),
         }
     }
 }
@@ -63,7 +63,7 @@ impl StrategyActor {
             inner,
             channels,
             conn_backoff: ExponentialBackoff {
-                max_elapsed_time: Some(options.conn_backoff_max.to_std().unwrap()),
+                max_elapsed_time: Some(options.conn_backoff_max),
                 ..ExponentialBackoff::default()
             },
             order_resolution_interval: options.order_resolution_interval,
@@ -93,7 +93,7 @@ impl Actor for StrategyActor {
                 }
             }),
         );
-        ctx.run_interval(self.order_resolution_interval.to_std().unwrap(), |act, ctx| {
+        ctx.run_interval(self.order_resolution_interval, |act, ctx| {
             // This will prevent stacking tasks if resolution interval is too low
             if act.is_checking_orders {
                 return;

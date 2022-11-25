@@ -75,6 +75,16 @@ where
         .transpose()
 }
 
+pub fn string_duration_chrono<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let val: String = Deserialize::deserialize(deserializer)?;
+    parse_duration::parse(&val)
+        .map(|v| chrono::Duration::milliseconds(v.as_millis() as i64))
+        .map_err(D::Error::custom)
+}
+
 pub fn string_duration_chrono_opt<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
 where
     D: Deserializer<'de>,
@@ -86,33 +96,6 @@ where
             .map_err(D::Error::custom)
     })
     .transpose()
-}
-
-pub fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
-where
-    Duration: Sized,
-    D: Deserializer<'de>,
-{
-    let val = Deserialize::deserialize(deserializer)?;
-    Ok(Duration::seconds(val))
-}
-
-pub fn decode_file_size<'de, D>(deserializer: D) -> Result<u128, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let val: String = Deserialize::deserialize(deserializer)?;
-    let size_bytes = Byte::from_str(val).map_err(|e| de::Error::custom(format!("{:?}", e)))?;
-    Ok(size_bytes.get_bytes())
-}
-
-pub fn decode_duration_str<'de, D>(deserializer: D) -> Result<Duration, D::Error>
-where
-    Duration: Sized,
-    D: Deserializer<'de>,
-{
-    let val: String = Deserialize::deserialize(deserializer)?;
-    Duration::from_std(parse_duration::parse(&val).map_err(serde::de::Error::custom)?).map_err(serde::de::Error::custom)
 }
 
 pub fn encode_duration_str<S>(x: &Duration, s: S) -> std::result::Result<S::Ok, S::Error>
@@ -131,6 +114,24 @@ where
     } else {
         s.serialize_none()
     }
+}
+
+pub fn decode_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+where
+    Duration: Sized,
+    D: Deserializer<'de>,
+{
+    let val = Deserialize::deserialize(deserializer)?;
+    Ok(Duration::seconds(val))
+}
+
+pub fn decode_file_size<'de, D>(deserializer: D) -> Result<u128, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let val: String = Deserialize::deserialize(deserializer)?;
+    let size_bytes = Byte::from_str(val).map_err(|e| de::Error::custom(format!("{:?}", e)))?;
+    Ok(size_bytes.get_bytes())
 }
 
 #[derive(Deserialize, Debug)]

@@ -77,7 +77,7 @@ impl NaiveTradingStrategy {
             db,
             &format!("{}_{}", &n.left, &n.right),
             n.window_size as usize,
-            n.beta_sample_freq(),
+            n.beta_sample_freq,
             n.beta_eval_freq,
         );
 
