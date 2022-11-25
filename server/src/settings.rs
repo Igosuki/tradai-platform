@@ -12,7 +12,7 @@ use portfolio::balance::BalanceReporterOptions;
 use portfolio::margin::MarginAccountReporterOptions;
 use strategy::actor::StrategyActorOptions;
 use strategy::prelude::*;
-use util::ser::{decode_duration, decode_duration_str, decode_file_size};
+use util::ser::{decode_duration, decode_file_size};
 
 use crate::notify::DiscordNotifierOptions;
 
@@ -83,7 +83,7 @@ pub struct NatsSettings {
 pub struct AvroFileLoggerSettings {
     pub file_rotation: FileRotation,
     pub basedir: String,
-    #[serde(deserialize_with = "decode_duration_str")]
+    #[serde(deserialize_with = "util::ser::string_duration_chrono")]
     pub partitions_grace_period: Duration,
     pub parallelism: Option<usize>,
 }

@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use chrono::Duration;
-use parse_duration::parse;
 
 use brokers::prelude::*;
 use strategy::settings::{StrategyOptions, StrategySettingsReplicator};
@@ -13,7 +12,11 @@ pub struct Options {
     pub pair: Pair,
     pub short_window_size: u32,
     pub long_window_size: u32,
-    pub sample_freq: String,
+    #[serde(
+        deserialize_with = "util::ser::string_duration_chrono",
+        serialize_with = "util::ser::encode_duration_str"
+    )]
+    pub sample_freq: Duration,
     pub threshold_short: f64,
     pub threshold_long: f64,
     pub threshold_eval_freq: Option<i32>,
@@ -30,8 +33,6 @@ impl Options {
 
     pub(crate) fn dynamic_threshold(&self) -> bool { self.dynamic_threshold.unwrap_or(true) }
 
-    pub(crate) fn sample_freq(&self) -> Duration { Duration::from_std(parse(&self.sample_freq).unwrap()).unwrap() }
-
     #[cfg(all(test, feature = "backtests"))]
     pub(crate) fn new_test_default(pair: &str, exchange: Exchange) -> Self {
         Self {
@@ -45,7 +46,7 @@ impl Options {
             stop_gain: 0.075,
             short_window_size: 100,
             long_window_size: 1000,
-            sample_freq: "1min".to_string(),
+            sample_freq: Duration::minutes(1),
             exchange,
             order_conf: OrderConf::default(),
         }
