@@ -12,30 +12,31 @@ test_util = []
 
 broker_core = { path = "../../core" }
 
-binance-rs-async = { version = "1.1.4", features = ["margin_api"] }
+binance-rs-async = { workspace = true, features = ["margin_api"] }
 
 # actix
-actix = "0.13"
-actix-http = { version = "3.0.0", features = ["ws"] }
-awc = { version = "3.0.0-beta", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
+actix = { workspace = true }
+actix-http = { workspace = true }
+awc = { workspace = true }
+
 # async
-async-trait = "0.1"
-futures = { version = "0.3", features = ["alloc"] }
-tokio = { version = "1", features = ["full", "time"] }
-tokio-stream = { version = "0.1" }
-async-stream = { version = "0.3" }
+async-trait = { workspace = true }
+futures = { workspace = true, features = ["alloc"] }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+async-stream = { workspace = true }
 
 # std
-url = "2.2"
-chrono = { version = "0.4", features = ["serde"] }
-itertools = "0.10"
-bytes = "1.0"
-bstr = "0.2"
-backoff = { version = "0.4", features = ["tokio"] }
-dashmap = { version = "5", features = ["serde"] }
+url = { workspace = true }
+chrono = { workspace = true }
+itertools = { workspace = true }
+bytes = { workspace = true }
+bstr = { workspace = true }
+backoff = { workspace = true }
+dashmap = { workspace = true, features = ["serde"] }
 # serde
-serde = "1.0"
-serde_json = { version = "1.0", features = ["float_roundtrip"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Monitoring / Logging / Tracing
-tracing = { version = "0.1", features = ["log"] }
+tracing = { workspace = true }

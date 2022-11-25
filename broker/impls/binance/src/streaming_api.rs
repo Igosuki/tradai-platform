@@ -232,10 +232,10 @@ impl BinanceStreamingApi {
             WebsocketEventUntag::WebsocketEvent(WebsocketEvent::Kline(ke)) => {
                 let pair = self.get_pair(ke.symbol.as_str())?;
                 Some(MarketEvent::TradeCandle(Candle {
-                    event_time: Utc.timestamp_millis(ke.event_time as i64),
+                    event_time: Utc.timestamp_millis_opt(ke.event_time as i64).unwrap(),
                     pair,
-                    start_time: Utc.timestamp_millis(ke.kline.start_time),
-                    end_time: Utc.timestamp_millis(ke.kline.end_time),
+                    start_time: Utc.timestamp_millis_opt(ke.kline.start_time).unwrap(),
+                    end_time: Utc.timestamp_millis_opt(ke.kline.end_time).unwrap(),
                     open: ke.kline.open,
                     high: ke.kline.close,
                     low: ke.kline.low,

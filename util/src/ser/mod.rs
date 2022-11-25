@@ -47,11 +47,11 @@ pub mod date_time_format {
     {
         let s = String::deserialize(deserializer)?;
         let pr = s.parse::<i64>();
-        pr.map(|millis| Utc.timestamp_millis(millis))
+        pr.map(|millis| Utc.timestamp_millis_opt(millis).unwrap())
             .or_else(|_| {
                 Decimal::from_scientific(s.as_str())
                     .and_then(|d| d.to_i64().ok_or(rust_decimal::Error::ExceedsMaximumPossibleValue))
-                    .map(|decimal| Utc.timestamp_millis(decimal))
+                    .map(|decimal| Utc.timestamp_millis_opt(decimal).unwrap())
             })
             .or_else(|_| Utc.datetime_from_str(&s, DATE_FORMAT))
             .map_err(serde::de::Error::custom)

@@ -45,7 +45,7 @@ impl MeanRevertingModel {
             None
         };
         Self {
-            sampler: Sampler::new(n.sample_freq, Utc.timestamp_millis(0)),
+            sampler: Sampler::new(n.sample_freq, Utc.timestamp_millis_opt(0)).unwrap(),
             ppo: ppo_model,
             thresholds: threshold_table,
             thresholds_0: (n.threshold_short, n.threshold_long),

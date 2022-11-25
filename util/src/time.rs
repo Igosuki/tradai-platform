@@ -65,7 +65,7 @@ pub fn now_str_files() -> String {
 #[allow(clippy::cast_possible_truncation)]
 pub fn now() -> DateTime<Utc> {
     // TODO : this should use the mock clock as an offset so we can still simulate passing nanoseconds
-    Utc.timestamp_millis(MockClock::time().as_millis() as i64)
+    Utc.timestamp_millis_opt(MockClock::time().as_millis() as i64).unwrap()
 }
 
 /// Uses chrono as the default if not mocking time

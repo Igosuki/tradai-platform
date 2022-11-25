@@ -1,8 +1,8 @@
 [package]
 name = "db"
-version = "0.1.0"
-authors = ["Guillaume Balaine <igosuki@gmail.com>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [[bin]]
 name = "db_tool"
@@ -27,19 +27,19 @@ io_rkyv = ["rkyv", "rkyv_dyn", "rkyv_typename", "rkyv/bytecheck", "bytecheck", "
 ext = { path = "../ext" }
 
 # cli
-structopt = { version = "0.3", optional = true }
+structopt = { workspace = true, optional = true }
 
 # std
-thiserror = "1.0"
+thiserror = { workspace = true }
 bincode = "1.3"
-itertools = "0.10"
-serde = { version = "1.0", features = ["derive"] }
-erased-serde = { version = "0.3" }
-tracing = { version ="0.1", features = ["log"], optional=true }
-anyhow = "1.0"
+itertools = { workspace = true }
+serde = { workspace = true }
+erased-serde = { workspace = true }
+tracing = { workspace = true, optional = true }
+anyhow = { workspace = true }
 
 # codec
-serde_json = { version = "1.0", features = ["float_roundtrip"] }
+serde_json = { workspace = true }
 rkyv = { version = "0.7", features = ["smallvec", "uuid"], optional = true }
 rkyv_dyn = { version = "0.7", optional = true }
 rkyv_typename = { version = "0.7", optional = true }
@@ -47,15 +47,15 @@ bytecheck = { version = "0.6", optional = true }
 
 # databases
 lmdb-rkv = { version = "0.14", optional = true }
-rkv = { version = "0.17", optional = true }
-rocksdb = { version = "0.18", features = ["serde1", "multi-threaded-cf", "lz4", "zstd"] }
+rkv = { version = "0.18", optional = true }
+rocksdb = { version = "0.19", features = ["serde1", "multi-threaded-cf", "lz4", "zstd"] }
 # Flatdata is write once read many and fast memory mapping a structured file
 #flatdata = "0.5"
 
 [dev-dependencies]
-env_logger = "0.9"
-rand = "0.8"
-tempdir = "0.3"
+env_logger = { workspace = true }
+rand = { workspace = true }
+tempdir = { workspace = true }
 util = { path = "../util" }
-chrono = "0.4"
-measure_time = "0.8"
+chrono = { workspace = true }
+measure_time = { workspace = true }
