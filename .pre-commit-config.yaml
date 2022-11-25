@@ -1,25 +1,43 @@
 repos:
--   repo: local
-    hooks:
-      -   id: rust-linting
-          name: Rust linting
-          description: Run cargo fmt on files included in the commit. rustfmt should be installed before-hand.
-          entry: bash -c 'cd trader && cargo fmt --all --'
-          pass_filenames: true
-          types: [file, rust]
-          language: system
-      -   id: rust-clippy
-          name: Rust clippy
-          description: Run cargo clippy on files included in the commit. clippy should be installed before-hand.
-          entry: bash -c 'cd trader && cargo clippy --all-targets -- -Dclippy::all'
-          pass_filenames: false
-          types: [file, rust]
-          language: system
-#      -   id: add-commit-labels
-#          name: Add commit labels
-#          description: Preprends labels depending on modified files to the commit message before it is written
-#          types: [file]
-#          language: js
-#          stages: [prepare-commit-msg]
-
-
+- hooks:
+  - id: commitizen
+    stages:
+    - commit-msg
+  repo: https://github.com/commitizen-tools/commitizen
+  rev: v2.24.0
+- hooks:
+  - id: fmt
+  - id: cargo-check
+  - id: clippy
+  repo: https://github.com/doublify/pre-commit-rust
+  rev: v1.0
+- hooks:
+  - additional_dependencies:
+    - '@commitlint/config-conventional'
+    id: commitlint
+    stages:
+    - commit-msg
+  repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+  rev: v8.0.0
+- hooks:
+  - description: Run cargo fmt on files included in the commit. rustfmt should be
+      installed before-hand.
+    entry: bash -c 'cd trader && cargo fmt --all --'
+    id: rust-linting
+    language: system
+    name: Rust linting
+    pass_filenames: true
+    types:
+    - file
+    - rust
+  - description: Run cargo clippy on files included in the commit. clippy should be
+      installed before-hand.
+    entry: bash -c 'cd trader && cargo clippy --all-targets -- -Dclippy::all'
+    id: rust-clippy
+    language: system
+    name: Rust clippy
+    pass_filenames: false
+    types:
+    - file
+    - rust
+  repo: local
