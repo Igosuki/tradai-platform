@@ -122,7 +122,7 @@ impl KrakenApi {
         let message_presha256 = nonce.to_string() + postdata;
 
         let mut sha256 = Sha256::default();
-        sha256.update(&message_presha256.as_bytes());
+        sha256.update(message_presha256.as_bytes());
 
         let output = sha256.finalize();
 

@@ -85,7 +85,7 @@ impl MeanRevertingStrategy {
             last_threshold_time: Utc.timestamp_millis_opt(0).unwrap(),
             stopper: FixedStopper::new(n.stop_gain, n.stop_loss),
             metrics: Arc::new(metrics),
-            sampler: Sampler::new(n.sample_freq, Utc.timestamp_millis_opt(0)).unwrap(),
+            sampler: Sampler::new(n.sample_freq, Utc.timestamp_millis_opt(0).unwrap()).unwrap(),
             last_book_pos: None,
             logger,
             order_conf: n.order_conf.clone(),

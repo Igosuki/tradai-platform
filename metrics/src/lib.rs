@@ -11,7 +11,7 @@ Mostly just plumbing code to interact with the `prometheus` library
     // noisy
     clippy::missing_errors_doc,
     clippy::module_name_repetitions,
-    clippy::let_underscore_drop,
+    let_underscore_drop ,
     clippy::needless_pass_by_value
 )]
 

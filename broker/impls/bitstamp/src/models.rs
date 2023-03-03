@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
 
-use broker_core::types::{MarketEvent, MarketSymbol, Orderbook, Pair, Ticker as CoinnectTicker, Trade};
+use broker_core::types::{MarketChannel, MarketChannelType, MarketEvent, MarketSymbol, Orderbook, OrderbookConf,
+                         OrderbookLevel, Pair, Ticker as CoinnectTicker, Trade};
 
 use super::utils;
 
@@ -150,13 +151,27 @@ pub struct Subscription {
     data: Data,
 }
 
-pub fn subscription(c: StreamChannel, currency_pair: &str) -> Subscription {
-    let channel_str = match c {
-        StreamChannel::Trades => "live_trades",
-        StreamChannel::Orders => "live_orders",
-        StreamChannel::PlainOrderbook => "order_book",
-        StreamChannel::DetailedOrderbook => "detail_order_book",
-        StreamChannel::DiffOrderbook => "diff_order_book",
+pub fn subscription(c: &MarketChannel, currency_pair: &str) -> Subscription {
+    let channel_str = match c.r#type {
+        MarketChannelType::Trades => "live_trades",
+        MarketChannelType::Quotes => "live_orders",
+        MarketChannelType::Orderbooks => {
+            let conf = c.orderbook.unwrap_or_else(OrderbookConf::default);
+            match conf.level {
+                OrderbookLevel::Level1 => "order_book",
+                OrderbookLevel::Level2 => "diff_order_book",
+                OrderbookLevel::Level3 => "detail_order_book",
+            }
+        }
+        MarketChannelType::Candles => {
+            unimplemented!()
+        }
+        MarketChannelType::OpenInterest => {
+            unimplemented!()
+        }
+        MarketChannelType::QuotesCandles => {
+            unimplemented!()
+        }
     };
     Subscription {
         event: String::from("bts:subscribe"),

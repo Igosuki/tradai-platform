@@ -35,12 +35,20 @@ impl BittrexStreamingApi {
     /// If currency symbols of channels cannot be found in the registry
     pub async fn new_bot(
         _creds: &dyn Credentials,
-        channels: MarketChannels,
+        channels: Vec<MarketChannel>,
     ) -> Result<BotWrapper<HubClient, UnboundedReceiverStream<MarketEventEnvelopeRef>>> {
         // Live order book pairs
-        let order_book_pairs: HashSet<Pair> = channels.get(&StreamChannel::DiffOrderbook).cloned().unwrap_or_default();
+        let order_book_pairs: HashSet<Pair> = channels
+            .iter()
+            .filter(|c| c.r#type == MarketChannelType::Orderbooks)
+            .map(|c| c.symbol.value.clone())
+            .collect();
         // Live trade pairs
-        let trade_pairs: HashSet<Pair> = channels.get(&StreamChannel::Trades).cloned().unwrap_or_default();
+        let trade_pairs: HashSet<Pair> = channels
+            .iter()
+            .filter(|c| c.r#type == MarketChannelType::Trades)
+            .map(|c| c.symbol.value.clone())
+            .collect();
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
