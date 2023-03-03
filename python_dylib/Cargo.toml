@@ -3,7 +3,6 @@ name = "python_dylib"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
@@ -18,7 +17,7 @@ python-source = "python_src"
 [dependencies]
 tradai_python = { path = "../python_crate", features = ["static"] }
 
-pyo3 = { workspace = true, features = ["serde", "auto-initialize", "extension-module"] }
+pyo3 = { workspace = true, features = ["serde", "auto-initialize"] }
 pyo3-log = { workspace = true }
 log = { workspace = true }
 

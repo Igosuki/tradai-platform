@@ -1,6 +1,6 @@
 use core::option::Option;
 use core::option::Option::{None, Some};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
 
 use actix::Message;
 use chrono::{DateTime, Duration, TimeZone, Utc};
@@ -13,7 +13,7 @@ use util::time::now;
 
 use crate::exchange::Exchange;
 use crate::types::order::{Order, OrderEnforcement, OrderStatus, TradeType};
-use crate::types::{MarketSymbol, Pair, Price, SecurityType, Symbol, Volume};
+use crate::types::{Pair, Price, SecurityType, Symbol, Volume};
 
 /// A market channel represents a unique stream of data that will be required to run a strategy
 /// Historical and Real-Time data will be provided from this on a best effort basis.
@@ -85,8 +85,6 @@ impl From<MarketEvent> for MarketChannelType {
     fn from(e: MarketEvent) -> Self { From::from(&e) }
 }
 
-pub type MarketChannels = HashMap<MarketChannel, HashSet<MarketSymbol>>;
-
 #[derive(Debug)]
 pub struct LiveAggregatedOrderBook {
     pub depth: u16,
@@ -122,17 +120,12 @@ impl LiveAggregatedOrderBook {
     }
 
     pub fn order_book(&self) -> Orderbook {
-        let asks: Vec<Offer> = self
-            .asks_by_price
-            .iter()
-            .map(|(_, v)| *v)
-            .take(self.depth as usize)
-            .collect();
+        let asks: Vec<Offer> = self.asks_by_price.values().copied().take(self.depth as usize).collect();
         let bids: Vec<Offer> = self
             .bids_by_price
-            .iter()
+            .values()
+            .copied()
             .rev()
-            .map(|(_, v)| *v)
             .take(self.depth as usize)
             .collect();
         //        debug!("Latest order book highest ask {:?}", latest_order_book.asks.get(0).map(|(k, v)| (k.as_f32().unwrap(), v.as_f32().unwrap())));
@@ -249,6 +242,7 @@ pub struct Trade {
     pub tt: TradeType,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Message, Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[rtype(result = "()")]
 #[serde(tag = "type")]
@@ -532,8 +526,8 @@ impl From<Order> for OrderUpdate {
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Hash)]
 pub struct OrderbookConf {
-    depth: Option<u16>,
-    level: OrderbookLevel,
+    pub depth: Option<u16>,
+    pub level: OrderbookLevel,
 }
 
 impl Default for OrderbookConf {

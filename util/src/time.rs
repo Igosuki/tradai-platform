@@ -28,7 +28,7 @@ impl DateRange {
     }
 
     /// Returns Some(upper) if the upper bound is within range of the current lower bound
-    pub fn upper_bound_in_range(&self) -> Option<DateTime<Utc>> { (self.0 + self.range() > self.1).then(|| self.1) }
+    pub fn upper_bound_in_range(&self) -> Option<DateTime<Utc>> { (self.0 + self.range() > self.1).then_some(self.1) }
 }
 
 impl Iterator for DateRange {

@@ -215,7 +215,7 @@ impl WsStreamMetrics {
     }
 
     fn counter_for(registry: &Registry, base_name: &str, name: &str) -> CounterVec {
-        let opts = Opts::new(base_name, &format!("Websocket stream event : {}", base_name)).const_label("name", name);
+        let opts = Opts::new(base_name, format!("Websocket stream event : {}", base_name)).const_label("name", name);
         let vec = CounterVec::new(opts, &["event"]).unwrap();
         registry.register(Box::new(vec.clone())).unwrap();
         vec

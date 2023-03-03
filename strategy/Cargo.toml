@@ -106,7 +106,7 @@ multimap = { workspace = true }
 
 # http
 http = "0.2"
-httpmock = { workspace = true, default-features = false }
+httpmock = { workspace = true }
 socket2 = "0.4"
 
 # Async

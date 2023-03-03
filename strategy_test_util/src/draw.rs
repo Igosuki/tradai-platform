@@ -49,6 +49,6 @@ where
             .pattern(GridPattern::Independent),
     );
     plot.set_layout(layout);
-    plot.to_html(&out_file);
-    Ok(out_file)
+    plot.write_html(out_file);
+    Ok(out_file.clone())
 }

@@ -17,7 +17,7 @@ brokers = { path = "../broker", features = ["test_util"] }
 binance-rs-async = { workspace = true }
 
 # Mock
-httpmock = { workspace = true, default-features = false }
+httpmock = { workspace = true }
 
 # Std
 rand = { workspace = true }

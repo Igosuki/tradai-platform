@@ -54,8 +54,7 @@ pub fn close_events(pos: &Position) -> Option<(OperationEvent, TradeEvent)> {
                 at: pos
                     .meta
                     .close_at
-                    .unwrap_or_else(|| Utc.timestamp_millis_opt(0))
-                    .unwrap(),
+                    .unwrap_or_else(|| Utc.timestamp_millis_opt(0).unwrap()),
             },
             TradeEvent {
                 side: order.side.into(),
@@ -66,8 +65,7 @@ pub fn close_events(pos: &Position) -> Option<(OperationEvent, TradeEvent)> {
                 at: pos
                     .meta
                     .close_at
-                    .unwrap_or_else(|| Utc.timestamp_millis_opt(0))
-                    .unwrap(),
+                    .unwrap_or_else(|| Utc.timestamp_millis_opt(0).unwrap()),
                 borrowed: order.borrowed_amount,
                 interest: Some(pos.interests),
             },

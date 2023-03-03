@@ -13,6 +13,7 @@ extern crate tokio;
 
 use actix::{Actor, Context, Handler};
 use broker_core::exchange::Exchange::Binance;
+use broker_core::types::{MarketChannel, MarketChannelType, SecurityType, Symbol};
 use std::sync::Arc;
 
 use brokers::broker::{ActixMessageBroker, Broker, MarketEventEnvelopeRef, Subject};
@@ -55,17 +56,20 @@ async fn main() {
     async {
         let my_creds = Box::new(BasicCredentials::empty(Exchange::Binance));
         let settings = BrokerSettings {
-            orderbook: None,
-            trades: Some(TradesSettings {
-                symbols: vec!["BTC_USDT".to_string()],
-            }),
             fees: 0.01,
             use_account: false,
             use_margin_account: false,
             use_isolated_margin_account: false,
             isolated_margin_account_pairs: vec![],
             use_test: false,
-            orderbook_depth: Some(5),
+            market_channels: vec![MarketChannel {
+                symbol: Symbol::new("BTC_USDT".into(), SecurityType::Crypto, Exchange::Binance),
+                r#type: MarketChannelType::Trades,
+                tick_rate: None,
+                resolution: None,
+                only_final: None,
+                orderbook: None,
+            }],
         };
 
         // Initialize the broker and a simple logging actor
