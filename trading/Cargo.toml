@@ -57,7 +57,7 @@ tracing = { workspace = true }
 juniper = { git = "https://github.com/Igosuki/juniper", branch = "uuid_latest", version = "^0.16.0-dev", features = ["expose-test-schema"] }
 
 binance-rs-async = { workspace = true, optional = true }
-httpmock = { workspace = true, default-features = false, optional = true }
+httpmock = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }
 env_logger = { workspace = true, optional = true }
 fake = { workspace = true, features = ["chrono"], optional = true }
@@ -66,7 +66,7 @@ quickcheck = { workspace = true, optional = true }
 [dev-dependencies]
 broker_test_util = { path = "../broker_test_util" }
 binance-rs-async = { workspace = true }
-httpmock = { workspace = true, default-features = false }
+httpmock = { workspace = true }
 fake = { workspace = true, features = ["chrono"] }
 quickcheck = { workspace = true }
 rand = { workspace = true }

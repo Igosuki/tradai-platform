@@ -18,7 +18,7 @@ Currently `rkv`, `rocksdb` and `memory` can be used as backends.
     clippy::module_name_repetitions,
     clippy::needless_pass_by_value,
     clippy::unnecessary_wraps,
-    clippy::let_underscore_drop
+    let_underscore_drop
 )]
 
 ///! Key/Value based storage interfaces

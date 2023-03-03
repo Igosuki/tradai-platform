@@ -342,6 +342,7 @@ mod test {
         i: usize,
     }
 
+    #[allow(clippy::extra_unused_type_parameters)]
     async fn test_write_valid_json<T: JsonSerde>() {
         let file = temp_dir().join("file.json");
 

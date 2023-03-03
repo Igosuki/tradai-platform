@@ -140,7 +140,7 @@ impl PoloniexApi {
             .build()?;
         let buf = self.client.execute(req).await?;
         if method == "returnChartData" {
-            return array_to_map(buf.json().await?);
+            array_to_map(buf.json().await?)
         } else {
             Ok(buf.json().await?)
         }

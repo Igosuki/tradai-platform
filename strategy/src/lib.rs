@@ -65,7 +65,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use actix::{Addr, Message, Recipient};
-use chrono::Duration;
 use serde::Deserialize;
 use strum_macros::AsRefStr;
 use uuid::Uuid;
@@ -73,11 +72,10 @@ use uuid::Uuid;
 use actor::StrategyActor;
 use brokers::broker::{MarketEventEnvelopeRef, Subject};
 use brokers::prelude::*;
-use brokers::types::{MarketChannel, MarketChannelType, OrderbookConf, Symbol};
+use brokers::types::{MarketChannel, MarketChannelType, Symbol};
 use db::DbOptions;
 use error::*;
 use ext::ResultExt;
-use stats::kline::Resolution;
 use trading::engine::TradingEngine;
 use util::time::TimedData;
 

@@ -1,4 +1,3 @@
-use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,7 +26,7 @@ use super::models::*;
 #[derivative(Debug)]
 pub struct BitstampStreamingApi {
     sink: UnboundedSender<MarketEventEnvelopeRef>,
-    channels: MarketChannels,
+    channels: Vec<MarketChannel>,
     #[derivative(Debug = "ignore")]
     metrics: Arc<ExchangeMetrics>,
 }
@@ -36,7 +35,7 @@ impl BitstampStreamingApi {
     #[allow(clippy::missing_panics_doc)]
     pub async fn new_bot(
         _creds: &dyn Credentials,
-        channels: MarketChannels,
+        channels: Vec<MarketChannel>,
     ) -> Result<BotWrapper<DefaultWsActor, UnboundedReceiverStream<MarketEventEnvelopeRef>>> {
         let metrics = Arc::new(ExchangeMetrics::for_exchange(Exchange::Binance));
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -93,19 +92,19 @@ impl WsHandler for BitstampStreamingApi {
 
     #[cfg_attr(feature = "flame", flame)]
     fn handle_started(&self, w: &mut SinkWrite<Message, WsFramedSink>) {
-        for (k, v) in self.channels.clone() {
-            for pair in v {
-                let result = serde_json::to_string(&subscription(
-                    k,
-                    broker_core::pair::pair_to_symbol(&Self::EXCHANGE, &pair)
-                        .unwrap()
-                        .as_ref(),
-                ))
-                .unwrap();
-                match w.write(Message::Binary(result.into())) {
-                    Ok(_) => {}
-                    Err(_) => self.metrics.subscription_failure(pair.as_ref(), k.as_ref()),
-                }
+        for k in self.channels.iter() {
+            let pair = &k.symbol.value;
+            let result = serde_json::to_string(&subscription(
+                k,
+                broker_core::pair::pair_to_symbol(&Self::EXCHANGE, pair)
+                    .unwrap()
+                    .as_ref(),
+            ))
+            .unwrap();
+            let bytes = result.into();
+            match w.write(Message::Binary(bytes)) {
+                Ok(_) => {}
+                Err(_) => self.metrics.subscription_failure(pair, &format!("{:?}", k)),
             }
         }
     }

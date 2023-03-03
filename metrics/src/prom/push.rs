@@ -137,7 +137,7 @@ async fn push<S: BuildHasher>(
 
     let mut builder = client.request(Method::from_str(method).unwrap(), &push_url);
     if let Some(BasicAuthentication { username, password }) = basic_auth {
-        builder = builder.basic_auth(username, &password);
+        builder = builder.basic_auth(username, password);
     }
     builder = builder.append_header((CONTENT_TYPE, encoder.format_type()));
     let response = builder.send_body(buf).await.map_err(|e| Error::Msg(format!("{}", e)))?;

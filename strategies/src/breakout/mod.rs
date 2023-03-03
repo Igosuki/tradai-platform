@@ -268,10 +268,8 @@ impl Strategy for BreakoutStrategy {
             stop_define
         }; // Trail stop loss until in profit
         let last_pos = ctx.portfolio.last_position();
-        let trail_cross = last_pos
-            .map_or(Utc.timestamp_millis_opt(0), |pos| pos.meta.open_at)
-            .unwrap()
-            < self.ma_crossed_at;
+        let trail_cross =
+            last_pos.map_or(Utc.timestamp_millis_opt(0).unwrap(), |pos| pos.meta.open_at) < self.ma_crossed_at;
         if is_long {
             let trail_stop_level = if trail_cross { ma_cross_level } else { f64::NAN };
             let is_buy_stop = if stop_level > trail_stop_level {

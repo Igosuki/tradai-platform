@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="check" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="check" />
+  <configuration default="false" name="check-all-ld" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="command" value="check --all-targets --all-features" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="emulateTerminal" value="false" />
     <option name="channel" value="DEFAULT" />
@@ -9,7 +9,9 @@
     <option name="withSudo" value="false" />
     <option name="buildTarget" value="REMOTE" />
     <option name="backtrace" value="SHORT" />
-    <envs />
+    <envs>
+      <env name="LD_LIBRARY_PATH" value="$LD_LIBRARY_PATH:./precommit_venv" />
+    </envs>
     <option name="isRedirectInput" value="false" />
     <option name="redirectInputPath" value="" />
     <method v="2">

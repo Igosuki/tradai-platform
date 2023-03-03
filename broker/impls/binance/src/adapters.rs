@@ -32,7 +32,7 @@ pub fn subscription(c: &MarketChannel, currency_pairs: &[String], id: i32, depth
         MarketChannelType::Orderbooks => "depth@100ms".to_string(),
         MarketChannelType::Candles => {
             // TODO : user proper binance channel
-            "ticks"
+            "ticks".to_string()
         }
         _ => unimplemented!("oi does not exist on binance"),
     };

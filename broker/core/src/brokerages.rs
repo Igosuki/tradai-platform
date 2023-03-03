@@ -1,6 +1,6 @@
 //! Use this module to create a generic API.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -14,7 +14,7 @@ use crate::credential::{BasicCredentials, Credentials};
 use crate::error::{Error, Result};
 use crate::exchange::Exchange;
 use crate::manager::{BrokerageManager, BrokerageRegistry};
-use crate::pair::{pair_to_symbol, refresh_pairs};
+use crate::pair::refresh_pairs;
 use crate::plugin::{get_exchange_plugin, BrokerageBotInitContext, PrivateBotInitContext};
 use crate::settings::BrokerSettings;
 use crate::types::{AccountType, MarketChannel, PrivateStreamChannel};
@@ -50,20 +50,11 @@ impl Brokerages {
         s: BrokerSettings,
         market_channels: &[MarketChannel],
     ) -> Result<Box<MarketDataStreamer>> {
-        let mut channels = HashMap::new();
-        market_channels.iter().for_each(|mc| {
-            if let Ok(s) = pair_to_symbol(&exchange, &mc.symbol.value) {
-                let mut hs = HashSet::new();
-                hs.insert(s);
-                channels.insert(mc.clone(), hs);
-            }
-        });
-        debug!("{:?}", channels);
         let plugin = get_exchange_plugin(exchange)?;
         let ctx = BrokerageBotInitContext::builder()
             .settings(s.clone())
             .creds(creds)
-            .channels(channels)
+            .channels(market_channels.to_vec())
             .build();
         plugin.new_public_stream(ctx).await
     }
