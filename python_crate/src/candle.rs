@@ -1,6 +1,7 @@
 use chrono::{DateTime, TimeZone, Utc};
 use stats::yata_prelude::OHLCV;
 use std::ops::Add;
+use util::time::utc_zero;
 
 /// Normalised OHLCV data from an [Interval] with the associated [DateTime] UTC timestamp;
 #[pyclass(name = "Candle")]
@@ -74,10 +75,11 @@ impl PyCandle {
 
 impl Default for PyCandle {
     fn default() -> Self {
+        let epoch = utc_zero();
         Self {
-            event_time: Utc.timestamp_millis_opt(0).unwrap(),
-            start_time: Utc.timestamp_millis_opt(0).unwrap(),
-            end_time: Utc.timestamp_millis_opt(0).unwrap(),
+            event_time: epoch,
+            start_time: epoch,
+            end_time: epoch,
             open: 0.0,
             high: 0.0,
             low: 0.0,

@@ -23,7 +23,7 @@ use strategy::types::{OperationEvent, PositionSummary, StratEvent, TradeEvent};
 use strategy::MarketChannel;
 use trading::engine::TradingEngine;
 use util::compress::Compression;
-use util::time::{set_mock_time, TimedData};
+use util::time::{set_mock_time, utc_zero, TimedData};
 use util::trace::{display_hist_percentiles, microtime_histogram, microtime_percentiles};
 
 use crate::report::{BacktestReport, StreamWriterLogger};
@@ -53,10 +53,7 @@ impl BacktestRunner {
             events_logger: strategy_events_logger,
             events_stream,
             events_sink,
-            sampler: Sampler::new(
-                report_sample_freq.unwrap_or(chrono::Duration::seconds(1)),
-                Utc.timestamp_millis_opt(0).unwrap(),
-            ),
+            sampler: Sampler::new(report_sample_freq.unwrap_or(chrono::Duration::seconds(1)), utc_zero()),
         }
     }
 

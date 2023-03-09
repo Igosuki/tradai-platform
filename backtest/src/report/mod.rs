@@ -7,7 +7,7 @@ pub use logger::StreamWriterLogger;
 pub use registry::register_report_fn;
 pub use single::BacktestReport;
 use util::compress::Compression;
-use util::time::TimedData;
+use util::time::{utc_zero, TimedData};
 
 mod global;
 mod logger;
@@ -44,7 +44,7 @@ pub fn draw_lines<T>(plot: &mut Plot, trace_offset: usize, data: &[TimedData<T>]
 pub struct TimeWrap(pub DateTime<Utc>);
 
 impl Default for TimeWrap {
-    fn default() -> Self { TimeWrap(Utc.timestamp_millis_opt(0)).unwrap() }
+    fn default() -> Self { TimeWrap(utc_zero()) }
 }
 
 #[allow(clippy::needless_pass_by_value)]

@@ -23,7 +23,7 @@ use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};
 use trading::stop::FixedStopper;
 use trading::types::OrderConf;
-use util::time::TimedData;
+use util::time::{utc_zero, TimedData};
 
 use self::metrics::MeanRevertingStrategyMetrics;
 
@@ -79,13 +79,13 @@ impl MeanRevertingStrategy {
             exchange: n.exchange,
             pair: n.pair.clone(),
             sample_freq: n.sample_freq,
-            last_sample_time: Utc.timestamp_millis_opt(0).unwrap(),
+            last_sample_time: utc_zero(),
             model,
             threshold_eval_freq: n.threshold_eval_freq,
-            last_threshold_time: Utc.timestamp_millis_opt(0).unwrap(),
+            last_threshold_time: utc_zero(),
             stopper: FixedStopper::new(n.stop_gain, n.stop_loss),
             metrics: Arc::new(metrics),
-            sampler: Sampler::new(n.sample_freq, Utc.timestamp_millis_opt(0).unwrap()).unwrap(),
+            sampler: Sampler::new(n.sample_freq, utc_zero()),
             last_book_pos: None,
             logger,
             order_conf: n.order_conf.clone(),
