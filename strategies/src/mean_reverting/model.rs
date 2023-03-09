@@ -16,6 +16,7 @@ use strategy::models::indicator_windowed_model::IndicatorWindowedModel;
 use strategy::models::io::{IterativeModel, LoadableModel};
 use strategy::models::{IndicatorModel, Sampler, TimedValue, WindowedModel};
 use strategy::prelude::*;
+use util::time::utc_zero;
 
 use super::options::Options;
 
@@ -45,7 +46,7 @@ impl MeanRevertingModel {
             None
         };
         Self {
-            sampler: Sampler::new(n.sample_freq, Utc.timestamp_millis_opt(0)).unwrap(),
+            sampler: Sampler::new(n.sample_freq, utc_zero()),
             ppo: ppo_model,
             thresholds: threshold_table,
             thresholds_0: (n.threshold_short, n.threshold_long),
