@@ -18,7 +18,7 @@ use strategy::{MarketChannel, StrategyKey};
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::new_trade_signal;
 use trading::types::OrderConf;
-use util::time::now;
+use util::time::{now, utc_zero};
 
 pub fn provide_strat(name: &str, _ctx: StrategyPluginContext, conf: serde_json::Value) -> Result<Box<dyn Strategy>> {
     let options: BreakoutStrategyOptions = serde_json::from_value(conf)?;
@@ -147,7 +147,7 @@ impl BreakoutStrategy {
             trail_ma_input: options.trail_ma_input(),
             ticker_time_frame: options.ticker_time_frame,
             adr_perc: options.adr_perc(),
-            ma_crossed_at: Utc.timestamp_millis_opt(0).unwrap(),
+            ma_crossed_at: utc_zero(),
             last_stop_level: f64::NAN,
             last_close: f64::NAN,
             last_stop_define: f64::NAN,
@@ -268,8 +268,7 @@ impl Strategy for BreakoutStrategy {
             stop_define
         }; // Trail stop loss until in profit
         let last_pos = ctx.portfolio.last_position();
-        let trail_cross =
-            last_pos.map_or(Utc.timestamp_millis_opt(0).unwrap(), |pos| pos.meta.open_at) < self.ma_crossed_at;
+        let trail_cross = last_pos.map_or(utc_zero(), |pos| pos.meta.open_at) < self.ma_crossed_at;
         if is_long {
             let trail_stop_level = if trail_cross { ma_cross_level } else { f64::NAN };
             let is_buy_stop = if stop_level > trail_stop_level {

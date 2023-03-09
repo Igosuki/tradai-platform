@@ -1,8 +1,9 @@
 use crate::error::Error;
 use crate::exchange::Exchange;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use std::hash::{Hash, Hasher};
 use string_cache::DefaultAtom as Atom;
+use util::time::utc_zero;
 
 pub type Amount = f64;
 pub type Price = f64;
@@ -70,7 +71,7 @@ impl SecurityType {
 pub struct Symbol {
     pub r#type: SecurityType,
     /// First date at which the security was traded
-    #[builder(default_code = "Utc.timestamp_millis_opt(0).unwrap()")]
+    #[builder(default_code = "util::time::utc_zero()")]
     pub date: DateTime<Utc>,
     pub value: Pair,
     pub xch: Exchange,
@@ -104,7 +105,7 @@ impl Symbol {
             .xch(exchange)
             .value(symbol)
             .r#type(SecurityType::Future)
-            .date(expiry.unwrap_or_else(|| Utc.timestamp_millis_opt(0).unwrap()))
+            .date(expiry.unwrap_or_else(utc_zero))
             .build()
     }
 

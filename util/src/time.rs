@@ -94,3 +94,5 @@ pub type TimedVec<T> = Vec<TimedData<T>>;
 pub fn get_unix_timestamp_ms() -> i64 { now().timestamp_millis() }
 
 pub fn get_unix_timestamp_us() -> i64 { now().timestamp_nanos() }
+
+pub fn utc_zero() -> DateTime<Utc> { return Utc.timestamp_millis_opt(0).unwrap(); }

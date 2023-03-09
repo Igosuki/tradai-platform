@@ -10,7 +10,7 @@ use stats::Next;
 use strategy::error::*;
 use strategy::models::{Model, PersistentWindowedModel, Sampler, Window, WindowedModel};
 use trading::book::BookPosition;
-use util::time::now;
+use util::time::{now, utc_zero};
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct DualBookPosition {
@@ -80,9 +80,9 @@ impl LinearSpreadModel {
         eval_freq: i32,
     ) -> Self {
         Self {
-            sampler: Sampler::new(sample_freq, Utc.timestamp_millis_opt(0)).unwrap(),
+            sampler: Sampler::new(sample_freq, utc_zero()),
             linear_model: PersistentWindowedModel::new(id, db, window_size, None, linear_model, None),
-            last_sample_time_at_eval: Utc.timestamp_millis_opt(0).unwrap(),
+            last_sample_time_at_eval: utc_zero(),
             beta_eval_freq: eval_freq,
         }
     }
@@ -137,11 +137,7 @@ impl LinearSpreadModel {
 
     pub fn try_load(&mut self) -> strategy::error::Result<()> {
         self.linear_model.try_load()?;
-        self.last_sample_time_at_eval = self
-            .linear_model
-            .last_model_time()
-            .unwrap_or_else(|| Utc.timestamp_millis_opt(0).unwrap())
-            .unwrap();
+        self.last_sample_time_at_eval = self.linear_model.last_model_time().unwrap_or_else(utc_zero).unwrap();
         trace!(loaded_model_time = %self.last_sample_time_at_eval, "model loaded");
         if self.linear_model.is_loaded() {
             Ok(())
