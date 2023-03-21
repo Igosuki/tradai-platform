@@ -1,6 +1,7 @@
 use backtest::report::{draw_lines, BacktestReport, TimeWrap};
 use chrono::Duration;
-use plotly::common::{Side, Title};
+use plotly::color::NamedColor;
+use plotly::common::{AxisSide, Title};
 use plotly::layout::ShapeLine;
 use plotly::Bar;
 use serde_json::Value;
@@ -11,14 +12,14 @@ use trading::position::{OperationKind, PositionKind};
 pub fn edit_report(report: &mut BacktestReport, resolution: Resolution) {
     use plotly::common::{Marker, Mode, Position};
     use plotly::layout::{Axis, LayoutGrid, RangeSlider, Shape, ShapeType};
-    use plotly::{Layout, NamedColor, Scatter};
+    use plotly::{Layout, Scatter};
 
     let mut plot = report.tradeview_plot();
     let mut layout = Layout::new()
         .grid(LayoutGrid::new().columns(1).rows(6))
         .x_axis(Axis::new().range_slider(RangeSlider::new().visible(false)))
-        .y_axis(Axis::new().title(Title::new("price")).side(Side::Left))
-        .y_axis2(Axis::new().title(Title::new("volume")).side(Side::Right));
+        .y_axis(Axis::new().title(Title::new("price")).side(AxisSide::Left))
+        .y_axis2(Axis::new().title(Title::new("volume")).side(AxisSide::Right));
     // VOLUME SUBPLOT
     let skipped_data = report.candles().unwrap();
     let (mut green_time, mut green_volume, mut red_time, mut red_volume) = (vec![], vec![], vec![], vec![]);

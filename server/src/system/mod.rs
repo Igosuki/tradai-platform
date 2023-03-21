@@ -24,14 +24,14 @@ use crate::nats::{NatsConsumer, NatsProducer, Subject};
 use crate::server;
 use crate::settings::{AvroFileLoggerSettings, OutputSettings, Settings, StreamSettings};
 use brokers::prelude::*;
-use brokers::types::MarketChannel;
+use brokers::types::{MarketChannel, MarketChannelTopic};
 use logging::prelude::*;
 use metrics::prom::PrometheusPushActor;
 use portfolio::balance::BalanceReporter;
 use portfolio::margin::MarginAccountReporter;
 use strategy::plugin::plugin_registry;
 use strategy::prelude::StrategyCopySettings;
-use strategy::{self, MarketChannelTopic, StrategyKey, Trader};
+use strategy::{self, StrategyKey, Trader};
 use trading::engine::{new_trading_engine, TradingEngine};
 use trading::interest::MarginInterestRateProvider;
 use trading::order_manager::OrderManager;
@@ -157,7 +157,7 @@ pub async fn start(settings: Arc<RwLock<Settings>>) -> anyhow::Result<()> {
                 all_recipients.extend(strat_recipients.clone());
                 all_recipients.extend(broadcast_recipients.clone());
                 let mut bots =
-                    bots::market_data_bots(market_brokers_conf.clone(), keys_path.clone(), market_channels).await?;
+                    bots::market_data_bots(market_brokers_conf.clone(), keys_path.clone(), &market_channels).await?;
                 if !bots.is_empty() {
                     let market_broker_ref = market_broker_ref.clone();
                     let fut = async move {

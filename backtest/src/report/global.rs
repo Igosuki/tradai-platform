@@ -105,7 +105,7 @@ impl GlobalReport {
             )
             .legend(Legend::new().font(Font::new().size(10)));
         plot.set_layout(layout);
-        plot.to_html(&out_file);
+        plot.write_html(&out_file);
         out_file
     }
 

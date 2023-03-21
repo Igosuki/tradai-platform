@@ -1,9 +1,8 @@
 use brokers::prelude::Exchange;
-use brokers::types::{SecurityType, Symbol};
+use brokers::types::{MarketChannel, MarketChannelType, SecurityType, Symbol};
 use chrono::Duration;
 use stats::kline::{Resolution, TimeUnit};
 use std::str::FromStr;
-use strategy::{MarketChannel, MarketChannelType};
 
 #[pyclass(name = "Channel", module = "strategy", subclass)]
 #[derive(Clone)]

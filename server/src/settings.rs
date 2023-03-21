@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 
 use chrono::Duration;
 use config::{Config, ConfigError, Environment, File};
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use brokers::prelude::*;
@@ -162,15 +161,11 @@ impl Settings {
     pub fn sanitize(&self) {
         for (xchg, xchg_settings) in self.exchanges.clone() {
             info!("{:?} : Checking exchange config...", xchg);
-            let pairs: HashSet<Pair> = vec![
-                xchg_settings.trades.map(|ts| ts.symbols),
-                xchg_settings.orderbook.map(|obs| obs.symbols),
-            ]
-            .into_iter()
-            .flatten()
-            .flatten()
-            .map_into()
-            .collect();
+            let pairs: HashSet<Pair> = xchg_settings
+                .market_channels
+                .into_iter()
+                .map(|channel| channel.symbol.value)
+                .collect();
             let (invalid_pairs, valid_pairs): (_, Vec<Pair>) = pairs
                 .clone()
                 .into_iter()

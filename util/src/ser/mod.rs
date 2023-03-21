@@ -351,7 +351,7 @@ mod test {
         tokio::spawn(async move { ser_ref.start().await });
         let count: usize = 1000;
         let stream = stream! {
-            for i in (0..count) {
+            for i in 0..count {
                 yield TestData { i }
             }
         };

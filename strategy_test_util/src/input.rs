@@ -6,7 +6,6 @@ use std::process::Command;
 use std::str::FromStr;
 use std::time::Instant;
 
-use chrono::prelude::*;
 use chrono::{DateTime, Utc};
 #[cfg(feature = "dialog_cli")]
 use glob::glob;
@@ -178,20 +177,14 @@ pub async fn load_csv_dataset(
 ///
 /// if zero csv records are read
 pub async fn load_csv_records(
-    from: Date<Utc>,
-    to: Date<Utc>,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
     pairs: Vec<&str>,
     exchange: &str,
     channel: &str,
 ) -> Vec<(String, Vec<CsvRecord>)> {
     let now = Instant::now();
-    let csv_records = load_csv_dataset(
-        DateRange::by_day(from.and_hms(0, 0, 0), to.and_hms(0, 0, 0)),
-        &pairs,
-        exchange,
-        channel,
-    )
-    .await;
+    let csv_records = load_csv_dataset(DateRange::by_day(from, to), &pairs, exchange, channel).await;
     let num_records = csv_records[0].1.len();
     assert!(num_records > 0, "no csv records could be read");
     info!(
@@ -208,8 +201,8 @@ pub async fn load_csv_records(
 ///
 /// if the exchange cannot be parsed
 pub async fn load_csv_events(
-    from: Date<Utc>,
-    to: Date<Utc>,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
     pairs: Vec<&str>,
     exchange: &str,
     channel: &str,

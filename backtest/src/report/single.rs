@@ -1,8 +1,9 @@
-use arrow2::array::ArrayRef;
+use datafusion::arrow::array::ArrayRef;
+use datafusion::arrow::json::reader::{infer_json_schema, DecoderOptions};
 use float_cmp::approx_eq;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
-use std::io::BufRead;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -189,8 +190,6 @@ impl BacktestReport {
 
     /// Get report events as a dataframe
     pub fn events_df(&self, table: &str) -> Result<Vec<ArrayRef>> {
-        use arrow2::io::ndjson::read;
-        use arrow2::io::ndjson::read::FallibleStreamingIterator;
         let batch_size = 2048;
         let get_reader = || match table {
             "snapshots" => self.snapshots_ss.reader(),
@@ -205,17 +204,18 @@ impl BacktestReport {
             Err(e) => return Err(e.into()),
             _ => {}
         }
-        let data_type = read::infer(&mut reader, Some(10))?;
+        let mut buf_reader = BufReader::new(reader);
+        let schema = Arc::new(infer_json_schema(&mut buf_reader, Some(10))?);
 
-        let mut reader = read::FileReader::new(get_reader(), vec!["".to_string(); batch_size], None);
-
+        let mut reader = datafusion::arrow::json::reader::Reader::from_buf_reader(
+            buf_reader,
+            schema,
+            DecoderOptions::default().with_batch_size(batch_size),
+        );
         let mut arrays = vec![];
         // `next` is IO-bounded
         while let Some(rows) = reader.next()? {
-            // `deserialize` is CPU-bounded
-            let array = read::deserialize(rows, data_type.clone())?;
-            //let sa = array.as_any().downcast_ref::<StructArray>();
-            arrays.push(array);
+            arrays.push(rows.columns()[0].clone());
         }
         Ok(arrays)
     }
@@ -266,7 +266,7 @@ impl BacktestReport {
         let output_dir = self.output_dir.clone();
         let out_file = format!("{}/{}", output_dir.as_path().to_str().unwrap(), file_name);
         tracing::debug!("writing html to {}", out_file);
-        plot.to_html(&out_file);
+        plot.write_html(&out_file);
         out_file
     }
 
@@ -339,7 +339,7 @@ impl BacktestReport {
 
     pub fn draw_tradeview(&self) -> String {
         let plot = self.tradeview_plot();
-        plot.to_inline_html("tradeview")
+        plot.to_inline_html(Some("tradeview"))
     }
 
     pub fn json_tradeview(&self) -> String {
@@ -349,7 +349,7 @@ impl BacktestReport {
 
     pub fn draw_report(&self) -> String {
         let plot = self.report_plot();
-        plot.to_inline_html("single_report")
+        plot.to_inline_html(Some("single_report"))
     }
 
     pub fn json_report(&self) -> String {

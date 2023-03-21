@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, HashMap};
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::sync::Arc;
 
-use chrono::{TimeZone, Utc};
 use serde::ser::SerializeStruct;
 use serde::ser::Serializer;
 
@@ -244,8 +243,8 @@ mod test {
     async fn test_lodable_model_round_trip() -> Result<()> {
         init();
         let events = input::load_csv_events(
-            Utc.ymd(2021, 8, 1),
-            Utc.ymd(2021, 8, 9),
+            Utc.with_ymd_and_hms(2021, 8, 1, 0, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(2021, 8, 9, 0, 0, 0).unwrap(),
             vec![PAIR],
             "binance",
             "order_books",

@@ -116,7 +116,7 @@ measure_time = "0.8"
 fake = "2.4"
 quickcheck = "1.0"
 pretty_assertions = "1"
-httpmock = { version = "0.6" }
+httpmock = { version = "0.6", default-features = false }
 criterion = { version = "0.4", features = ["async_tokio"] }
 
 # plots
@@ -133,10 +133,10 @@ data-encoding = "2.2"
 libflate = "1.0"
 
 # python
-pyo3 = { version = "^0.17", features = ["serde", "auto-initialize"] }
-pyo3-log = { version = "0.7" }
-pyo3-asyncio = { version = "^0.17", features = ["tokio-runtime", "attributes"] }
-pythonize = "0.17"
+pyo3 = { version = "^0.18", features = ["serde", "auto-initialize"] }
+pyo3-log = { version = "0.8" }
+pyo3-asyncio = { version = "^0.18", features = ["tokio-runtime", "attributes"] }
+pythonize = "0.18"
 
 [profile.test]
 debug = true

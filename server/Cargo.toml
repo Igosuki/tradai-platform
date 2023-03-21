@@ -96,7 +96,7 @@ sha2 = { workspace = true }
 env_logger = { workspace = true }
 tracing = { workspace = true }
 prometheus = { workspace = true, features = ["nightly", "push", "process", "gen"] }
-online = "4.0"
+online = { version = "4.0", features = ["tokio-runtime"] }
 measure_time = { workspace = true }
 
 # Profiling

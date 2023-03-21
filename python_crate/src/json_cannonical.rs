@@ -84,7 +84,7 @@ pub fn dumps(py: Python, obj: PyObject) -> PyResult<PyObject> {
 pub fn to_json(py: Python, obj: &PyObject) -> Result<serde_json::Value, PyCanonicalJSONError> {
     macro_rules! return_cast {
         ($t:ty, $f:expr) => {
-            if let Ok(val) = obj.cast_as::<$t>(py) {
+            if let Ok(val) = obj.downcast::<$t>(py) {
                 return $f(val);
             }
         };
@@ -100,7 +100,7 @@ pub fn to_json(py: Python, obj: &PyObject) -> Result<serde_json::Value, PyCanoni
         };
     }
 
-    if obj == &py.None() {
+    if obj.is_none(py) {
         return Ok(serde_json::Value::Null);
     }
 
@@ -112,7 +112,7 @@ pub fn to_json(py: Python, obj: &PyObject) -> Result<serde_json::Value, PyCanoni
     return_cast!(PyDict, |x: &PyDict| {
         let mut map = serde_json::Map::new();
         for (key_obj, value) in x.iter() {
-            let key = if key_obj == py.None().as_ref(py) {
+            let key = if key_obj.is_none() {
                 Ok("null".to_string())
             } else if let Ok(val) = key_obj.extract::<bool>() {
                 Ok(if val { "true".to_string() } else { "false".to_string() })

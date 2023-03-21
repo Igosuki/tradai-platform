@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::{PyNumberProtocol, PyResult};
+use pyo3::PyResult;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -16,24 +16,24 @@ use crate::PyMarketEvent;
 #[derive(Clone)]
 #[pyclass]
 pub(crate) struct PyJsonValue {
-    inner: serde_json::Value,
+    inner: Value,
 }
 
-impl From<serde_json::Value> for PyJsonValue {
+impl From<Value> for PyJsonValue {
     fn from(inner: Value) -> Self { Self { inner } }
 }
 
-impl From<PyJsonValue> for serde_json::Value {
+impl From<PyJsonValue> for Value {
     fn from(p: PyJsonValue) -> Self { p.inner }
 }
 
-#[pyproto]
-impl PyNumberProtocol for PyJsonValue {
-    fn __add__(mut lhs: PyJsonValue, mut rhs: PyJsonValue) -> PyResult<PyJsonValue> {
-        match (lhs.inner.as_object_mut(), rhs.inner.as_object_mut()) {
-            (None, None) => Ok(serde_json::Value::Null.into()),
-            (None, Some(_)) => Ok(rhs),
-            (Some(_), None) => Ok(lhs),
+#[pymethods]
+impl PyJsonValue {
+    fn __add__(&mut self, rhs: &mut Self) -> PyResult<PyJsonValue> {
+        match (self.inner.as_object_mut(), rhs.inner.as_object_mut()) {
+            (None, None) => Ok(Value::Null.into()),
+            (None, Some(_)) => Ok(rhs.clone()),
+            (Some(_), None) => Ok(self.clone()),
             (Some(v1), Some(v2)) => {
                 v1.append(v2);
                 Ok(serde_json::to_value(v1).unwrap().into())
@@ -127,9 +127,9 @@ impl From<IndicatorWindowedModel<f64, WindowedTechnicalIndicator>> for PyWindowe
 
 fn to_py_json<T: Serialize>(t: Option<T>) -> PyJsonValue {
     t.map_or_else(
-        || serde_json::Value::Null.into(),
+        || Value::Null.into(),
         |m| {
-            let ser: serde_json::Value = serde_json::to_value(m).unwrap();
+            let ser: Value = serde_json::to_value(m).unwrap();
             ser.into()
         },
     )
@@ -149,7 +149,7 @@ pub(crate) fn persistent_window_ta(
 }
 
 #[pymodule]
-pub(crate) fn model(_py: Python, m: &PyModule) -> PyResult<()> {
+pub(crate) fn module(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(persistent_ta, m)?)?;
     m.add_function(wrap_pyfunction!(persistent_window_ta, m)?)?;
     Ok(())

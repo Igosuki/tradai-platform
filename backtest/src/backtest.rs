@@ -1,22 +1,23 @@
-use datafusion::record_batch::RecordBatch;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+use datafusion::arrow::record_batch::RecordBatch;
+use futures::StreamExt;
+use itertools::Itertools;
+use tokio::sync::mpsc::{Receiver, UnboundedSender};
+use tokio::sync::RwLock;
+use tokio_util::sync::CancellationToken;
 
 use brokers::broker::{Broker, ChannelMessageBroker};
 use brokers::exchange::Exchange;
 use brokers::plugin::gather_plugins;
 use brokers::types::MarketEventEnvelope;
+use brokers::types::{MarketChannel, MarketChannelTopic};
 use brokers::Brokerages;
 use db::{get_or_create, DbOptions};
-use futures::StreamExt;
-use itertools::Itertools;
 use strategy::driver::{StratProviderRef, Strategy, StrategyInitContext};
 use strategy::prelude::{GenericDriver, GenericDriverOptions, PortfolioOptions};
-use strategy::{MarketChannel, MarketChannelTopic};
-use tokio::sync::mpsc::{Receiver, UnboundedSender};
-use tokio::sync::RwLock;
-use tokio_util::sync::CancellationToken;
 use trading::engine::mock_engine;
 use util::compress::Compression;
 use util::time::DateRange;
@@ -150,7 +151,7 @@ impl Backtest {
         info!("Writing reports...");
         global_report.write().await.unwrap();
 
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
         Ok(global_report)
     }
 
@@ -281,7 +282,7 @@ pub async fn backtest_with_range<'a>(
             stop_token.cancel();
             rx.recv()
                 .await
-                .ok_or_else(|| crate::error::Error::AnyhowError(anyhow!("Did not receive a backtest report")))
+                .ok_or_else(|| Error::AnyhowError(anyhow!("Did not receive a backtest report")))
         })
         .await
 }
@@ -318,8 +319,8 @@ pub async fn load_market_events_df(
 }
 
 /// Backtest over the given event stream, reading data from the required channels
-pub async fn backtest_with_events<'a>(
-    test_name: &'a str,
+pub async fn backtest_with_events(
+    test_name: &str,
     provider: StratProviderRef,
     events: Vec<MarketEventEnvelope>,
     starting_cash: Option<f64>,
@@ -341,28 +342,32 @@ pub async fn backtest_with_events<'a>(
             stop_token.cancel();
             rx.recv()
                 .await
-                .ok_or_else(|| crate::error::Error::AnyhowError(anyhow!("Did not receive a backtest report")))
+                .ok_or_else(|| Error::AnyhowError(anyhow!("Did not receive a backtest report")))
         })
         .await
 }
 
 #[cfg(test)]
 mod test {
-    use crate::report::BacktestReport;
-    use crate::{backtest_with_range, load_market_events, load_market_events_df, DatasetCatalog};
-    use brokers::exchange::Exchange;
-    use brokers::pair::register_pair_default;
-    use brokers::prelude::MarketEventEnvelope;
-    use brokers::types::{Candle, MarketEvent, SecurityType, Symbol};
-    use chrono::{DateTime, Duration, NaiveDate, Utc};
-    use stats::kline::{Resolution, TimeUnit};
     use std::collections::HashSet;
     use std::ops::Add;
     use std::sync::Arc;
+
+    use chrono::{DateTime, Duration, NaiveDate, Utc};
+    use datafusion::arrow::util::pretty;
+
+    use brokers::exchange::Exchange;
+    use brokers::pair::register_pair_default;
+    use brokers::prelude::MarketEventEnvelope;
+    use brokers::types::{Candle, MarketChannel, MarketChannelTopic, MarketChannelType, MarketEvent, SecurityType,
+                         Symbol};
+    use stats::kline::{Resolution, TimeUnit};
     use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
     use strategy::models::io::SerializedModel;
-    use strategy::{MarketChannel, MarketChannelTopic, MarketChannelType};
     use util::time::DateRange;
+
+    use crate::report::BacktestReport;
+    use crate::{backtest_with_range, load_market_events, load_market_events_df, DatasetCatalog};
 
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();
@@ -370,12 +375,24 @@ mod test {
     }
 
     fn default_trades_range() -> DateRange {
-        let dt = DateTime::from_utc(NaiveDate::from_ymd(2022, 1, 22).and_hms(0, 0, 0), Utc);
+        let dt = DateTime::from_utc(
+            NaiveDate::from_ymd_opt(2022, 1, 22)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
+            Utc,
+        );
         DateRange::by_day(dt, dt.add(Duration::days(1)))
     }
 
     fn default_orderbooks_range() -> DateRange {
-        let dt = DateTime::from_utc(NaiveDate::from_ymd(2022, 3, 14).and_hms(0, 0, 0), Utc);
+        let dt = DateTime::from_utc(
+            NaiveDate::from_ymd_opt(2022, 3, 14)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
+            Utc,
+        );
         DateRange::by_day(dt, dt.add(Duration::days(1)))
     }
 
@@ -396,6 +413,7 @@ mod test {
         .await
         .unwrap();
         assert_eq!(events.len(), 73);
+
         let all_events_are_channel_type = events.iter().find(|e| !matches!(e.e, MarketEvent::Orderbook(_)));
         assert!(
             all_events_are_channel_type.is_none(),
@@ -497,7 +515,6 @@ mod test {
 
     // TODO: this should give 8 candles, but since we don't use ids and there are several candles in the same ms, there are 15 candles
     #[actix_rt::test]
-    #[ignore]
     async fn load_candles_df() {
         init();
         let events = load_market_events_df(
@@ -510,7 +527,7 @@ mod test {
         )
         .await
         .unwrap();
-        info!("candles = {:?}", datafusion::arrow_print::write(&events));
+        info!("candles = {:?}", pretty::print_batches(&events));
         assert_eq!(events.len(), 1);
         let rb = events.first().unwrap();
         assert_eq!(rb.num_rows(), 8);

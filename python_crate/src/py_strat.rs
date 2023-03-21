@@ -5,10 +5,10 @@ use pyo3::prelude::*;
 
 use crate::asyncio::get_event_loop;
 use brokers::prelude::MarketEventEnvelope;
+use brokers::types::MarketChannel;
 use ext::ResultExt;
 use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::models::io::SerializedModel;
-use strategy::MarketChannel;
 use trading::position::OperationKind;
 use trading::signal::TradeSignal;
 
@@ -170,52 +170,51 @@ impl Strategy for PyStrategyWrapper {
 
 #[cfg(test)]
 mod test {
+    use inline_python::python;
     use inline_python::Context;
     use pyo3::{PyObject, Python};
 
     use brokers::exchange::Exchange;
-    use brokers::types::{SecurityType, Symbol};
+    use brokers::types::{MarketChannel, MarketChannelType, SecurityType, Symbol};
     use strategy::driver::Strategy;
-    use strategy::{MarketChannel, MarketChannelType};
 
     use crate::util::register_tradai_module;
     use crate::PyStrategyWrapper;
-
     #[test]
     fn test_strat_methods() {
-        let guard = Python::acquire_gil();
-        let py = guard.python();
-        let context = Context::new_with_gil(py);
-        register_tradai_module(py).unwrap();
+        Python::with_gil(|py| {
+            let context = Context::new_with_gil(py);
+            register_tradai_module(py).unwrap();
 
-        context.run_with_gil(py, python! {
-            from tradai import Strategy, Channel
-            class MyStrat(Strategy):
-                def __new__(cls, conf):
-                    dis = super().__new__(cls, conf)
-                    dis.conf = conf
-                    return dis
+            context.run_with_gil(py, python! {
+                from tradai import Strategy, Channel
+                class MyStrat(Strategy):
+                    def __new__(cls, conf):
+                        dis = super().__new__(cls, conf)
+                        dis.conf = conf
+                        return dis
 
-                def channels(self):
-                    return (Channel("candles", "binance", "BTC_USDT"),)
+                    def channels(self):
+                        return (Channel("candles", "binance", "BTC_USDT"),)
 
-            strat = MyStrat({})
+                strat = MyStrat({})
 
-            channels = strat.channels()
-        });
+                channels = strat.channels()
+            });
 
-        let strat: PyObject = context.get("strat");
-        let wrapper = PyStrategyWrapper::new(strat);
-        let channels = Strategy::channels(&wrapper);
-        assert!(!channels.is_empty());
-        assert_eq!(
-            channels.iter().last(),
-            Some(
-                &MarketChannel::builder()
-                    .r#type(MarketChannelType::Candles)
-                    .symbol(Symbol::new("BTC_USDT".into(), SecurityType::Crypto, Exchange::Binance))
-                    .build()
-            )
-        );
+            let strat: PyObject = context.get("strat");
+            let wrapper = PyStrategyWrapper::new(strat);
+            let channels = Strategy::channels(&wrapper);
+            assert!(!channels.is_empty());
+            assert_eq!(
+                channels.iter().last(),
+                Some(
+                    &MarketChannel::builder()
+                        .r#type(MarketChannelType::Candles)
+                        .symbol(Symbol::new("BTC_USDT".into(), SecurityType::Crypto, Exchange::Binance))
+                        .build()
+                )
+            );
+        })
     }
 }

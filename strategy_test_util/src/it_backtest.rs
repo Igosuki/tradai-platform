@@ -12,7 +12,7 @@ use strategy::query::{DataQuery, DataResult, PortfolioSnapshot};
 use trading::engine::mock_engine;
 use trading::position::Position;
 use util::test::test_results_dir;
-use util::time::DateRange;
+use util::time::{utc_at_midnight, DateRange};
 
 use crate::draw::{draw_line_plot, StrategyEntryFnRef};
 use crate::fs::copy_file;
@@ -69,8 +69,8 @@ where
     for c in &driver.channels() {
         events.extend(
             input::load_csv_events(
-                range.0.date(),
-                range.1.date(),
+                utc_at_midnight(range.0),
+                utc_at_midnight(range.1),
                 vec![c.pair().as_ref()],
                 &c.exchange().to_string(),
                 c.name(),

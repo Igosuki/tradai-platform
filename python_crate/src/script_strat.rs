@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use inline_python::Context;
+use inline_python::{python, Context};
 use pyo3::types::{PyDict, PyModule};
 use pyo3::{IntoPy, PyObject, PyResult, Python};
 use serde_json::Value;
@@ -30,28 +30,28 @@ impl PyScriptStrategyProvider {
         conf: HashMap<String, serde_json::Value>,
         python_script: String,
     ) -> Result<Self> {
-        let guard = Python::acquire_gil();
-        let py = guard.python();
-        let context = Context::new_with_gil(py);
-        register_tradai_module(py).unwrap();
-        PyModule::from_code(py, &python_script, "_dyn_strat_mod", "_dyn_strat_mod")?;
-        context.run_with_gil(py, python! {
-            import _dyn_strat_mod
-            print("loaded strategy class %s" % _dyn_strat_mod.__strat_class__.__name__)
-        });
-        let py_conf = pythonize::pythonize(py, &conf).unwrap();
-        let driver_ctx: PyStrategyInitContext = StrategyInitContext {
-            engine: ctx.engine.clone(),
-            db: ctx.db.clone(),
-        }
-        .into();
-        let py_ctx = driver_ctx.into_py(py);
-        context.run_with_gil(py, python! {
-            from _dyn_strat_mod import __strat_class__ as Strat
+        Python::with_gil(|py| {
+            let context = Context::new_with_gil(py);
+            register_tradai_module(py).unwrap();
+            PyModule::from_code(py, &python_script, "_dyn_strat_mod", "_dyn_strat_mod")?;
+            context.run_with_gil(py, python! {
+                import _dyn_strat_mod
+                print("loaded strategy class %s" % _dyn_strat_mod.__strat_class__.__name__)
+            });
+            let py_conf = pythonize::pythonize(py, &conf).unwrap();
+            let driver_ctx: PyStrategyInitContext = StrategyInitContext {
+                engine: ctx.engine.clone(),
+                db: ctx.db.clone(),
+            }
+            .into();
+            let py_ctx = driver_ctx.into_py(py);
+            context.run_with_gil(py, python! {
+                from _dyn_strat_mod import __strat_class__ as Strat
 
-            strat = Strat('py_conf, 'py_ctx)
-        });
-        Ok(Self { context })
+                strat = Strat('py_conf, 'py_ctx)
+            });
+            Ok(Self { context })
+        })
     }
 
     fn wrapped(&self) -> PyStrategyWrapper { PyStrategyWrapper::new(self.context.get("strat")) }
@@ -125,6 +125,7 @@ impl LoggingStdout {
 #[cfg(test)]
 mod test {
     use brokers::exchange::Exchange;
+    use inline_python::python;
     use pyo3::{IntoPy, PyObject, Python};
     use std::collections::HashMap;
 

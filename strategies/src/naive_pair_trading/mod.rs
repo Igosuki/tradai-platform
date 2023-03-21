@@ -8,7 +8,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use brokers::prelude::*;
-use brokers::types::{SecurityType, Symbol};
+use brokers::types::{MarketChannel, MarketChannelType, SecurityType, Symbol};
 use db::Storage;
 use options::Options;
 use portfolio::portfolio::Portfolio;
@@ -18,7 +18,6 @@ use strategy::error::*;
 use strategy::plugin::{provide_options, StrategyPlugin};
 use strategy::types::StratEvent;
 use strategy::StratEventLoggerRef;
-use strategy::{MarketChannel, MarketChannelType};
 use trading::book::BookPosition;
 use trading::engine::TradingEngine;
 use trading::position::{OperationKind, PositionKind};

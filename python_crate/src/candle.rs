@@ -1,4 +1,4 @@
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use stats::yata_prelude::OHLCV;
 use std::ops::Add;
 use util::time::utc_zero;
