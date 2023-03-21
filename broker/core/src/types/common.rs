@@ -64,6 +64,21 @@ pub enum SecurityType {
 
 impl SecurityType {
     pub fn is_option(&self) -> bool { matches!(self, Self::Option | Self::FutureOption | Self::IndexOption) }
+
+    pub fn short(&self) -> &'static str {
+        match self {
+            SecurityType::Equity => "eqty",
+            SecurityType::Option => "opt",
+            SecurityType::Commodity => "comm",
+            SecurityType::Forex => "frx",
+            SecurityType::Future => "futures",
+            SecurityType::Cfd => "cfd",
+            SecurityType::Crypto => "spot",
+            SecurityType::FutureOption => "fut_opt",
+            SecurityType::Index => "idx",
+            SecurityType::IndexOption => "idx_opt",
+        }
+    }
 }
 
 /// A unique value for a ticker symbol, an exchange market, and a security type

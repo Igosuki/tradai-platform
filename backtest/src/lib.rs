@@ -63,4 +63,4 @@ pub use crate::{backtest::*,
                 config::*,
                 dataset::{DataFormat, DatasetCatalog, DatasetReader, MarketEventDatasetType},
                 error::*};
-pub use datafusion::record_batch::RecordBatch;
+pub use datafusion::arrow::record_batch::RecordBatch;

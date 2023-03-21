@@ -86,8 +86,8 @@ async fn spot_backtest() {
         provider,
         &entries,
         DateRange::by_day(
-            Utc.ymd(2021, 8, 1).and_hms(0, 0, 0),
-            Utc.ymd(2021, 8, 9).and_hms(0, 0, 0),
+            Utc.with_ymd_and_hms(2021, 8, 1, 0, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(2021, 8, 9, 0, 0, 0).unwrap(),
         ),
         &[exchange],
         100.0,
@@ -140,8 +140,8 @@ async fn margin_backtest() {
         provider,
         &entries,
         DateRange::by_day(
-            Utc.ymd(2021, 8, 1).and_hms(0, 0, 0),
-            Utc.ymd(2021, 8, 9).and_hms(0, 0, 0),
+            Utc.with_ymd_and_hms(2021, 8, 1, 0, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(2021, 8, 9, 0, 0, 0).unwrap(),
         ),
         &[exchange],
         100.0,

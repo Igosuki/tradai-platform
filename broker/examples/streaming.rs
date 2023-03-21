@@ -55,6 +55,14 @@ async fn main() {
     env_logger::init();
     async {
         let my_creds = Box::new(BasicCredentials::empty(Exchange::Binance));
+        let market_chan = vec![MarketChannel {
+            symbol: Symbol::new("BTC_USDT".into(), SecurityType::Crypto, Exchange::Binance),
+            r#type: MarketChannelType::Trades,
+            tick_rate: None,
+            resolution: None,
+            only_final: None,
+            orderbook: None,
+        }];
         let settings = BrokerSettings {
             fees: 0.01,
             use_account: false,
@@ -62,14 +70,7 @@ async fn main() {
             use_isolated_margin_account: false,
             isolated_margin_account_pairs: vec![],
             use_test: false,
-            market_channels: vec![MarketChannel {
-                symbol: Symbol::new("BTC_USDT".into(), SecurityType::Crypto, Exchange::Binance),
-                r#type: MarketChannelType::Trades,
-                tick_rate: None,
-                resolution: None,
-                only_final: None,
-                orderbook: None,
-            }],
+            market_channels: vec![],
         };
 
         // Initialize the broker and a simple logging actor
@@ -78,20 +79,20 @@ async fn main() {
         broker.register(ExchangeChannel::No, actor.recipient());
         let broker = Arc::new(broker);
 
-        // Initialize coinnect
+        // Initialize broker
         let apis = Brokerages::public_apis(&[Binance]).await;
         let _ = Brokerages::load_pair_registries(&apis).await;
-        let mut bot = Brokerages::new_market_bot(Binance, my_creds, settings)
+        let mut bot = Brokerages::new_market_bot(Binance, my_creds, settings, market_chan.as_slice())
             .await
             .expect("stream connected");
 
         // Read from the stream
         select! {
             _ = bot.add_sink(Box::new(move |msg| {broker.broadcast(msg); Ok(()) })) => {
-                println!("coinnect stream closed on its own");
+                println!("broker stream closed on its own");
             }
             _ = tokio::signal::ctrl_c() => {
-                println!("coinnect stream interrupted, closing...")
+                println!("broker stream interrupted, closing...")
             }
         }
     }

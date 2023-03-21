@@ -1,11 +1,12 @@
 use crate::datafusion_util::{get_col_as, multitables_as_df, multitables_as_stream, print_struct_schema,
-                             string_partition, TimestampMillisecondArray, UInt16DictionaryArray};
+                             string_partition};
 use crate::datasources::{event_ms_where_clause, join_where_clause};
 use brokers::prelude::*;
 use brokers::types::{Candle, SecurityType, Symbol};
 use chrono::{DateTime, Duration, Utc};
-use datafusion::arrow::array::*;
-use datafusion::record_batch::RecordBatch;
+use datafusion::arrow::array::{Array, BooleanArray, Float64Array, StructArray, TimestampMillisecondArray,
+                               UInt16DictionaryArray};
+use datafusion::arrow::record_batch::RecordBatch;
 use futures::{Stream, StreamExt};
 use stats::kline::Resolution;
 use stats::kline::TimeUnit::Minute;
@@ -106,7 +107,10 @@ pub async fn trades_df<P: 'static + AsRef<Path> + Debug>(
     )
     .await?;
     if tracing::enabled!(Level::TRACE) {
-        trace!("trades = {:?}", datafusion::arrow_print::write(&[batch.clone()]));
+        trace!(
+            "trades = {:?}",
+            datafusion::arrow::util::pretty::print_batches(&[batch.clone()])
+        );
     }
     Ok(batch)
 }
@@ -200,7 +204,10 @@ pub async fn candles_df<P: 'static + AsRef<Path> + Debug>(
     );
     let batch = multitables_as_df(table_paths, format, Some(table_name.clone()), sql_query.to_string()).await?;
     if tracing::enabled!(Level::TRACE) {
-        trace!("candles = {:?}", datafusion::arrow_print::write(&[batch.clone()]));
+        trace!(
+            "candles = {:?}",
+            datafusion::arrow::util::pretty::print_batches(&[batch.clone()])
+        );
     }
     Ok(batch)
 }

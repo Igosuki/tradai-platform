@@ -52,7 +52,7 @@ pub(crate) fn thresholds(short_0: f64, long_0: f64) -> PyWindowedIndicator {
 }
 
 #[pymodule]
-pub(crate) fn windowed_ta(_py: Python, m: &PyModule) -> PyResult<()> {
+pub(crate) fn module(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(thresholds, m)?)?;
     Ok(())
 }

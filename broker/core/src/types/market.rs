@@ -7,6 +7,7 @@ use chrono::{DateTime, Duration, TimeZone, Utc};
 use ordered_float::OrderedFloat;
 use uuid::Uuid;
 
+use crate::broker::{MarketEventEnvelopeRef, Subject};
 use stats::kline::Resolution;
 use util::ser::{decode_duration_opt, encode_duration_str_opt};
 use util::time::now;
@@ -657,4 +658,31 @@ pub struct BookTick {
     pub bid: f64,
     pub bidq: f64,
     pub mid: f64,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct MarketChannelTopic(pub Symbol, pub MarketChannelType);
+
+impl From<MarketEventEnvelope> for MarketChannelTopic {
+    fn from(e: MarketEventEnvelope) -> Self { MarketChannelTopic(e.symbol, e.e.into()) }
+}
+
+impl From<&MarketEventEnvelope> for MarketChannelTopic {
+    fn from(e: &MarketEventEnvelope) -> Self { MarketChannelTopic(e.symbol.clone(), (&e.e).into()) }
+}
+
+impl From<MarketEventEnvelopeRef> for MarketChannelTopic {
+    fn from(e: MarketEventEnvelopeRef) -> Self { (e.as_ref()).into() }
+}
+
+impl Subject<MarketEventEnvelope> for MarketChannelTopic {}
+
+impl Subject<MarketEventEnvelopeRef> for MarketChannelTopic {}
+
+impl From<MarketChannel> for MarketChannelTopic {
+    fn from(mc: MarketChannel) -> Self { Self(mc.symbol, mc.r#type) }
+}
+
+impl From<&MarketChannel> for MarketChannelTopic {
+    fn from(mc: &MarketChannel) -> Self { Self(mc.symbol.clone(), mc.r#type) }
 }
