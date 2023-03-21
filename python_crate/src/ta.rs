@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::PyModule;
 use pyo3::prelude::*;
@@ -58,7 +60,8 @@ impl From<PyIndicator> for TechnicalIndicator {
 }
 
 #[doc = "Absolute Price Oscillator technical indicator"]
-#[pyfunction(text_signature = "(short_window, long_window, /)")]
+#[pyfunction]
+#[pyo3(text_signature = "(short_window, long_window, /)")]
 pub(crate) fn ppo(short_window: u32, long_window: u32) -> PyIndicator {
     PyIndicator {
         inner: TechnicalIndicator::PPO(PercentPriceOscillator::new(long_window, short_window)),
@@ -138,7 +141,8 @@ impl PyYataIndicator {
 macro_rules! yata_indicator {
     ($name:ident, $doc:literal, $signature:literal, $struct:ident) => {
         #[doc = $doc]
-        #[pyfunction(text_signature = $signature, kwds="**")]
+        #[pyfunction]
+        #[pyo3(signature = (**kwds), text_signature = $signature)]
         pub(crate) fn $name(py: Python, kwds: Option<&PyDict>) -> PyResult<PyYataIndicator> {
             let kwds = kwds.unwrap_or_else(|| PyDict::new(py));
             PyYataIndicator::try_new(kwds, Box::new(stats::yata_indicators::$struct::default()))
@@ -149,7 +153,7 @@ macro_rules! yata_indicator {
 yata_indicator!(
     macd,
     "Moving average convergence/divergence (MACD), see rust api stats::yata_indicators::MACD",
-    "(ma1=None, ma2=None, signal=None, source=None)",
+    "(ma1 = None, ma2 = None, signal = None, source = None)",
     MACD
 );
 
@@ -321,7 +325,8 @@ macro_rules! yata_method {
         }
 
         #[doc = $doc]
-        #[pyfunction(text_signature = $signature, kwds="**")]
+        #[pyfunction]
+        #[pyo3(signature = (value), text_signature = $signature)]
         pub(crate) fn $name(value: $valuety) -> PyResult<$method> {
             Ok($method {
                 inner: stats::yata_methods::$method::new(&value)
@@ -346,7 +351,8 @@ macro_rules! yata_method {
         }
 
         #[doc = $doc]
-        #[pyfunction(text_signature = $signature, kwds="**")]
+        #[pyfunction]
+        #[pyo3(signature = (params, value), text_signature = $signature)]
         pub(crate) fn $name(_py: Python, params: $paramsty, value: $valuety) -> PyResult<$method> {
             Ok($method {
                 inner: stats::yata_methods::$method::new(params, &value)
@@ -613,7 +619,7 @@ yata_method!(
 );
 
 #[pymodule]
-pub(crate) fn ta(_py: Python, m: &PyModule) -> PyResult<()> {
+pub(crate) fn module(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(adidx, m)?)?;
     m.add_function(wrap_pyfunction!(ppo, m)?)?;
     m.add_function(wrap_pyfunction!(macd, m)?)?;

@@ -2,7 +2,7 @@ mod metrics;
 
 use crate::bbplusb::metrics::BBPlusMetrics;
 use brokers::exchange::Exchange;
-use brokers::types::Pair;
+use brokers::types::{MarketChannel, Pair};
 use chrono::Duration;
 use serde_json::Value;
 use stats::ta_indicators::{BollingerBands, BollingerBandsOutput};
@@ -14,7 +14,7 @@ use strategy::error::Result;
 use strategy::models::io::SerializedModel;
 use strategy::plugin::{provide_options, StrategyPlugin, StrategyPluginContext};
 use strategy::settings::{StrategyOptions, StrategySettingsReplicator};
-use strategy::{MarketChannel, StrategyKey};
+use strategy::StrategyKey;
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::new_trade_signal;
 use trading::types::OrderConf;

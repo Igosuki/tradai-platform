@@ -152,9 +152,7 @@ mod tests {
 
     async fn test_apis() -> BrokerageRegistry {
         let exchanges = [(Exchange::Binance, BrokerSettings {
-            orderbook: None,
-            orderbook_depth: None,
-            trades: None,
+            market_channels: vec![],
             fees: 0.1,
             use_account: true,
             use_margin_account: true,
@@ -185,7 +183,6 @@ mod tests {
 
     // TODO: plugin registry not working
     #[actix_rt::test]
-    #[ignore]
     async fn test_add_order() {
         let apis = test_apis().await;
         let app = App::new().configure(|cfg| build_test_api(apis.clone(), cfg));

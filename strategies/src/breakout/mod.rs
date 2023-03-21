@@ -1,7 +1,7 @@
 use brokers::exchange::Exchange;
 use brokers::prelude::MarketEventEnvelope;
-use brokers::types::Pair;
-use chrono::{DateTime, Duration, TimeZone, Utc};
+use brokers::types::{MarketChannel, Pair};
+use chrono::{DateTime, Duration, Utc};
 use serde_json::Value;
 use stats::indicators::cross::{CrossAbove, CrossUnder};
 use stats::indicators::ema::{ExponentialMovingAverage, MovingAverageType};
@@ -14,7 +14,7 @@ use strategy::error::Result;
 use strategy::models::io::SerializedModel;
 use strategy::plugin::{provide_options, StrategyPlugin, StrategyPluginContext};
 use strategy::settings::{StrategyOptions, StrategySettingsReplicator};
-use strategy::{MarketChannel, StrategyKey};
+use strategy::StrategyKey;
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::new_trade_signal;
 use trading::types::OrderConf;

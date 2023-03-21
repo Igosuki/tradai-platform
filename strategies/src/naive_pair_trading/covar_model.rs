@@ -1,7 +1,7 @@
 use std::ops::{Add, Mul, Sub};
 use std::sync::Arc;
 
-use chrono::{DateTime, Duration, TimeZone, Utc};
+use chrono::{DateTime, Duration, Utc};
 use itertools::Itertools;
 
 use db::Storage;
@@ -137,7 +137,7 @@ impl LinearSpreadModel {
 
     pub fn try_load(&mut self) -> strategy::error::Result<()> {
         self.linear_model.try_load()?;
-        self.last_sample_time_at_eval = self.linear_model.last_model_time().unwrap_or_else(utc_zero).unwrap();
+        self.last_sample_time_at_eval = self.linear_model.last_model_time().unwrap_or_else(utc_zero);
         trace!(loaded_model_time = %self.last_sample_time_at_eval, "model loaded");
         if self.linear_model.is_loaded() {
             Ok(())

@@ -108,8 +108,8 @@ async fn spot_backtest() {
         provider,
         &NAIVE_STRATEGY_DRAW_ENTRIES,
         DateRange::by_day(
-            Utc.ymd(2020, 3, 25).and_hms(0, 0, 0),
-            Utc.ymd(2020, 4, 8).and_hms(0, 0, 0),
+            Utc.with_ymd_and_hms(2020, 3, 25, 0, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(2020, 4, 8, 0, 0, 0).unwrap(),
         ),
         &[exchange],
         100.0,
@@ -160,8 +160,8 @@ async fn margin_backtest() {
         provider,
         &NAIVE_STRATEGY_DRAW_ENTRIES,
         DateRange::by_day(
-            Utc.ymd(2020, 3, 25).and_hms(0, 0, 0),
-            Utc.ymd(2020, 4, 8).and_hms(0, 0, 0),
+            Utc.with_ymd_and_hms(2020, 3, 25, 0, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(2020, 4, 8, 0, 0, 0).unwrap(),
         ),
         &[exchange],
         100.0,

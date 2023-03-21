@@ -1,5 +1,5 @@
 use brokers::prelude::*;
-use brokers::types::{Candle, SecurityType, Symbol};
+use brokers::types::{Candle, MarketChannel, MarketChannelType, SecurityType, Symbol};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use stats::indicators::{macd, rsi, stoch};
@@ -13,7 +13,7 @@ use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::*;
 use strategy::plugin::{provide_options, StrategyPlugin, StrategyPluginContext};
 use strategy::settings::{StrategyOptions, StrategySettingsReplicator};
-use strategy::{MarketChannel, MarketChannelType, StratEventLoggerRef, StrategyKey};
+use strategy::{StratEventLoggerRef, StrategyKey};
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};
 use trading::stop::TrailingStopper;

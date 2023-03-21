@@ -2,11 +2,11 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use chrono::{DateTime, Duration, TimeZone, Utc};
+use chrono::{DateTime, Duration, Utc};
 use uuid::Uuid;
 
 use brokers::prelude::*;
-use brokers::types::{SecurityType, Symbol};
+use brokers::types::{MarketChannel, MarketChannelType, SecurityType, Symbol};
 use db::Storage;
 use model::MeanRevertingModel;
 use options::Options;
@@ -17,7 +17,7 @@ use strategy::models::io::{IterativeModel, SerializedModel};
 use strategy::models::Sampler;
 use strategy::plugin::{provide_options, StrategyPlugin, StrategyPluginContext};
 use strategy::prelude::*;
-use strategy::{MarketChannel, MarketChannelType, StratEventLoggerRef};
+use strategy::StratEventLoggerRef;
 use trading::book::BookPosition;
 use trading::position::{OperationKind, PositionKind};
 use trading::signal::{new_trade_signal, TradeSignal};

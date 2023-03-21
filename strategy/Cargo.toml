@@ -76,7 +76,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 # python
-pyo3 = { version = "^0.17", optional = true }
+pyo3 = { workspace = true, optional = true }
 
 [dev-dependencies]
 # ours

@@ -2,7 +2,7 @@ use std::mem;
 
 #[cfg(feature = "mock_time")]
 use chrono::TimeZone;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, Timelike, Utc};
 #[cfg(feature = "mock_time")]
 use mock_instant::MockClock;
 
@@ -96,3 +96,8 @@ pub fn get_unix_timestamp_ms() -> i64 { now().timestamp_millis() }
 pub fn get_unix_timestamp_us() -> i64 { now().timestamp_nanos() }
 
 pub fn utc_zero() -> DateTime<Utc> { return Utc.timestamp_millis_opt(0).unwrap(); }
+
+#[inline]
+pub fn utc_at_midnight(dt: DateTime<Utc>) -> DateTime<Utc> {
+    return dt.with_hour(0).unwrap().with_minute(0).unwrap().with_second(0).unwrap();
+}

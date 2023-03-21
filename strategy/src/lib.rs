@@ -70,9 +70,8 @@ use strum_macros::AsRefStr;
 use uuid::Uuid;
 
 use actor::StrategyActor;
-use brokers::broker::{MarketEventEnvelopeRef, Subject};
-use brokers::prelude::*;
-use brokers::types::{MarketChannel, MarketChannelType, Symbol};
+use brokers::broker::MarketEventEnvelopeRef;
+use brokers::types::MarketChannel;
 use db::DbOptions;
 use error::*;
 use ext::ResultExt;
@@ -104,33 +103,6 @@ pub mod settings;
 #[cfg(test)]
 mod test_util;
 pub mod types;
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct MarketChannelTopic(pub Symbol, pub MarketChannelType);
-
-impl From<MarketEventEnvelope> for MarketChannelTopic {
-    fn from(e: MarketEventEnvelope) -> Self { MarketChannelTopic(e.symbol, e.e.into()) }
-}
-
-impl From<&MarketEventEnvelope> for MarketChannelTopic {
-    fn from(e: &MarketEventEnvelope) -> Self { MarketChannelTopic(e.symbol.clone(), (&e.e).into()) }
-}
-
-impl From<MarketEventEnvelopeRef> for MarketChannelTopic {
-    fn from(e: MarketEventEnvelopeRef) -> Self { (e.as_ref()).into() }
-}
-
-impl Subject<MarketEventEnvelope> for MarketChannelTopic {}
-
-impl Subject<MarketEventEnvelopeRef> for MarketChannelTopic {}
-
-impl From<MarketChannel> for MarketChannelTopic {
-    fn from(mc: MarketChannel) -> Self { Self(mc.symbol, mc.r#type) }
-}
-
-impl From<&MarketChannel> for MarketChannelTopic {
-    fn from(mc: &MarketChannel) -> Self { Self(mc.symbol.clone(), mc.r#type) }
-}
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "snake_case")]
@@ -254,7 +226,7 @@ mod test {
     use actix::System;
 
     use brokers::prelude::*;
-    use brokers::types::SecurityType;
+    use brokers::types::{MarketChannelType, SecurityType, Symbol};
 
     use crate::driver::StrategyDriver;
     use crate::query::{DataQuery, DataResult, ModelReset, Mutation};
