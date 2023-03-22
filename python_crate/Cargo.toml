@@ -39,6 +39,7 @@ anyhow = { workspace = true }
 uuid = { workspace = true, features = ["v4", "fast-rng"] }
 strum = { workspace = true }
 strum_macros = { workspace = true }
+indoc = "2.0"
 
 # log / trace
 tracing = { workspace = true }

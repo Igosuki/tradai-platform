@@ -5,13 +5,14 @@ import json
 from datetime import datetime, date
 
 from tradai import Strategy, signal, Channel, PositionKind, backtest, OperationKind, TradeKind, AssetType, \
-    OrderType, uuid, ta, windowed_ta, model, mstrategy, LoggingStdout
+    OrderType, uuid, ta, windowed_ta, model, LoggingStdout
 
 FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'
 logging.basicConfig(format=FORMAT)
 logging.getLogger().setLevel(logging.INFO)
 sys.stdout = LoggingStdout()
 sys.displayhook = pprint.pprint
+
 
 class KlineLogger(Strategy):
     def __new__(cls, conf, ctx):
@@ -45,7 +46,7 @@ class KlineLogger(Strategy):
             print(f"Initialized {self.whoami()}")
 
     async def eval(self, event):
-        #event.debug()
+        # event.debug()
         signals = []
         return signals
 
@@ -60,17 +61,19 @@ def print_and_zero(log):
     print(log)
     return 0.0
 
+
 async def backtest_run(*args, **kwargs):
     return await backtest.backtest_with_range(*args, **kwargs)
+
 
 KLINE_LOGGER_DRAW_ENTRIES = [(
     "Prices and EMA",
     lambda x:
-        [
-            (
-                "price",
-                x['prices'][('Binance', 'BTC_USDT')] if ('Binance', 'BTC_USDT') in x['prices'] else 0.0),
-            ])
+    [
+        (
+            "price",
+            x['prices'][('Binance', 'BTC_USDT')] if ('Binance', 'BTC_USDT') in x['prices'] else 0.0),
+    ])
     ,
 ]
 
@@ -103,7 +106,6 @@ if __name__ == '__main__':
         conf, ctx), date(2022, 1, 30), date(2022, 2, 6), KLINE_LOGGER_DRAW_ENTRIES))
     print(report.draw_tradeview())
 
-
-mstrategy(KlineLogger)
+# mstrategy(KlineLogger)
 
 Strat = KlineLogger
