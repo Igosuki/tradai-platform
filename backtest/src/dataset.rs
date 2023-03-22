@@ -22,7 +22,7 @@ use crate::error::*;
 // TODO: There should be some other way to load table definitions, maybe a json file or a data catalog format
 
 pub fn coindata_data_cache_dir() -> PathBuf {
-    Path::new(&std::env::var("COINDATA_CACHE_DIR").unwrap_or_else(|_| "".to_string())).to_path_buf()
+    Path::new(&std::env::var("TRADAI_DATA_CACHE_DIR").unwrap_or_else(|_| "".to_string())).to_path_buf()
 }
 
 #[derive(Clone)]

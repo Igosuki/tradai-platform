@@ -323,7 +323,7 @@ mod test {
     async fn test_read_df() -> datafusion::error::Result<()> {
         let ctx = new_context();
         let partition =
-            PathBuf::from(std::env::var("COINDATA_CACHE_DIR").unwrap_or_else(|_| "".to_string())).join("data");
+            PathBuf::from(std::env::var("TRADAI_DATA_CACHE_DIR").unwrap_or_else(|_| "".to_string())).join("data");
         let listing_options = ListingOptions {
             file_extension: "avro".to_string(),
             format: Arc::new(AvroFormat::default()),
