@@ -113,7 +113,7 @@ impl BacktestConfig {
     pub(crate) fn coindata_cache_dir(&self) -> PathBuf {
         self.coindata_cache_dir
             .clone()
-            .unwrap_or_else(|| Path::new(&std::env::var("COINDATA_CACHE_DIR").unwrap()).to_path_buf())
+            .unwrap_or_else(|| Path::new(&std::env::var("TRADAI_DATA_CACHE_DIR").unwrap()).to_path_buf())
     }
 
     pub(crate) async fn all_strategy_settings(&self) -> Vec<StrategyDriverSettings> {

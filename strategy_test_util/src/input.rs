@@ -147,7 +147,7 @@ fn load_records(path: &str) -> Vec<CsvRecord> { read_csv(path).unwrap() }
 
 // Loads the relevant csv dataset
 // These csv datasets are downsampled feeds generated from avro data by spark the spark_flattener function (see the spark files in the parent project)
-// If the files are missing from $BITCOINS_REPO/data, they will be downloaded from s3 / spaces
+// If the files are missing from $TRADAI_REPO/data, they will be downloaded from s3 / spaces
 /// # Panics
 ///
 /// if the base directory for the dataset cannot be created
