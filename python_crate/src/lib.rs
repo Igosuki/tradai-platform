@@ -64,7 +64,7 @@ create_exception!(strat, ModelError, pyo3::exceptions::PyException);
 create_exception!(strat, EvalError, pyo3::exceptions::PyException);
 
 #[pymodule]
-#[pyo3(name = "tradai_core")]
+#[pyo3(name = "tradai")]
 pub fn tradai(py: Python, m: &PyModule) -> PyResult<()> {
     // Core
     m.add_class::<PyStrategy>()?;
@@ -86,11 +86,11 @@ pub fn tradai(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(mstrategy, m)?)?;
 
     // Submodules
-    m.add_wrapped(wrap_pymodule!(crate::backtest::module))?;
-    m.add_wrapped(wrap_pymodule!(crate::uuid::module))?;
-    m.add_wrapped(wrap_pymodule!(ta::module))?;
-    m.add_wrapped(wrap_pymodule!(windowed_ta::module))?;
-    m.add_wrapped(wrap_pymodule!(model::module))?;
+    m.add_wrapped(wrap_pymodule!(crate::backtest::backtest))?;
+    m.add_wrapped(wrap_pymodule!(crate::uuid::uuid))?;
+    m.add_wrapped(wrap_pymodule!(ta::ta))?;
+    m.add_wrapped(wrap_pymodule!(windowed_ta::windowed_ta))?;
+    m.add_wrapped(wrap_pymodule!(model::model))?;
     Ok(())
 }
 
