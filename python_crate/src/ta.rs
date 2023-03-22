@@ -619,7 +619,7 @@ yata_method!(
 );
 
 #[pymodule]
-pub(crate) fn module(_py: Python, m: &PyModule) -> PyResult<()> {
+pub(crate) fn ta(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(adidx, m)?)?;
     m.add_function(wrap_pyfunction!(ppo, m)?)?;
     m.add_function(wrap_pyfunction!(macd, m)?)?;

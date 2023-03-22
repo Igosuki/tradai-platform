@@ -149,7 +149,7 @@ pub(crate) fn persistent_window_ta(
 }
 
 #[pymodule]
-pub(crate) fn module(_py: Python, m: &PyModule) -> PyResult<()> {
+pub(crate) fn model(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(persistent_ta, m)?)?;
     m.add_function(wrap_pyfunction!(persistent_window_ta, m)?)?;
     Ok(())

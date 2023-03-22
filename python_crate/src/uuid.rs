@@ -15,7 +15,7 @@ fn uuid4() -> Uuid {
 }
 
 #[pymodule]
-pub(crate) fn module(_py: Python, m: &PyModule) -> PyResult<()> {
+pub(crate) fn uuid(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Uuid>()?;
     m.add_function(wrap_pyfunction!(uuid4, m)?)?;
     Ok(())

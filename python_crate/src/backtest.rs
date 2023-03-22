@@ -289,7 +289,7 @@ fn event_backtest_wrapper<'p>(
 }
 
 #[pymodule]
-pub(crate) fn module(_py: Python, m: &PyModule) -> PyResult<()> {
+pub(crate) fn backtest(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(it_backtest_wrapper, m)?)?;
     m.add_function(wrap_pyfunction!(range_backtest_wrapper, m)?)?;
     m.add_function(wrap_pyfunction!(event_backtest_wrapper, m)?)?;
