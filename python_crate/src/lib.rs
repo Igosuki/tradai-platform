@@ -83,7 +83,7 @@ pub fn tradai(py: Python, m: &PyModule) -> PyResult<()> {
     m.add("ModelError", py.get_type::<ModelError>())?;
     m.add("EvalError", py.get_type::<EvalError>())?;
     m.add_function(wrap_pyfunction!(signal, m)?)?;
-    m.add_function(wrap_pyfunction!(mstrategy, m)?)?;
+    m.add_function(wrap_pyfunction!(register_strat, m)?)?;
 
     // Submodules
     m.add_wrapped(wrap_pymodule!(crate::backtest::backtest))?;
