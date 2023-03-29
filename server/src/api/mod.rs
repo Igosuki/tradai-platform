@@ -146,6 +146,7 @@ mod tests {
     use crate::settings::Version;
     #[allow(unused_imports)]
     use brokers::broker_binance::BinanceExchangeConnector;
+    use util::test::test_config_path;
 
     fn strats() -> HashMap<StrategyKey, Trader> { HashMap::new() }
 
@@ -166,7 +167,10 @@ mod tests {
         .collect();
         let manager = Arc::new(Brokerages::new_manager());
         manager
-            .build_exchange_apis(Arc::new(exchanges), "../config/keys_real_test.json".into())
+            .build_exchange_apis(
+                Arc::new(exchanges),
+                format!("{}/keys_real_test.json", test_config_path()).into(),
+            )
             .await;
         Brokerages::load_pair_registries(manager.exchange_apis()).await.unwrap();
         manager.exchange_apis().clone()
@@ -203,7 +207,7 @@ mod tests {
             price,
         };
         let string = format!(
-            r##"{{"variables": null, "query": "mutation {{ addOrder(input:{{exchg:\"Binance\", orderType: LIMIT,side: SELL, pair:\"BTC_USDT\", quantity: 0.0015, dryRun: true, price: {} }}) {{ identifier }} }}" }}"##,
+            r##"{{"variables": null, "query": "mutation {{ addOrder(input:{{exchg:\"binance\", orderType: LIMIT,side: SELL, pair:\"BTC_USDT\", quantity: 0.0015, dryRun: true, price: {} }}) {{ identifier }} }}" }}"##,
             price
         );
         println!("{}", string);

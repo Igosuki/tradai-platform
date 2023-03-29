@@ -47,3 +47,9 @@ pub fn test_results_dir(module_path: &str) -> String {
     std::fs::create_dir_all(&test_results_dir).unwrap();
     test_results_dir
 }
+
+#[must_use]
+pub fn test_config_path() -> String {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    format!("{}/../config", manifest_dir)
+}
