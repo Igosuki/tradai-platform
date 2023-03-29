@@ -5,23 +5,23 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 pub use indicator_model::IndicatorModel;
-pub use windowed_model::PersistentWindowedModel;
+pub use reducer::PersistentReducer;
 
 use crate::error::Result;
 
 pub mod indicator_model;
-pub mod indicator_windowed_model;
+pub mod indicator_reducer;
 pub mod io;
 pub mod persist;
-pub mod windowed_model;
+pub mod reducer;
 
 pub trait Model<T> {
-    fn ser(&self) -> Option<serde_json::Value>;
+    fn json(&self) -> Option<serde_json::Value>;
     fn try_load(&mut self) -> Result<()>;
     fn is_loaded(&self) -> bool;
     fn wipe(&mut self) -> Result<()>;
-    fn last_model_time(&self) -> Option<DateTime<Utc>>;
-    fn has_model(&self) -> bool;
+    fn last_value_time(&self) -> Option<DateTime<Utc>>;
+    fn has_value(&self) -> bool;
     fn value(&self) -> Option<T>;
 }
 
