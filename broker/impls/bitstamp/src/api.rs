@@ -75,8 +75,8 @@ impl BitstampApi {
     /// #Examples
     ///
     /// ```json
-    /// extern crate coinnect_rt;
-    /// use crate::coinnect::bitstamp::BitstampApi;
+    /// extern crate broker_bitstamp;
+    /// use broker_bitstamp::api::BitstampApi;
     /// let mut api = BitstampApi::new("", "");
     /// let  result = api.private_query("balance", "btcusd");
     /// assert_eq!(true, true);
