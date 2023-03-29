@@ -17,7 +17,7 @@ use crate::models::{TimedValue, TimedWindow, Window};
 
 static MODELS_TABLE_NAME: &str = "models";
 
-pub type ModelUpdateFn<T, A> = for<'a> fn(&'a mut T, A) -> &'a T;
+pub type UpdateFn<T, A> = for<'a> fn(&'a mut T, A) -> &'a T;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelValue<T> {
@@ -30,15 +30,15 @@ impl<T> ModelValue<T> {
 }
 
 #[derive(Debug)]
-pub struct PersistentModel<T> {
-    pub last_model: Option<ModelValue<T>>,
-    last_model_load_attempt: Option<DateTime<Utc>>,
+pub struct PersistentValue<T> {
+    pub last_known: Option<ModelValue<T>>,
+    last_load_attempt: Option<DateTime<Utc>>,
     pub db: Arc<dyn Storage>,
     pub key: String,
     is_loaded: bool,
 }
 
-impl<T: Serialize + DeserializeOwned + Copy> PersistentModel<T> {
+impl<T: Serialize + DeserializeOwned + Copy> PersistentValue<T> {
     /// # Panics
     ///
     /// if the table cannot be ensured
@@ -48,16 +48,16 @@ impl<T: Serialize + DeserializeOwned + Copy> PersistentModel<T> {
         Self {
             db,
             key: key.to_string(),
-            last_model: init,
-            last_model_load_attempt: None,
+            last_known: init,
+            last_load_attempt: None,
             is_loaded: false,
         }
     }
 
     pub fn load(&mut self) -> Result<()> {
-        self.last_model_load_attempt = Some(Utc::now());
+        self.last_load_attempt = Some(Utc::now());
         let result = self.db.get(MODELS_TABLE_NAME, &self.key);
-        if let Err(e) = result.map(|lmv| self.last_model = Some(lmv)) {
+        if let Err(e) = result.map(|lmv| self.last_known = Some(lmv)) {
             match e {
                 // Ignore not found since this simply means the model was never persisted
                 db::Error::NotFound(_) => {}
@@ -68,32 +68,32 @@ impl<T: Serialize + DeserializeOwned + Copy> PersistentModel<T> {
         Ok(())
     }
 
-    pub fn set_last_model(&mut self, new_model: T) { self.last_model = Some(ModelValue::new(new_model)); }
+    pub fn set_last_model(&mut self, new_model: T) { self.last_known = Some(ModelValue::new(new_model)); }
 
-    pub fn update<A>(&mut self, update_fn: ModelUpdateFn<T, A>, args: A) -> Result<()> {
-        if let Some(model) = self.last_model.as_mut() {
+    pub fn update<A>(&mut self, update_fn: UpdateFn<T, A>, args: A) -> Result<()> {
+        if let Some(model) = self.last_known.as_mut() {
             (update_fn).call((&mut model.value, args));
             self.persist()?;
         }
         Ok(())
     }
 
-    pub fn persist(&mut self) -> Result<()> { self.db.put(MODELS_TABLE_NAME, &self.key, &self.last_model).err_into() }
+    pub fn persist(&mut self) -> Result<()> { self.db.put(MODELS_TABLE_NAME, &self.key, &self.last_known).err_into() }
 
-    pub fn last_model_time(&self) -> Option<DateTime<Utc>> { self.last_model.as_ref().map(|m| m.at) }
+    pub fn last_value_time(&self) -> Option<DateTime<Utc>> { self.last_known.as_ref().map(|m| m.at) }
 
     pub fn wipe(&mut self) -> Result<()> {
         self.db.delete(MODELS_TABLE_NAME, &self.key)?;
-        self.last_model = None;
+        self.last_known = None;
         Ok(())
     }
 
-    pub fn has_model(&self) -> bool { self.last_model.is_some() }
+    pub fn has_model(&self) -> bool { self.last_known.is_some() }
 
-    pub fn value(&self) -> Option<T> { self.last_model.as_ref().map(|s| s.value) }
+    pub fn value(&self) -> Option<T> { self.last_known.as_ref().map(|s| s.value) }
 
     pub fn try_loading(&mut self) -> crate::error::Result<()> {
-        if self.last_model_load_attempt.is_none() {
+        if self.last_load_attempt.is_none() {
             self.load()?;
         }
         if self.is_loaded {
@@ -188,7 +188,7 @@ impl<T: DeserializeOwned + Serialize> PersistentVec<T> {
     /// # Panics
     ///
     /// If record keys cannot be parsed as i64 timestamps
-    pub fn load(&mut self) -> crate::error::Result<()> {
+    pub fn load(&mut self) -> Result<()> {
         self.rows = self
             .db
             .get_all(&self.key)?
@@ -203,7 +203,7 @@ impl<T: DeserializeOwned + Serialize> PersistentVec<T> {
 
     pub fn is_filled(&self) -> bool { self.len() > self.window_size }
 
-    pub fn try_loading(&mut self) -> crate::error::Result<()> {
+    pub fn try_loading(&mut self) -> Result<()> {
         if self.last_load_attempt.is_none() {
             self.load()?;
         }
@@ -246,7 +246,7 @@ mod test {
     use crate::test_util::test_db;
 
     use super::ModelValue;
-    use super::PersistentModel;
+    use super::PersistentValue;
 
     #[derive(Debug, Clone, Serialize, Deserialize, Copy)]
     struct MockLinearModel;
@@ -268,17 +268,17 @@ mod test {
     }
 
     #[bench]
-    fn test_save_load_model(b: &mut Bencher) {
+    fn test_round_trip_value(b: &mut Bencher) {
         let db = test_db();
-        let mut table: PersistentModel<MockLinearModel> =
-            PersistentModel::new(db, "default", Some(ModelValue::new(MockLinearModel {})));
+        let mut table: PersistentValue<MockLinearModel> =
+            PersistentValue::new(db, "default", Some(ModelValue::new(MockLinearModel {})));
         let _gen = Gen::new(500);
         b.iter(|| table.update(|m, _a| m, ()).unwrap());
         table.try_loading().unwrap();
     }
 
     #[test]
-    fn test_save_load_model_is_sorted() {
+    fn test_round_trip_vec_is_sorted() {
         let id = "test_vec";
         let max_size = 11;
         let test_dir = test_dir();

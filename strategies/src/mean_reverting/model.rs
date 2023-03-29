@@ -11,7 +11,7 @@ use ext::ResultExt;
 use stats::indicators::ppo::PercentPriceOscillator;
 use stats::indicators::thresholds::Thresholds;
 use strategy::error::{Error, Result};
-use strategy::models::indicator_windowed_model::IndicatorWindowedModel;
+use strategy::models::indicator_reducer::PersistentIndicatorReducer;
 use strategy::models::io::{IterativeModel, LoadableModel};
 use strategy::models::{IndicatorModel, Sampler, TimedValue, WindowedModel};
 use strategy::prelude::*;
@@ -23,7 +23,7 @@ use super::options::Options;
 pub struct MeanRevertingModel {
     sampler: Sampler,
     ppo: IndicatorModel<PercentPriceOscillator, f64>,
-    thresholds: Option<IndicatorWindowedModel<f64, Thresholds>>,
+    thresholds: Option<PersistentIndicatorReducer<f64, Thresholds>>,
     thresholds_0: (f64, f64),
 }
 
@@ -33,7 +33,7 @@ impl MeanRevertingModel {
         let ppo_model = IndicatorModel::new(&format!("model_{}", n.pair), db.clone(), ppo);
         let threshold_table = if n.dynamic_threshold() {
             n.threshold_window_size.map(|thresold_window_size| {
-                IndicatorWindowedModel::new(
+                PersistentIndicatorReducer::new(
                     &format!("thresholds_{}", n.pair.as_ref()),
                     db,
                     thresold_window_size,
@@ -91,7 +91,7 @@ impl MeanRevertingModel {
     pub fn try_load(&mut self) -> strategy::error::Result<()> {
         {
             self.ppo.try_load()?;
-            if let Some(_model_time) = self.ppo.last_model_time() {
+            if let Some(_model_time) = self.ppo.last_value_time() {
                 // TODO: set last sample time from loaded data
                 //self.sampler.set_last_time(model_time);
             }

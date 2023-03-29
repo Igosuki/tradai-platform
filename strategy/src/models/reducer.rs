@@ -12,21 +12,21 @@ use crate::error::Result;
 use crate::models::persist::ModelValue;
 use crate::models::{Model, TimedValue, TimedWindow, Window, WindowedModel};
 
-use super::persist::{PersistentModel, PersistentVec};
+use super::persist::{PersistentValue, PersistentVec};
 
 pub(crate) type WindowFn<T, M> = for<'a> fn(&'a mut M, Window<'_, T>) -> &'a M;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub struct PersistentWindowedModel<T: Serialize + DeserializeOwned, M: Serialize + DeserializeOwned> {
+pub struct PersistentReducer<T: Serialize + DeserializeOwned, M: Serialize + DeserializeOwned> {
     rows: PersistentVec<T>,
-    model: PersistentModel<M>,
+    model: PersistentValue<M>,
     #[derivative(Debug = "ignore")]
     window_fn: WindowFn<T, M>,
 }
 
 impl<'a, T: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOwned + Default + Copy>
-    PersistentWindowedModel<T, M>
+    PersistentReducer<T, M>
 {
     #[allow(
         clippy::cast_precision_loss,
@@ -44,13 +44,13 @@ impl<'a, T: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOw
         let max_size = max_size_o.unwrap_or((1.2 * window_size as f64) as usize);
         Self {
             rows: PersistentVec::new(db.clone(), &format!("{}_rows", id), max_size, window_size),
-            model: PersistentModel::new(db, id, init.map(|i| ModelValue::new(i))),
+            model: PersistentValue::new(db, id, init.map(|i| ModelValue::new(i))),
             window_fn,
         }
     }
 
     pub fn update(&'a mut self) -> Result<()> {
-        if self.is_filled() && !self.has_model() {
+        if self.is_filled() && !self.has_value() {
             self.model.set_last_model(M::default());
         }
         self.model.update(self.window_fn, self.rows.window())?;
@@ -67,7 +67,7 @@ impl<'a, T: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOw
     }
 }
 
-impl<R, M: Copy> WindowedModel<R, M> for PersistentWindowedModel<R, M>
+impl<R, M: Copy> WindowedModel<R, M> for PersistentReducer<R, M>
 where
     M: Serialize + DeserializeOwned + Default,
     R: Serialize + DeserializeOwned,
@@ -86,9 +86,9 @@ where
 }
 
 impl<'a, R: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOwned + Default + Copy> Model<M>
-    for PersistentWindowedModel<R, M>
+    for PersistentReducer<R, M>
 {
-    fn ser(&self) -> Option<serde_json::Value> { self.value().and_then(|m| serde_json::to_value(m).ok()) }
+    fn json(&self) -> Option<serde_json::Value> { self.value().and_then(|m| serde_json::to_value(m).ok()) }
 
     fn try_load(&mut self) -> Result<()> {
         self.model.try_loading()?;
@@ -102,9 +102,9 @@ impl<'a, R: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOw
         self.rows.wipe()
     }
 
-    fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }
+    fn last_value_time(&self) -> Option<DateTime<Utc>> { self.model.last_value_time() }
 
-    fn has_model(&self) -> bool { self.model.has_model() }
+    fn has_value(&self) -> bool { self.model.has_model() }
 
     fn value(&self) -> Option<M> { self.model.value() }
 }
@@ -114,7 +114,7 @@ impl<
         R: Serialize + DeserializeOwned,
         M: Serialize + DeserializeOwned + Default,
         I: SliceIndex<[TimedValue<R>]>,
-    > Index<I> for PersistentWindowedModel<R, M>
+    > Index<I> for PersistentReducer<R, M>
 {
     type Output = I::Output;
 
@@ -134,7 +134,7 @@ mod test {
     use trading::book::BookPosition;
 
     use crate::models::{Model, Window};
-    use crate::models::{PersistentWindowedModel, WindowedModel};
+    use crate::models::{PersistentReducer, WindowedModel};
     use crate::test_util::test_db;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -164,7 +164,7 @@ mod test {
         let id = "default";
         let max_size = 2000;
         let db = test_db();
-        let mut table = PersistentWindowedModel::new(id, db, 1000, Some(max_size), sum_window, None);
+        let mut table = PersistentReducer::new(id, db, 1000, Some(max_size), sum_window, None);
         let mut gen = Gen::new(500);
         for _ in 0..max_size {
             table.push(TestRow::arbitrary(&mut gen));

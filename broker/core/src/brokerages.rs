@@ -3,9 +3,7 @@
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::path::PathBuf;
-use std::sync::Arc;
 
-use dashmap::DashMap;
 use serde_json::Value;
 
 use crate::api::Brokerage;
@@ -27,7 +25,7 @@ impl Brokerages {
     pub fn new_manager() -> BrokerageManager { BrokerageManager::new() }
 
     pub async fn public_apis(echanges: &[Exchange]) -> BrokerageRegistry {
-        let exchange_apis: DashMap<Exchange, Arc<dyn Brokerage>> = DashMap::new();
+        let exchange_apis: BrokerageRegistry = BrokerageRegistry::new();
         let manager = Brokerages::new_manager();
         for xch in echanges {
             let api = manager.build_public_exchange_api(xch, false).await.unwrap();
@@ -116,7 +114,7 @@ impl Brokerages {
     /// # Errors
     ///
     /// If the registries fails to load pairs
-    pub async fn load_pair_registries(apis: &DashMap<Exchange, Arc<dyn Brokerage>>) -> Result<()> {
+    pub async fn load_pair_registries(apis: &BrokerageRegistry) -> Result<()> {
         futures::future::join_all(apis.clone().iter().map(|entry| async move {
             let arc = entry.value().clone();
             Self::load_pair_registry(entry.key(), arc.as_ref()).await

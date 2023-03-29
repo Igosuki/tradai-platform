@@ -29,7 +29,7 @@ impl BrokerageManager {
     pub fn new() -> Self { Self::default() }
 
     #[must_use]
-    pub fn new_with_reg(exchange_apis: DashMap<Exchange, Arc<dyn Brokerage>>) -> Self {
+    pub fn new_with_reg(exchange_apis: BrokerageRegistry) -> Self {
         Self {
             exchange_apis,
             fees_providers: Default::default(),

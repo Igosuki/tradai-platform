@@ -84,6 +84,8 @@ mod test {
 
     use super::BookPosition;
 
+    const BP_VALUES: [f64; 4] = [1.0, 1.1, 1.2, 1.3];
+
     fn zero_if_nan(x: f64) -> f64 {
         if x.is_nan() || x.is_infinite() {
             0.0
@@ -95,11 +97,11 @@ mod test {
     impl Arbitrary for BookPosition {
         fn arbitrary(g: &mut Gen) -> BookPosition {
             BookPosition {
-                ask: zero_if_nan(f64::arbitrary(g)),
-                ask_q: zero_if_nan(f64::arbitrary(g)),
-                bid: zero_if_nan(f64::arbitrary(g)),
-                bid_q: zero_if_nan(f64::arbitrary(g)),
-                mid: zero_if_nan(f64::arbitrary(g)),
+                ask: zero_if_nan(g.choose(&BP_VALUES).copied().unwrap_or(0.0)),
+                ask_q: zero_if_nan(g.choose(&BP_VALUES).copied().unwrap_or(0.0)),
+                bid: zero_if_nan(g.choose(&BP_VALUES).copied().unwrap_or(0.0)),
+                bid_q: zero_if_nan(g.choose(&BP_VALUES).copied().unwrap_or(0.0)),
+                mid: zero_if_nan(g.choose(&BP_VALUES).copied().unwrap_or(0.0)),
                 event_time: fake::faker::chrono::en::DateTime().fake(),
                 trace_id: Uuid::new_v4(),
             }

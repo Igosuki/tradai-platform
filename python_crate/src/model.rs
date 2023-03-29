@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use ext::ResultExt;
-use strategy::models::indicator_windowed_model::IndicatorWindowedModel;
+use strategy::models::indicator_reducer::PersistentIndicatorReducer;
 use strategy::models::{IndicatorModel, WindowedModel};
 use strategy::prelude::Model;
 
@@ -84,7 +84,7 @@ pub(crate) fn persistent_ta(key: &str, db: PyDb, init: PyIndicator) -> PyIndicat
 
 #[pyclass]
 pub(crate) struct PyWindowedIndicatorModel {
-    inner: IndicatorWindowedModel<f64, WindowedTechnicalIndicator>,
+    inner: PersistentIndicatorReducer<f64, WindowedTechnicalIndicator>,
 }
 
 #[pymethods]
@@ -121,8 +121,8 @@ impl PyWindowedIndicatorModel {
     fn export(&self) -> PyResult<PyJsonValue> { Ok(to_py_json(self.inner.value())) }
 }
 
-impl From<IndicatorWindowedModel<f64, WindowedTechnicalIndicator>> for PyWindowedIndicatorModel {
-    fn from(inner: IndicatorWindowedModel<f64, WindowedTechnicalIndicator>) -> Self { Self { inner } }
+impl From<PersistentIndicatorReducer<f64, WindowedTechnicalIndicator>> for PyWindowedIndicatorModel {
+    fn from(inner: PersistentIndicatorReducer<f64, WindowedTechnicalIndicator>) -> Self { Self { inner } }
 }
 
 fn to_py_json<T: Serialize>(t: Option<T>) -> PyJsonValue {
@@ -145,7 +145,7 @@ pub(crate) fn persistent_window_ta(
     max_size: Option<usize>,
 ) -> PyWindowedIndicatorModel {
     let indicator: WindowedTechnicalIndicator = init.into();
-    IndicatorWindowedModel::new(key, db.db(), window_size, max_size, indicator).into()
+    PersistentIndicatorReducer::new(key, db.db(), window_size, max_size, indicator).into()
 }
 
 #[pymodule]

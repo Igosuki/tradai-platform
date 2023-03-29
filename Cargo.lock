@@ -7364,6 +7364,7 @@ dependencies = [
  "strategy",
  "structopt",
  "tempdir",
+ "test-log",
  "thiserror",
  "tokio",
  "tokio-stream",

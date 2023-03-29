@@ -13,18 +13,18 @@ use crate::error::Result;
 use crate::models::persist::ModelValue;
 use crate::models::{Model, TimedValue, TimedWindow, Window, WindowedModel};
 
-use super::persist::{PersistentModel, PersistentVec};
+use super::persist::{PersistentValue, PersistentVec};
 
 // TODO: this repetead code is only here because PersistentVec returns an anonymous lifetime and we can't use Next<Window> with WindowFn
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub struct IndicatorWindowedModel<T: Serialize + DeserializeOwned, M: Serialize + DeserializeOwned> {
+pub struct PersistentIndicatorReducer<T: Serialize + DeserializeOwned, M: Serialize + DeserializeOwned> {
     rows: PersistentVec<T>,
-    model: PersistentModel<M>,
+    model: PersistentValue<M>,
 }
 
 impl<'a, T: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOwned + Copy + Next<Window<'a, T>>>
-    IndicatorWindowedModel<T, M>
+    PersistentIndicatorReducer<T, M>
 {
     #[allow(
         clippy::cast_possible_truncation,
@@ -35,12 +35,12 @@ impl<'a, T: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOw
         let max_size = max_size_o.unwrap_or((1.2 * window_size as f64) as usize);
         Self {
             rows: PersistentVec::new(db.clone(), &format!("{}_rows", id), max_size, window_size),
-            model: PersistentModel::new(db, id, Some(ModelValue::new(init))),
+            model: PersistentValue::new(db, id, Some(ModelValue::new(init))),
         }
     }
 
     pub fn update(&'a mut self) -> Result<()> {
-        if let Some(model) = self.model.last_model.as_mut() {
+        if let Some(model) = self.model.last_known.as_mut() {
             model.value.next(self.rows.window());
             self.model.persist()?;
         }
@@ -57,7 +57,7 @@ impl<'a, T: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOw
     }
 }
 
-impl<R, M> WindowedModel<R, M> for IndicatorWindowedModel<R, M>
+impl<R, M> WindowedModel<R, M> for PersistentIndicatorReducer<R, M>
 where
     M: Serialize + DeserializeOwned + Copy,
     R: Serialize + DeserializeOwned,
@@ -76,9 +76,9 @@ where
 }
 
 impl<'a, R: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOwned + Copy> Model<M>
-    for IndicatorWindowedModel<R, M>
+    for PersistentIndicatorReducer<R, M>
 {
-    fn ser(&self) -> Option<serde_json::Value> { self.value().and_then(|m| serde_json::to_value(m).ok()) }
+    fn json(&self) -> Option<serde_json::Value> { self.value().and_then(|m| serde_json::to_value(m).ok()) }
 
     fn try_load(&mut self) -> crate::error::Result<()> {
         self.model.try_loading()?;
@@ -92,9 +92,9 @@ impl<'a, R: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOw
         self.rows.wipe()
     }
 
-    fn last_model_time(&self) -> Option<DateTime<Utc>> { self.model.last_model_time() }
+    fn last_value_time(&self) -> Option<DateTime<Utc>> { self.model.last_value_time() }
 
-    fn has_model(&self) -> bool { self.model.has_model() }
+    fn has_value(&self) -> bool { self.model.has_model() }
 
     fn value(&self) -> Option<M> { self.model.value() }
 }
@@ -104,7 +104,7 @@ impl<
         R: Serialize + DeserializeOwned,
         M: Serialize + DeserializeOwned + Default,
         I: SliceIndex<[TimedValue<R>]>,
-    > Index<I> for IndicatorWindowedModel<R, M>
+    > Index<I> for PersistentIndicatorReducer<R, M>
 {
     type Output = I::Output;
 
