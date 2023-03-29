@@ -9,4 +9,7 @@ class Strat(Strategy):
     def whoam(self):
         return "Strat"
 
+
 # mstrategy(Strat)
+
+__strat_class__ = Strat

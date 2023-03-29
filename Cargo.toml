@@ -71,6 +71,7 @@ rand = "0.8"
 uuid = { version = "1.2", features = ["v4", "fast-rng"] }
 url = "2.2"
 env_logger = "0.9"
+test-env-log = "0.2.8"
 bytes = "1.0"
 once_cell = "1.9"
 maplit = "1.0"
