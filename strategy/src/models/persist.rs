@@ -54,7 +54,7 @@ impl<T: Serialize + DeserializeOwned + Copy> PersistentModel<T> {
         }
     }
 
-    pub fn load(&mut self) -> crate::error::Result<()> {
+    pub fn load(&mut self) -> Result<()> {
         self.last_model_load_attempt = Some(Utc::now());
         let result = self.db.get(MODELS_TABLE_NAME, &self.key);
         if let Err(e) = result.map(|lmv| self.last_model = Some(lmv)) {

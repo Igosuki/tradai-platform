@@ -90,7 +90,7 @@ impl<'a, R: 'a + Serialize + DeserializeOwned, M: 'a + Serialize + DeserializeOw
 {
     fn ser(&self) -> Option<serde_json::Value> { self.value().and_then(|m| serde_json::to_value(m).ok()) }
 
-    fn try_load(&mut self) -> crate::error::Result<()> {
+    fn try_load(&mut self) -> Result<()> {
         self.model.try_loading()?;
         self.rows.try_loading()
     }
@@ -140,7 +140,7 @@ mod test {
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct TestRow {
         pub time: DateTime<Utc>,
-        pub pos: BookPosition, // crypto_1
+        pub pos: BookPosition,
     }
 
     impl Arbitrary for TestRow {
@@ -160,6 +160,7 @@ mod test {
 
     #[bench]
     fn test_save_load_model(b: &mut Bencher) {
+        let _ = env_logger::builder().is_test(true).try_init();
         let id = "default";
         let max_size = 2000;
         let db = test_db();
