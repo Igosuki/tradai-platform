@@ -26,6 +26,6 @@
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // let opts: CliOptions = CliOptions::from_args();
-    // let _api = Coinnect::build_exchange_api(opts.keys_file, &opts.exchange, opts.use_test_servers).await?;
+    // let _api = Broker::build_exchange_api(opts.keys_file, &opts.exchange, opts.use_test_servers).await?;
     Ok(())
 }

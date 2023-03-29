@@ -49,11 +49,11 @@ pub fn parse_result<T>(response: &KrakenResponse<T>) -> Result<&T> {
 /// # Examples
 ///
 /// ```
-/// use crate::coinnect::kraken::utils::get_currency_enum;
-/// use crate::coinnect::types::Currency;
+/// use broker_kraken::get_currency_enum;
+/// use broker_core::currency::USD;
 ///
 /// let currency = get_currency_enum("ZUSD");
-/// assert_eq!(Some(Currency::USD), currency);
+/// assert_eq!(Some(USD), currency);
 /// ```
 pub fn get_currency_enum(currency: &str) -> Option<Asset> {
     match currency {
@@ -87,10 +87,9 @@ pub fn get_currency_enum(currency: &str) -> Option<Asset> {
 /// # Examples
 ///
 /// ```
-/// use crate::coinnect::kraken::utils::get_currency_string;
-/// use crate::coinnect::types::Currency;
+/// use broker_kraken::get_currency_string;
 ///
-/// let currency = get_currency_string(Currency::BTC);
+/// let currency = get_currency_string("BTC".into());
 /// assert_eq!(currency, Some("XXBT".to_string()));
 /// ```
 #[allow(dead_code)]

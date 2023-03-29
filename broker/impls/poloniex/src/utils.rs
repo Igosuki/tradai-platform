@@ -41,11 +41,11 @@ pub fn parse_result(response: &Map<String, Value>) -> Result<Map<String, Value>>
 /// # Examples
 ///
 /// ```
-/// use crate::coinnect::poloniex::utils::get_currency_enum;
-/// use crate::coinnect::types::Currency;
+/// use broker_poloniex::get_currency_enum;
+/// use broker_core::currency::BTC;
 ///
 /// let currency = get_currency_enum("BTC").unwrap();
-/// assert_eq!(currency, Currency::BTC);
+/// assert_eq!(currency, BTC);
 /// ```
 #[allow(clippy::unnecessary_wraps)]
 pub fn get_currency_enum(currency: &str) -> Option<Asset> { Some(currency.to_uppercase().into()) }

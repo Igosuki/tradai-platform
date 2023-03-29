@@ -71,11 +71,11 @@ pub fn parse_result(response: &Map<String, Value>) -> Result<Map<String, Value>>
 /// # Examples
 ///
 /// ```
-/// use crate::coinnect::coinbase::utils::get_currency_enum;
-/// use crate::coinnect::types::Currency;
+/// use broker_coinbase::get_currency_enum;
+/// use broker_core::currency::USD;
 ///
 /// let currency = get_currency_enum("usd_balance");
-/// assert_eq!(Some(Currency::USD), currency);
+/// assert_eq!(Some(USD), currency);
 /// ```
 #[allow(clippy::unnecessary_wraps)]
 pub fn get_currency_enum(currency: &str) -> Option<Asset> {

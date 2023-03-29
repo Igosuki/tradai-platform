@@ -49,7 +49,7 @@ pub fn parse_result(response: &Map<String, Value>) -> Result<Value> {
 /// string used by Bittrex.
 /// # Examples
 /// ```
-/// use crate::coinnect::bittrex::utils::get_asset;
+/// use broker_bittrex::get_asset;
 ///
 /// let currency = get_asset("1ST");
 /// ```

@@ -185,7 +185,7 @@ impl MutationRoot {
         })
     }
 
-    #[graphql(description = "Add an order (for testing)")]
+    #[graphql(description = "Add an order (test mode only)")]
     async fn add_order(context: &Context, input: AddOrderInput) -> FieldResult<OrderResult> {
         let exchg: Exchange = Exchange::from_str(&input.exchg)?;
         let api = context.exchanges.get(&exchg).ok_or_else(|| {
@@ -199,7 +199,7 @@ impl MutationRoot {
             .await
             .map_err(|e| {
                 let error_str = format!("{:?}", e);
-                FieldError::new("Coinnect error", graphql_value!({ "error": error_str }))
+                FieldError::new("Broker error", graphql_value!({ "error": error_str }))
             })
             .map(|oi| OrderResult { identifier: oi.id })
     }

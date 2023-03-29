@@ -1,5 +1,5 @@
 /*!
-Test utils for `coinnect` isolated in a crate so as not to pollute the crate with feature toggles
+Test utils for `brokers` isolated in a crate so as not to pollute the crate with feature toggles
 
  */
 

@@ -19,6 +19,7 @@ mod generic_api;
 mod utils;
 
 pub use self::api::CoinbaseApi;
+pub use self::utils::get_currency_enum;
 
 #[async_trait(?Send)]
 impl BrokerConnector for CoinbaseExchangeConnector {

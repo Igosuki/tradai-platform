@@ -22,6 +22,7 @@ mod model;
 mod utils;
 
 pub use self::api::KrakenApi;
+pub use utils::{get_currency_enum, get_currency_string};
 
 #[async_trait(?Send)]
 impl BrokerConnector for KrakenExchangeConnector {

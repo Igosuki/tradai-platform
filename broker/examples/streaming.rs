@@ -1,4 +1,4 @@
-// This example shows how to use the streaming API provided by Coinnect.
+// This example shows how to use the streaming API provided by Broker.
 // The example is complete and shows how to forward data stream events to actor recipients
 #![allow(clippy::must_use_candidate)]
 #![allow(

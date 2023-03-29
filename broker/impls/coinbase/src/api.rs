@@ -123,7 +123,7 @@ impl CoinbaseApi {
         let req = self
             .client
             .request(Method::GET, url)
-            .header(USER_AGENT, "coinnect_rt")
+            .header(USER_AGENT, "tradai_broker")
             .header(ACCEPT, "application/json")
             .build()?;
         let resp = self.client.execute(req).await?;
@@ -134,9 +134,9 @@ impl CoinbaseApi {
     ///
     /// #Examples
     ///
-    /// ```json
-    /// extern crate coinnect_rt;
-    /// use crate::coinnect::coinbase::GdaxApi;
+    /// ```rust
+    /// extern crate broker_coinbase;
+    /// use broker_coinbase::CoinbaseApi;
     /// let mut api = GdaxApi::new("", "");
     /// let  result = api.private_query("balance", "btcusd");
     /// assert_eq!(true, true);

@@ -1,7 +1,7 @@
-// This example shows how to use the generic API provided by Coinnect.
+// This example shows how to use the generic API provided by the broker_core crate.
 // This method is useful if you have to iterate throught multiple accounts of
 // different exchanges and perform the same operation (such as get the current account's balance)
-// You can also use the Coinnect generic API if you want a better error handling since all methods
+// You can also use the Broker generic API if you want a better error handling since all methods
 // return Result<_, Error>.
 
 use brokers::credential::{BasicCredentials, Credentials};
@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // We create a Coinnect Generic API
+    // We create a Broker Generic API
     // Since Kraken does not need customer_id field, we set it to None
     let my_creds: Box<dyn Credentials> = Box::new(BasicCredentials::new(
         Exchange::Kraken,

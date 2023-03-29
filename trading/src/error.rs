@@ -4,8 +4,8 @@ use thiserror::Error;
 pub enum Error {
     #[error("interest rate provider mailbox was full")]
     InterestRateProviderMailboxError,
-    #[error("Coinnect {0}")]
-    Coinnect(#[from] brokers::error::Error),
+    #[error("Broker {0}")]
+    Broker(#[from] brokers::error::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

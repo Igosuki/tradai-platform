@@ -76,8 +76,8 @@ pub fn parse_result(response: &Map<String, Value>) -> Result<Map<String, Value>>
 /// # Examples
 ///
 /// ```
-/// use crate::coinnect::bitstamp::utils::get_currency;
-/// use crate::coinnect::types::Currency;
+/// use broker_bitstamp::get_currency;
+/// use broker_core::currency::Currency;
 ///
 /// let currency = get_currency("usd_balance");
 /// ```
