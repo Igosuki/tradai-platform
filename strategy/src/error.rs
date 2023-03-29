@@ -11,8 +11,8 @@ pub enum Error {
     IOError(#[from] std::io::Error),
     #[error("json {0}")]
     Json(#[from] serde_json::Error),
-    #[error("coinnect {0}")]
-    Coinnect(#[from] brokers::error::Error),
+    #[error("broker {0}")]
+    Broker(#[from] brokers::error::Error),
     #[error("trading {0}")]
     Trading(#[from] trading::error::Error),
     #[error("db {0}")]
@@ -58,7 +58,7 @@ impl Error {
     pub fn short_name(&self) -> &'static str {
         match self {
             Error::IOError(_) => "io",
-            Error::Coinnect(_) => "coinnect",
+            Error::Broker(_) => "broker",
             Error::Db(_) => "db",
             Error::ModelLoadError(_) => "model_load",
             Error::NoTransactionChange => "no_transaction_change",

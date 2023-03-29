@@ -10,8 +10,8 @@ pub enum Error {
     StagedOrderRequired,
     #[error("Db {0}")]
     Db(#[from] db::Error),
-    #[error("Coinnect {0}")]
-    Coinnect(#[from] brokers::error::Error),
+    #[error("Broker {0}")]
+    Broker(#[from] brokers::error::Error),
     #[error("enum parse error : {0}")]
     EnumParseError(#[from] strum::ParseError),
 }
@@ -19,7 +19,7 @@ pub enum Error {
 impl Error {
     pub fn short_name(&self) -> &'static str {
         match self {
-            Error::Coinnect(_) => "coinnect",
+            Error::Broker(_) => "broker",
             Error::Db(_) => "db",
             Error::OrderNotFound(_) => "order_not_found",
             Error::OrderManagerMailboxError => "order_mailbox",

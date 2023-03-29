@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
 
 use broker_core::types::{MarketChannel, MarketChannelType, MarketEvent, MarketSymbol, Orderbook, OrderbookConf,
-                         OrderbookLevel, Pair, Ticker as CoinnectTicker, Trade};
+                         OrderbookLevel, Pair, Ticker as BrokerTicker, Trade};
 
 use super::utils;
 
@@ -28,7 +28,7 @@ pub struct Ticker {
     pub vwap: f64,
 }
 
-impl From<Ticker> for CoinnectTicker {
+impl From<Ticker> for BrokerTicker {
     fn from(t: Ticker) -> Self {
         Self {
             timestamp: t.timestamp,

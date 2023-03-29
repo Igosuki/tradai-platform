@@ -12,7 +12,7 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 
 use brokers::bot::Ping;
-use brokers::error::Error as CoinnectError;
+use brokers::error::Error as BrokerError;
 use brokers::manager::{BrokerageManager, BrokerageManagerRef};
 use brokers::prelude::*;
 use brokers::types::{Order, OrderQuery, OrderStatus, OrderUpdate};
@@ -185,7 +185,7 @@ impl OrderManager {
             match order_info {
                 Ok(o) => TransactionStatus::New(o),
                 Err(e) => TransactionStatus::Rejected(match e {
-                    CoinnectError::InvalidPrice => Rejection::InvalidPrice,
+                    BrokerError::InvalidPrice => Rejection::InvalidPrice,
                     _ => Rejection::BadRequest(format!("{}", e)),
                 }),
             }
