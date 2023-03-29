@@ -1,6 +1,5 @@
 use std::mem;
 
-#[cfg(feature = "mock_time")]
 use chrono::TimeZone;
 use chrono::{DateTime, Duration, Timelike, Utc};
 #[cfg(feature = "mock_time")]
