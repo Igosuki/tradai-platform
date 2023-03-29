@@ -63,7 +63,7 @@ async fn graphiql_handler() -> Result<HttpResponse, Error> { self::graphql::grap
 
 async fn playground_handler() -> Result<HttpResponse, Error> { self::graphql::playground_handler("/", None).await }
 
-type BrokerageData = web::Data<Arc<HashMap<Exchange, Arc<dyn Brokerage>>>>;
+type BrokerageData = web::Data<Arc<BrokerageRegistry>>;
 type StratsData = web::Data<Arc<HashMap<StrategyKey, Trader>>>;
 type OrderManagerData = web::Data<Arc<HashMap<Exchange, Addr<OrderManager>>>>;
 
@@ -143,6 +143,7 @@ mod tests {
 
     use crate::api::config_app;
     use crate::graphql_schemas::root::create_schema;
+    use crate::settings::Version;
     #[allow(unused_imports)]
     use brokers::broker_binance::BinanceExchangeConnector;
 
@@ -174,15 +175,19 @@ mod tests {
     fn build_test_api(apis: BrokerageRegistry, cfg: &mut web::ServiceConfig) {
         let schema = create_schema();
         let strats: Arc<HashMap<StrategyKey, Trader>> = Arc::new(strats());
-        cfg.app_data(Data::new(apis))
-            .app_data(Data::new(schema))
+        cfg.app_data(Data::new(schema))
+            .app_data(Data::new(Arc::new(apis)))
             .app_data(Data::new(strats))
-            .app_data(Data::new(Arc::new(oms())));
+            .app_data(Data::new(oms()))
+            .app_data(Data::new(Some(Version {
+                version: "test".to_string(),
+                sha: "test".to_string(),
+            })));
         config_app(cfg);
     }
 
     // TODO: plugin registry not working
-    #[actix_rt::test]
+    #[test_log::test(actix_rt::test)]
     async fn test_add_order() {
         let apis = test_apis().await;
         let app = App::new().configure(|cfg| build_test_api(apis.clone(), cfg));
