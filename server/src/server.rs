@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use actix_cors::Cors;
@@ -7,16 +6,15 @@ use actix_web::web::Data;
 use actix_web::{http, HttpServer};
 use brokers::manager::BrokerageManagerRef;
 
-use strategy::{StrategyKey, Trader};
-
 use crate::graphql_schemas::root::create_schema;
 use crate::settings::{ApiSettings, CorsMode, Version};
+use crate::StrategyRegistry;
 
 pub async fn httpserver(
     settings: &ApiSettings,
     version: Option<Version>,
     apis: BrokerageManagerRef,
-    strategies: Arc<HashMap<StrategyKey, Trader>>,
+    strategies: Arc<StrategyRegistry>,
 ) -> std::io::Result<()> {
     // Make and start the api
     let port = settings.port.0;
