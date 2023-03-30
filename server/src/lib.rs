@@ -51,5 +51,13 @@ pub mod server;
 pub mod settings;
 pub mod system;
 
+use actix::Addr;
 #[allow(unused_imports)]
 use brokers::broker_binance;
+use brokers::exchange::Exchange;
+use std::collections::HashMap;
+use strategy::{StrategyKey, Trader};
+use trading::order_manager::OrderManager;
+
+pub type StrategyRegistry = HashMap<StrategyKey, Trader>;
+pub type OrderManagerRegistry = HashMap<Exchange, Addr<OrderManager>>;
