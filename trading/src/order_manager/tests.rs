@@ -5,7 +5,6 @@ use uuid::Uuid;
 
 use super::error::*;
 use super::test_util::{create_ok_margin_order_mock, create_ok_order_mock};
-use crate::order_manager::error::Error::Broker;
 use crate::order_manager::test_util::{init, it_order_manager, new_mock_manager};
 use crate::order_manager::types::OrderId;
 use crate::order_manager::OrderManager;
