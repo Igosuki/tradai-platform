@@ -69,7 +69,7 @@ type OrderManagerData = web::Data<Arc<HashMap<Exchange, Addr<OrderManager>>>>;
 
 async fn graphql(
     req: actix_web::HttpRequest,
-    payload: actix_web::web::Payload,
+    payload: web::Payload,
     schema: web::Data<Schema>,
     strats: StratsData,
     exchanges: BrokerageData,
@@ -130,23 +130,19 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use actix::Addr;
     use actix_web::http::header::ContentType;
     use actix_web::web::Data;
     use actix_web::{http::StatusCode, test, web, App};
-    use brokers::manager::BrokerageRegistry;
     use tokio::time::timeout;
 
+    use brokers::manager::BrokerageRegistry;
     use brokers::prelude::*;
-    use strategy::{StrategyKey, Trader};
-    use trading::order_manager::OrderManager;
+    use util::test::test_config_path;
 
     use crate::api::config_app;
     use crate::graphql_schemas::root::create_schema;
     use crate::settings::Version;
-    #[allow(unused_imports)]
-    use brokers::broker_binance::BinanceExchangeConnector;
-    use util::test::test_config_path;
+    use crate::{OrderManagerRegistry, StrategyRegistry};
 
     static DEFAULT_SYMBOL: &str = "BTC_USDT";
 
@@ -173,8 +169,8 @@ mod tests {
 
     fn build_test_api(apis: BrokerageRegistry, cfg: &mut web::ServiceConfig) {
         let schema = create_schema();
-        let strats: Arc<HashMap<StrategyKey, Trader>> = Arc::new(Default::default());
-        let oms: Arc<HashMap<Exchange, Addr<OrderManager>>> = Arc::new(Default::default());
+        let strats: Arc<StrategyRegistry> = Arc::new(Default::default());
+        let oms: Arc<OrderManagerRegistry> = Arc::new(Default::default());
         cfg.app_data(Data::new(schema))
             .app_data(Data::new(Arc::new(apis)))
             .app_data(Data::new(strats))
