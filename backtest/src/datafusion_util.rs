@@ -19,6 +19,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
+/// Downcasts a column to an Array type
 pub fn get_col_as<'a, T: 'static>(sa: &'a StructArray, name: &str) -> &'a T {
     sa.column_by_name(name)
         .unwrap_or_else(|| panic!("missing column {}", name,))
@@ -33,6 +34,7 @@ pub fn get_col_as<'a, T: 'static>(sa: &'a StructArray, name: &str) -> &'a T {
         })
 }
 
+/// Returns the actual FileFormat handle for a given extension
 pub fn df_format(format: &str) -> (&'static str, Arc<dyn FileFormat>) {
     match format.to_lowercase().as_str() {
         "avro" => ("avro", Arc::new(AvroFormat::default())),
@@ -56,6 +58,8 @@ where
     }
 }
 
+/// Combines an iterator of key value pairs into an and expression filter clause
+/// Example : [(a, 1), (b, 2)] turns into 'a=1 and b=2'
 pub fn partition_filter_clause<
     'a,
     K: 'a + std::fmt::Display + AsRef<str>,
@@ -69,12 +73,14 @@ pub fn partition_filter_clause<
         .reduce(|lhs, rhs| lhs.and(rhs))
 }
 
-pub fn string_partition<'a, K: ArrowPrimitiveType>(col: &'a DictionaryArray<K>, i: usize) -> Option<String> {
-    let values = col.values();
-    values
-        .as_any()
-        .downcast_ref::<StringArray>()
-        .map(|a| a.value(i as usize).to_string())
+/// Gets the value at i for from the partition column
+pub fn string_partition<K: ArrowPrimitiveType>(col: &DictionaryArray<K>, i: usize) -> Option<String> {
+    col.key(i).and_then(|k| {
+        col.values()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .map(|a| a.value(k).to_string())
+    })
 }
 
 #[cfg(all(feature = "remote_execution", not(feature = "standalone_execution")))]
@@ -94,6 +100,7 @@ pub fn new_context() -> ballista::context::BallistaContext { ballista::context::
 ))]
 pub fn new_context() -> SessionContext { SessionContext::new() }
 
+/// Utility method to give default listing options from a format and partitions
 pub fn listing_options(format: String, partition: Vec<(&str, String)>) -> ListingOptions {
     let (ext, file_format) = df_format(&format);
     ListingOptions {
@@ -109,6 +116,7 @@ pub fn listing_options(format: String, partition: Vec<(&str, String)>) -> Listin
 
 pub const DEFAULT_TABLE_NAME: &str = "listing_table";
 
+/// Reads multiple table paths with a common format into a unified stream of batches
 pub fn multitables_as_stream<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
@@ -128,6 +136,7 @@ pub fn multitables_as_stream<P: 'static + AsRef<Path> + Debug>(
     tokio_stream::iter(s).flatten()
 }
 
+/// Reads a single table path with a common format into a unified stream of batches
 pub fn tables_as_stream<P: 'static + AsRef<Path> + Debug>(
     base_path: P,
     partitions: Vec<(&'static str, String)>,
@@ -165,6 +174,7 @@ pub fn tables_as_stream<P: 'static + AsRef<Path> + Debug>(
     }
 }
 
+/// Reads multiple table paths with a common format into a single record batch
 pub async fn multitables_as_df<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
@@ -199,6 +209,7 @@ pub async fn multitables_as_df<P: 'static + AsRef<Path> + Debug>(
     Ok(rb)
 }
 
+/// Reads a single table path with a common format into a single record batch
 pub async fn tables_as_df<P: 'static + AsRef<Path> + Debug>(
     base_path: P,
     partitions: Vec<(&'static str, String)>,
@@ -264,6 +275,7 @@ pub async fn table_as_df(
     ctx.clone().sql(&sql_query).await.err_into()
 }
 
+/// Prints each column of a struct array (giving a name to the struct array itself)
 pub fn print_struct_schema(sa: &StructArray, name: &str) {
     for (i, column) in sa.columns().iter().enumerate() {
         trace!("{}[{}] = {:?}", name, i, column.data_type());
