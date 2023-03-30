@@ -148,23 +148,18 @@ mod tests {
     use brokers::broker_binance::BinanceExchangeConnector;
     use util::test::test_config_path;
 
-    fn strats() -> HashMap<StrategyKey, Trader> { HashMap::new() }
-
-    fn oms() -> Arc<HashMap<Exchange, Addr<OrderManager>>> { Arc::new(HashMap::default()) }
+    static DEFAULT_SYMBOL: &str = "BTC_USDT";
 
     async fn test_apis() -> BrokerageRegistry {
-        let exchanges = [(Exchange::Binance, BrokerSettings {
+        let exchanges = HashMap::from([(Exchange::Binance, BrokerSettings {
             market_channels: vec![],
             fees: 0.1,
             use_account: true,
             use_margin_account: true,
             use_isolated_margin_account: true,
             isolated_margin_account_pairs: vec![],
-            use_test: false,
-        })]
-        .iter()
-        .cloned()
-        .collect();
+            use_test: true,
+        })]);
         let manager = Arc::new(Brokerages::new_manager());
         manager
             .build_exchange_apis(
@@ -178,11 +173,12 @@ mod tests {
 
     fn build_test_api(apis: BrokerageRegistry, cfg: &mut web::ServiceConfig) {
         let schema = create_schema();
-        let strats: Arc<HashMap<StrategyKey, Trader>> = Arc::new(strats());
+        let strats: Arc<HashMap<StrategyKey, Trader>> = Arc::new(Default::default());
+        let oms: Arc<HashMap<Exchange, Addr<OrderManager>>> = Arc::new(Default::default());
         cfg.app_data(Data::new(schema))
             .app_data(Data::new(Arc::new(apis)))
             .app_data(Data::new(strats))
-            .app_data(Data::new(oms()))
+            .app_data(Data::new(oms))
             .app_data(Data::new(Some(Version {
                 version: "test".to_string(),
                 sha: "test".to_string(),
@@ -197,18 +193,17 @@ mod tests {
         let app = App::new().configure(|cfg| build_test_api(apis.clone(), cfg));
         let app = test::init_service(app).await;
         let binance_api = apis.get(&Exchange::Binance).unwrap();
-        let _ob = binance_api.orderbook("BTC_USDT".into()).await.unwrap();
+        let _ob = binance_api.orderbook(DEFAULT_SYMBOL.into()).await.unwrap();
         let price = 35_000.020_000_00;
         let _o = crate::api::Order {
             exchg: Exchange::Binance,
             t: OrderType::Limit,
-            pair: "BTC_USDT".into(),
+            pair: DEFAULT_SYMBOL.into(),
             qty: 0.000_001_00,
             price,
         };
         let string = format!(
-            r##"{{"variables": null, "query": "mutation {{ addOrder(input:{{exchg:\"binance\", orderType: LIMIT,side: SELL, pair:\"BTC_USDT\", quantity: 0.0015, dryRun: true, price: {} }}) {{ identifier }} }}" }}"##,
-            price
+            r##"{{"variables": null, "query": "mutation {{ addOrder(input:{{exchg:\"binance\", orderType: LIMIT,side: SELL, pair:\"{DEFAULT_SYMBOL}\", quantity: 0.0015, dryRun: true, price: {price} }}) {{ identifier }} }}" }}"##
         );
         println!("{}", string);
         let req = test::TestRequest::post()
