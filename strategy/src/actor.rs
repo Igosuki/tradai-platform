@@ -251,7 +251,7 @@ mod actor_test {
     #[ignore]
     #[allow(clippy::items_after_statements)]
     fn test_actor() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        util::test::init_test_env();
 
         #[derive(actix::Message)]
         #[rtype(result = "()")]

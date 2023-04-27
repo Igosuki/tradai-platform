@@ -31,8 +31,6 @@ pub mod it_backtest;
 pub mod log;
 pub mod plugin;
 
-pub fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
-
 pub fn test_db() -> Arc<dyn Storage> {
     let path = util::test::test_dir();
     get_or_create(&DbOptions::new(path), "", vec![])

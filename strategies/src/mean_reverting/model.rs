@@ -229,7 +229,6 @@ mod test {
     use db::MemoryKVStore;
     use strategy::error::Result;
     use strategy::models::io::{IterativeModel, LoadableModel};
-    use strategy_test_util::init;
     use strategy_test_util::input;
     use util::ser::write_as_seq;
     use util::test::test_results_dir;
@@ -241,7 +240,7 @@ mod test {
 
     #[tokio::test]
     async fn test_lodable_model_round_trip() -> Result<()> {
-        init();
+        util::test::init_test_env();
         let events = input::load_csv_events(
             Utc.with_ymd_and_hms(2021, 8, 1, 0, 0, 0).unwrap(),
             Utc.with_ymd_and_hms(2021, 8, 9, 0, 0, 0).unwrap(),
