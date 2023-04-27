@@ -39,6 +39,7 @@
 #![feature(try_trait_v2)]
 #![feature(test)]
 #![feature(type_alias_impl_trait)]
+#![feature(impl_trait_in_assoc_type)]
 
 #[macro_use]
 extern crate async_trait;
