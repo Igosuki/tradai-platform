@@ -10,11 +10,9 @@ mod test {
     use strategy::driver::StratProviderRef;
     use util::time::DateRange;
 
-    fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
-
     #[test]
     fn backtest() {
-        init();
+        util::test::init_test_env();
         actix::System::with_tokio_rt(move || {
             tokio::runtime::Builder::new_multi_thread()
                 .enable_all()

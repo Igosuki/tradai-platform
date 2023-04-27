@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use super::error::*;
 use super::test_util::{create_ok_margin_order_mock, create_ok_order_mock};
-use crate::order_manager::test_util::{init, it_order_manager, new_mock_manager};
+use crate::order_manager::test_util::{it_order_manager, new_mock_manager};
 use crate::order_manager::types::OrderId;
 use crate::order_manager::OrderManager;
 use broker_test_util::binance::{account_ws as binance_account_ws, local_api};
@@ -173,7 +173,7 @@ async fn pass_mock_order_and_expect_status(
 
 #[actix::test]
 async fn test_limit_order_workflow() -> Result<()> {
-    init();
+    util::test::init_test_env();
     let _account_server = broker_test_util::http::ws_it_server(binance_account_ws()).await;
     let (server, binance_api) = local_api().await;
     let test_dir = util::test::test_dir();
@@ -196,7 +196,7 @@ async fn test_limit_order_workflow() -> Result<()> {
 
 #[actix::test]
 async fn test_market_order_workflow() -> Result<()> {
-    init();
+    util::test::init_test_env();
     let _account_server = broker_test_util::http::ws_it_server(binance_account_ws()).await;
     let (server, binance_api) = local_api().await;
     let test_dir = util::test::test_dir();
@@ -218,7 +218,7 @@ async fn test_market_order_workflow() -> Result<()> {
 
 #[actix::test]
 async fn test_market_margin_order_workflow() -> Result<()> {
-    init();
+    util::test::init_test_env();
     let _account_server = broker_test_util::http::ws_it_server(binance_account_ws()).await;
     let (server, binance_api) = local_api().await;
     let test_dir = util::test::test_dir();
@@ -271,7 +271,7 @@ async fn pass_live_order(om: Addr<OrderManager>, request: AddOrderRequest) -> Re
 async fn test_live_market_margin_order_workflow() -> Result<()> {
     use brokers::{broker::Broker, types::AccountType};
 
-    init();
+    util::test::init_test_env();
     let test_dir = util::test::e2e_test_dir();
     // Build a valid test engine
     let (credentials, apis) = crate::test_util::e2e::build_apis().await?;
@@ -341,7 +341,7 @@ async fn test_live_market_margin_order_workflow() -> Result<()> {
 #[cfg(feature = "manual_e2e_tests")]
 #[actix::test]
 async fn test_live() -> Result<()> {
-    init();
+    util::test::init_test_env();
     let test_dir = util::test::e2e_test_dir();
     // Build a valid test engine
     let (_credentials, apis) = crate::test_util::e2e::build_apis().await?;

@@ -225,8 +225,6 @@ mod test {
 
     use super::*;
 
-    fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
-
     fn actor(base_dir: &str) -> AvroFileActor<MarketEventEnvelope> {
         AvroFileActor::new(&FileActorOptions {
             max_file_size: 100_000,
@@ -238,7 +236,7 @@ mod test {
 
     #[test]
     fn test_workflow() {
-        init();
+        util::test::init_test_env();
         let dir = tempdir::TempDir::new("s").unwrap();
         let x = dir.path();
         let dir_str = String::from(x.as_os_str().to_str().unwrap());

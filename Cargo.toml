@@ -89,6 +89,7 @@ log = "0.4"
 float-cmp = "0.9"
 dashmap = "5.4"
 bstr = "1.0"
+dotenvy = "0.15.7"
 
 # cli
 structopt = "0.3"

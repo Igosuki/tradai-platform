@@ -16,7 +16,6 @@ use util::time::{utc_at_midnight, DateRange};
 
 use crate::draw::{draw_line_plot, StrategyEntryFnRef};
 use crate::fs::copy_file;
-use crate::init;
 use crate::log::{write_models, write_trade_events, StrategyLog};
 use crate::{input, test_db_with_path};
 
@@ -36,7 +35,7 @@ pub async fn generic_backtest<'a, S2>(
 where
     S2: ToString,
 {
-    init();
+    util::test::init_test_env();
     //setup_opentelemetry();
     let path = util::test::test_dir();
     let engine = Arc::new(mock_engine(path.path(), exchanges));

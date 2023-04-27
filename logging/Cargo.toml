@@ -16,6 +16,7 @@ flame = ["dep:flame", "flamer"]
 [dependencies]
 # self
 brokers = { path = "../broker" }
+util = { path = "../util" }
 
 # Actix
 actix = { workspace = true }
