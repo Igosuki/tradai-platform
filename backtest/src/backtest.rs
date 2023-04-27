@@ -313,7 +313,13 @@ pub async fn load_market_events_df(
     let mut market_events = vec![];
     let reader = DatasetReader { catalog };
     for c in channels {
-        market_events.extend(reader.read_all_events_df(&[c], dt_range).await?);
+        let read_events: Vec<_> = reader
+            .read_all_events_df(&[c], dt_range)
+            .await?
+            .into_iter()
+            .filter(|rb| rb.num_rows() > 0)
+            .collect();
+        market_events.extend(read_events);
     }
     Ok(market_events)
 }
@@ -354,6 +360,7 @@ mod test {
     use std::sync::Arc;
 
     use chrono::{DateTime, Duration, NaiveDate, Utc};
+    use datafusion::arrow::compute::concat_batches;
     use datafusion::arrow::util::pretty;
 
     use brokers::exchange::Exchange;
@@ -527,9 +534,8 @@ mod test {
         )
         .await
         .unwrap();
-        info!("candles = {:?}", pretty::print_batches(&events));
-        assert_eq!(events.len(), 1);
-        let rb = events.first().unwrap();
+        let rb = concat_batches(&events.first().unwrap().schema(), &events).unwrap();
+        info!("candles = {:?}", pretty::print_batches(&[rb.clone()]));
         assert_eq!(rb.num_rows(), 8);
     }
 
