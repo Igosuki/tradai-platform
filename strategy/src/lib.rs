@@ -233,8 +233,6 @@ mod test {
 
     use super::*;
 
-    fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
-
     const TEST_PAIR: &str = "BTC_USDT";
 
     struct LoggingStrat {
@@ -281,7 +279,7 @@ mod test {
 
     #[test]
     fn test_simple_actor_query() {
-        init();
+        util::test::init_test_env();
         System::new().block_on(async move {
             let order_book_event = MarketEventEnvelope::order_book_event(
                 Symbol::new(TEST_PAIR.into(), SecurityType::Crypto, Exchange::Binance),

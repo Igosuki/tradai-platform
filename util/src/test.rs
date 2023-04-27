@@ -1,3 +1,4 @@
+use pretty_env_logger::env_logger;
 use std::path::{Path, PathBuf};
 
 use tempdir::TempDir;
@@ -52,4 +53,9 @@ pub fn test_results_dir(module_path: &str) -> String {
 pub fn test_config_path() -> String {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     format!("{}/../config", manifest_dir)
+}
+
+pub fn init_test_env() {
+    let _ = env_logger::builder().is_test(true).try_init();
+    let _ = dotenvy::dotenv().unwrap();
 }

@@ -160,7 +160,7 @@ mod test {
 
     #[bench]
     fn test_save_load_model(b: &mut Bencher) {
-        let _ = env_logger::builder().is_test(true).try_init();
+        util::test::init_test_env();
         let id = "default";
         let max_size = 2000;
         let db = test_db();

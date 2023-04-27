@@ -245,8 +245,6 @@ mod test {
     use crate::storage::Storage;
     use crate::JsonStorageExt;
 
-    fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
-
     #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
     struct Foobar {
         foo: String,
@@ -397,7 +395,7 @@ mod test {
     #[test]
     #[allow(clippy::cast_sign_loss)]
     fn delete_ranged_cf() {
-        init();
+        util::test::init_test_env();
         let table = "rows";
         let db = db(vec![table.to_string()]);
         let size = 10_i32.pow(4);

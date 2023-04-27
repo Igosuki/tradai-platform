@@ -212,12 +212,11 @@ mod test {
     use crate::error::*;
     use crate::interest::test_util::local_provider;
     use crate::interest::GetInterestRate;
-    use crate::order_manager::test_util::init;
 
     #[actix::test]
     #[cfg_attr(not(feature = "live_e2e_tests"), ignore)]
     async fn test_fetch_margin_interest_rate() -> Result<()> {
-        init();
+        util::test::init_test_env();
         let (_credentials, apis) = crate::test_util::e2e::build_apis().await?;
         let provider = local_provider(apis.get(&Exchange::Binance).unwrap().clone());
         let interest_rate_response = provider

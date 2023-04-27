@@ -377,7 +377,7 @@ mod test {
     use crate::{backtest_with_range, load_market_events, load_market_events_df, DatasetCatalog};
 
     fn init() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        util::test::init_test_env();
         register_pair_default(Exchange::Binance, "BTCUSDT", "BTC_USDT");
     }
 
