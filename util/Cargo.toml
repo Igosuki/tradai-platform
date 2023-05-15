@@ -19,7 +19,7 @@ rust_decimal = { workspace = true }
 tempdir = { workspace = true }
 byte-unit = { workspace = true }
 hdrhistogram = { workspace = true }
-mock_instant = { version = "0.2.1" }
+mock_instant = { version = "0.3.0" }
 maplit = { workspace = true }
 anyhow = { workspace = true }
 flate2 = "1.0"
@@ -40,12 +40,12 @@ async-trait = { workspace = true }
 
 # Tracing / Logging
 pretty_env_logger = "0.4"
-opentelemetry = { version = "^0.17", default-features = false, features = ["trace"] }
-opentelemetry-jaeger = "0.16"
+opentelemetry = { version = "0.18.0", default-features = false, features = ["trace"] }
+opentelemetry-jaeger = "0.17.0"
 tracing = { workspace = true }
 tracing-flame = "0.2"
 tracing-log = { version = "0.1", features = ["env_logger"] }
-tracing-opentelemetry = "0.17"
+tracing-opentelemetry = "0.18.0"
 tracing-subscriber = { version = "0.3", features = ["tracing-log", "env-filter", "parking_lot"] }
 console-subscriber = { git = "https://github.com/tokio-rs/console", optional = true, features = ["parking_lot"] }
 #tracing-timing = "0.5"

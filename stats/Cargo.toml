@@ -26,20 +26,20 @@ ndarray = { version = "0.15", optional = true }
 
 # Math
 num-traits = "0.2"
-peroxide = "0.32"
+peroxide = "0.33.3"
 serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 ta = { version = "0.5", features = ["serde"] }
 yata = { version = "0.6", features = ["period_type_u32", "serde"] }
 ordered-float = { workspace = true }
-ringbuffer = "0.10"
+ringbuffer = "0.13.0"
 smallvec = { workspace = true }
 strum = { workspace = true }
 
 # std
 chrono = { workspace = true }
-prettytable-rs = "0.8"
+prettytable-rs = "0.10.0"
 strum_macros = { workspace = true }
 
 [dev-dependencies]

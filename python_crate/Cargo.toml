@@ -19,7 +19,7 @@ static = ["db/rocksdb-vendor"]
 
 [dependencies]
 
-arrow = { version = "33.0.0", optional = true, features = ["ffi"] }
+arrow = { version = "38.0.0", optional = true, features = ["ffi"] }
 #datafusion-python = { git = "https://github.com/apache/arrow-datafusion-python", rev = "5ae7c5025fdb04a2d5f06ba1aa70ecc32aad8cfd" }
 strategy = { path = "../strategy", features = ["python"] }
 trading = { path = "../trading" }

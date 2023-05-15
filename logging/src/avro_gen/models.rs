@@ -1,38 +1,30 @@
 
 
 lazy_static! {
-    pub static ref LIVEORDER_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveOrder\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
+    pub static ref LIVETRADE_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveTrade\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
-pub struct LiveOrder {
+pub struct LiveTrade {
     pub event_ms: i64,
-    pub amount: f64,
     pub pair: String,
+    pub amount: f64,
     pub price: f64,
     pub tt: i32,
 }
 
 #[allow(clippy::derivable_impls)]
-impl Default for LiveOrder {
-    fn default() -> LiveOrder {
-        LiveOrder {
+impl Default for LiveTrade {
+    fn default() -> LiveTrade {
+        LiveTrade {
             event_ms: 0,
-            amount: 0.0,
             pair: String::default(),
+            amount: 0.0,
             price: 0.0,
             tt: 0,
         }
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
-pub enum TradeType {
-    #[serde(rename = "BUY")]
-    Buy,
-    #[serde(rename = "SELL")]
-    Sell,
 }
 
 
@@ -101,28 +93,36 @@ impl Default for Candle {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
+pub enum TradeType {
+    #[serde(rename = "BUY")]
+    Buy,
+    #[serde(rename = "SELL")]
+    Sell,
+}
+
 
 lazy_static! {
-    pub static ref LIVETRADE_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveTrade\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
+    pub static ref LIVEORDER_SCHEMA : avro_rs::schema::Schema = avro_rs::schema::Schema::parse_str("{\"type\":\"record\",\"name\":\"LiveOrder\",\"fields\":[{\"name\":\"event_ms\",\"type\":\"long\"},{\"name\":\"amount\",\"type\":\"double\"},{\"name\":\"pair\",\"type\":\"string\"},{\"name\":\"price\",\"type\":\"double\"},{\"name\":\"tt\",\"type\":\"int\"}]}").unwrap();
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
-pub struct LiveTrade {
+pub struct LiveOrder {
     pub event_ms: i64,
-    pub pair: String,
     pub amount: f64,
+    pub pair: String,
     pub price: f64,
     pub tt: i32,
 }
 
 #[allow(clippy::derivable_impls)]
-impl Default for LiveTrade {
-    fn default() -> LiveTrade {
-        LiveTrade {
+impl Default for LiveOrder {
+    fn default() -> LiveOrder {
+        LiveOrder {
             event_ms: 0,
-            pair: String::default(),
             amount: 0.0,
+            pair: String::default(),
             price: 0.0,
             tt: 0,
         }
