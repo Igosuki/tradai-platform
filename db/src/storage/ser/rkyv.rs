@@ -3,7 +3,7 @@
 use crate::error::*;
 use crate::Storage;
 use anyhow::anyhow;
-use bytecheck::CheckBytes;
+use rkyv::bytecheck::CheckBytes;
 use rkyv::ser::serializers::{AlignedSerializer, AllocSerializer, BufferScratch, CompositeSerializer};
 use rkyv::validation::validators::DefaultValidator;
 use rkyv::{AlignedVec, Archive, Deserialize, Infallible, Serialize};

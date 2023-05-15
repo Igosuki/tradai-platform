@@ -64,7 +64,7 @@ once_cell = { workspace = true }
 multimap = { workspace = true }
 
 # datafusion
-datafusion = { version = "^19.0.0", features = ["avro", "crypto_expressions", "regex_expressions", "unicode_expressions", "dictionary_expressions"] }
+datafusion = { version = "^24.0.0", features = ["avro", "crypto_expressions", "regex_expressions", "unicode_expressions", "dictionary_expressions"] }
 #ballista = { version = "0.11.0", optional = true }
 
 # reporting

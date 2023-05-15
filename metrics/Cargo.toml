@@ -19,7 +19,7 @@ tracing = { workspace = true }
 serde = { workspace = true }
 libc = { workspace = true }
 actix-http = { workspace = true }
-protobuf = "2.28"
+protobuf = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]

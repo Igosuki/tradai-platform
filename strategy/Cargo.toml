@@ -107,7 +107,7 @@ multimap = { workspace = true }
 # http
 http = "0.2"
 httpmock = { workspace = true }
-socket2 = "0.4"
+socket2 = "0.5.3"
 
 # Async
 tokio-stream = { workspace = true, features = ["sync", "fs", "net", "io-util", "tokio-util", "signal", "time"] }

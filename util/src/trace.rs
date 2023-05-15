@@ -121,9 +121,9 @@ pub fn microtime_percentiles<T: Counter>(h: &Histogram<T>) -> HashMap<String, f6
 /// Panics if the open telemetry pipeline cannot be created
 pub fn setup_opentelemetry(agent_endpoints: String, service_name: String, tags: HashMap<String, String>) {
     let tags: Vec<KeyValue> = tags.into_iter().map(|(k, v)| KeyValue::new(k, v)).collect();
-    let tracer = opentelemetry_jaeger::new_pipeline()
+    let tracer = opentelemetry_jaeger::new_agent_pipeline()
         .with_service_name(service_name)
-        .with_agent_endpoint(agent_endpoints)
+        .with_endpoint(agent_endpoints)
         .with_trace_config(Config::default().with_resource(Resource::new(tags)))
         .install_simple()
         .unwrap();

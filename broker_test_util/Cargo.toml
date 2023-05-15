@@ -8,21 +8,21 @@ edition.workspace = true
 
 [dependencies]
 # Actix
-actix-http = { workspace = true }
-actix-http-test = { workspace = true }
-actix-codec = { workspace = true }
+actix-http = "3.3.1"
+actix-http-test = "3.1.0"
+actix-codec = "0.5.1"
 
 # Local
 brokers = { path = "../broker", features = ["test_util"] }
-binance-rs-async = { workspace = true }
+binance-rs-async = "1.3.2"
 
 # Mock
-httpmock = { workspace = true }
+httpmock = "0.6.7"
 
 # Std
-rand = { workspace = true }
-bytestring = { workspace = true }
-chrono = { workspace = true }
+rand = "0.8.5"
+bytestring = "1.3.0"
+chrono = "0.4.24"
 
 # Async
-futures = { workspace = true }
+futures = "0.3.28"
