@@ -37,15 +37,15 @@ edition = "2021"
 binance-rs-async = { version = "1.1.4" }
 
 # actix
-actix-web = { version = "4.0.1", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
-actix-http = { version = "3.0.0", features = ["ws"] }
-actix-http-test = "3.0.0-beta"
-actix-cors = { version = "0.6.0", default-features = false }
-actix-codec = "0.5"
-actix = "0.13"
-actix-rt = "2.6"
-awc = { version = "3.0.0-beta", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
-actix_derive = "0.6"
+actix-web = { version = "4.3.1", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
+actix-http = { version = "3.3.1", features = ["ws"] }
+actix-http-test = "3.1.0"
+actix-cors = { version = "0.6.4", default-features = false }
+actix-codec = "0.5.0"
+actix = "0.13.0"
+actix-rt = "2.8.0"
+awc = { version = "3.1.1", features = ["compress-brotli", "compress-gzip", "cookies"], default-features = false }
+actix_derive = "0.6.0"
 
 # http
 reqwest = "0.11"
