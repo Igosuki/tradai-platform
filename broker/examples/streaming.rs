@@ -1,4 +1,4 @@
-// This example shows how to use the streaming API provided by Coinnect.
+// This example shows how to use the streaming API provided by Broker.
 // The example is complete and shows how to forward data stream events to actor recipients
 #![allow(clippy::must_use_candidate)]
 #![allow(
@@ -13,6 +13,7 @@ extern crate tokio;
 
 use actix::{Actor, Context, Handler};
 use broker_core::exchange::Exchange::Binance;
+use broker_core::types::{MarketChannel, MarketChannelType, SecurityType, Symbol};
 use std::sync::Arc;
 
 use brokers::broker::{ActixMessageBroker, Broker, MarketEventEnvelopeRef, Subject};
@@ -54,18 +55,22 @@ async fn main() {
     env_logger::init();
     async {
         let my_creds = Box::new(BasicCredentials::empty(Exchange::Binance));
-        let settings = BrokerSettings {
+        let market_chan = vec![MarketChannel {
+            symbol: Symbol::new("BTC_USDT".into(), SecurityType::Crypto, Exchange::Binance),
+            r#type: MarketChannelType::Trades,
+            tick_rate: None,
+            resolution: None,
+            only_final: None,
             orderbook: None,
-            trades: Some(TradesSettings {
-                symbols: vec!["BTC_USDT".to_string()],
-            }),
+        }];
+        let settings = BrokerSettings {
             fees: 0.01,
             use_account: false,
             use_margin_account: false,
             use_isolated_margin_account: false,
             isolated_margin_account_pairs: vec![],
             use_test: false,
-            orderbook_depth: Some(5),
+            market_channels: vec![],
         };
 
         // Initialize the broker and a simple logging actor
@@ -74,20 +79,20 @@ async fn main() {
         broker.register(ExchangeChannel::No, actor.recipient());
         let broker = Arc::new(broker);
 
-        // Initialize coinnect
+        // Initialize broker
         let apis = Brokerages::public_apis(&[Binance]).await;
         let _ = Brokerages::load_pair_registries(&apis).await;
-        let mut bot = Brokerages::new_market_bot(Binance, my_creds, settings)
+        let mut bot = Brokerages::new_market_bot(Binance, my_creds, settings, market_chan.as_slice())
             .await
             .expect("stream connected");
 
         // Read from the stream
         select! {
             _ = bot.add_sink(Box::new(move |msg| {broker.broadcast(msg); Ok(()) })) => {
-                println!("coinnect stream closed on its own");
+                println!("broker stream closed on its own");
             }
             _ = tokio::signal::ctrl_c() => {
-                println!("coinnect stream interrupted, closing...")
+                println!("broker stream interrupted, closing...")
             }
         }
     }

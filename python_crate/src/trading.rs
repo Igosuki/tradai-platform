@@ -2,10 +2,9 @@
 
 use std::str::FromStr;
 
-use chrono::{TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use pyo3::exceptions::PyBaseException;
 use pyo3::prelude::*;
-use pyo3_chrono::NaiveDateTime;
 
 use brokers::prelude::*;
 use brokers::types::{AssetType, MarginSideEffect, OrderType};
@@ -49,7 +48,7 @@ impl PyTradeSignal {
         dry_mode: bool,
         asset_type: PyAssetType,
         order_type: PyOrderType,
-        event_time: NaiveDateTime,
+        event_time: DateTime<Utc>,
         trace_id: Uuid,
         qty: Option<f64>,
         instructions: Option<PyExecutionInstruction>,
@@ -59,7 +58,7 @@ impl PyTradeSignal {
         Ok(Self {
             inner: TradeSignal {
                 trace_id: trace_id.handle,
-                event_time: Utc.from_utc_datetime(&event_time.0),
+                event_time,
                 signal_time: now(),
                 pos_kind: position.into(),
                 op_kind: operation.into(),
@@ -92,7 +91,7 @@ pub(crate) fn signal(
     dry_mode: bool,
     asset_type: PyAssetType,
     order_type: PyOrderType,
-    event_time: NaiveDateTime,
+    event_time: DateTime<Utc>,
     trace_id: Uuid,
     qty: Option<f64>,
     instructions: Option<PyExecutionInstruction>,

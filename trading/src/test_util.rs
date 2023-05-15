@@ -8,7 +8,7 @@ pub mod e2e {
 
     #[allow(dead_code)]
     pub async fn build_apis() -> Result<(Box<dyn Credentials>, Arc<HashMap<Exchange, Arc<dyn Brokerage>>>)> {
-        let credentials_file = std::env::var("BITCOINS_E2E_TEST_CREDS_FILE").expect("BITCOINS_E2E_TEST_CREDS_FILE");
+        let credentials_file = std::env::var("TRADAI_E2E_TEST_CREDS_FILE").expect("TRADAI_E2E_TEST_CREDS_FILE");
         let credentials_path = PathBuf::from(credentials_file);
         let credentials = brokers::Brokerages::credentials_for(Exchange::Binance, credentials_path.clone())
             .expect("valid credentials file");

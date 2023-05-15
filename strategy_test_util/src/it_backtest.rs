@@ -12,11 +12,10 @@ use strategy::query::{DataQuery, DataResult, PortfolioSnapshot};
 use trading::engine::mock_engine;
 use trading::position::Position;
 use util::test::test_results_dir;
-use util::time::DateRange;
+use util::time::{utc_at_midnight, DateRange};
 
 use crate::draw::{draw_line_plot, StrategyEntryFnRef};
 use crate::fs::copy_file;
-use crate::init;
 use crate::log::{write_models, write_trade_events, StrategyLog};
 use crate::{input, test_db_with_path};
 
@@ -36,7 +35,7 @@ pub async fn generic_backtest<'a, S2>(
 where
     S2: ToString,
 {
-    init();
+    util::test::init_test_env();
     //setup_opentelemetry();
     let path = util::test::test_dir();
     let engine = Arc::new(mock_engine(path.path(), exchanges));
@@ -69,8 +68,8 @@ where
     for c in &driver.channels() {
         events.extend(
             input::load_csv_events(
-                range.0.date(),
-                range.1.date(),
+                utc_at_midnight(range.0),
+                utc_at_midnight(range.1),
                 vec![c.pair().as_ref()],
                 &c.exchange().to_string(),
                 c.name(),

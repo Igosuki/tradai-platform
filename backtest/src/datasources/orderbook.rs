@@ -1,7 +1,9 @@
 use brokers::prelude::Exchange;
 use chrono::{DateTime, Duration, Utc};
-use datafusion::arrow::array::{Array, PrimitiveArray, StructArray};
-use datafusion::record_batch::RecordBatch;
+use datafusion::arrow;
+use datafusion::arrow::array::{Array, Float64Array, Int64Array, ListArray, StringArray, StructArray,
+                               TimestampMillisecondArray, UInt16DictionaryArray};
+use datafusion::arrow::record_batch::RecordBatch;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::path::Path;
@@ -14,8 +16,7 @@ use tokio_stream::Stream;
 use tracing::Level;
 
 use crate::datafusion_util::{get_col_as, multitables_as_df, multitables_as_stream, print_struct_schema,
-                             string_partition, Float64Type, Int64Type, ListArray, StringArray,
-                             TimestampMillisecondArray, UInt16DictionaryArray};
+                             string_partition};
 use crate::datasources::{event_ms_where_clause, in_clause, join_where_clause};
 
 const ORDER_BOOK_TABLE_NAME: &str = "order_books";
@@ -72,7 +73,7 @@ pub async fn raw_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
     if tracing::enabled!(Level::TRACE) {
         trace!(
             "raw_orderbooks = {:?}",
-            datafusion::arrow_print::write(&[batch.clone()])
+            arrow::util::pretty::print_batches(&[batch.clone()])
         );
     }
     Ok(batch)
@@ -99,8 +100,8 @@ pub fn sampled_orderbooks_stream<P: 'static + AsRef<Path> + Debug>(
             table = "order_books", where = where_clause
         ),
     )
-    .map(events_from_orderbooks)
-    .flatten()
+        .map(events_from_orderbooks)
+        .flatten()
 }
 
 /// Read partitions as a sampled order books stream
@@ -124,7 +125,7 @@ pub async fn sampled_orderbooks_df<P: 'static + AsRef<Path> + Debug>(
             table = "order_books", where = where_clause
         ),
     )
-    .await?;
+        .await?;
     Ok(batch)
 }
 
@@ -174,23 +175,23 @@ fn events_from_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = Marke
         for i in 0..sa.len() {
             let bidsp = bids_col
                     .as_any()
-                    .downcast_ref::<PrimitiveArray<Float64Type>>()
+                    .downcast_ref::<Float64Array>()
                     .unwrap()
                     .values();
             let bidsq = bidsq_col
                     .as_any()
-                    .downcast_ref::<PrimitiveArray<Float64Type>>()
+                    .downcast_ref::<Float64Array>()
                     .unwrap()
                     .values();
             let bids: Vec<(f64, f64)> = bidsp.iter().copied().zip(bidsq.iter().copied()).collect();
             let asksp = asks_col
                     .as_any()
-                    .downcast_ref::<PrimitiveArray<Float64Type>>()
+                    .downcast_ref::<Float64Array>()
                     .unwrap()
                     .values();
             let asksq = asksq_col
                     .as_any()
-                    .downcast_ref::<PrimitiveArray<Float64Type>>()
+                    .downcast_ref::<Float64Array>()
                     .unwrap()
                     .values();
             let asks: Vec<(f64, f64)> = asksp.iter().copied().zip(asksq.iter().copied()).collect();
@@ -221,8 +222,8 @@ fn events_from_csv_orderbooks(records: RecordBatch, _levels: usize) -> impl Stre
     let sa: StructArray = records.into();
 
     stream! {
-        let _asks_col = get_col_as::<PrimitiveArray<Float64Type>>(&sa, "a1");
-        let event_ms_col = get_col_as::<PrimitiveArray<Int64Type>>(&sa, "event_ms");
+        let _asks_col = get_col_as::<Float64Array>(&sa, "a1");
+        let event_ms_col = get_col_as::<Int64Array>(&sa, "event_ms");
         let pair_col = get_col_as::<StringArray>(&sa, "pr");
         let xch_col = get_col_as::<StringArray>(&sa, "xch");
         for i in 0..sa.len() {
@@ -268,7 +269,7 @@ fn events_from_raw_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = M
             {
                 let vals = bid
                     .as_any()
-                    .downcast_ref::<PrimitiveArray<f64>>()
+                    .downcast_ref::<Float64Array>()
                     .unwrap()
                     .values();
                 bids.push((vals[0], vals[1]));
@@ -284,7 +285,7 @@ fn events_from_raw_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = M
             {
                 let vals = ask
                     .as_any()
-                    .downcast_ref::<PrimitiveArray<f64>>()
+                    .downcast_ref::<Float64Array>()
                     .unwrap()
                     .values();
                 asks.push((vals[0], vals[1]));
@@ -308,28 +309,35 @@ fn events_from_raw_orderbooks(record_batch: RecordBatch) -> impl Stream<Item = M
 
 #[cfg(test)]
 mod test {
+    use datafusion::arrow::datatypes::DataType;
     use std::path::PathBuf;
     use std::sync::Arc;
 
+    use crate::datafusion_util::new_context;
     use datafusion::datasource::file_format::avro::AvroFormat;
     use datafusion::datasource::listing::ListingOptions;
-    use datafusion::prelude::ExecutionContext;
 
     // TODO: make some small sample files to test this out instead of production files
     #[tokio::test]
     #[ignore]
     async fn test_read_df() -> datafusion::error::Result<()> {
-        let mut ctx = ExecutionContext::new();
+        let ctx = new_context();
         let partition =
-            PathBuf::from(std::env::var("COINDATA_CACHE_DIR").unwrap_or_else(|_| "".to_string())).join("data");
+            PathBuf::from(std::env::var("TRADAI_DATA_CACHE_DIR").unwrap_or_else(|_| "".to_string())).join("data");
         let listing_options = ListingOptions {
             file_extension: "avro".to_string(),
             format: Arc::new(AvroFormat::default()),
-            table_partition_cols: vec!["xch".to_string(), "chan".to_string(), "dt".to_string()],
+            table_partition_cols: vec![
+                ("xch".to_string(), DataType::Utf8),
+                ("chan".to_string(), DataType::Utf8),
+                ("dt".to_string(), DataType::Utf8),
+            ],
             collect_stat: true,
             target_partitions: 8,
+            file_sort_order: None,
+            infinite_source: false,
         };
-        ctx.register_listing_table("order_books", &partition.to_str().unwrap(), listing_options, None)
+        ctx.register_listing_table("order_books", &partition.to_str().unwrap(), listing_options, None, None)
             .await?;
 
         let df2 = ctx

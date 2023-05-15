@@ -1,13 +1,13 @@
-use brokers::types::Candle;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use plotly::{Candlestick, Plot, Scatter};
 
+use brokers::types::Candle;
 pub use global::GlobalReport;
 pub use logger::StreamWriterLogger;
 pub use registry::register_report_fn;
 pub use single::BacktestReport;
 use util::compress::Compression;
-use util::time::TimedData;
+use util::time::{utc_zero, TimedData};
 
 mod global;
 mod logger;
@@ -40,11 +40,11 @@ pub fn draw_lines<T>(plot: &mut Plot, trace_offset: usize, data: &[TimedData<T>]
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct TimeWrap(pub DateTime<Utc>);
 
 impl Default for TimeWrap {
-    fn default() -> Self { TimeWrap(Utc.timestamp_millis_opt(0)).unwrap() }
+    fn default() -> Self { TimeWrap(utc_zero()) }
 }
 
 #[allow(clippy::needless_pass_by_value)]
@@ -56,5 +56,5 @@ fn draw_candles(name: &str, plot: &mut Plot, _trace_offset: usize, data: &[Timed
     let low: Vec<f64> = skipped_data.clone().map(|td| td.value.low).collect();
     let close: Vec<f64> = skipped_data.clone().map(|td| td.value.close).collect();
     let trace = Candlestick::new(time, open, high, low, close).name(name);
-    plot.add_trace(trace);
+    plot.add_trace(Box::new(trace));
 }

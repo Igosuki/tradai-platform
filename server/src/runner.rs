@@ -1,6 +1,7 @@
 #[cfg(feature = "flame")]
 use std::fs::File;
 use std::future::Future;
+use std::path::Path;
 use std::process;
 use std::sync::mpsc::channel;
 use std::sync::Arc;
@@ -57,10 +58,14 @@ where
 
     // Create a channel to receive the events.
     let (tx, _rx) = channel();
-    let mut watcher: RecommendedWatcher = Watcher::new(tx, std::time::Duration::from_secs(2)).unwrap();
+    let mut watcher: RecommendedWatcher = Watcher::new(
+        tx,
+        notify::Config::default().with_poll_interval(std::time::Duration::from_secs(2)),
+    )
+    .unwrap();
     let settings_r = settings.read().await;
     watcher
-        .watch(&settings_r.__config_file, RecursiveMode::NonRecursive)
+        .watch(&Path::new(&settings_r.__config_file), RecursiveMode::NonRecursive)
         .unwrap();
 
     if opts.check_conf {

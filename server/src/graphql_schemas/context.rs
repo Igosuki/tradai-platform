@@ -2,25 +2,25 @@ use core::fmt::Debug;
 use core::marker::Send;
 use core::option::Option::{None, Some};
 use core::result::Result::{Err, Ok};
-use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use actix::Addr;
 use juniper::executor::{FieldError, FieldResult};
 
 use brokers::prelude::*;
 use strategy::actor::StrategyActor;
 use strategy::query::{DataQuery, DataResult};
-use strategy::{StrategyKey, Trader};
+use strategy::StrategyKey;
 use trading::order_manager::OrderManager;
+
+use crate::{OrderManagerRegistry, StrategyRegistry};
 
 use super::types::TypeAndKeyInput;
 
 pub(crate) struct Context {
-    pub strats: Arc<HashMap<StrategyKey, Trader>>,
-    pub exchanges: Arc<HashMap<Exchange, Arc<dyn Brokerage>>>,
-    pub order_managers: Arc<HashMap<Exchange, Addr<OrderManager>>>,
+    pub strats: Arc<StrategyRegistry>,
+    pub exchanges: Arc<BrokerageRegistry>,
+    pub order_managers: Arc<OrderManagerRegistry>,
 }
 
 impl juniper::Context for Context {}

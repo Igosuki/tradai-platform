@@ -1,11 +1,9 @@
 //! Use this module to create a generic API.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::path::PathBuf;
-use std::sync::Arc;
 
-use dashmap::DashMap;
 use serde_json::Value;
 
 use crate::api::Brokerage;
@@ -14,10 +12,10 @@ use crate::credential::{BasicCredentials, Credentials};
 use crate::error::{Error, Result};
 use crate::exchange::Exchange;
 use crate::manager::{BrokerageManager, BrokerageRegistry};
-use crate::pair::{filter_pairs, refresh_pairs};
+use crate::pair::refresh_pairs;
 use crate::plugin::{get_exchange_plugin, BrokerageBotInitContext, PrivateBotInitContext};
-use crate::settings::{BrokerSettings, OrderbookSettings, OrderbookStyle, TradesSettings};
-use crate::types::{AccountType, MarketSymbol, Pair, PrivateStreamChannel, StreamChannel};
+use crate::settings::BrokerSettings;
+use crate::types::{AccountType, MarketChannel, PrivateStreamChannel};
 
 #[derive(Debug)]
 pub struct Brokerages;
@@ -27,7 +25,7 @@ impl Brokerages {
     pub fn new_manager() -> BrokerageManager { BrokerageManager::new() }
 
     pub async fn public_apis(echanges: &[Exchange]) -> BrokerageRegistry {
-        let exchange_apis: DashMap<Exchange, Arc<dyn Brokerage>> = DashMap::new();
+        let exchange_apis: BrokerageRegistry = BrokerageRegistry::new();
         let manager = Brokerages::new_manager();
         for xch in echanges {
             let api = manager.build_public_exchange_api(xch, false).await.unwrap();
@@ -48,37 +46,13 @@ impl Brokerages {
         exchange: Exchange,
         creds: Box<dyn Credentials>,
         s: BrokerSettings,
+        market_channels: &[MarketChannel],
     ) -> Result<Box<MarketDataStreamer>> {
-        let mut channels: HashMap<StreamChannel, HashSet<MarketSymbol>> = HashMap::new();
-        if let Some(OrderbookSettings { ref symbols, ref style }) = s.orderbook {
-            let pairs = filter_pairs(&exchange, symbols)?;
-            let order_book_pairs: HashSet<Pair> = pairs
-                .into_iter()
-                .filter(|p| crate::pair::pair_to_symbol(&exchange, &p.clone()).is_ok())
-                .collect();
-            // Live order book pairs
-            let channel = match style {
-                OrderbookStyle::Live => StreamChannel::PlainOrderbook,
-                OrderbookStyle::Detailed => StreamChannel::DetailedOrderbook,
-                OrderbookStyle::Diff => StreamChannel::DiffOrderbook,
-            };
-            channels.insert(channel, order_book_pairs);
-        }
-        if let Some(TradesSettings { ref symbols }) = s.trades {
-            // Live trade pairs
-            let pairs = filter_pairs(&exchange, symbols)?;
-            let trade_pairs: HashSet<MarketSymbol> = pairs
-                .into_iter()
-                .filter(|p| crate::pair::pair_to_symbol(&exchange, p).is_ok())
-                .collect();
-            channels.insert(StreamChannel::Trades, trade_pairs);
-        }
-        debug!("{:?}", channels);
         let plugin = get_exchange_plugin(exchange)?;
         let ctx = BrokerageBotInitContext::builder()
             .settings(s.clone())
             .creds(creds)
-            .channels(channels)
+            .channels(market_channels.to_vec())
             .build();
         plugin.new_public_stream(ctx).await
     }
@@ -140,7 +114,7 @@ impl Brokerages {
     /// # Errors
     ///
     /// If the registries fails to load pairs
-    pub async fn load_pair_registries(apis: &DashMap<Exchange, Arc<dyn Brokerage>>) -> Result<()> {
+    pub async fn load_pair_registries(apis: &BrokerageRegistry) -> Result<()> {
         futures::future::join_all(apis.clone().iter().map(|entry| async move {
             let arc = entry.value().clone();
             Self::load_pair_registry(entry.key(), arc.as_ref()).await

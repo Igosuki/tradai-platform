@@ -1,8 +1,9 @@
-use chrono::{TimeZone, Utc};
 use itertools::Itertools;
 
-use crate::types::{OperationEvent, TradeEvent};
 use trading::position::{OperationKind, Position};
+use util::time::utc_zero;
+
+use crate::types::{OperationEvent, TradeEvent};
 
 pub fn trades_history(history: &[Position]) -> Vec<(OperationEvent, TradeEvent)> {
     let mut trade_events: Vec<(OperationEvent, TradeEvent)> = Vec::new();
@@ -51,11 +52,7 @@ pub fn close_events(pos: &Position) -> Option<(OperationEvent, TradeEvent)> {
             OperationEvent {
                 op: OperationKind::Close,
                 pos: pos.kind,
-                at: pos
-                    .meta
-                    .close_at
-                    .unwrap_or_else(|| Utc.timestamp_millis_opt(0))
-                    .unwrap(),
+                at: pos.meta.close_at.unwrap_or_else(utc_zero),
             },
             TradeEvent {
                 side: order.side.into(),
@@ -63,11 +60,7 @@ pub fn close_events(pos: &Position) -> Option<(OperationEvent, TradeEvent)> {
                 pair: pos.symbol.to_string(),
                 price: order.price.unwrap_or(0.0),
                 strat_value: pos.meta.exit_equity_point.as_ref().map_or(0.0, |ep| ep.equity),
-                at: pos
-                    .meta
-                    .close_at
-                    .unwrap_or_else(|| Utc.timestamp_millis_opt(0))
-                    .unwrap(),
+                at: pos.meta.close_at.unwrap_or_else(utc_zero),
                 borrowed: order.borrowed_amount,
                 interest: Some(pos.interests),
             },

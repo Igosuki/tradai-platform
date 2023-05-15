@@ -1,10 +1,10 @@
 use pyo3::prelude::*;
-use pyo3::{PyNumberProtocol, PyResult};
+use pyo3::PyResult;
 use serde::Serialize;
 use serde_json::Value;
 
 use ext::ResultExt;
-use strategy::models::indicator_windowed_model::IndicatorWindowedModel;
+use strategy::models::indicator_reducer::PersistentIndicatorReducer;
 use strategy::models::{IndicatorModel, WindowedModel};
 use strategy::prelude::Model;
 
@@ -16,24 +16,24 @@ use crate::PyMarketEvent;
 #[derive(Clone)]
 #[pyclass]
 pub(crate) struct PyJsonValue {
-    inner: serde_json::Value,
+    inner: Value,
 }
 
-impl From<serde_json::Value> for PyJsonValue {
+impl From<Value> for PyJsonValue {
     fn from(inner: Value) -> Self { Self { inner } }
 }
 
-impl From<PyJsonValue> for serde_json::Value {
+impl From<PyJsonValue> for Value {
     fn from(p: PyJsonValue) -> Self { p.inner }
 }
 
-#[pyproto]
-impl PyNumberProtocol for PyJsonValue {
-    fn __add__(mut lhs: PyJsonValue, mut rhs: PyJsonValue) -> PyResult<PyJsonValue> {
-        match (lhs.inner.as_object_mut(), rhs.inner.as_object_mut()) {
-            (None, None) => Ok(serde_json::Value::Null.into()),
-            (None, Some(_)) => Ok(rhs),
-            (Some(_), None) => Ok(lhs),
+#[pymethods]
+impl PyJsonValue {
+    fn __add__(&mut self, rhs: &mut Self) -> PyResult<PyJsonValue> {
+        match (self.inner.as_object_mut(), rhs.inner.as_object_mut()) {
+            (None, None) => Ok(Value::Null.into()),
+            (None, Some(_)) => Ok(rhs.clone()),
+            (Some(_), None) => Ok(self.clone()),
             (Some(v1), Some(v2)) => {
                 v1.append(v2);
                 Ok(serde_json::to_value(v1).unwrap().into())
@@ -84,7 +84,7 @@ pub(crate) fn persistent_ta(key: &str, db: PyDb, init: PyIndicator) -> PyIndicat
 
 #[pyclass]
 pub(crate) struct PyWindowedIndicatorModel {
-    inner: IndicatorWindowedModel<f64, WindowedTechnicalIndicator>,
+    inner: PersistentIndicatorReducer<f64, WindowedTechnicalIndicator>,
 }
 
 #[pymethods]
@@ -121,15 +121,15 @@ impl PyWindowedIndicatorModel {
     fn export(&self) -> PyResult<PyJsonValue> { Ok(to_py_json(self.inner.value())) }
 }
 
-impl From<IndicatorWindowedModel<f64, WindowedTechnicalIndicator>> for PyWindowedIndicatorModel {
-    fn from(inner: IndicatorWindowedModel<f64, WindowedTechnicalIndicator>) -> Self { Self { inner } }
+impl From<PersistentIndicatorReducer<f64, WindowedTechnicalIndicator>> for PyWindowedIndicatorModel {
+    fn from(inner: PersistentIndicatorReducer<f64, WindowedTechnicalIndicator>) -> Self { Self { inner } }
 }
 
 fn to_py_json<T: Serialize>(t: Option<T>) -> PyJsonValue {
     t.map_or_else(
-        || serde_json::Value::Null.into(),
+        || Value::Null.into(),
         |m| {
-            let ser: serde_json::Value = serde_json::to_value(m).unwrap();
+            let ser: Value = serde_json::to_value(m).unwrap();
             ser.into()
         },
     )
@@ -145,7 +145,7 @@ pub(crate) fn persistent_window_ta(
     max_size: Option<usize>,
 ) -> PyWindowedIndicatorModel {
     let indicator: WindowedTechnicalIndicator = init.into();
-    IndicatorWindowedModel::new(key, db.db(), window_size, max_size, indicator).into()
+    PersistentIndicatorReducer::new(key, db.db(), window_size, max_size, indicator).into()
 }
 
 #[pymodule]

@@ -21,6 +21,7 @@ mod utils;
 
 pub use self::api::PoloniexApi;
 pub use self::api::{MoveOrderOption, PlaceOrderOption};
+pub use utils::get_currency_enum;
 
 #[async_trait(?Send)]
 impl BrokerConnector for PoloniexExchangeConnector {

@@ -125,6 +125,15 @@ where
     Ok(Duration::seconds(val))
 }
 
+pub fn decode_duration_opt<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+where
+    Duration: Sized,
+    D: Deserializer<'de>,
+{
+    let val = Deserialize::deserialize(deserializer)?;
+    Ok(Some(Duration::seconds(val)))
+}
+
 pub fn decode_file_size<'de, D>(deserializer: D) -> Result<u128, D::Error>
 where
     D: Deserializer<'de>,
@@ -333,6 +342,7 @@ mod test {
         i: usize,
     }
 
+    #[allow(clippy::extra_unused_type_parameters)]
     async fn test_write_valid_json<T: JsonSerde>() {
         let file = temp_dir().join("file.json");
 
@@ -341,7 +351,7 @@ mod test {
         tokio::spawn(async move { ser_ref.start().await });
         let count: usize = 1000;
         let stream = stream! {
-            for i in (0..count) {
+            for i in 0..count {
                 yield TestData { i }
             }
         };

@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, HashMap};
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::sync::Arc;
 
-use chrono::{TimeZone, Utc};
 use serde::ser::SerializeStruct;
 use serde::ser::Serializer;
 
@@ -12,10 +11,11 @@ use ext::ResultExt;
 use stats::indicators::ppo::PercentPriceOscillator;
 use stats::indicators::thresholds::Thresholds;
 use strategy::error::{Error, Result};
-use strategy::models::indicator_windowed_model::IndicatorWindowedModel;
+use strategy::models::indicator_reducer::PersistentIndicatorReducer;
 use strategy::models::io::{IterativeModel, LoadableModel};
 use strategy::models::{IndicatorModel, Sampler, TimedValue, WindowedModel};
 use strategy::prelude::*;
+use util::time::utc_zero;
 
 use super::options::Options;
 
@@ -23,7 +23,7 @@ use super::options::Options;
 pub struct MeanRevertingModel {
     sampler: Sampler,
     ppo: IndicatorModel<PercentPriceOscillator, f64>,
-    thresholds: Option<IndicatorWindowedModel<f64, Thresholds>>,
+    thresholds: Option<PersistentIndicatorReducer<f64, Thresholds>>,
     thresholds_0: (f64, f64),
 }
 
@@ -33,7 +33,7 @@ impl MeanRevertingModel {
         let ppo_model = IndicatorModel::new(&format!("model_{}", n.pair), db.clone(), ppo);
         let threshold_table = if n.dynamic_threshold() {
             n.threshold_window_size.map(|thresold_window_size| {
-                IndicatorWindowedModel::new(
+                PersistentIndicatorReducer::new(
                     &format!("thresholds_{}", n.pair.as_ref()),
                     db,
                     thresold_window_size,
@@ -45,7 +45,7 @@ impl MeanRevertingModel {
             None
         };
         Self {
-            sampler: Sampler::new(n.sample_freq, Utc.timestamp_millis_opt(0)).unwrap(),
+            sampler: Sampler::new(n.sample_freq, utc_zero()),
             ppo: ppo_model,
             thresholds: threshold_table,
             thresholds_0: (n.threshold_short, n.threshold_long),
@@ -91,7 +91,7 @@ impl MeanRevertingModel {
     pub fn try_load(&mut self) -> strategy::error::Result<()> {
         {
             self.ppo.try_load()?;
-            if let Some(_model_time) = self.ppo.last_model_time() {
+            if let Some(_model_time) = self.ppo.last_value_time() {
                 // TODO: set last sample time from loaded data
                 //self.sampler.set_last_time(model_time);
             }
@@ -229,7 +229,6 @@ mod test {
     use db::MemoryKVStore;
     use strategy::error::Result;
     use strategy::models::io::{IterativeModel, LoadableModel};
-    use strategy_test_util::init;
     use strategy_test_util::input;
     use util::ser::write_as_seq;
     use util::test::test_results_dir;
@@ -241,10 +240,10 @@ mod test {
 
     #[tokio::test]
     async fn test_lodable_model_round_trip() -> Result<()> {
-        init();
+        util::test::init_test_env();
         let events = input::load_csv_events(
-            Utc.ymd(2021, 8, 1),
-            Utc.ymd(2021, 8, 9),
+            Utc.with_ymd_and_hms(2021, 8, 1, 0, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(2021, 8, 9, 0, 0, 0).unwrap(),
             vec![PAIR],
             "binance",
             "order_books",

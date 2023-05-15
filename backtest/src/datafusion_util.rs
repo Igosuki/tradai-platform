@@ -1,20 +1,15 @@
-use datafusion::arrow::array::{DictionaryArray, DictionaryKey, Int64Array, ListArray as GenericListArray, StructArray,
-                               Utf8Array};
+use datafusion::arrow::array::{Array, DictionaryArray, StringArray, StructArray};
+use datafusion::arrow::datatypes::{ArrowPrimitiveType, DataType, Schema};
+use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::dataframe::DataFrame;
 use datafusion::datasource::file_format::avro::AvroFormat;
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
 use datafusion::datasource::listing::ListingOptions;
-use datafusion::execution::dataframe_impl::DataFrameImpl;
-use datafusion::field_util::{SchemaExt, StructArrayExt};
-use datafusion::logical_plan::Expr;
-use datafusion::prelude::{col, lit};
-use datafusion::record_batch::RecordBatch;
-//use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::arrow::datatypes::Schema;
-use datafusion::arrow::scalar::Utf8Scalar;
-use datafusion::dataframe::DataFrame;
+use datafusion::logical_expr::Literal;
 use datafusion::physical_plan::coalesce_batches::concat_batches;
+use datafusion::prelude::*;
 use ext::ResultExt;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
@@ -24,16 +19,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
-pub type StringArray = Utf8Array<i32>;
-pub type TimestampMillisecondArray = Int64Array;
-#[allow(dead_code)]
-pub type UInt16DictionaryArray = DictionaryArray<u16>;
-#[allow(dead_code)]
-pub type UInt8DictionaryArray = DictionaryArray<u8>;
-pub type ListArray = GenericListArray<i32>;
-pub type Float64Type = f64;
-pub type Int64Type = i64;
-
+/// Downcasts a column to an Array type
 pub fn get_col_as<'a, T: 'static>(sa: &'a StructArray, name: &str) -> &'a T {
     sa.column_by_name(name)
         .unwrap_or_else(|| panic!("missing column {}", name,))
@@ -48,6 +34,7 @@ pub fn get_col_as<'a, T: 'static>(sa: &'a StructArray, name: &str) -> &'a T {
         })
 }
 
+/// Returns the actual FileFormat handle for a given extension
 pub fn df_format(format: &str) -> (&'static str, Arc<dyn FileFormat>) {
     match format.to_lowercase().as_str() {
         "avro" => ("avro", Arc::new(AvroFormat::default())),
@@ -62,7 +49,7 @@ pub fn where_clause<'a, K: 'a + std::fmt::Display, V: 'a + std::fmt::Display, I:
     iter: &mut I,
 ) -> String
 where
-    I: std::iter::ExactSizeIterator,
+    I: ExactSizeIterator,
 {
     if iter.is_empty() {
         String::new()
@@ -71,10 +58,12 @@ where
     }
 }
 
+/// Combines an iterator of key value pairs into an and expression filter clause
+/// Example : [(a, 1), (b, 2)] turns into 'a=1 and b=2'
 pub fn partition_filter_clause<
     'a,
     K: 'a + std::fmt::Display + AsRef<str>,
-    V: 'a + std::fmt::Display + datafusion::logical_plan::Literal,
+    V: 'a + std::fmt::Display + Literal,
     I: IntoIterator<Item = (K, V)>,
 >(
     iter: I,
@@ -84,12 +73,14 @@ pub fn partition_filter_clause<
         .reduce(|lhs, rhs| lhs.and(rhs))
 }
 
-pub fn string_partition<'a, K: DictionaryKey>(col: &'a DictionaryArray<K>, i: usize) -> Option<String> {
-    col.value(i as usize)
-        .as_any()
-        .downcast_ref::<Utf8Scalar<i32>>()
-        .and_then(Utf8Scalar::value)
-        .map(String::from)
+/// Gets the value at i for from the partition column
+pub fn string_partition<K: ArrowPrimitiveType>(col: &DictionaryArray<K>, i: usize) -> Option<String> {
+    col.key(i).and_then(|k| {
+        col.values()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .map(|a| a.value(k).to_string())
+    })
 }
 
 #[cfg(all(feature = "remote_execution", not(feature = "standalone_execution")))]
@@ -107,21 +98,25 @@ pub fn new_context() -> ballista::context::BallistaContext { ballista::context::
     not(any(feature = "remote_execution", feature = "standalone_execution")),
     all(feature = "remote_execution", feature = "standalone_execution")
 ))]
-pub fn new_context() -> datafusion::prelude::ExecutionContext { datafusion::prelude::ExecutionContext::new() }
+pub fn new_context() -> SessionContext { SessionContext::new() }
 
+/// Utility method to give default listing options from a format and partitions
 pub fn listing_options(format: String, partition: Vec<(&str, String)>) -> ListingOptions {
     let (ext, file_format) = df_format(&format);
     ListingOptions {
         file_extension: ext.to_string(),
         format: file_format,
-        table_partition_cols: partition.iter().map(|p| p.0.to_string()).collect(),
+        table_partition_cols: partition.iter().map(|p| (p.0.to_string(), DataType::Utf8)).collect(),
         collect_stat: true,
         target_partitions: 8,
+        file_sort_order: None,
+        infinite_source: false,
     }
 }
 
 pub const DEFAULT_TABLE_NAME: &str = "listing_table";
 
+/// Reads multiple table paths with a common format into a unified stream of batches
 pub fn multitables_as_stream<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
@@ -141,6 +136,7 @@ pub fn multitables_as_stream<P: 'static + AsRef<Path> + Debug>(
     tokio_stream::iter(s).flatten()
 }
 
+/// Reads a single table path with a common format into a unified stream of batches
 pub fn tables_as_stream<P: 'static + AsRef<Path> + Debug>(
     base_path: P,
     partitions: Vec<(&'static str, String)>,
@@ -178,6 +174,7 @@ pub fn tables_as_stream<P: 'static + AsRef<Path> + Debug>(
     }
 }
 
+/// Reads multiple table paths with a common format into a single record batch
 pub async fn multitables_as_df<P: 'static + AsRef<Path> + Debug>(
     table_paths: HashSet<(P, Vec<(&'static str, String)>)>,
     format: String,
@@ -212,6 +209,7 @@ pub async fn multitables_as_df<P: 'static + AsRef<Path> + Debug>(
     Ok(rb)
 }
 
+/// Reads a single table path with a common format into a single record batch
 pub async fn tables_as_df<P: 'static + AsRef<Path> + Debug>(
     base_path: P,
     partitions: Vec<(&'static str, String)>,
@@ -245,18 +243,19 @@ pub async fn tables_as_df<P: 'static + AsRef<Path> + Debug>(
     Ok(rb)
 }
 
+// TODO: see if this can be done without hopping through a listing table first
 pub async fn table_as_df(
     base_path: String,
     partitions: Vec<(&'static str, String)>,
     format: String,
     table_name: Option<String>,
     sql_query: String,
-) -> crate::error::Result<Arc<dyn DataFrame>> {
+) -> crate::error::Result<DataFrame> {
     let table_name = table_name.unwrap_or_else(|| DEFAULT_TABLE_NAME.to_string());
-    let mut ctx = crate::datafusion_util::new_context();
+    let ctx = new_context();
     let listing_options = listing_options(format, partitions.clone());
 
-    ctx.register_listing_table("listing_table", &base_path, listing_options, None)
+    ctx.register_listing_table("listing_table", &base_path, listing_options, None, None)
         .await
         .map_err(|err| {
             error!(
@@ -266,17 +265,19 @@ pub async fn table_as_df(
             );
             err
         })?;
-    let mut table: Arc<dyn DataFrame> = ctx.clone().table("listing_table")?;
+    let mut table: DataFrame = ctx.clone().table("listing_table").await?;
     if let Some(filter) = partition_filter_clause(partitions) {
         table = table.filter(filter)?;
     }
-    let df_impl = Arc::new(DataFrameImpl::new(ctx.state.clone(), &table.to_logical_plan()));
-    ctx.register_table(table_name.as_str(), df_impl.clone())?;
+    let df_impl = DataFrame::new(ctx.state().clone(), table.into_optimized_plan().unwrap().clone());
+    let provider = df_impl.into_view();
+    ctx.register_table(table_name.as_str(), provider)?;
     ctx.clone().sql(&sql_query).await.err_into()
 }
 
+/// Prints each column of a struct array (giving a name to the struct array itself)
 pub fn print_struct_schema(sa: &StructArray, name: &str) {
-    for (i, column) in sa.fields().iter().enumerate() {
+    for (i, column) in sa.columns().iter().enumerate() {
         trace!("{}[{}] = {:?}", name, i, column.data_type());
     }
 }

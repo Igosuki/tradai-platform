@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use actix::Handler;
 use avro_rs::Schema;
-use chrono::{Duration, TimeZone, Utc};
+use chrono::{Duration, TimeZone, Timelike, Utc};
 
 use brokers::types::{MarketEvent, MarketEventEnvelope};
 
@@ -43,11 +43,13 @@ impl Partitioner<MarketEventEnvelope> for MarketEventPartitioner {
                 .join(channel)
                 .join(format!("pr={}", pair))
                 .join(format!("dt={}", dt_par));
-            let date = ts.date();
-            Partition::new(
-                path,
-                Some(date.and_hms(0, 0, 0).add(Duration::days(1)).add(self.grace_period)),
-            )
+            let midnight = ts
+                .with_hour(0)
+                .and_then(|d| d.with_minute(0))
+                .and_then(|d| d.with_second(0))
+                .unwrap();
+
+            Partition::new(path, Some(midnight.add(Duration::days(1)).add(self.grace_period)))
         })
     }
 }

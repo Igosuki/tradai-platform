@@ -1,16 +1,16 @@
 use std::ops::{Add, Mul, Sub};
 use std::sync::Arc;
 
-use chrono::{DateTime, Duration, TimeZone, Utc};
+use chrono::{DateTime, Duration, Utc};
 use itertools::Itertools;
 
 use db::Storage;
 use stats::iter::{CovarianceExt, MeanExt, VarianceExt};
 use stats::Next;
 use strategy::error::*;
-use strategy::models::{Model, PersistentWindowedModel, Sampler, Window, WindowedModel};
+use strategy::models::{Model, PersistentReducer, Sampler, Window, WindowedModel};
 use trading::book::BookPosition;
-use util::time::now;
+use util::time::{now, utc_zero};
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct DualBookPosition {
@@ -66,7 +66,7 @@ const LM_AGE_CUTOFF_RATIO: f64 = 0.0013;
 #[derive(Debug)]
 pub struct LinearSpreadModel {
     sampler: Sampler,
-    linear_model: PersistentWindowedModel<DualBookPosition, LinearModelValue>,
+    linear_model: PersistentReducer<DualBookPosition, LinearModelValue>,
     last_sample_time_at_eval: DateTime<Utc>,
     beta_eval_freq: i32,
 }
@@ -80,9 +80,9 @@ impl LinearSpreadModel {
         eval_freq: i32,
     ) -> Self {
         Self {
-            sampler: Sampler::new(sample_freq, Utc.timestamp_millis_opt(0)).unwrap(),
-            linear_model: PersistentWindowedModel::new(id, db, window_size, None, linear_model, None),
-            last_sample_time_at_eval: Utc.timestamp_millis_opt(0).unwrap(),
+            sampler: Sampler::new(sample_freq, utc_zero()),
+            linear_model: PersistentReducer::new(id, db, window_size, None, linear_model, None),
+            last_sample_time_at_eval: utc_zero(),
             beta_eval_freq: eval_freq,
         }
     }
@@ -137,11 +137,7 @@ impl LinearSpreadModel {
 
     pub fn try_load(&mut self) -> strategy::error::Result<()> {
         self.linear_model.try_load()?;
-        self.last_sample_time_at_eval = self
-            .linear_model
-            .last_model_time()
-            .unwrap_or_else(|| Utc.timestamp_millis_opt(0))
-            .unwrap();
+        self.last_sample_time_at_eval = self.linear_model.last_value_time().unwrap_or_else(utc_zero);
         trace!(loaded_model_time = %self.last_sample_time_at_eval, "model loaded");
         if self.linear_model.is_loaded() {
             Ok(())
@@ -155,7 +151,7 @@ impl LinearSpreadModel {
     /// Check that model is more recent than sample freq * (eval frequency + `CUTOFF_RATIO`%)
     #[allow(clippy::cast_possible_truncation, clippy::cast_lossless)]
     pub(super) fn is_obsolete(&self) -> bool {
-        self.linear_model.last_model_time().map_or(false, |at| {
+        self.linear_model.last_value_time().map_or(false, |at| {
             at.gt(&now().sub(
                 self.sampler
                     .freq()
@@ -164,7 +160,7 @@ impl LinearSpreadModel {
         })
     }
 
-    pub(super) fn has_model(&self) -> bool { self.linear_model.has_model() && self.linear_model.is_loaded() }
+    pub(super) fn has_model(&self) -> bool { self.linear_model.has_value() && self.linear_model.is_loaded() }
 
     pub(super) fn value(&self) -> Option<LinearModelValue> { self.linear_model.value() }
 

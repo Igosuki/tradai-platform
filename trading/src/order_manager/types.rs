@@ -307,7 +307,7 @@ impl OrderDetail {
         self.update_weighted_price();
         self.updated_at = Utc::now();
         self.total_executed_qty = self.fills.iter().map(|f| f.qty).sum();
-        self.open_at = Some(Utc.timestamp_millis_opt(submission.timestamp)).unwrap();
+        self.open_at = Some(Utc.timestamp_millis_opt(submission.timestamp).unwrap());
         if self.status == OrderStatus::Filled {
             self.closed_at = Some(now());
         }

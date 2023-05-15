@@ -12,7 +12,7 @@ use db::{DbEngineOptions, DbOptions, RocksDbOptions};
 use strategy::settings::StrategyCopySettings;
 use strategy::settings::StrategyDriverSettings;
 use util::test::test_dir;
-use util::time::DateRange;
+use util::time::{utc_at_midnight, DateRange};
 
 use crate::backtest::init_brokerages;
 
@@ -40,7 +40,7 @@ impl Period {
         match self {
             Period::Since { since } => {
                 let now = Utc::now();
-                DateRange::by_day(now.sub(*since).date().and_hms(0, 0, 0), now.date().and_hms(0, 0, 0))
+                DateRange::by_day(utc_at_midnight(now.sub(*since)), utc_at_midnight(now))
             }
             Period::Interval { from, to } => DateRange::by_day(
                 Utc.from_utc_datetime(from),
@@ -113,7 +113,7 @@ impl BacktestConfig {
     pub(crate) fn coindata_cache_dir(&self) -> PathBuf {
         self.coindata_cache_dir
             .clone()
-            .unwrap_or_else(|| Path::new(&std::env::var("COINDATA_CACHE_DIR").unwrap()).to_path_buf())
+            .unwrap_or_else(|| Path::new(&std::env::var("TRADAI_DATA_CACHE_DIR").unwrap()).to_path_buf())
     }
 
     pub(crate) async fn all_strategy_settings(&self) -> Vec<StrategyDriverSettings> {

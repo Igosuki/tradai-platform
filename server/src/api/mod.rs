@@ -63,13 +63,13 @@ async fn graphiql_handler() -> Result<HttpResponse, Error> { self::graphql::grap
 
 async fn playground_handler() -> Result<HttpResponse, Error> { self::graphql::playground_handler("/", None).await }
 
-type BrokerageData = web::Data<Arc<HashMap<Exchange, Arc<dyn Brokerage>>>>;
+type BrokerageData = web::Data<Arc<BrokerageRegistry>>;
 type StratsData = web::Data<Arc<HashMap<StrategyKey, Trader>>>;
 type OrderManagerData = web::Data<Arc<HashMap<Exchange, Addr<OrderManager>>>>;
 
 async fn graphql(
     req: actix_web::HttpRequest,
-    payload: actix_web::web::Payload,
+    payload: web::Payload,
     schema: web::Data<Schema>,
     strats: StratsData,
     exchanges: BrokerageData,
@@ -130,44 +130,38 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use actix::Addr;
     use actix_web::http::header::ContentType;
     use actix_web::web::Data;
     use actix_web::{http::StatusCode, test, web, App};
-    use brokers::manager::BrokerageRegistry;
     use tokio::time::timeout;
 
+    use brokers::manager::BrokerageRegistry;
     use brokers::prelude::*;
-    use strategy::{StrategyKey, Trader};
-    use trading::order_manager::OrderManager;
+    use util::test::test_config_path;
 
     use crate::api::config_app;
     use crate::graphql_schemas::root::create_schema;
-    #[allow(unused_imports)]
-    use brokers::broker_binance::BinanceExchangeConnector;
+    use crate::settings::Version;
+    use crate::{OrderManagerRegistry, StrategyRegistry};
 
-    fn strats() -> HashMap<StrategyKey, Trader> { HashMap::new() }
-
-    fn oms() -> Arc<HashMap<Exchange, Addr<OrderManager>>> { Arc::new(HashMap::default()) }
+    static DEFAULT_SYMBOL: &str = "BTC_USDT";
 
     async fn test_apis() -> BrokerageRegistry {
-        let exchanges = [(Exchange::Binance, BrokerSettings {
-            orderbook: None,
-            orderbook_depth: None,
-            trades: None,
+        let exchanges = HashMap::from([(Exchange::Binance, BrokerSettings {
+            market_channels: vec![],
             fees: 0.1,
             use_account: true,
             use_margin_account: true,
             use_isolated_margin_account: true,
             isolated_margin_account_pairs: vec![],
-            use_test: false,
-        })]
-        .iter()
-        .cloned()
-        .collect();
+            use_test: true,
+        })]);
         let manager = Arc::new(Brokerages::new_manager());
         manager
-            .build_exchange_apis(Arc::new(exchanges), "../config/keys_real_test.json".into())
+            .build_exchange_apis(
+                Arc::new(exchanges),
+                format!("{}/keys_real_test.json", test_config_path()).into(),
+            )
             .await;
         Brokerages::load_pair_registries(manager.exchange_apis()).await.unwrap();
         manager.exchange_apis().clone()
@@ -175,34 +169,37 @@ mod tests {
 
     fn build_test_api(apis: BrokerageRegistry, cfg: &mut web::ServiceConfig) {
         let schema = create_schema();
-        let strats: Arc<HashMap<StrategyKey, Trader>> = Arc::new(strats());
-        cfg.app_data(Data::new(apis))
-            .app_data(Data::new(schema))
+        let strats: Arc<StrategyRegistry> = Arc::new(Default::default());
+        let oms: Arc<OrderManagerRegistry> = Arc::new(Default::default());
+        cfg.app_data(Data::new(schema))
+            .app_data(Data::new(Arc::new(apis)))
             .app_data(Data::new(strats))
-            .app_data(Data::new(Arc::new(oms())));
+            .app_data(Data::new(oms))
+            .app_data(Data::new(Some(Version {
+                version: "test".to_string(),
+                sha: "test".to_string(),
+            })));
         config_app(cfg);
     }
 
     // TODO: plugin registry not working
-    #[actix_rt::test]
-    #[ignore]
+    #[test_log::test(actix::test)]
     async fn test_add_order() {
         let apis = test_apis().await;
         let app = App::new().configure(|cfg| build_test_api(apis.clone(), cfg));
         let app = test::init_service(app).await;
         let binance_api = apis.get(&Exchange::Binance).unwrap();
-        let _ob = binance_api.orderbook("BTC_USDT".into()).await.unwrap();
+        let _ob = binance_api.orderbook(DEFAULT_SYMBOL.into()).await.unwrap();
         let price = 35_000.020_000_00;
         let _o = crate::api::Order {
             exchg: Exchange::Binance,
             t: OrderType::Limit,
-            pair: "BTC_USDT".into(),
+            pair: DEFAULT_SYMBOL.into(),
             qty: 0.000_001_00,
             price,
         };
         let string = format!(
-            r##"{{"variables": null, "query": "mutation {{ addOrder(input:{{exchg:\"Binance\", orderType: LIMIT,side: SELL, pair:\"BTC_USDT\", quantity: 0.0015, dryRun: true, price: {} }}) {{ identifier }} }}" }}"##,
-            price
+            r##"{{"variables": null, "query": "mutation {{ addOrder(input:{{exchg:\"binance\", orderType: LIMIT,side: SELL, pair:\"{DEFAULT_SYMBOL}\", quantity: 0.0015, dryRun: true, price: {price} }}) {{ identifier }} }}" }}"##
         );
         println!("{}", string);
         let req = test::TestRequest::post()

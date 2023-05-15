@@ -3,26 +3,87 @@ use core::option::Option::{None, Some};
 use std::collections::BTreeMap;
 
 use actix::Message;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Duration, TimeZone, Utc};
 use ordered_float::OrderedFloat;
-use util::time::now;
 use uuid::Uuid;
 
+use crate::broker::{MarketEventEnvelopeRef, Subject};
+use stats::kline::Resolution;
+use util::ser::{decode_duration_opt, encode_duration_str_opt};
+use util::time::now;
+
+use crate::exchange::Exchange;
 use crate::types::order::{Order, OrderEnforcement, OrderStatus, TradeType};
 use crate::types::{Pair, Price, SecurityType, Symbol, Volume};
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Deserialize, AsRefStr)]
-pub enum StreamChannel {
-    #[strum(serialize = "trades")]
+/// A market channel represents a unique stream of data that will be required to run a strategy
+/// Historical and Real-Time data will be provided from this on a best effort basis.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, typed_builder::TypedBuilder)]
+pub struct MarketChannel {
+    /// A unique identifier for the security requested by this market data channel
+    pub symbol: Symbol,
+    /// The type of the ticker
+    pub r#type: MarketChannelType,
+    /// The minimal tick rate for the data, in reality max(tick_rate, exchange_tick_rate) will be used
+    #[builder(default)]
+    #[serde(deserialize_with = "decode_duration_opt", serialize_with = "encode_duration_str_opt")]
+    pub tick_rate: Option<Duration>,
+    /// If set, the data will be aggregated in OHLCV candles
+    #[builder(default)]
+    pub resolution: Option<Resolution>,
+    /// Only send final candles
+    #[builder(default)]
+    pub only_final: Option<bool>,
+    #[builder(default)]
+    pub orderbook: Option<OrderbookConf>,
+}
+
+impl MarketChannel {
+    pub fn exchange(&self) -> Exchange { self.symbol.xch }
+
+    pub fn pair(&self) -> &Pair { &self.symbol.value }
+
+    pub fn name(&self) -> &'static str {
+        match self.r#type {
+            MarketChannelType::Trades => "trades",
+            MarketChannelType::Orderbooks { .. } => "order_books",
+            MarketChannelType::OpenInterest => "interests",
+            MarketChannelType::Candles => "candles",
+            MarketChannelType::Quotes => "quotes",
+            MarketChannelType::QuotesCandles => "book_candles",
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum MarketChannelType {
+    /// Raw Trades see [MarketEvent::Trade]
     Trades,
-    #[strum(serialize = "orders")]
-    Orders,
-    #[strum(serialize = "order_book")]
-    PlainOrderbook,
-    #[strum(serialize = "full_order_book")]
-    DetailedOrderbook,
-    #[strum(serialize = "diff_order_book")]
-    DiffOrderbook,
+    /// Order book changes see [MarketEvent::Orderbook]
+    Orderbooks,
+    /// Kline events see [MarketEvent::CandleTick]
+    Candles,
+    /// Open interest for futures see [MarketEvent::OpenInterest]
+    OpenInterest,
+    /// Layer 1 order book quotes see [MarketEvent::Quote]
+    Quotes,
+    /// Kline for layer 1 order book [MarketEvent::BookCandle]
+    QuotesCandles,
+}
+
+impl From<&MarketEvent> for MarketChannelType {
+    fn from(e: &MarketEvent) -> Self {
+        match e {
+            MarketEvent::Trade(_) => Self::Trades,
+            MarketEvent::Orderbook(_) => Self::Orderbooks,
+            MarketEvent::TradeCandle(_) => Self::Candles,
+            MarketEvent::BookCandle(_) => Self::QuotesCandles,
+        }
+    }
+}
+
+impl From<MarketEvent> for MarketChannelType {
+    fn from(e: MarketEvent) -> Self { From::from(&e) }
 }
 
 #[derive(Debug)]
@@ -60,17 +121,12 @@ impl LiveAggregatedOrderBook {
     }
 
     pub fn order_book(&self) -> Orderbook {
-        let asks: Vec<Offer> = self
-            .asks_by_price
-            .iter()
-            .map(|(_, v)| *v)
-            .take(self.depth as usize)
-            .collect();
+        let asks: Vec<Offer> = self.asks_by_price.values().copied().take(self.depth as usize).collect();
         let bids: Vec<Offer> = self
             .bids_by_price
-            .iter()
+            .values()
+            .copied()
             .rev()
-            .map(|(_, v)| *v)
             .take(self.depth as usize)
             .collect();
         //        debug!("Latest order book highest ask {:?}", latest_order_book.asks.get(0).map(|(k, v)| (k.as_f32().unwrap(), v.as_f32().unwrap())));
@@ -187,6 +243,7 @@ pub struct Trade {
     pub tt: TradeType,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Message, Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[rtype(result = "()")]
 #[serde(tag = "type")]
@@ -470,8 +527,8 @@ impl From<Order> for OrderUpdate {
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Hash)]
 pub struct OrderbookConf {
-    depth: Option<u16>,
-    level: OrderbookLevel,
+    pub depth: Option<u16>,
+    pub level: OrderbookLevel,
 }
 
 impl Default for OrderbookConf {
@@ -601,4 +658,31 @@ pub struct BookTick {
     pub bid: f64,
     pub bidq: f64,
     pub mid: f64,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct MarketChannelTopic(pub Symbol, pub MarketChannelType);
+
+impl From<MarketEventEnvelope> for MarketChannelTopic {
+    fn from(e: MarketEventEnvelope) -> Self { MarketChannelTopic(e.symbol, e.e.into()) }
+}
+
+impl From<&MarketEventEnvelope> for MarketChannelTopic {
+    fn from(e: &MarketEventEnvelope) -> Self { MarketChannelTopic(e.symbol.clone(), (&e.e).into()) }
+}
+
+impl From<MarketEventEnvelopeRef> for MarketChannelTopic {
+    fn from(e: MarketEventEnvelopeRef) -> Self { (e.as_ref()).into() }
+}
+
+impl Subject<MarketEventEnvelope> for MarketChannelTopic {}
+
+impl Subject<MarketEventEnvelopeRef> for MarketChannelTopic {}
+
+impl From<MarketChannel> for MarketChannelTopic {
+    fn from(mc: MarketChannel) -> Self { Self(mc.symbol, mc.r#type) }
+}
+
+impl From<&MarketChannel> for MarketChannelTopic {
+    fn from(mc: &MarketChannel) -> Self { Self(mc.symbol.clone(), mc.r#type) }
 }

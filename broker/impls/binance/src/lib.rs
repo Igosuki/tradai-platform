@@ -35,7 +35,7 @@ pub use self::account_api::BinanceStreamingAccountApi;
 pub use self::api::BinanceApi;
 pub use self::streaming_api::BinanceStreamingApi;
 
-#[async_trait(?Send)]
+#[async_trait(? Send)]
 impl BrokerConnector for BinanceExchangeConnector {
     async fn new_api(&self, ctx: BrokerageInitContext) -> broker_core::error::Result<Arc<dyn Brokerage>> {
         let api: Arc<dyn Brokerage> = Arc::new(if ctx.use_test_servers {
@@ -50,15 +50,8 @@ impl BrokerConnector for BinanceExchangeConnector {
         &self,
         ctx: BrokerageBotInitContext,
     ) -> broker_core::error::Result<Box<MarketDataStreamer>> {
-        let b: Box<dyn DataStreamer<MarketEventEnvelopeRef>> = Box::new(
-            BinanceStreamingApi::try_new(
-                ctx.creds.as_ref(),
-                ctx.channels,
-                ctx.settings.use_test,
-                ctx.settings.orderbook_depth,
-            )
-            .await?,
-        );
+        let b: Box<dyn DataStreamer<MarketEventEnvelopeRef>> =
+            Box::new(BinanceStreamingApi::try_new(ctx.creds.as_ref(), ctx.channels, ctx.settings.use_test).await?);
         Ok(b)
     }
 

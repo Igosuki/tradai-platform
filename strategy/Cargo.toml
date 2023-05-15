@@ -76,7 +76,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 # python
-pyo3 = { version = "^0.17", optional = true }
+pyo3 = { workspace = true, optional = true }
 
 [dev-dependencies]
 # ours
@@ -106,7 +106,7 @@ multimap = { workspace = true }
 
 # http
 http = "0.2"
-httpmock = { workspace = true, default-features = false }
+httpmock = { workspace = true }
 socket2 = "0.4"
 
 # Async

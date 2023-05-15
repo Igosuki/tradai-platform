@@ -4,21 +4,25 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use actix::Recipient;
+use multimap::MultiMap;
 use tracing::Instrument;
 
 use brokers::bot::{BrokerageAccountDataStreamer, DataStreamer, MarketDataStreamer, Ping};
 use brokers::pair::pair_to_symbol;
 use brokers::prelude::*;
-use brokers::types::PrivateStreamChannel;
+use brokers::types::{MarketChannel, PrivateStreamChannel};
 
-pub async fn exchange_bots<'a>(
-    exchanges_settings: Arc<HashMap<Exchange, BrokerSettings>>,
+pub async fn market_data_bots<'a>(
+    brokers_settings: Arc<HashMap<Exchange, BrokerSettings>>,
     keys_path: PathBuf,
+    market_channels: &MultiMap<Exchange, MarketChannel>,
 ) -> anyhow::Result<HashMap<Exchange, Box<MarketDataStreamer>>> {
     let mut bots: HashMap<Exchange, Box<MarketDataStreamer>> = HashMap::new();
-    for (xch, conf) in exchanges_settings.clone().iter() {
+    for (xch, conf) in brokers_settings.clone().iter() {
         let creds = Brokerages::credentials_for(*xch, keys_path.clone())?;
-        let bot = Brokerages::new_market_bot(*xch, creds, conf.clone())
+        let empty_vec = vec![];
+        let vec = market_channels.get_vec(xch).unwrap_or(&empty_vec);
+        let bot = Brokerages::new_market_bot(*xch, creds, conf.clone(), &vec)
             .instrument(tracing::info_span!("new exchange stream", xchg = ?xch))
             .await?;
         bots.insert(*xch, bot);

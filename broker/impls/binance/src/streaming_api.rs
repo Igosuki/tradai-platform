@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -33,34 +33,37 @@ use super::adapters::*;
 #[derive(Clone)]
 pub struct BinanceStreamingApi {
     books: Arc<DashMap<Pair, LiveAggregatedOrderBook>>,
-    channels: HashMap<StreamChannel, HashSet<Pair>>,
+    channels: Vec<MarketChannel>,
     sink: UnboundedSender<MarketEventEnvelopeRef>,
     api: Arc<BinanceApi>,
     metrics: Arc<ExchangeMetrics>,
-    orderbook_depth: Option<u16>,
+    orderbook_depths: HashMap<Pair, u16>,
 }
 
 impl BinanceStreamingApi {
     /// Create a new binance exchange bot, unavailable channels and currencies are ignored
     pub async fn try_new(
         creds: &dyn Credentials,
-        channels: HashMap<StreamChannel, HashSet<Pair>>,
+        channels: Vec<MarketChannel>,
         use_test: bool,
-        orderbook_depth: Option<u16>,
     ) -> Result<BotWrapper<DefaultWsActor, UnboundedReceiverStream<MarketEventEnvelopeRef>>> {
         let metrics = ExchangeMetrics::for_exchange(Exchange::Binance);
         let conf = if use_test { Config::testnet() } else { Config::default() };
         let exchange_api = BinanceApi::new_with_config(creds, conf.clone()).await?;
-        let endooint = conf.ws_endpoint;
-        let url = Self::streams_url(orderbook_depth, &channels, &endooint)?;
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let url = Self::streams_url(&channels, &conf.ws_endpoint)?;
+        let (tx, rx) = mpsc::unbounded_channel();
+        let orderbook_depths: HashMap<Pair, u16> = channels
+            .iter()
+            .filter(|c| c.orderbook.is_some())
+            .map(|c| (c.pair().clone(), c.orderbook.unwrap().depth.unwrap()))
+            .collect();
         let api = Arc::new(Self {
             sink: tx.clone(),
             books: Arc::new(DashMap::new()),
             channels,
             api: Arc::new(exchange_api),
             metrics: Arc::new(metrics),
-            orderbook_depth,
+            orderbook_depths,
         });
 
         let addr = DefaultWsActor::new(
@@ -75,25 +78,18 @@ impl BinanceStreamingApi {
         Ok(BotWrapper::new(addr, UnboundedReceiverStream::new(rx)))
     }
 
-    fn streams_url(
-        orderbook_depth: Option<u16>,
-        channels: &HashMap<StreamChannel, HashSet<Pair>>,
-        endpoint: &str,
-    ) -> Result<Url> {
+    fn streams_url(channels: &[MarketChannel], endpoint: &str) -> Result<Url> {
         let mut url = Url::parse(endpoint)?;
         url.path_segments_mut()
             .map_err(|_| Error::ParseUrl(url::ParseError::RelativeUrlWithoutBase))?
             .push(binance::websockets::STREAM_ENDPOINT);
         let stream_str = channels
             .iter()
-            .map(|(c, v)| {
-                let pairs: Vec<String> = v
-                    .iter()
-                    .flat_map(|pair| pair_to_symbol(&Exchange::Binance, pair))
-                    .map(|s| s.to_string())
-                    .collect();
-                let sub = &subscription(*c, &pairs, 0, orderbook_depth);
-                sub.params.join("/")
+            .flat_map(|c| {
+                pair_to_symbol(&Exchange::Binance, c.pair()).and_then(|pair| {
+                    let sub = &subscription(c, &[pair.to_string()], 0, c.orderbook.and_then(|oc| oc.depth));
+                    Ok(sub.params.join("/"))
+                })
             })
             .join("/");
         url.set_query(Some(&format!("streams={}", stream_str)));
@@ -104,12 +100,16 @@ impl BinanceStreamingApi {
     // TODO: this is generic
     #[allow(dead_code)]
     async fn refresh_order_books(&self) {
-        let order_book_pairs = self.channels.get(&StreamChannel::DiffOrderbook);
-        if order_book_pairs.is_none() {
+        let order_book_pairs: Vec<Pair> = self
+            .channels
+            .iter()
+            .filter(|c| c.r#type == MarketChannelType::Orderbooks)
+            .map(|c| c.symbol.value.clone())
+            .collect();
+        if order_book_pairs.is_empty() {
             return;
         }
         let mut orderbooks_futs: Vec<Receiver<Result<Orderbook>>> = order_book_pairs
-            .unwrap()
             .iter()
             .map(|pair| {
                 let api_c = self.api.clone();
@@ -134,7 +134,10 @@ impl BinanceStreamingApi {
         let received: Vec<Option<Result<Orderbook>>> = recv_futs.collect().await;
         for ob in received.iter().flatten().flatten() {
             let books = &self.books;
-            let default_book = LiveAggregatedOrderBook::default_with_depth(ob.pair.clone(), self.orderbook_depth);
+            let default_book = LiveAggregatedOrderBook::default_with_depth(
+                ob.pair.clone(),
+                self.orderbook_depths.get(&ob.pair).copied(),
+            );
             let mut agg = books.entry(ob.pair.clone()).or_insert(default_book);
             agg.set_last_order_id(ob.last_order_id.clone());
             agg.set_ts(ob.timestamp);
@@ -159,9 +162,9 @@ impl BinanceStreamingApi {
     {
         // Plumbing, init the book for the pair if it didn't exist
         let books = self.books.as_ref();
-        let mut agg = books
-            .entry(pair.clone())
-            .or_insert_with(|| LiveAggregatedOrderBook::default_with_depth(pair.clone(), self.orderbook_depth));
+        let mut agg = books.entry(pair.clone()).or_insert_with(|| {
+            LiveAggregatedOrderBook::default_with_depth(pair.clone(), self.orderbook_depths.get(pair).copied())
+        });
         f(&mut agg);
         agg.latest_order_book().map(|b| self.log_book(b))
     }
@@ -256,7 +259,7 @@ impl BinanceStreamingApi {
 impl WsHandler for BinanceStreamingApi {
     #[cfg_attr(feature = "flame", flame)]
     fn handle_in(&self, _w: &mut SinkWrite<Message, WsFramedSink>, msg: Bytes) {
-        if msg.bytes().as_slice().contains_str("result") {
+        if msg.contains_str("result") {
             let v: Result<QueryResult> = serde_json::from_slice(msg.as_ref()).map_err(Error::Json);
             match v {
                 Ok(r) => info!("Got result for id {} : {:?}", r.id, r.result),

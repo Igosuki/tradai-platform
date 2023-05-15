@@ -4,8 +4,6 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [[example]]
 name = "pyo3_async"
 path = "examples/pyo3_async.rs"
@@ -21,8 +19,8 @@ static = ["db/rocksdb-vendor"]
 
 [dependencies]
 
-arrow = { package = "arrow2", version = "0.10", optional = true }
-
+arrow = { version = "33.0.0", optional = true, features = ["ffi"] }
+#datafusion-python = { git = "https://github.com/apache/arrow-datafusion-python", rev = "5ae7c5025fdb04a2d5f06ba1aa70ecc32aad8cfd" }
 strategy = { path = "../strategy", features = ["python"] }
 trading = { path = "../trading" }
 ext = { path = "../ext" }
@@ -41,17 +39,16 @@ anyhow = { workspace = true }
 uuid = { workspace = true, features = ["v4", "fast-rng"] }
 strum = { workspace = true }
 strum_macros = { workspace = true }
+indoc = "2.0"
 
 # log / trace
 tracing = { workspace = true }
 log = { workspace = true }
 
 # python
-pyo3 = { workspace = true, features = ["serde", "auto-initialize", "anyhow", "macros"] }
+pyo3 = { workspace = true, features = ["serde", "auto-initialize", "anyhow", "macros", "chrono"] }
 pyo3-asyncio = { workspace = true }
-pyo3-chrono = { version = "0.5", features = ["serde"] }
-canonical_json = { version = "0.4.0", optional = true }
-inline-python = { version = "0.10" }
+inline-python = { git = "https://github.com/Igosuki/inline-python" }
 #dict_derive = "0.4.0"
 pythonize = { workspace = true }
 
@@ -65,4 +62,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]
+
+
 

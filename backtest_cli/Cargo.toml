@@ -18,7 +18,7 @@ default = ["release_max_level_trace"]
 release_max_level_debug = ["backtest/release_max_level_debug"]
 release_max_level_trace = ["backtest/release_max_level_trace"]
 console = ["util/console_tracing"]
-python  = ["tradai_python"]
+python = ["tradai_python"]
 strats_backtests = ["strategies/backtests"]
 
 [dependencies]

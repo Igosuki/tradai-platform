@@ -1,8 +1,9 @@
 use crate::error::Error;
 use crate::exchange::Exchange;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use std::hash::{Hash, Hasher};
 use string_cache::DefaultAtom as Atom;
+use util::time::utc_zero;
 
 pub type Amount = f64;
 pub type Price = f64;
@@ -63,6 +64,21 @@ pub enum SecurityType {
 
 impl SecurityType {
     pub fn is_option(&self) -> bool { matches!(self, Self::Option | Self::FutureOption | Self::IndexOption) }
+
+    pub fn short(&self) -> &'static str {
+        match self {
+            SecurityType::Equity => "eqty",
+            SecurityType::Option => "opt",
+            SecurityType::Commodity => "comm",
+            SecurityType::Forex => "frx",
+            SecurityType::Future => "futures",
+            SecurityType::Cfd => "cfd",
+            SecurityType::Crypto => "spot",
+            SecurityType::FutureOption => "fut_opt",
+            SecurityType::Index => "idx",
+            SecurityType::IndexOption => "idx_opt",
+        }
+    }
 }
 
 /// A unique value for a ticker symbol, an exchange market, and a security type
@@ -70,7 +86,7 @@ impl SecurityType {
 pub struct Symbol {
     pub r#type: SecurityType,
     /// First date at which the security was traded
-    #[builder(default_code = "Utc.timestamp_millis_opt(0)").unwrap()]
+    #[builder(default_code = "util::time::utc_zero()")]
     pub date: DateTime<Utc>,
     pub value: Pair,
     pub xch: Exchange,
@@ -104,7 +120,7 @@ impl Symbol {
             .xch(exchange)
             .value(symbol)
             .r#type(SecurityType::Future)
-            .date(expiry.unwrap_or_else(|| Utc.timestamp_millis_opt(0))).unwrap()
+            .date(expiry.unwrap_or_else(utc_zero))
             .build()
     }
 

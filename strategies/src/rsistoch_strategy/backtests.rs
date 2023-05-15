@@ -10,11 +10,9 @@ mod test {
     use strategy::driver::StratProviderRef;
     use util::time::DateRange;
 
-    fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
-
     #[test]
     fn backtest() {
-        init();
+        util::test::init_test_env();
         actix::System::with_tokio_rt(move || {
             tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
@@ -46,8 +44,20 @@ mod test {
                 "rsistoch_btc",
                 provider,
                 DateRange::by_day(
-                    DateTime::from_utc(NaiveDate::from_ymd(2022, 3, 2).and_hms(0, 0, 0), Utc),
-                    DateTime::from_utc(NaiveDate::from_ymd(2022, 3, 2).and_hms(0, 2, 0), Utc),
+                    DateTime::from_utc(
+                        NaiveDate::from_ymd_opt(2022, 3, 2)
+                            .unwrap()
+                            .and_hms_opt(0, 0, 0)
+                            .unwrap(),
+                        Utc,
+                    ),
+                    DateTime::from_utc(
+                        NaiveDate::from_ymd_opt(2022, 3, 2)
+                            .unwrap()
+                            .and_hms_opt(0, 2, 0)
+                            .unwrap(),
+                        Utc,
+                    ),
                 ),
                 Some(10000.0),
                 Some(0.0004),

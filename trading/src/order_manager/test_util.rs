@@ -19,8 +19,6 @@ use db::{get_or_create, DbOptions};
 use crate::order_manager::types::OrderDetail;
 use crate::order_manager::{OrderManager, OrderManagerClient};
 
-pub fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
-
 /// # Panics
 ///
 /// if the exchange cannot be buitl

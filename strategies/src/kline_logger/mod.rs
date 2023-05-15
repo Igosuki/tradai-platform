@@ -1,12 +1,11 @@
 use brokers::prelude::*;
-use brokers::types::{SecurityType, Symbol};
+use brokers::types::{MarketChannel, MarketChannelType, SecurityType, Symbol};
 use serde_json::Value;
 use std::collections::HashSet;
 use strategy::driver::{DefaultStrategyContext, Strategy, TradeSignals};
 use strategy::error::*;
 use strategy::plugin::{provide_options, StrategyPlugin};
 use strategy::settings::DefaultOptions;
-use strategy::{MarketChannel, MarketChannelType};
 
 inventory::submit! {
     StrategyPlugin::new("kline_logger", provide_options::<DefaultOptions>, |name, _ctx, _conf| {

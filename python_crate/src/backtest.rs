@@ -2,18 +2,16 @@ use actix::SystemRunner;
 use std::sync::Arc;
 use std::thread;
 
-use backtest::report::BacktestReport;
-use backtest::{backtest_with_events, backtest_with_range, load_market_events, load_market_events_df, RecordBatch};
-use chrono::{TimeZone, Utc};
+use ::backtest::report::BacktestReport;
+use ::backtest::{backtest_with_events, backtest_with_range, load_market_events, load_market_events_df, RecordBatch};
+use chrono::{DateTime, Utc};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3_chrono::NaiveDateTime;
 use pythonize::pythonize;
 
 use brokers::prelude::Exchange;
-use brokers::types::MarketEventEnvelope;
+use brokers::types::{MarketChannel, MarketEventEnvelope};
 use strategy::driver::{StratProviderRef, StrategyInitContext};
-use strategy::MarketChannel;
 use strategy_test_util::draw::StrategyEntryFnRef;
 use strategy_test_util::it_backtest::generic_backtest;
 use strategy_test_util::log::StrategyLog;
@@ -123,14 +121,14 @@ fn actix_multi_rt() -> SystemRunner {
 /// draw_entries must be a tuple of name for a figure, and a fn(log) -> (line_name, float).
 /// See [`wrap_draw_entry_fn`] for details
 /// deprecated
-#[pyfunction(name = "it_backtest", module = "backtest")]
-#[pyo3(text_signature = "(test_name, provider_fn, from, to, /)")]
+#[pyfunction(name = "it_backtest")]
+#[pyo3(signature = (test_name, provider_fn, from, to, * draw_entries))]
 fn it_backtest_wrapper<'p>(
     py: Python<'p>,
     test_name: &'p PyAny,
     provider_fn: &'p PyAny,
-    from: NaiveDateTime,
-    to: NaiveDateTime,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
     draw_entries: Vec<(&'p str, &'p PyAny)>,
 ) -> PyResult<&'p PyAny> {
     let name: String = test_name.extract()?;
@@ -146,6 +144,7 @@ fn it_backtest_wrapper<'p>(
         })
         .collect();
     let draw_entries = Arc::new(draw_entries);
+    let range = DateRange::by_day(from, to);
     pyo3_asyncio::tokio::future_into_py_with_locals(py, pyo3_asyncio::tokio::get_current_locals(py)?, async move {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<Position>>(1);
         thread::spawn(move || {
@@ -155,7 +154,7 @@ fn it_backtest_wrapper<'p>(
                     &name,
                     provider,
                     arc.as_slice(),
-                    backtest_range(from, to),
+                    range,
                     &[Exchange::Binance],
                     100.0,
                     0.001,
@@ -175,14 +174,14 @@ fn it_backtest_wrapper<'p>(
 /// The profider_fn must return a [`PyStrategy`] (or strategy.Strategy in python)
 /// draw_entries must be a tuple of name for a figure, and a fn(log) -> (line_name, float).
 /// See [`wrap_draw_entry_fn`] for details
-#[pyfunction(name = "backtest_with_range", module = "backtest")]
-#[pyo3(text_signature = "(test_name, provider_fn, from, to, starting_cash=None, fees_rate=None, /)")]
+#[pyfunction(name = "backtest_with_range")]
+#[pyo3(signature = (test_name, provider_fn, from, to, starting_cash = None, fees_rate = None, /))]
 fn range_backtest_wrapper<'p>(
     py: Python<'p>,
     test_name: &'p PyAny,
     provider_fn: &'p PyAny,
-    from: NaiveDateTime,
-    to: NaiveDateTime,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
     starting_cash: Option<f64>,
     fees_rate: Option<f64>,
 ) -> PyResult<&'p PyAny> {
@@ -191,7 +190,7 @@ fn range_backtest_wrapper<'p>(
         return Err(PyErr::new::<PyTypeError, _>("provider_fn must be a function"));
     }
     let provider = wrap_strat_provider(py, provider_fn);
-    let btr = backtest_range(from, to);
+    let btr = DateRange::by_day(from, to);
     pyo3_asyncio::tokio::future_into_py_with_locals(py, pyo3_asyncio::tokio::get_current_locals(py)?, async move {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<BacktestReport>(1);
         thread::spawn(move || {
@@ -208,11 +207,11 @@ fn range_backtest_wrapper<'p>(
 }
 
 /// Loads market events over a provided range and channels
-#[pyfunction(name = "market_events", module = "backtest")]
-#[pyo3(text_signature = "(channels, from, to, /)")]
-fn load_events<'p>(py: Python<'p>, channels: &'p PyAny, from: NaiveDateTime, to: NaiveDateTime) -> PyResult<&'p PyAny> {
+#[pyfunction(name = "market_events")]
+#[pyo3(signature = (channels, from, to, /))]
+fn load_events<'p>(py: Python<'p>, channels: &'p PyAny, from: DateTime<Utc>, to: DateTime<Utc>) -> PyResult<&'p PyAny> {
     let channels: Vec<PyChannel> = channels.extract()?;
-    let btr = backtest_range(from, to);
+    let btr = DateRange::by_day(from, to);
     pyo3_asyncio::tokio::future_into_py_with_locals(py, pyo3_asyncio::tokio::get_current_locals(py)?, async move {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<MarketEventEnvelope>>(1);
         thread::spawn(move || {
@@ -230,16 +229,16 @@ fn load_events<'p>(py: Python<'p>, channels: &'p PyAny, from: NaiveDateTime, to:
 }
 
 /// Lods market events over a provided range and channels
-#[pyfunction(name = "market_events_df", module = "backtest")]
-#[pyo3(text_signature = "(channels, from, to, /)")]
+#[pyfunction(name = "market_events_df")]
+#[pyo3(signature = (channels, from, to, /))]
 fn load_events_df<'p>(
     py: Python<'p>,
     channels: &'p PyAny,
-    from: NaiveDateTime,
-    to: NaiveDateTime,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
 ) -> PyResult<&'p PyAny> {
     let channels: Vec<PyChannel> = channels.extract()?;
-    let btr = backtest_range(from, to);
+    let btr = DateRange::by_day(from, to);
     pyo3_asyncio::tokio::future_into_py_with_locals(py, pyo3_asyncio::tokio::get_current_locals(py)?, async move {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<RecordBatch>>(1);
         thread::spawn(move || {
@@ -258,8 +257,8 @@ fn load_events_df<'p>(
 /// Launch a backtest with the [`BacktestRunner`]
 /// The profider_fn must return a [`PyStrategy`] (or strategy.Strategy in python)
 /// see [`load_events`] on how to load market events
-#[pyfunction(name = "backtest_with_events", module = "backtest")]
-#[pyo3(text_signature = "(test_name, provider_fn, market_events, starting_cash=None, fees_rate=None, /)")]
+#[pyfunction(name = "backtest_with_events")]
+#[pyo3(signature = (test_name, provider_fn, market_events, starting_cash = None, fees_rate = None, /))]
 fn event_backtest_wrapper<'p>(
     py: Python<'p>,
     test_name: &'p PyAny,
@@ -299,10 +298,4 @@ pub(crate) fn backtest(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyPosition>()?;
     m.add_class::<PyBacktestReport>()?;
     Ok(())
-}
-
-fn backtest_range(from: NaiveDateTime, to: NaiveDateTime) -> DateRange {
-    let from = Utc.from_utc_datetime(&from.0);
-    let to = Utc.from_utc_datetime(&to.0);
-    DateRange::by_day(from, to)
 }

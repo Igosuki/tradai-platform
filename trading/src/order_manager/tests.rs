@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use super::error::*;
 use super::test_util::{create_ok_margin_order_mock, create_ok_order_mock};
-use crate::order_manager::test_util::{init, it_order_manager, new_mock_manager};
+use crate::order_manager::test_util::{it_order_manager, new_mock_manager};
 use crate::order_manager::types::OrderId;
 use crate::order_manager::OrderManager;
 use broker_test_util::binance::{account_ws as binance_account_ws, local_api};
@@ -173,7 +173,7 @@ async fn pass_mock_order_and_expect_status(
 
 #[actix::test]
 async fn test_limit_order_workflow() -> Result<()> {
-    init();
+    util::test::init_test_env();
     let _account_server = broker_test_util::http::ws_it_server(binance_account_ws()).await;
     let (server, binance_api) = local_api().await;
     let test_dir = util::test::test_dir();
@@ -196,7 +196,7 @@ async fn test_limit_order_workflow() -> Result<()> {
 
 #[actix::test]
 async fn test_market_order_workflow() -> Result<()> {
-    init();
+    util::test::init_test_env();
     let _account_server = broker_test_util::http::ws_it_server(binance_account_ws()).await;
     let (server, binance_api) = local_api().await;
     let test_dir = util::test::test_dir();
@@ -218,7 +218,7 @@ async fn test_market_order_workflow() -> Result<()> {
 
 #[actix::test]
 async fn test_market_margin_order_workflow() -> Result<()> {
-    init();
+    util::test::init_test_env();
     let _account_server = broker_test_util::http::ws_it_server(binance_account_ws()).await;
     let (server, binance_api) = local_api().await;
     let test_dir = util::test::test_dir();
@@ -269,14 +269,14 @@ async fn pass_live_order(om: Addr<OrderManager>, request: AddOrderRequest) -> Re
 #[cfg(feature = "live_e2e_tests")]
 #[actix::test]
 async fn test_live_market_margin_order_workflow() -> Result<()> {
-    use brokers::{coinnect::Coinnect, types::AccountType};
+    use brokers::{broker::Broker, types::AccountType};
 
-    init();
+    util::test::init_test_env();
     let test_dir = util::test::e2e_test_dir();
     // Build a valid test engine
     let (credentials, apis) = crate::test_util::e2e::build_apis().await?;
     let om = crate::order_manager::test_util::local_manager(test_dir, apis.get(&Exchange::Binance).unwrap().clone());
-    let _account_stream = brokers::coinnect::Coinnect::new_account_stream(
+    let _account_stream = brokers::broker::Broker::new_account_stream(
         Exchange::Binance,
         credentials,
         vec![om.clone().recipient()],
@@ -284,7 +284,7 @@ async fn test_live_market_margin_order_workflow() -> Result<()> {
         AccountType::Margin,
     )
     .await?;
-    Coinnect::load_pair_registries(apis.clone()).await?;
+    Broker::load_pair_registries(apis.clone()).await?;
     // Scenario based on trading BTC vs USDT on a margin account
     // 1- LONG : Buy the minimal BTC amount, then sell it without side effect
     // 1a - check that there is no borrowed amount
@@ -341,7 +341,7 @@ async fn test_live_market_margin_order_workflow() -> Result<()> {
 #[cfg(feature = "manual_e2e_tests")]
 #[actix::test]
 async fn test_live() -> Result<()> {
-    init();
+    util::test::init_test_env();
     let test_dir = util::test::e2e_test_dir();
     // Build a valid test engine
     let (_credentials, apis) = crate::test_util::e2e::build_apis().await?;
@@ -354,7 +354,7 @@ async fn test_live() -> Result<()> {
     //     AccountType::Margin,
     // )
     // .await?;
-    Coinnect::load_pair_registries(apis.clone()).await?;
+    Broker::load_pair_registries(apis.clone()).await?;
     let pair: Pair = "ETC_USDT".into();
     let qty = 0.2 + 0.00002084;
     //let qty = 1.0;

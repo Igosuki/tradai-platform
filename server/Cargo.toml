@@ -75,7 +75,7 @@ rand = { workspace = true }
 uuid = { workspace = true }
 url = { workspace = true }
 glob = { workspace = true, optional = true }
-
+multimap = "0.8.3"
 
 # Derive
 derive_more = { workspace = true }
@@ -96,7 +96,7 @@ sha2 = { workspace = true }
 env_logger = { workspace = true }
 tracing = { workspace = true }
 prometheus = { workspace = true, features = ["nightly", "push", "process", "gen"] }
-online = "4.0"
+online = { version = "4.0", features = ["tokio-runtime"] }
 measure_time = { workspace = true }
 
 # Profiling
@@ -110,3 +110,4 @@ nats = "0.18"
 
 [dev-dependencies]
 tempdir = { workspace = true }
+test-log = { workspace = true }

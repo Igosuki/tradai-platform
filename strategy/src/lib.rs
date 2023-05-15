@@ -65,19 +65,16 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use actix::{Addr, Message, Recipient};
-use chrono::Duration;
 use serde::Deserialize;
 use strum_macros::AsRefStr;
 use uuid::Uuid;
 
 use actor::StrategyActor;
-use brokers::broker::{MarketEventEnvelopeRef, Subject};
-use brokers::prelude::*;
-use brokers::types::{OrderbookConf, Symbol};
+use brokers::broker::MarketEventEnvelopeRef;
+use brokers::types::MarketChannel;
 use db::DbOptions;
 use error::*;
 use ext::ResultExt;
-use stats::kline::Resolution;
 use trading::engine::TradingEngine;
 use util::time::TimedData;
 
@@ -106,102 +103,6 @@ pub mod settings;
 #[cfg(test)]
 mod test_util;
 pub mod types;
-
-/// A market channel represents a unique stream of data that will be required to run a strategy
-/// Historical and Real-Time data will be provided from this on a best effort basis.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, typed_builder::TypedBuilder)]
-pub struct MarketChannel {
-    /// A unique identifier for the security requested by this market data channel
-    pub symbol: Symbol,
-    /// The type of the ticker
-    pub r#type: MarketChannelType,
-    /// The minimal tick rate for the data, in reality max(tick_rate, exchange_tick_rate) will be used
-    #[builder(default)]
-    pub tick_rate: Option<Duration>,
-    /// If set, the data will be aggregated in OHLCV candles
-    #[builder(default)]
-    pub resolution: Option<Resolution>,
-    /// Only send final candles
-    #[builder(default)]
-    pub only_final: Option<bool>,
-    #[builder(default)]
-    pub orderbook: Option<OrderbookConf>,
-}
-
-impl MarketChannel {
-    pub fn exchange(&self) -> Exchange { self.symbol.xch }
-
-    pub fn pair(&self) -> &Pair { &self.symbol.value }
-
-    pub fn name(&self) -> &'static str {
-        match self.r#type {
-            MarketChannelType::Trades => "trades",
-            MarketChannelType::Orderbooks { .. } => "order_books",
-            MarketChannelType::OpenInterest => "interests",
-            MarketChannelType::Candles => "candles",
-            MarketChannelType::Quotes => "quotes",
-            MarketChannelType::QuotesCandles => "book_candles",
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum MarketChannelType {
-    /// Raw Trades see [MarketEvent::Trade]
-    Trades,
-    /// Order book changes see [MarketEvent::Orderbook]
-    Orderbooks,
-    /// Kline events see [MarketEvent::CandleTick]
-    Candles,
-    /// Open interest for futures see [MarketEvent::OpenInterest]
-    OpenInterest,
-    /// Layer 1 order book quotes see [MarketEvent::Quote]
-    Quotes,
-    /// Kline for layer 1 order book [MarketEvent::BookCandle]
-    QuotesCandles,
-}
-
-impl From<&MarketEvent> for MarketChannelType {
-    fn from(e: &MarketEvent) -> Self {
-        match e {
-            MarketEvent::Trade(_) => Self::Trades,
-            MarketEvent::Orderbook(_) => Self::Orderbooks,
-            MarketEvent::TradeCandle(_) => Self::Candles,
-            MarketEvent::BookCandle(_) => Self::QuotesCandles,
-        }
-    }
-}
-
-impl From<MarketEvent> for MarketChannelType {
-    fn from(e: MarketEvent) -> Self { From::from(&e) }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct MarketChannelTopic(pub Symbol, pub MarketChannelType);
-
-impl From<MarketEventEnvelope> for MarketChannelTopic {
-    fn from(e: MarketEventEnvelope) -> Self { MarketChannelTopic(e.symbol, e.e.into()) }
-}
-
-impl From<&MarketEventEnvelope> for MarketChannelTopic {
-    fn from(e: &MarketEventEnvelope) -> Self { MarketChannelTopic(e.symbol.clone(), (&e.e).into()) }
-}
-
-impl From<MarketEventEnvelopeRef> for MarketChannelTopic {
-    fn from(e: MarketEventEnvelopeRef) -> Self { (e.as_ref()).into() }
-}
-
-impl Subject<MarketEventEnvelope> for MarketChannelTopic {}
-
-impl Subject<MarketEventEnvelopeRef> for MarketChannelTopic {}
-
-impl From<MarketChannel> for MarketChannelTopic {
-    fn from(mc: MarketChannel) -> Self { Self(mc.symbol, mc.r#type) }
-}
-
-impl From<&MarketChannel> for MarketChannelTopic {
-    fn from(mc: &MarketChannel) -> Self { Self(mc.symbol.clone(), mc.r#type) }
-}
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, AsRefStr, juniper::GraphQLEnum)]
 #[serde(rename_all = "snake_case")]
@@ -325,14 +226,12 @@ mod test {
     use actix::System;
 
     use brokers::prelude::*;
-    use brokers::types::SecurityType;
+    use brokers::types::{MarketChannelType, SecurityType, Symbol};
 
     use crate::driver::StrategyDriver;
     use crate::query::{DataQuery, DataResult, ModelReset, Mutation};
 
     use super::*;
-
-    fn init() { let _ = env_logger::builder().is_test(true).try_init(); }
 
     const TEST_PAIR: &str = "BTC_USDT";
 
@@ -380,7 +279,7 @@ mod test {
 
     #[test]
     fn test_simple_actor_query() {
-        init();
+        util::test::init_test_env();
         System::new().block_on(async move {
             let order_book_event = MarketEventEnvelope::order_book_event(
                 Symbol::new(TEST_PAIR.into(), SecurityType::Crypto, Exchange::Binance),

@@ -23,8 +23,6 @@ For instance, overriding strategy driver behavior is not yet available to python
 #[macro_use]
 extern crate async_trait;
 #[macro_use]
-extern crate inline_python;
-#[macro_use]
 extern crate log;
 #[macro_use]
 extern crate pyo3;
@@ -62,17 +60,11 @@ mod util;
 mod uuid;
 mod windowed_ta;
 
-use crate::backtest::__PYO3_PYMODULE_DEF_BACKTEST;
-use crate::model::__PYO3_PYMODULE_DEF_MODEL;
-use crate::ta::__PYO3_PYMODULE_DEF_TA;
-use crate::uuid::__PYO3_PYMODULE_DEF_UUID;
-use crate::windowed_ta::__PYO3_PYMODULE_DEF_WINDOWED_TA;
-
 create_exception!(strat, ModelError, pyo3::exceptions::PyException);
 create_exception!(strat, EvalError, pyo3::exceptions::PyException);
 
 #[pymodule]
-#[pyo3(name = "tradai_core")]
+#[pyo3(name = "tradai")]
 pub fn tradai(py: Python, m: &PyModule) -> PyResult<()> {
     // Core
     m.add_class::<PyStrategy>()?;
@@ -91,14 +83,14 @@ pub fn tradai(py: Python, m: &PyModule) -> PyResult<()> {
     m.add("ModelError", py.get_type::<ModelError>())?;
     m.add("EvalError", py.get_type::<EvalError>())?;
     m.add_function(wrap_pyfunction!(signal, m)?)?;
-    m.add_function(wrap_pyfunction!(mstrategy, m)?)?;
+    m.add_function(wrap_pyfunction!(register_strat, m)?)?;
 
     // Submodules
-    m.add_wrapped(wrap_pymodule!(backtest))?;
-    m.add_wrapped(wrap_pymodule!(uuid))?;
-    m.add_wrapped(wrap_pymodule!(ta))?;
-    m.add_wrapped(wrap_pymodule!(windowed_ta))?;
-    m.add_wrapped(wrap_pymodule!(model))?;
+    m.add_wrapped(wrap_pymodule!(crate::backtest::backtest))?;
+    m.add_wrapped(wrap_pymodule!(crate::uuid::uuid))?;
+    m.add_wrapped(wrap_pymodule!(ta::ta))?;
+    m.add_wrapped(wrap_pymodule!(windowed_ta::windowed_ta))?;
+    m.add_wrapped(wrap_pymodule!(model::model))?;
     Ok(())
 }
 

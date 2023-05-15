@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::Instant;
 
-use chrono::{Date, DateTime, Duration, Timelike, Utc};
-use datafusion::record_batch::RecordBatch;
+use chrono::{DateTime, Duration, Timelike, Utc};
+use datafusion::arrow::record_batch::RecordBatch;
 use futures::future::BoxFuture;
 use futures::{Stream, StreamExt};
 
@@ -12,9 +12,9 @@ use crate::datasources::orderbook::{flat_orderbooks_stream, raw_orderbooks_df, r
                                     sampled_orderbooks_df, sampled_orderbooks_stream};
 use brokers::broker::{AsyncBroker, ChannelMessageBroker};
 use brokers::prelude::{Exchange, Pair};
-use brokers::types::{MarketEventEnvelope, SecurityType};
-use strategy::{MarketChannel, MarketChannelTopic, MarketChannelType};
-use util::time::DateRange;
+use brokers::types::MarketChannelTopic;
+use brokers::types::{MarketChannel, MarketChannelType, MarketEventEnvelope, SecurityType};
+use util::time::{utc_at_midnight, DateRange};
 
 use crate::datasources::trades::{candles_df, candles_stream, trades_df, trades_stream};
 use crate::error::*;
@@ -22,7 +22,7 @@ use crate::error::*;
 // TODO: There should be some other way to load table definitions, maybe a json file or a data catalog format
 
 pub fn coindata_data_cache_dir() -> PathBuf {
-    Path::new(&std::env::var("COINDATA_CACHE_DIR").unwrap_or_else(|_| "".to_string())).to_path_buf()
+    Path::new(&std::env::var("TRADAI_DATA_CACHE_DIR").unwrap_or_else(|_| "".to_string())).to_path_buf()
 }
 
 #[derive(Clone)]
@@ -97,7 +97,7 @@ pub struct DatasetReader {
 }
 
 impl DatasetReader {
-    fn datasets<'a, I>(&self, channels: I, dt: Date<Utc>) -> Vec<Dataset>
+    fn datasets<'a, I>(&self, channels: I, dt: DateTime<Utc>) -> Vec<Dataset>
     where
         I: Iterator<Item = &'a MarketChannel>,
     {
@@ -149,7 +149,7 @@ impl DatasetReader {
     where
         I: Iterator<Item = &'a MarketChannel>,
     {
-        let datasets = self.datasets(channels, lower_dt.date());
+        let datasets = self.datasets(channels, utc_at_midnight(lower_dt));
         let lower_dt = (lower_dt.num_seconds_from_midnight() != 0).then(|| lower_dt);
         let stream: Pin<Box<dyn Stream<Item = MarketEventEnvelope>>> =
             Box::pin(futures::stream::select_all(datasets.iter().map(|ds| {
@@ -206,7 +206,7 @@ impl DatasetReader {
     where
         I: Iterator<Item = &'a MarketChannel>,
     {
-        let datasets = self.datasets(channels, lower_dt.date());
+        let datasets = self.datasets(channels, utc_at_midnight(lower_dt));
         let lower_dt = (lower_dt.num_seconds_from_midnight() != 0).then(|| lower_dt);
         let rb = futures::future::try_join_all(datasets.iter().map(|ds| {
             let input_format = ds.r#type.default_format().to_string();
@@ -339,26 +339,13 @@ impl MarketEventDatasetType {
     pub(crate) fn partition(
         self,
         base_dir: PathBuf,
-        date: Date<Utc>,
+        date: DateTime<Utc>,
         xch: Exchange,
         pair: &Pair,
         sec_type: Option<SecurityType>,
     ) -> (PathBuf, Vec<(&'static str, String)>) {
         let dt_par = date.format("%Y%m%d").to_string();
-        let asset_str = sec_type
-            .map(|st| match st {
-                SecurityType::Equity => "eqty",
-                SecurityType::Option => "opt",
-                SecurityType::Commodity => "comm",
-                SecurityType::Forex => "frx",
-                SecurityType::Future => "futures",
-                SecurityType::Cfd => "cfd",
-                SecurityType::Crypto => "spot",
-                SecurityType::FutureOption => "fut_opt",
-                SecurityType::Index => "idx",
-                SecurityType::IndexOption => "idx_opt",
-            })
-            .unwrap_or("");
+        let asset_str = sec_type.map(|sc| sc.short()).unwrap_or("");
         match self {
             MarketEventDatasetType::OrderbooksByMinute => (base_dir.join("chan=1mn_order_books"), vec![
                 ("xch", xch.to_string()),
