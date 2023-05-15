@@ -20,7 +20,7 @@ rkv = ["dep:rkv", "lmdb-rkv", "tracing"]
 release_max_level_debug = ["tracing/release_max_level_debug"]
 release_max_level_trace = ["tracing/release_max_level_trace"]
 release_default = ["structopt"]
-io_rkyv = ["rkyv", "rkyv_dyn", "rkyv_typename", "rkyv/bytecheck", "bytecheck", "rkyv/validation"]
+io_rkyv = ["rkyv", "rkyv_dyn", "rkyv_typename", "rkyv/bytecheck", "rkyv/validation"]
 
 [dependencies]
 # trader
@@ -43,12 +43,11 @@ serde_json = { workspace = true }
 rkyv = { version = "0.7", features = ["smallvec", "uuid"], optional = true }
 rkyv_dyn = { version = "0.7", optional = true }
 rkyv_typename = { version = "0.7", optional = true }
-bytecheck = { version = "0.6", optional = true }
 
 # databases
 lmdb-rkv = { version = "0.14", optional = true }
 rkv = { version = "0.18", optional = true }
-rocksdb = { version = "0.19", features = ["serde1", "multi-threaded-cf", "lz4", "zstd"] }
+rocksdb = { version = "0.21.0", features = ["serde1", "multi-threaded-cf", "lz4", "zstd"] }
 # Flatdata is write once read many and fast memory mapping a structured file
 #flatdata = "0.5"
 
