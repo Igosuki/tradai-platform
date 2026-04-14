@@ -106,7 +106,7 @@ gperftools = { version = "0.2", optional = true, features = ["heap"] }
 checkers = { version = "0.6", optional = true, features = ["zeroed", "backtrace", "checkers-macros", "fxhash", "macros", "realloc"] }
 
 # Queues
-nats = "0.18"
+nats = "0.24"
 
 [dev-dependencies]
 tempdir = { workspace = true }
