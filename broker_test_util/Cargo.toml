@@ -20,7 +20,7 @@ binance-rs-async = "1.3.2"
 httpmock = "0.6.7"
 
 # Std
-rand = "0.8.5"
+rand = "0.9.3"
 bytestring = "1.3.0"
 chrono = "0.4.24"
 

@@ -80,4 +80,4 @@ env_logger = { workspace = true, optional = true }
 
 # async
 futures = "0.3.28"
-tokio = "1.28.1"
+tokio = "1.28.2"
